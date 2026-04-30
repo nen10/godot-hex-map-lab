@@ -11,6 +11,7 @@
 - `addons/hex_map_kit/core/hex_grid.gd`
 - `addons/hex_map_kit/core/hex_toric_coordinate.gd`
 - `addons/hex_map_kit/core/hex_randomizer.gd`
+- `addons/hex_map_kit/core/hex_map_debug.gd`
 
 ## データモデル
 
@@ -72,6 +73,22 @@ randf() < wall_probability なら壁
 
 BFS の探索空間は `cells` 全体であり、floor だけではない。これは「壁を削れば通路にできる候補」を探索するため。
 
+### 5. デバッグ表示
+
+`HexMapDebug.render_ascii(data)` は、`HexMapData` を deterministic な文字列として表示する。
+
+標準の表示文字は以下。
+
+- floor: `.`
+- wall: `#`
+- missing cell: 半角スペース
+
+`cells` の axial 範囲を `r` 行、`q` 列として走査する。`indent_rows` が `true` の場合、奇数 `r` 行の先頭に missing cell 文字を 1 つ追加し、hex 行のずれを簡易表示する。
+
+`HexMapDebug.render_summary(data)` は、データ確認用に `cells`、`walls`、`floors`、`cyclic_size` の件数を 1 行で返す。
+
+この表示は Core データの確認用であり、TileMapLayer 表示や最終的なゲーム内描画ではない。
+
 ## Toric と Non-Toric の差異
 
 ### neighbor の扱い
@@ -91,4 +108,3 @@ toric は現時点では `size x size` の正方形のみを扱う。`HexMapData
 non-toric の回復経路は map 外へ出られない。
 
 toric の回復経路は端を跨げる。したがって、non-toric なら遠回りになる配置でも、toric では境界越しの短い経路により少ない壁削除で接続できる場合がある。
-

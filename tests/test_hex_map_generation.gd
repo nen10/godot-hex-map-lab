@@ -4,6 +4,7 @@ const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const HexRandomizer = preload("res://addons/hex_map_kit/core/hex_randomizer.gd")
 const HexMapData = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
 const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
+const HexMapDebug = preload("res://addons/hex_map_kit/core/hex_map_debug.gd")
 
 var _failures: Array[String] = []
 
@@ -22,6 +23,8 @@ func _run() -> void:
 	_test_restore_connectivity_uses_toric_shortcut()
 	_test_generate_rectangle_can_restore_connectivity()
 	_test_generate_toric_square_can_restore_connectivity()
+	_test_debug_ascii_renders_wall_layout()
+	_test_debug_summary_reports_counts()
 
 	if _failures.is_empty():
 		print("test_hex_map_generation.gd: all tests passed")
@@ -181,3 +184,28 @@ func _test_generate_toric_square_can_restore_connectivity() -> void:
 	_assert_eq(data.cyclic_size, 6, "generated toric square stores cyclic size")
 	_assert_false(HexMapData.has_key(data.walls, HexVector.zero().key()), "protected toric cell remains floor")
 	_assert_true(HexMapGenerator.is_floor_connected(data), "generated toric square can be restored")
+
+
+func _test_debug_ascii_renders_wall_layout() -> void:
+	var data = HexMapData.rectangle(3, 2)
+	data.set_walls([
+		HexVector.apply_basis(1, 0, 0),
+		HexVector.apply_basis(0, 0, 1),
+	])
+
+	_assert_eq(
+		HexMapDebug.render_ascii(data, ".", "#", " ", false),
+		".#.\n#..",
+		"debug ascii renders q/r wall layout"
+	)
+
+
+func _test_debug_summary_reports_counts() -> void:
+	var data = HexMapData.toric_square(2)
+	data.set_walls([HexVector.zero()])
+
+	_assert_eq(
+		HexMapDebug.render_summary(data),
+		"cells=4 walls=1 floors=3 cyclic_size=2",
+		"debug summary reports map counts"
+	)
