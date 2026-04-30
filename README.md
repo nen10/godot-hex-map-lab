@@ -16,18 +16,34 @@
   - マップ上に配置する項目・タイルセットの管理機能を追加したい(未実装)
   - マップ生成機能アドオン化の際の利用形態
     - 実行時ランダム生成
-    - シーンノード作成
+    - シーンノード生成
 
-## Core 開発マップ案
+## 開発マップ
 
-1. Hex座標・距離・近傍列挙をGDScriptに移植
-2. ランダム壁生成をデータだけで実行
-3. 連結性判定・回復処理をデータだけで検証
-4. デバッグ表示
-5. TileMapLayer/TileSet対応
-6. EditorPlugin化
+1. Core: マップデータ生成機能
+  1.1. Hex座標・距離・近傍列挙をGDScriptに移植
+  1.2. ランダム壁生成をデータだけで実行
+  1.3. 連結性判定・回復処理をデータだけで検証
+  1.4. デバッグ表示
+2. Adapter: TileMapLayer/TileSet対応
+  Coreの結果をTileMapLayer、Node2D、Resourceに変換する層。
+3. EditorPlugin化
+  インスペクタ、ドック、ボタン、シーンノード生成。
+
+## Structure
+
+- addons/hex_map_kit/**
+  - 配布用
+
+- docs/**
+  - document
 
 
-Unity source reference:
+## Unity source reference
+
 `/Users/nenten/Desktop/cosmos/_archive/ecologic-survivor/ecologic-survivor/Assets/Script/HexTileSystem`
 
+## Debug用画像Asset
+
+随時生成します。
+マップタイルの場合、flat-top/pointy-topを区別して管理します。
