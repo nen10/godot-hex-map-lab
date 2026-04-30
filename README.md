@@ -46,7 +46,9 @@
 ## Docs
 
 - `docs/TEST.md`: テスト実行方法
-- `docs/algorithm/ALGORITHM_MAP_GENERATION.md`: map 生成アルゴリズム(移行済み部分のみ)
+- `docs/algorithm/**`: 独自のデータ構造・数学的な詳細を伴うコードに関して、混乱を防ぐためのドキュメント群
+  - `docs/algorithm/ALGORITHM_MAP_GENERATION.md`: map 生成アルゴリズム(移行済み部分のみ)
+  - `docs/algorithm/ALGORITHM_ADAPTER.md`: Adapter 変換
 
 ## Test
 

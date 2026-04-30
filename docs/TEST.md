@@ -11,6 +11,7 @@ intaractiveなテスト作成時、実行方法をdocumentationする
 
 - `tests/test_hex_core.gd`
 - `tests/test_hex_map_generation.gd`
+- `tests/test_hex_adapter.gd`
 
 
 ## 実行
@@ -25,4 +26,4 @@ Godot の実行ファイルを明示する場合:
 GODOT_BIN=/path/to/Godot ./tools/test.sh
 ```
 
-Godot が出す macOS 証明書関連の非致命的な ERROR は既知であり無視します。
+Godot が出す終了コード 0の macOS 証明書関連の非致命的な ERROR は既知であり無視します。

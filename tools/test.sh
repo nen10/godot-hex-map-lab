@@ -24,6 +24,7 @@ mkdir -p "$LOG_DIR"
 TEST_SCRIPTS=(
   "res://tests/test_hex_core.gd"
   "res://tests/test_hex_map_generation.gd"
+  "res://tests/test_hex_adapter.gd"
 )
 
 for test_script in "${TEST_SCRIPTS[@]}"; do
