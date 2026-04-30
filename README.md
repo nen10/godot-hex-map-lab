@@ -22,8 +22,10 @@
 
 1. Core: マップデータ生成機能
   1.1. Hex座標・距離・近傍列挙をGDScriptに移植
-  1.2. ランダム壁生成をデータだけで実行
-  1.3. 連結性判定・回復処理をデータだけで検証
+  1.2.0. ランダム壁生成をデータだけで実行
+  1.3.0. 連結性判定・回復処理をデータだけで検証
+  1.2.1. (Toric)ランダム壁生成をデータだけで実行
+  1.3.1. (Toric)連結性判定・回復処理をデータだけで検証
   1.4. デバッグ表示
 2. Adapter: TileMapLayer/TileSet対応
   Coreの結果をTileMapLayer、Node2D、Resourceに変換する層。
@@ -37,6 +39,14 @@
 
 - docs/**
   - document
+
+## Test
+
+```sh
+./tools/test.sh
+```
+
+詳細は `docs/TEST.md` を参照
 
 
 ## Unity source reference
