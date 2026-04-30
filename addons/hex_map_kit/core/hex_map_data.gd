@@ -28,6 +28,10 @@ static func rectangle(width: int, height: int, toric: bool = false):
 	return from_cells(result, [], width if toric else 0)
 
 
+static func toric_square(size: int):
+	return rectangle(size, size, true)
+
+
 static func from_cells(p_cells: Array, p_walls: Array = [], p_cyclic_size: int = 0):
 	return load("res://addons/hex_map_kit/core/hex_map_data.gd").new(
 		p_cells,

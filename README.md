@@ -20,17 +20,20 @@
 
 ## 開発マップ
 
-1. Core: マップデータ生成機能
+1. Core: 四角形マップデータ生成機能
   1.1. Hex座標・距離・近傍列挙をGDScriptに移植
-  1.2.0. ランダム壁生成をデータだけで実行
-  1.3.0. 連結性判定・回復処理をデータだけで検証
-  1.2.1. (Toric)ランダム壁生成をデータだけで実行
-  1.3.1. (Toric)連結性判定・回復処理をデータだけで検証
+  1.2. ランダム壁生成をデータだけで実行
+  1.3. 連結性判定・回復処理をデータだけで検証
   1.4. デバッグ表示
 2. Adapter: TileMapLayer/TileSet対応
   Coreの結果をTileMapLayer、Node2D、Resourceに変換する層。
 3. EditorPlugin化
   インスペクタ、ドック、ボタン、シーンノード生成。
+4. マップデータの六角形表示・ループ表示機能
+  4.1. Toricな理解を使用した正方形マップと六角形マップの相互変換(Core/Adapter)
+  4.2. 正方形マップを六角形マップとして理解し、外周から内側への壁生成アルゴリズムを移植(Core)
+  4.3. terminal 指向の連結性回復
+  4.4. Toricマップの実行時ループ表示機能
 
 ## Structure
 
@@ -39,6 +42,11 @@
 
 - docs/**
   - document
+
+## Docs
+
+- `docs/TEST.md`: テスト実行方法
+- `docs/algorithm/ALGORITHM_MAP_GENERATION.md`: map 生成アルゴリズム(移行済み部分のみ)
 
 ## Test
 
