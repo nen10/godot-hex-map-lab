@@ -3,6 +3,7 @@ extends SceneTree
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const HexPoint = preload("res://addons/hex_map_kit/core/hex_point.gd")
 const HexToricCoordinate = preload("res://addons/hex_map_kit/core/hex_toric_coordinate.gd")
+const HexToricMapSplitRule = preload("res://addons/hex_map_kit/core/hex_toric_map_split_rule.gd")
 const HexGrid = preload("res://addons/hex_map_kit/core/hex_grid.gd")
 
 var _failures: Array[String] = []
@@ -23,6 +24,9 @@ func _run() -> void:
 	_test_grid_l1_ring_and_disc()
 	_test_grid_shortest_path_uses_enterable_points()
 	_test_grid_toric_shortest_path_wraps_edges()
+	_test_toric_split_rule_triangle_units()
+	_test_toric_split_rule_partitions_square_canvas()
+	_test_toric_split_rule_rough_tags()
 
 	if _failures.is_empty():
 		print("test_hex_core.gd: all tests passed")
@@ -63,6 +67,19 @@ func _keys(points: Array) -> Array:
 	for point in points:
 		result.append(point.key())
 	return result
+
+
+func _sorted_keys(points: Array) -> Array:
+	var result = _keys(points)
+	result.sort()
+	return result
+
+
+func _assert_sorted_keys_eq(actual: Array, expected: Array, message: String) -> void:
+	var actual_keys = _sorted_keys(actual)
+	var expected_keys = _sorted_keys(expected)
+	if actual_keys != expected_keys:
+		_failures.append("%s: expected %s, got %s" % [message, str(expected_keys), str(actual_keys)])
 
 
 func _test_hex_vector_basis_normalization() -> void:
@@ -232,3 +249,65 @@ func _test_grid_toric_shortest_path_wraps_edges() -> void:
 	)
 
 	_assert_keys_eq(path, [origin, wrapped_west], "toric shortest path follows wrapped edge")
+
+
+func _test_toric_split_rule_triangle_units() -> void:
+	var origin = HexVector.zero()
+	var flat_left = HexToricMapSplitRule.triangle(3, origin, true)
+	var flat_right = HexToricMapSplitRule.triangle(3, origin, false)
+
+	_assert_sorted_keys_eq(
+		flat_left,
+		[
+			HexVector.apply_basis(0, 0, 0),
+			HexVector.apply_basis(0, 0, 1),
+			HexVector.apply_basis(0, 0, 2),
+			HexVector.apply_basis(1, 0, 1),
+			HexVector.apply_basis(1, 0, 2),
+			HexVector.apply_basis(2, 0, 2),
+		],
+		"flat-left triangle follows Unity Geometry.Triangle r-q>=0 rule"
+	)
+	_assert_sorted_keys_eq(
+		flat_right,
+		[
+			HexVector.apply_basis(0, 0, 0),
+			HexVector.apply_basis(1, 0, 0),
+			HexVector.apply_basis(2, 0, 0),
+			HexVector.apply_basis(1, 0, 1),
+			HexVector.apply_basis(2, 0, 1),
+			HexVector.apply_basis(2, 0, 2),
+		],
+		"flat-right triangle follows Unity Geometry.Triangle r-q<=0 rule"
+	)
+
+
+func _test_toric_split_rule_partitions_square_canvas() -> void:
+	var rule = HexToricMapSplitRule.new(2)
+	var expected_cells: Array = []
+	for r in range(rule.cyclic_size):
+		for q in range(rule.cyclic_size):
+			expected_cells.append(HexVector.apply_basis(q, 0, r))
+
+	_assert_eq(rule.map_unit_radius, 2, "split rule stores map unit radius")
+	_assert_eq(rule.cyclic_size, 5, "split rule cyclic size is 2r+1")
+	_assert_eq(rule.split_canvas.size(), 9, "split rule creates eight triangles and one center")
+	_assert_eq(rule.split_canvas_origins.size(), 9, "split rule stores every split origin")
+	_assert_eq(rule.split_tag.size(), 25, "split tags cover every square canvas cell once")
+	_assert_sorted_keys_eq(rule.canvas_cells(), expected_cells, "split canvas partitions toric square")
+
+	for index in range(8):
+		_assert_eq(rule.split_canvas[index].size(), 3, "radius 2 triangle split area cell count")
+	_assert_eq(rule.split_canvas[8].size(), 1, "split area 8 is the center cell")
+
+	for cell in expected_cells:
+		_assert_true(rule.split_index_for(cell) >= 0, "every canvas cell has a split index")
+
+
+func _test_toric_split_rule_rough_tags() -> void:
+	var rule = HexToricMapSplitRule.new(2)
+
+	_assert_eq(rule.get_rough_split_tag(rule.split_canvas[0][0]), 0, "rough tag preserves split 0")
+	_assert_eq(rule.get_rough_split_tag(rule.split_canvas[7][0]), 7, "rough tag preserves split 7")
+	_assert_eq(rule.get_rough_split_tag(rule.split_canvas[3][0]), 8, "rough tag groups inner side split")
+	_assert_eq(rule.get_rough_split_tag(rule.split_canvas[8][0]), 8, "rough tag preserves center group")

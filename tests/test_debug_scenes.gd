@@ -2,6 +2,7 @@ extends SceneTree
 
 const GeneratedMapDebugScene = preload("res://debug/generated_map_debug.tscn")
 const GeneratedMapDebug = preload("res://debug/generated_map_debug.gd")
+const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
 
 var _failures: Array[String] = []
@@ -32,6 +33,7 @@ func _run() -> void:
 	_assert_eq(toric_data.cyclic_size, 7, "generated map debug can show toric data")
 	_assert_true(HexMapGenerator.is_floor_connected(toric_data), "debug toric data is restored")
 	_assert_true(scene.get_current_path().size() > 1, "debug toric data exposes a path")
+	_assert_eq(scene.get_split_index(HexVector.zero()), 2, "debug toric data exposes split rule")
 
 	scene.queue_free()
 	await process_frame

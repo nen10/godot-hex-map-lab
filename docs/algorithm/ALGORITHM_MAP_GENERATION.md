@@ -10,6 +10,7 @@
 - `addons/hex_map_kit/core/hex_map_generator.gd`
 - `addons/hex_map_kit/core/hex_grid.gd`
 - `addons/hex_map_kit/core/hex_toric_coordinate.gd`
+- `addons/hex_map_kit/core/hex_toric_map_split_rule.gd`
 - `addons/hex_map_kit/core/hex_randomizer.gd`
 - `addons/hex_map_kit/core/hex_map_debug.gd`
 
@@ -44,6 +45,17 @@ cell = HexVector.apply_basis(q, 0, r)
 toric の入口は `HexMapData.toric_square(size)` または `HexMapGenerator.generate_toric_square(...)`。
 
 toric は現時点では正方形のみを対象にする。`cyclic_size = size` として保存する。
+
+### Toric 正方形の 9 分割
+
+`HexToricMapSplitRule(map_unit_radius)` は、Unity 版 `HexToricMapSplitRule` の三角形 9 分割を Core データとして作る。
+
+- `cyclic_size = map_unit_radius * 2 + 1`
+- split 0-7 は `Geometry.Triangle(edgeLength, origin, flatLeft)` 相当の三角形
+- split 8 は中心 cell 1 つ
+- 9 個の split は `cyclic_size x cyclic_size` の toric square 全体を重複なく覆う
+
+この分割は、正方形 toric map と六角形としての理解を対応づける処理、および外周から内側への対称生成アルゴリズムの前提になる。
 
 ### 2. ランダム壁を配置する
 
