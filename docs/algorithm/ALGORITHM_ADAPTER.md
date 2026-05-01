@@ -66,6 +66,10 @@ y = size * 3/2 * b
 
 視覚確認用 scene は `debug/hex_orientation_debug.tscn`、起動用 script は `tools/debug_hex_orientation.sh` に置いている。
 
+toric square を六角形寄りに表示する場合は、描画前に `HexToricCoordinate.centered_vector(vector, cyclic_size)` で同じ toric cell の centered representative に変換する。この変換は `wrap_vector(centered, cyclic_size) == original` を満たすため、map data の cell identity は変えずに表示 domain だけを切り替える。
+
+糊代つきの展開図として表示する場合は `HexToricCoordinate.unfolded_vectors(vector, cyclic_size)` を使う。戻り値は同一 toric cell の複数代表座標で、各要素は `wrap_vector(copy, cyclic_size) == original` を満たす。表示側は同一 cell を複数回描画できるが、map data は重複させない。
+
 ## Resource 用変換
 
 `HexMapResource` は `Resource` 派生の保存用データである。

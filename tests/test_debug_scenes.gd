@@ -34,6 +34,40 @@ func _run() -> void:
 	_assert_true(HexMapGenerator.is_floor_connected(toric_data), "debug toric data is restored")
 	_assert_true(scene.get_current_path().size() > 1, "debug toric data exposes a path")
 	_assert_eq(scene.get_split_index(HexVector.zero()), 2, "debug toric data exposes split rule")
+	_assert_eq(
+		scene.get_display_vector(HexVector.apply_basis(6, 0, 0)).key(),
+		HexVector.q_axis().negated().key(),
+		"debug toric data uses centered display domain"
+	)
+
+	var toric_sizes = [7, 8, 9]
+	for index in range(toric_sizes.size()):
+		scene.configure_for_test(
+			GeneratedMapDebug.SHAPE_TORIC_SQUARE,
+			987,
+			0.45,
+			true,
+			false,
+			index
+		)
+		var size_data = scene.get_current_map_data()
+		_assert_eq(scene.get_toric_size(), toric_sizes[index], "debug toric size selector")
+		_assert_eq(size_data.cells.size(), toric_sizes[index] * toric_sizes[index], "debug toric size cell count")
+		_assert_true(HexMapGenerator.is_floor_connected(size_data), "debug toric size data is restored")
+
+	scene.configure_for_test(
+		GeneratedMapDebug.SHAPE_TORIC_SQUARE,
+		987,
+		0.45,
+		true,
+		false,
+		0,
+		true
+	)
+	_assert_true(
+		scene.get_display_vectors(HexVector.apply_basis(6, 0, 0)).size() > 1,
+		"debug toric unfold display emits glue-margin copies"
+	)
 
 	scene.queue_free()
 	await process_frame

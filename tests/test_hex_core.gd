@@ -19,6 +19,8 @@ func _run() -> void:
 	_test_hex_point_offset_roundtrip()
 	_test_hex_point_distance_and_addition()
 	_test_toric_coordinate_wraps_axial_values()
+	_test_toric_coordinate_centered_vectors_preserve_identity()
+	_test_toric_coordinate_unfolded_vectors_preserve_identity()
 	_test_grid_neighbors_and_connected_area()
 	_test_grid_toric_connected_area_wraps_neighbors()
 	_test_grid_l1_ring_and_disc()
@@ -140,6 +142,63 @@ func _test_toric_coordinate_wraps_axial_values() -> void:
 
 	var wrapped_s = HexToricCoordinate.apply_cyclic(HexVector.s_axis(), 5)
 	_assert_eq(wrapped_s.axial(), Vector2i(4, 4), "S axis wraps through q-s/r-s axial values")
+
+
+func _test_toric_coordinate_centered_vectors_preserve_identity() -> void:
+	_assert_vector_eq(
+		HexToricCoordinate.centered_vector(HexVector.apply_basis(6, 0, 0), 7),
+		HexVector.q_axis().negated(),
+		"centered toric vector uses negative Q representative"
+	)
+	_assert_vector_eq(
+		HexToricCoordinate.centered_vector(HexVector.apply_basis(6, 0, 6), 7),
+		HexVector.s_axis(),
+		"centered toric vector normalizes wrapped diagonal corner"
+	)
+
+	var size = 5
+	var centered_keys := {}
+	for r in range(size):
+		for q in range(size):
+			var original = HexVector.apply_basis(q, 0, r)
+			var centered = HexToricCoordinate.centered_vector(original, size)
+			centered_keys[centered.key()] = true
+			_assert_vector_eq(
+				HexToricCoordinate.wrap_vector(centered, size),
+				original,
+				"centered toric vector wraps back to original identity"
+			)
+			_assert_true(
+				centered.l_infinity_norm() <= 2,
+				"centered toric vector stays inside map unit radius"
+			)
+
+	_assert_eq(centered_keys.size(), 25, "centered toric domain preserves every square cell")
+
+
+func _test_toric_coordinate_unfolded_vectors_preserve_identity() -> void:
+	var size = 7
+	var point = HexVector.apply_basis(6, 0, 0)
+	var unfolded = HexToricCoordinate.unfolded_vectors(point, size)
+
+	_assert_true(unfolded.size() > 1, "unfolded toric vectors include glue-margin copies")
+	_assert_vector_eq(
+		unfolded[0],
+		HexToricCoordinate.centered_vector(point, size),
+		"unfolded toric vectors keep centered representative first"
+	)
+
+	var unfolded_keys := {}
+	for duplicate in unfolded:
+		unfolded_keys[duplicate.key()] = true
+		_assert_vector_eq(
+			HexToricCoordinate.wrap_vector(duplicate, size),
+			HexToricCoordinate.wrap_vector(point, size),
+			"unfolded toric vector wraps back to original identity"
+		)
+		_assert_true(duplicate.l1_norm() <= size, "unfolded vector stays in visible glue domain")
+
+	_assert_eq(unfolded_keys.size(), unfolded.size(), "unfolded toric copies are unique")
 
 
 func _test_grid_neighbors_and_connected_area() -> void:

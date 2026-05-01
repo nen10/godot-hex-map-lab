@@ -4,6 +4,7 @@ const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const HexGrid = preload("res://addons/hex_map_kit/core/hex_grid.gd")
 const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
 const HexMapDebug = preload("res://addons/hex_map_kit/core/hex_map_debug.gd")
+const HexToricCoordinate = preload("res://addons/hex_map_kit/core/hex_toric_coordinate.gd")
 const HexToricMapSplitRule = preload("res://addons/hex_map_kit/core/hex_toric_map_split_rule.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 
@@ -12,8 +13,7 @@ const MAP_ORIGIN := Vector2(520.0, 350.0)
 const RECTANGLE_WIDTH := 8
 const RECTANGLE_HEIGHT := 6
 const HEXAGON_RADIUS := 3
-const TORIC_MAP_UNIT_RADIUS := 3
-const TORIC_SIZE := TORIC_MAP_UNIT_RADIUS * 2 + 1
+const TORIC_SIZE_PATTERNS := [7, 8, 9]
 const WALL_PROBABILITIES := [0.25, 0.45, 0.65]
 const SHAPE_NAMES := ["Rectangle", "Hexagon", "Toric"]
 const FLOOR_COLOR := Color(0.78, 0.84, 0.78)
@@ -52,8 +52,11 @@ var _ensure_connected := true
 var _flat_top := true
 var _show_path := true
 var _show_split := true
+var _center_toric_domain := true
+var _unfold_toric_domain := false
+var _toric_size_index := 0
 var _map_data
-var _split_rule = HexToricMapSplitRule.new(TORIC_MAP_UNIT_RADIUS)
+var _split_rule = null
 var _path_points: Array = []
 var _shape_buttons: Array[Button] = []
 var _summary_label: Label
@@ -62,6 +65,9 @@ var _probability_option: OptionButton
 var _connected_check: CheckButton
 var _path_check: CheckButton
 var _split_check: CheckButton
+var _domain_check: CheckButton
+var _unfold_check: CheckButton
+var _toric_size_option: OptionButton
 
 
 func _ready() -> void:
@@ -74,13 +80,18 @@ func configure_for_test(
 	seed: int,
 	wall_probability: float,
 	ensure_connected: bool,
-	flat_top: bool
+	flat_top: bool,
+	toric_size_index: int = -1,
+	unfold_toric_domain: bool = false
 ) -> void:
 	_shape_mode = shape_mode
 	_seed = seed
 	_wall_probability = wall_probability
 	_ensure_connected = ensure_connected
 	_flat_top = flat_top
+	if toric_size_index >= 0:
+		_toric_size_index = clampi(toric_size_index, 0, TORIC_SIZE_PATTERNS.size() - 1)
+	_unfold_toric_domain = unfold_toric_domain
 	_sync_controls()
 	_generate_map()
 
@@ -94,7 +105,21 @@ func get_current_path() -> Array:
 
 
 func get_split_index(point) -> int:
+	if _split_rule == null:
+		return -1
 	return _split_rule.split_index_for(point)
+
+
+func get_display_vector(point):
+	return _display_vector(point)
+
+
+func get_display_vectors(point) -> Array:
+	return _display_vectors(point)
+
+
+func get_toric_size() -> int:
+	return _toric_size()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -118,6 +143,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			_set_path_visible(not _show_path)
 		KEY_S:
 			_set_split_visible(not _show_split)
+		KEY_D:
+			_set_domain_centered(not _center_toric_domain)
+		KEY_U:
+			_set_unfold_visible(not _unfold_toric_domain)
+		KEY_N:
+			_set_toric_size_index((_toric_size_index + 1) % TORIC_SIZE_PATTERNS.size())
 
 
 func _draw() -> void:
@@ -162,6 +193,22 @@ func _build_controls() -> void:
 	_split_check.toggled.connect(_set_split_visible)
 	add_child(_split_check)
 
+	_domain_check = CheckButton.new()
+	_domain_check.text = "Hex Domain"
+	_domain_check.position = Vector2(878.0, 54.0)
+	_domain_check.size = Vector2(128.0, 36.0)
+	_domain_check.button_pressed = _center_toric_domain
+	_domain_check.toggled.connect(_set_domain_centered)
+	add_child(_domain_check)
+
+	_unfold_check = CheckButton.new()
+	_unfold_check.text = "Unfold"
+	_unfold_check.position = Vector2(878.0, 90.0)
+	_unfold_check.size = Vector2(104.0, 36.0)
+	_unfold_check.button_pressed = _unfold_toric_domain
+	_unfold_check.toggled.connect(_set_unfold_visible)
+	add_child(_unfold_check)
+
 	_probability_option = OptionButton.new()
 	_probability_option.position = Vector2(668.0, 20.0)
 	_probability_option.size = Vector2(96.0, 32.0)
@@ -177,6 +224,14 @@ func _build_controls() -> void:
 	next_seed_button.size = Vector2(96.0, 32.0)
 	next_seed_button.pressed.connect(_next_seed)
 	add_child(next_seed_button)
+
+	_toric_size_option = OptionButton.new()
+	_toric_size_option.position = Vector2(668.0, 54.0)
+	_toric_size_option.size = Vector2(96.0, 32.0)
+	for toric_size in TORIC_SIZE_PATTERNS:
+		_toric_size_option.add_item("N=%d" % toric_size)
+	_toric_size_option.item_selected.connect(_set_toric_size_index)
+	add_child(_toric_size_option)
 
 	_summary_label = Label.new()
 	_summary_label.position = Vector2(24.0, 606.0)
@@ -240,6 +295,25 @@ func _set_split_visible(value: bool) -> void:
 	queue_redraw()
 
 
+func _set_domain_centered(value: bool) -> void:
+	_center_toric_domain = value
+	_sync_controls()
+	queue_redraw()
+
+
+func _set_unfold_visible(value: bool) -> void:
+	_unfold_toric_domain = value
+	_sync_controls()
+	_update_summary()
+	queue_redraw()
+
+
+func _set_toric_size_index(index: int) -> void:
+	_toric_size_index = clampi(index, 0, TORIC_SIZE_PATTERNS.size() - 1)
+	_sync_controls()
+	_generate_map()
+
+
 func _sync_controls() -> void:
 	for index in range(_shape_buttons.size()):
 		_shape_buttons[index].button_pressed = index == _shape_mode
@@ -252,6 +326,16 @@ func _sync_controls() -> void:
 	if _split_check != null:
 		_split_check.button_pressed = _show_split
 		_split_check.visible = _shape_mode == ShapeMode.TORIC_SQUARE
+		_split_check.disabled = _shape_mode == ShapeMode.TORIC_SQUARE and _toric_size() % 2 == 0
+	if _domain_check != null:
+		_domain_check.button_pressed = _center_toric_domain
+		_domain_check.visible = _shape_mode == ShapeMode.TORIC_SQUARE
+	if _unfold_check != null:
+		_unfold_check.button_pressed = _unfold_toric_domain
+		_unfold_check.visible = _shape_mode == ShapeMode.TORIC_SQUARE
+	if _toric_size_option != null:
+		_toric_size_option.select(_toric_size_index)
+		_toric_size_option.visible = _shape_mode == ShapeMode.TORIC_SQUARE
 	if _probability_option != null:
 		var selected_index = 0
 		for index in range(WALL_PROBABILITIES.size()):
@@ -272,8 +356,9 @@ func _generate_map() -> void:
 				protected_floor
 			)
 		ShapeMode.TORIC_SQUARE:
+			_refresh_split_rule()
 			_map_data = HexMapGenerator.generate_toric_square(
-				TORIC_SIZE,
+				_toric_size(),
 				_wall_probability,
 				_seed,
 				_ensure_connected,
@@ -308,8 +393,14 @@ func _update_summary() -> void:
 	]
 	if _show_path:
 		_summary_label.text += "  path=%d" % _path_points.size()
-	if _shape_mode == ShapeMode.TORIC_SQUARE and _show_split:
+	if _shape_mode == ShapeMode.TORIC_SQUARE and _show_split and _split_rule != null:
 		_summary_label.text += "  split=9"
+	if _shape_mode == ShapeMode.TORIC_SQUARE and _center_toric_domain:
+		_summary_label.text += "  domain=hex"
+	if _shape_mode == ShapeMode.TORIC_SQUARE:
+		_summary_label.text += "  size=%d" % _toric_size()
+	if _shape_mode == ShapeMode.TORIC_SQUARE and _unfold_toric_domain:
+		_summary_label.text += "  unfold=on"
 
 
 func _draw_header() -> void:
@@ -326,7 +417,7 @@ func _draw_header() -> void:
 	draw_string(
 		font,
 		Vector2(24.0, 122.0),
-		"Space: new seed   Tab: shape   R: restore   O: orientation   P: path   S: split",
+		"Space: new seed   Tab: shape   R: restore   O: orientation   P: path   S: split   D: domain   U: unfold   N: size",
 		HORIZONTAL_ALIGNMENT_LEFT,
 		-1.0,
 		16,
@@ -343,17 +434,29 @@ func _draw_map() -> void:
 
 	var positions: Array = []
 	var local_by_key := {}
-	var first_position = HexMapTileAdapter.hex_to_local(entries[0]["vector"], HEX_SIZE, _flat_top)
+	var first_position = HexMapTileAdapter.hex_to_local(
+		_display_vectors(entries[0]["vector"])[0],
+		HEX_SIZE,
+		_flat_top
+	)
 	var min_position = first_position
 	var max_position = first_position
 	for entry in entries:
-		var local = HexMapTileAdapter.hex_to_local(entry["vector"], HEX_SIZE, _flat_top)
-		positions.append({"entry": entry, "local": local})
-		local_by_key[entry["vector"].key()] = local
-		min_position.x = minf(min_position.x, local.x)
-		min_position.y = minf(min_position.y, local.y)
-		max_position.x = maxf(max_position.x, local.x)
-		max_position.y = maxf(max_position.y, local.y)
+		var display_vectors = _display_vectors(entry["vector"])
+		for copy_index in range(display_vectors.size()):
+			var local = HexMapTileAdapter.hex_to_local(display_vectors[copy_index], HEX_SIZE, _flat_top)
+			positions.append({
+				"entry": entry,
+				"local": local,
+				"display_vector": display_vectors[copy_index],
+				"duplicate": copy_index > 0,
+			})
+			if not local_by_key.has(entry["vector"].key()):
+				local_by_key[entry["vector"].key()] = local
+			min_position.x = minf(min_position.x, local.x)
+			min_position.y = minf(min_position.y, local.y)
+			max_position.x = maxf(max_position.x, local.x)
+			max_position.y = maxf(max_position.y, local.y)
 
 	var offset = MAP_ORIGIN - (min_position + max_position) * 0.5
 	for item in positions:
@@ -362,6 +465,8 @@ func _draw_map() -> void:
 		var fill = WALL_COLOR if entry["kind"] == HexMapTileAdapter.KIND_WALL else FLOOR_COLOR
 		if vector.is_equal(HexVector.zero()):
 			fill = PROTECTED_COLOR
+		if item["duplicate"]:
+			fill = fill.lerp(Color.WHITE, 0.24)
 		_draw_hex(offset + item["local"], _flat_top, fill, OUTLINE_COLOR)
 
 	_draw_split_overlay(offset, positions)
@@ -424,7 +529,7 @@ func _draw_path(map_offset: Vector2, local_by_key: Dictionary) -> void:
 
 
 func _draw_split_overlay(map_offset: Vector2, positions: Array) -> void:
-	if not _show_split or _shape_mode != ShapeMode.TORIC_SQUARE:
+	if not _show_split or _shape_mode != ShapeMode.TORIC_SQUARE or _split_rule == null:
 		return
 
 	for item in positions:
@@ -438,6 +543,29 @@ func _draw_split_overlay(map_offset: Vector2, positions: Array) -> void:
 			SPLIT_COLORS[split_index],
 			Color.TRANSPARENT
 		)
+
+
+func _display_vector(vector):
+	return _display_vectors(vector)[0]
+
+
+func _display_vectors(vector) -> Array:
+	if _shape_mode != ShapeMode.TORIC_SQUARE or not _center_toric_domain:
+		return [vector]
+	if _unfold_toric_domain:
+		return HexToricCoordinate.unfolded_vectors(vector, _toric_size())
+	return [HexToricCoordinate.centered_vector(vector, _toric_size())]
+
+
+func _refresh_split_rule() -> void:
+	if _toric_size() % 2 == 0:
+		_split_rule = null
+		return
+	_split_rule = HexToricMapSplitRule.new(int((_toric_size() - 1) / 2))
+
+
+func _toric_size() -> int:
+	return TORIC_SIZE_PATTERNS[_toric_size_index]
 
 
 func _draw_hex(center: Vector2, flat_top: bool, fill: Color, stroke: Color) -> void:
