@@ -15,6 +15,10 @@ static func vector_to_sort_z(vector) -> int:
 	return _vector_to_point(vector).to_cell().z
 
 
+static func vector_to_display_axial(vector) -> Vector2i:
+	return Vector2i(vector.q - vector.r, vector.r - vector.s)
+
+
 static func to_tile_entries(
 	data,
 	include_floors: bool = true,
@@ -62,7 +66,7 @@ static func apply_to_tile_map_layer(
 
 
 static func hex_to_local(vector, hex_size: float, flat_top: bool = true) -> Vector2:
-	var axial: Vector2i = vector.axial()
+	var axial: Vector2i = vector_to_display_axial(vector)
 	var q = float(axial.x)
 	var r = float(axial.y)
 	var sqrt3 = sqrt(3.0)
