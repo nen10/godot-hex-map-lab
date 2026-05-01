@@ -15,7 +15,7 @@ const RECTANGLE_HEIGHT := 6
 const HEXAGON_RADIUS := 3
 const TORIC_SIZE_PATTERNS := [7, 8, 9, 11, 13]
 const WALL_PROBABILITIES := [0.25, 0.45, 0.65]
-const SHAPE_NAMES := ["Rectangle", "Hexagon", "Toric"]
+const SHAPE_NAMES := ["Rectangle", "Hexagon", "Torus"]
 const FLOOR_COLOR := Color(0.78, 0.84, 0.78)
 const WALL_COLOR := Color(0.26, 0.28, 0.31)
 const PROTECTED_COLOR := Color(0.92, 0.78, 0.35)
@@ -56,12 +56,12 @@ const SPLIT_COLORS := [
 enum ShapeMode {
 	RECTANGLE,
 	HEXAGON,
-	TORIC_SQUARE,
+	TORUS,
 }
 
 const SHAPE_RECTANGLE := ShapeMode.RECTANGLE
 const SHAPE_HEXAGON := ShapeMode.HEXAGON
-const SHAPE_TORIC_SQUARE := ShapeMode.TORIC_SQUARE
+const SHAPE_TORUS := ShapeMode.TORUS
 
 var _shape_mode := ShapeMode.RECTANGLE
 var _seed := 1201
@@ -73,6 +73,7 @@ var _show_split := true
 var _show_symmetry_regions := false
 var _center_toric_domain := false
 var _unfold_toric_domain := false
+var _use_symmetric_toric_generation := false
 var _toric_size_index := 0
 var _map_data
 var _split_rule = null
@@ -87,6 +88,7 @@ var _split_check: CheckButton
 var _symmetry_check: CheckButton
 var _domain_check: CheckButton
 var _unfold_check: CheckButton
+var _symmetric_generation_check: CheckButton
 var _toric_size_option: OptionButton
 
 
@@ -103,7 +105,9 @@ func configure_for_test(
 	flat_top: bool,
 	toric_size_index: int = -1,
 	unfold_toric_domain: bool = false,
-	show_symmetry_regions: bool = false
+	show_symmetry_regions: bool = false,
+	use_symmetric_toric_generation: bool = false,
+	center_toric_domain: bool = false
 ) -> void:
 	_shape_mode = shape_mode
 	_seed = seed
@@ -114,6 +118,8 @@ func configure_for_test(
 		_toric_size_index = clampi(toric_size_index, 0, TORIC_SIZE_PATTERNS.size() - 1)
 	_unfold_toric_domain = unfold_toric_domain
 	_show_symmetry_regions = show_symmetry_regions
+	_use_symmetric_toric_generation = use_symmetric_toric_generation
+	_center_toric_domain = center_toric_domain
 	_sync_controls()
 	_generate_map()
 
@@ -142,6 +148,10 @@ func get_display_vectors(point) -> Array:
 
 func get_toric_size() -> int:
 	return _toric_size()
+
+
+func uses_symmetric_toric_generation() -> bool:
+	return _uses_symmetric_toric_generation()
 
 
 func get_symmetry_region_tags() -> Dictionary:
@@ -201,6 +211,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			_set_unfold_visible(not _unfold_toric_domain)
 		KEY_N:
 			_set_toric_size_index((_toric_size_index + 1) % TORIC_SIZE_PATTERNS.size())
+		KEY_G:
+			_set_symmetric_generation(not _use_symmetric_toric_generation)
 
 
 func _draw() -> void:
@@ -211,7 +223,7 @@ func _draw() -> void:
 func _build_controls() -> void:
 	_add_shape_button("Rect", ShapeMode.RECTANGLE, Vector2(24.0, 20.0))
 	_add_shape_button("Hex", ShapeMode.HEXAGON, Vector2(108.0, 20.0))
-	_add_shape_button("Toric", ShapeMode.TORIC_SQUARE, Vector2(192.0, 20.0))
+	_add_shape_button("Torus", ShapeMode.TORUS, Vector2(192.0, 20.0))
 
 	_orientation_option = OptionButton.new()
 	_orientation_option.position = Vector2(296.0, 20.0)
@@ -238,7 +250,7 @@ func _build_controls() -> void:
 	add_child(_path_check)
 
 	_split_check = CheckButton.new()
-	_split_check.text = "Split"
+	_split_check.text = "9-Split"
 	_split_check.position = Vector2(878.0, 18.0)
 	_split_check.size = Vector2(86.0, 36.0)
 	_split_check.button_pressed = _show_split
@@ -246,7 +258,7 @@ func _build_controls() -> void:
 	add_child(_split_check)
 
 	_symmetry_check = CheckButton.new()
-	_symmetry_check.text = "Symmetry"
+	_symmetry_check.text = "Sym Region"
 	_symmetry_check.position = Vector2(768.0, 54.0)
 	_symmetry_check.size = Vector2(110.0, 36.0)
 	_symmetry_check.button_pressed = _show_symmetry_regions
@@ -254,7 +266,7 @@ func _build_controls() -> void:
 	add_child(_symmetry_check)
 
 	_domain_check = CheckButton.new()
-	_domain_check.text = "Hex Domain"
+	_domain_check.text = "Centered"
 	_domain_check.position = Vector2(878.0, 54.0)
 	_domain_check.size = Vector2(128.0, 36.0)
 	_domain_check.button_pressed = _center_toric_domain
@@ -268,6 +280,14 @@ func _build_controls() -> void:
 	_unfold_check.button_pressed = _unfold_toric_domain
 	_unfold_check.toggled.connect(_set_unfold_visible)
 	add_child(_unfold_check)
+
+	_symmetric_generation_check = CheckButton.new()
+	_symmetric_generation_check.text = "Sym Gen"
+	_symmetric_generation_check.position = Vector2(768.0, 90.0)
+	_symmetric_generation_check.size = Vector2(110.0, 36.0)
+	_symmetric_generation_check.button_pressed = _use_symmetric_toric_generation
+	_symmetric_generation_check.toggled.connect(_set_symmetric_generation)
+	add_child(_symmetric_generation_check)
 
 	_probability_option = OptionButton.new()
 	_probability_option.position = Vector2(668.0, 20.0)
@@ -376,6 +396,12 @@ func _set_unfold_visible(value: bool) -> void:
 	queue_redraw()
 
 
+func _set_symmetric_generation(value: bool) -> void:
+	_use_symmetric_toric_generation = value
+	_sync_controls()
+	_generate_map()
+
+
 func _set_toric_size_index(index: int) -> void:
 	_toric_size_index = clampi(index, 0, TORIC_SIZE_PATTERNS.size() - 1)
 	_sync_controls()
@@ -393,21 +419,25 @@ func _sync_controls() -> void:
 		_path_check.button_pressed = _show_path
 	if _split_check != null:
 		_split_check.button_pressed = _show_split
-		_split_check.visible = _shape_mode == ShapeMode.TORIC_SQUARE
-		_split_check.disabled = _shape_mode == ShapeMode.TORIC_SQUARE and _toric_size() % 2 == 0
+		_split_check.visible = _shape_mode == ShapeMode.TORUS
+		_split_check.disabled = _shape_mode == ShapeMode.TORUS and _toric_size() % 2 == 0
 	if _symmetry_check != null:
 		_symmetry_check.button_pressed = _show_symmetry_regions
-		_symmetry_check.visible = _shape_mode == ShapeMode.TORIC_SQUARE
-		_symmetry_check.disabled = _shape_mode == ShapeMode.TORIC_SQUARE and _toric_size() % 2 == 0
+		_symmetry_check.visible = _shape_mode == ShapeMode.TORUS
+		_symmetry_check.disabled = _shape_mode == ShapeMode.TORUS and _toric_size() % 2 == 0
 	if _domain_check != null:
 		_domain_check.button_pressed = _center_toric_domain
-		_domain_check.visible = _shape_mode == ShapeMode.TORIC_SQUARE
+		_domain_check.visible = _shape_mode == ShapeMode.TORUS
 	if _unfold_check != null:
 		_unfold_check.button_pressed = _unfold_toric_domain
-		_unfold_check.visible = _shape_mode == ShapeMode.TORIC_SQUARE
+		_unfold_check.visible = _shape_mode == ShapeMode.TORUS
+	if _symmetric_generation_check != null:
+		_symmetric_generation_check.button_pressed = _use_symmetric_toric_generation
+		_symmetric_generation_check.visible = _shape_mode == ShapeMode.TORUS
+		_symmetric_generation_check.disabled = _shape_mode == ShapeMode.TORUS and _toric_size() % 2 == 0
 	if _toric_size_option != null:
 		_toric_size_option.select(_toric_size_index)
-		_toric_size_option.visible = _shape_mode == ShapeMode.TORIC_SQUARE
+		_toric_size_option.visible = _shape_mode == ShapeMode.TORUS
 	if _probability_option != null:
 		var selected_index = 0
 		for index in range(WALL_PROBABILITIES.size()):
@@ -427,15 +457,24 @@ func _generate_map() -> void:
 				_ensure_connected,
 				protected_floor
 			)
-		ShapeMode.TORIC_SQUARE:
+		ShapeMode.TORUS:
 			_refresh_split_rule()
-			_map_data = HexMapGenerator.generate_toric_square(
-				_toric_size(),
-				_wall_probability,
-				_seed,
-				_ensure_connected,
-				protected_floor
-			)
+			if _uses_symmetric_toric_generation():
+				_map_data = HexMapGenerator.generate_symmetric_toric_square(
+					_toric_size(),
+					_wall_probability,
+					_seed,
+					_ensure_connected,
+					protected_floor
+				)
+			else:
+				_map_data = HexMapGenerator.generate_toric_square(
+					_toric_size(),
+					_wall_probability,
+					_seed,
+					_ensure_connected,
+					protected_floor
+				)
 		_:
 			_map_data = HexMapGenerator.generate_rectangle(
 				RECTANGLE_WIDTH,
@@ -465,16 +504,23 @@ func _update_summary() -> void:
 	]
 	if _show_path:
 		_summary_label.text += "  path=%d" % _path_points.size()
-	if _shape_mode == ShapeMode.TORIC_SQUARE and _show_split and _split_rule != null:
+	if _shape_mode == ShapeMode.TORUS and _show_split and _split_rule != null:
 		_summary_label.text += "  split=9"
-	if _shape_mode == ShapeMode.TORIC_SQUARE and _show_symmetry_regions and _split_rule != null:
+	if _shape_mode == ShapeMode.TORUS and _show_symmetry_regions and _split_rule != null:
 		_summary_label.text += "  symmetry=phase%d" % ((int((_toric_size() - 1) / 2) - 1) % 3)
-	if _shape_mode == ShapeMode.TORIC_SQUARE and _center_toric_domain:
-		_summary_label.text += "  domain=hex"
-	if _shape_mode == ShapeMode.TORIC_SQUARE:
+	if _shape_mode == ShapeMode.TORUS and _center_toric_domain:
+		_summary_label.text += "  centered"
+	if _shape_mode == ShapeMode.TORUS:
 		_summary_label.text += "  size=%d" % _toric_size()
-	if _shape_mode == ShapeMode.TORIC_SQUARE and _unfold_toric_domain:
+	if _shape_mode == ShapeMode.TORUS and _unfold_toric_domain:
 		_summary_label.text += "  unfold=on"
+	if _shape_mode == ShapeMode.TORUS:
+		if _uses_symmetric_toric_generation():
+			_summary_label.text += "  mode=symmetric"
+		elif _use_symmetric_toric_generation and _toric_size() % 2 == 0:
+			_summary_label.text += "  mode=random  sym-gen=odd-only"
+		else:
+			_summary_label.text += "  mode=random"
 
 
 func _draw_header() -> void:
@@ -491,7 +537,7 @@ func _draw_header() -> void:
 	draw_string(
 		font,
 		Vector2(24.0, 122.0),
-		"Space: new seed   Tab: shape   R: restore   O: orientation   P: path   S: split   Y: symmetry   D: domain   U: unfold   N: size",
+		"Space: new seed   Tab: shape   R: restore   O: orientation   P: path   S: 9-split   Y: sym-region   D: centered   U: unfold   N: size   G: sym-gen",
 		HORIZONTAL_ALIGNMENT_LEFT,
 		-1.0,
 		16,
@@ -531,7 +577,7 @@ func _draw_map() -> void:
 			min_position.y = minf(min_position.y, local.y)
 			max_position.x = maxf(max_position.x, local.x)
 			max_position.y = maxf(max_position.y, local.y)
-	if _show_symmetry_regions and _shape_mode == ShapeMode.TORIC_SQUARE and _split_rule != null:
+	if _show_symmetry_regions and _shape_mode == ShapeMode.TORUS and _split_rule != null:
 		for vector in _symmetry_equivalence_tiling_vectors():
 			var local = HexMapTileAdapter.hex_to_local(vector, HEX_SIZE, _flat_top)
 			min_position.x = minf(min_position.x, local.x)
@@ -611,7 +657,7 @@ func _draw_path(map_offset: Vector2, local_by_key: Dictionary) -> void:
 
 
 func _draw_split_overlay(map_offset: Vector2, positions: Array) -> void:
-	if not _show_split or _shape_mode != ShapeMode.TORIC_SQUARE or _split_rule == null:
+	if not _show_split or _shape_mode != ShapeMode.TORUS or _split_rule == null:
 		return
 
 	for item in positions:
@@ -628,7 +674,7 @@ func _draw_split_overlay(map_offset: Vector2, positions: Array) -> void:
 
 
 func _draw_symmetry_overlay(map_offset: Vector2, positions: Array) -> void:
-	if not _show_symmetry_regions or _shape_mode != ShapeMode.TORIC_SQUARE or _split_rule == null:
+	if not _show_symmetry_regions or _shape_mode != ShapeMode.TORUS or _split_rule == null:
 		return
 
 	var tags = _split_rule.symmetry_generation_tags()
@@ -817,7 +863,7 @@ func _display_vector(vector):
 
 
 func _display_vectors(vector) -> Array:
-	if _shape_mode != ShapeMode.TORIC_SQUARE:
+	if _shape_mode != ShapeMode.TORUS:
 		return [vector]
 	if _unfold_toric_domain:
 		return HexToricCoordinate.unfolded_vectors(vector, _toric_size())
@@ -835,6 +881,12 @@ func _refresh_split_rule() -> void:
 
 func _toric_size() -> int:
 	return TORIC_SIZE_PATTERNS[_toric_size_index]
+
+
+func _uses_symmetric_toric_generation() -> bool:
+	return _shape_mode == ShapeMode.TORUS \
+		and _use_symmetric_toric_generation \
+		and _toric_size() % 2 == 1
 
 
 func _draw_hex(center: Vector2, flat_top: bool, fill: Color, stroke: Color) -> void:

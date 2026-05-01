@@ -5,6 +5,7 @@ const HexRandomizer = preload("res://addons/hex_map_kit/core/hex_randomizer.gd")
 const HexMapData = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
 const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
 const HexMapDebug = preload("res://addons/hex_map_kit/core/hex_map_debug.gd")
+const HexToricMapSplitRule = preload("res://addons/hex_map_kit/core/hex_toric_map_split_rule.gd")
 
 var _failures: Array[String] = []
 
@@ -24,6 +25,9 @@ func _run() -> void:
 	_test_restore_connectivity_uses_toric_shortcut()
 	_test_generate_rectangle_can_restore_connectivity()
 	_test_generate_toric_square_can_restore_connectivity()
+	_test_symmetric_toric_walls_are_seeded_and_mapped_to_split_canvas()
+	_test_restore_terminal_connectivity_connects_only_requested_terminals()
+	_test_generate_symmetric_toric_square_can_restore_terminal_connectivity()
 	_test_generate_hexagon_can_restore_connectivity()
 	_test_debug_ascii_renders_wall_layout()
 	_test_debug_summary_reports_counts()
@@ -198,6 +202,82 @@ func _test_generate_toric_square_can_restore_connectivity() -> void:
 	_assert_eq(data.cyclic_size, 6, "generated toric square stores cyclic size")
 	_assert_false(HexMapData.has_key(data.walls, HexVector.zero().key()), "protected toric cell remains floor")
 	_assert_true(HexMapGenerator.is_floor_connected(data), "generated toric square can be restored")
+
+
+func _test_symmetric_toric_walls_are_seeded_and_mapped_to_split_canvas() -> void:
+	var protected = [HexVector.zero()]
+	for size in [7, 9, 11, 13]:
+		var seed = 1200 + size
+		var walls_a = HexMapGenerator.generate_symmetric_toric_walls(size, 0.45, seed, 20, protected)
+		var walls_b = HexMapGenerator.generate_symmetric_toric_walls(size, 0.45, seed, 20, protected)
+		var walls_c = HexMapGenerator.generate_symmetric_toric_walls(size, 0.45, seed + 1, 20, protected)
+		var data = HexMapData.toric_square(size)
+		var split_rule = HexToricMapSplitRule.new(int((size - 1) / 2))
+		var split_counts := {}
+
+		_assert_keys_eq(walls_a, walls_b, "symmetric toric walls are seeded for N=%d" % size)
+		_assert_true(_keys(walls_a) != _keys(walls_c), "different seed changes symmetric toric walls for N=%d" % size)
+		_assert_false(HexMapData.has_key(walls_a, HexVector.zero().key()), "symmetric protected cell remains floor for N=%d" % size)
+		_assert_true(walls_a.size() > 0, "symmetric toric generation creates walls for N=%d" % size)
+		_assert_true(walls_a.size() < data.cells.size(), "symmetric toric generation leaves floors for N=%d" % size)
+		for wall in walls_a:
+			_assert_true(data.has_cell(wall), "symmetric wall is inside toric square for N=%d" % size)
+			var split_index = split_rule.split_index_for(wall)
+			_assert_true(split_index >= 0, "symmetric wall maps to a 9-split region for N=%d" % size)
+			split_counts[split_index] = split_counts.get(split_index, 0) + 1
+
+		_assert_true(split_counts.size() >= 2, "symmetric generation maps walls across split regions for N=%d" % size)
+
+
+func _test_restore_terminal_connectivity_connects_only_requested_terminals() -> void:
+	var data = HexMapData.toric_square(5)
+	var start = HexVector.zero()
+	var goal = HexVector.q_axis().scaled(2)
+	var unrelated_floor = HexVector.r_axis().scaled(2)
+	data.walls = HexMapData.points_except(data.cells, [start, goal, unrelated_floor])
+
+	var removed = HexMapGenerator.restore_terminal_connectivity(data, [start, goal])
+
+	_assert_eq(removed.size(), 1, "terminal recovery removes the shortest terminal bridge")
+	_assert_true(HexMapGenerator.are_terminals_connected(data, [start, goal]), "terminal recovery connects requested terminals")
+	_assert_false(
+		HexMapGenerator.is_floor_connected(data),
+		"terminal recovery does not force unrelated floor components to connect"
+	)
+
+
+func _test_generate_symmetric_toric_square_can_restore_terminal_connectivity() -> void:
+	var radius = 3
+	var size = radius * 2 + 1
+	var center = HexVector.apply_basis(radius, 0, radius)
+	var terminal_offset = int((radius * 2) / 3)
+	var terminals = [
+		center,
+		center.add(HexVector.r_axis().subtract(HexVector.q_axis()).scaled(terminal_offset)),
+		center.add(HexVector.q_axis().subtract(HexVector.r_axis()).scaled(terminal_offset)),
+	]
+	var data = HexMapGenerator.generate_symmetric_toric_square(
+		size,
+		0.45,
+		2468,
+		true,
+		[HexVector.zero()],
+		20,
+		terminals
+	)
+
+	_assert_eq(data.cyclic_size, size, "symmetric toric square stores cyclic size")
+	_assert_false(HexMapData.has_key(data.walls, HexVector.zero().key()), "symmetric protected floor remains floor")
+	for terminal in terminals:
+		_assert_false(data.has_wall(terminal), "symmetric terminal remains floor")
+	_assert_true(
+		HexMapGenerator.are_terminals_connected(data, terminals),
+		"symmetric toric square connects requested terminals"
+	)
+	_assert_true(
+		HexMapGenerator.is_floor_connected(data),
+		"symmetric toric square can be fully restored after terminal recovery"
+	)
 
 
 func _test_generate_hexagon_can_restore_connectivity() -> void:

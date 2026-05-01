@@ -54,4 +54,14 @@ flat-top/pointy-top の視覚的な近傍配置確認:
 ./tools/debug_generated_map.sh
 ```
 
-この画面は `HexMapGenerator` の rectangle / hexagon / toric square 生成結果を `HexMapTileAdapter.hex_to_local()` で描画する手動確認用です。`Space` で seed 更新、`Tab` で形状切り替え、`R` で連結性回復の切り替え、`O` で flat-top/pointy-top、`P` で中心から代表 floor への経路表示、`S` で toric square の 9 分割 overlay、`Y` で対称生成の外周から中心へ進む領域 overlay、`D` で toric square の square/hex domain 表示、`U` で同一 toric cell を糊代として複数配置する展開表示、`N` で toric square の一辺サイズを切り替えます。サイズは `7` / `8` / `9` / `11` / `13` を確認します。
+この画面は `HexMapGenerator` の rectangle / hexagon / toric square 生成結果を `HexMapTileAdapter.hex_to_local()` で描画する手動確認用です。`Space` で seed 更新、`Tab` で形状切り替え、`R` で連結性回復の切り替え、`O` で flat-top/pointy-top、`P` で中心から代表 floor への経路表示、`S` で toric square の 9 分割 overlay、`Y` で対称生成の外周から中心へ進む領域 overlay、`D` で toric square の square/hex domain 表示、`U` で同一 toric cell を糊代として複数配置する展開表示、`N` で toric square の一辺サイズを切り替え、`G` で toric square の通常ランダム生成 / 対称生成を切り替えます。サイズは `7` / `8` / `9` / `11` / `13` を確認します。
+
+対称 toric square 版の機能:
+
+- toric square の生成結果表示: `G` で `mode=symmetric` にして確認する
+- 連結性回復と経路表示: `R` / `P` で通常 toric と同様に確認する
+- 9 分割 overlay: odd N で `S` を有効にして確認する
+- 対称生成領域 overlay: odd N で `Y` を有効にして、生成結果と外周から中心への領域を重ねて確認する
+- square/hex domain 表示: `D` で通常 toric と同様に確認する
+- 糊代つき展開表示: `U` で通常 toric と同様に確認する
+

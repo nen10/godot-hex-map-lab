@@ -72,6 +72,17 @@ phase 2 の `outer_mod` は split 0 / split 7 にそれぞれ 6 個、合計 12 
 
 `symmetry_unity_reference_groups()` は Unity 版の raw な `DrawAreaFromCenter()` まで含めた生成 source 座標を `HexToricCoordinate.ApplyCyclic()` 相当で畳み、同じ canvas 座標に対応するものだけを返す。現時点で確認できる同一視は、`N=7` の `outer_mod` 1 組 / `outer_wave` 2 組、`N=13` の `outer_wave` 7 組である。`border_initial` / `border_edge` については、テスト対象の odd N では同一視グループを確認していない。
 
+### 対称 toric 正方形の壁生成
+
+`HexMapGenerator.generate_symmetric_toric_square(size, wall_probability, seed, ensure_connected, protected_floor, distribution_id, terminal_floor)` は Unity 版 `HexToricMap.DrawThreadsOnToricMap()` の描画順を Core の壁生成として使う。
+
+- `size` は `2 * map_unit_radius + 1` の odd N のみ
+- `distribution_id` は `HexRandomizer.prob_from_distribution()` の 2x2x2 テーブルを使う
+- `protected_floor` と `terminal_floor` は生成中も floor として扱い、壁にしない
+- 生成された壁は toric 座標で `size x size` の正方形 canvas に畳み、9 分割された split のいずれかに対応する
+
+`(map_unit_radius - 1) % 3 == 2` の phase 2 相当では、外周開始形状を `outer_phase2_boundary` に補正してから border / inner の生成へ渡す。これにより、対称生成時に外周側の同一 toric cell が複数 source として現れる場合も、正方形 canvas 上の壁集合として扱える。
+
 ### 2. ランダム壁を配置する
 
 `HexMapGenerator.generate_random_walls(cells, wall_probability, seed, protected_floor)` が、各 cell に対して独立に乱数を引く。
@@ -105,6 +116,8 @@ randf() < wall_probability なら壁
 5. 連結成分が 1 つになるまで繰り返す。
 
 BFS の探索空間は `cells` 全体であり、floor だけではない。これは「壁を削れば通路にできる候補」を探索するため。実装では `HexGrid.shortest_path_to_any(component, targets, data.cells, cyclic_size)` を使う。
+
+`HexMapGenerator.restore_terminal_connectivity(data, terminals)` は、指定 terminal を先に floor 化し、最初の terminal から未接続 terminal への最短経路上の壁だけを削る。これは terminal 間の到達性を優先する処理であり、terminal と無関係な floor 成分までは接続しない。全 floor の連結性も必要な場合は、その後に `restore_connectivity(data)` を実行する。`generate_symmetric_toric_square(..., ensure_connected=true, terminal_floor=...)` は terminal 回復を先に行い、その後に全体回復を行う。
 
 ### 5. デバッグ表示
 
