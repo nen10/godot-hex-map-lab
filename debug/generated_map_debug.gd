@@ -13,7 +13,7 @@ const MAP_ORIGIN := Vector2(520.0, 350.0)
 const RECTANGLE_WIDTH := 8
 const RECTANGLE_HEIGHT := 6
 const HEXAGON_RADIUS := 3
-const TORIC_SIZE_PATTERNS := [7, 8, 9]
+const TORIC_SIZE_PATTERNS := [7, 8, 9, 11, 13]
 const WALL_PROBABILITIES := [0.25, 0.45, 0.65]
 const SHAPE_NAMES := ["Rectangle", "Hexagon", "Toric"]
 const FLOOR_COLOR := Color(0.78, 0.84, 0.78)
@@ -23,6 +23,24 @@ const OUTLINE_COLOR := Color(0.12, 0.13, 0.14)
 const PATH_COLOR := Color(0.12, 0.48, 0.88, 0.90)
 const PATH_START_COLOR := Color(0.12, 0.62, 0.42)
 const PATH_GOAL_COLOR := Color(0.88, 0.24, 0.24)
+const SYMMETRY_OUTER_PHASE_COLORS := [
+	Color(0.95, 0.28, 0.18, 0.48),
+	Color(0.96, 0.52, 0.18, 0.48),
+	Color(0.91, 0.70, 0.18, 0.48),
+]
+const SYMMETRY_OUTER_WAVE_COLOR := Color(0.94, 0.43, 0.22, 0.34)
+const SYMMETRY_OUTER_PHASE2_BOUNDARY_COLOR := Color(0.98, 0.22, 0.70, 0.58)
+const SYMMETRY_OUTER_PHASE2_TRIANGLE_COLOR := Color(0.98, 0.12, 0.58, 0.84)
+const SYMMETRY_OUTER_PHASE2_PAIR_COLOR := Color(0.98, 0.78, 0.10, 0.88)
+const SYMMETRY_REFERENCE_OUTER_MOD_COLOR := Color(1.00, 0.88, 0.10, 0.92)
+const SYMMETRY_REFERENCE_OUTER_WAVE_COLOR := Color(0.18, 0.94, 0.92, 0.88)
+const SYMMETRY_REFERENCE_BORDER_INITIAL_COLOR := Color(1.00, 0.40, 0.18, 0.88)
+const SYMMETRY_REFERENCE_BORDER_EDGE_COLOR := Color(0.34, 0.92, 0.26, 0.88)
+const SYMMETRY_OUTER_DUMMY_COLOR := Color(0.62, 0.42, 0.88, 0.34)
+const SYMMETRY_BORDER_COLOR := Color(0.96, 0.86, 0.24, 0.52)
+const SYMMETRY_BORDER_MOVED_COLOR := Color(0.18, 0.72, 0.76, 0.54)
+const SYMMETRY_INNER_ARC_COLOR := Color(0.20, 0.46, 0.88, 0.42)
+const SYMMETRY_CENTER_COLOR := Color(0.98, 0.96, 0.92, 0.78)
 const SPLIT_COLORS := [
 	Color(0.92, 0.33, 0.28, 0.42),
 	Color(0.96, 0.58, 0.16, 0.42),
@@ -52,7 +70,8 @@ var _ensure_connected := true
 var _flat_top := true
 var _show_path := true
 var _show_split := true
-var _center_toric_domain := true
+var _show_symmetry_regions := false
+var _center_toric_domain := false
 var _unfold_toric_domain := false
 var _toric_size_index := 0
 var _map_data
@@ -65,6 +84,7 @@ var _probability_option: OptionButton
 var _connected_check: CheckButton
 var _path_check: CheckButton
 var _split_check: CheckButton
+var _symmetry_check: CheckButton
 var _domain_check: CheckButton
 var _unfold_check: CheckButton
 var _toric_size_option: OptionButton
@@ -82,7 +102,8 @@ func configure_for_test(
 	ensure_connected: bool,
 	flat_top: bool,
 	toric_size_index: int = -1,
-	unfold_toric_domain: bool = false
+	unfold_toric_domain: bool = false,
+	show_symmetry_regions: bool = false
 ) -> void:
 	_shape_mode = shape_mode
 	_seed = seed
@@ -92,6 +113,7 @@ func configure_for_test(
 	if toric_size_index >= 0:
 		_toric_size_index = clampi(toric_size_index, 0, TORIC_SIZE_PATTERNS.size() - 1)
 	_unfold_toric_domain = unfold_toric_domain
+	_show_symmetry_regions = show_symmetry_regions
 	_sync_controls()
 	_generate_map()
 
@@ -122,6 +144,34 @@ func get_toric_size() -> int:
 	return _toric_size()
 
 
+func get_symmetry_region_tags() -> Dictionary:
+	if _split_rule == null:
+		return {}
+	return _split_rule.symmetry_generation_tags()
+
+
+func get_symmetry_region_tag(point) -> Dictionary:
+	return get_symmetry_region_tags().get(point.key(), {})
+
+
+func get_phase2_outer_mod_tiling_groups() -> Array:
+	var result: Array = []
+	if _split_rule == null:
+		return result
+	for group in _split_rule.symmetry_phase2_outer_mod_groups():
+		result.append(_compact_toric_group_vectors(group["points"]))
+	return result
+
+
+func get_unity_reference_tiling_groups() -> Array:
+	var result: Array = []
+	if _split_rule == null:
+		return result
+	for group in _split_rule.symmetry_unity_reference_groups():
+		result.append(_compact_toric_group_vectors(group["sources"]))
+	return result
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not event is InputEventKey:
 		return
@@ -143,6 +193,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			_set_path_visible(not _show_path)
 		KEY_S:
 			_set_split_visible(not _show_split)
+		KEY_Y:
+			_set_symmetry_visible(not _show_symmetry_regions)
 		KEY_D:
 			_set_domain_centered(not _center_toric_domain)
 		KEY_U:
@@ -192,6 +244,14 @@ func _build_controls() -> void:
 	_split_check.button_pressed = _show_split
 	_split_check.toggled.connect(_set_split_visible)
 	add_child(_split_check)
+
+	_symmetry_check = CheckButton.new()
+	_symmetry_check.text = "Symmetry"
+	_symmetry_check.position = Vector2(768.0, 54.0)
+	_symmetry_check.size = Vector2(110.0, 36.0)
+	_symmetry_check.button_pressed = _show_symmetry_regions
+	_symmetry_check.toggled.connect(_set_symmetry_visible)
+	add_child(_symmetry_check)
 
 	_domain_check = CheckButton.new()
 	_domain_check.text = "Hex Domain"
@@ -295,9 +355,17 @@ func _set_split_visible(value: bool) -> void:
 	queue_redraw()
 
 
+func _set_symmetry_visible(value: bool) -> void:
+	_show_symmetry_regions = value
+	_sync_controls()
+	_update_summary()
+	queue_redraw()
+
+
 func _set_domain_centered(value: bool) -> void:
 	_center_toric_domain = value
 	_sync_controls()
+	_update_summary()
 	queue_redraw()
 
 
@@ -327,6 +395,10 @@ func _sync_controls() -> void:
 		_split_check.button_pressed = _show_split
 		_split_check.visible = _shape_mode == ShapeMode.TORIC_SQUARE
 		_split_check.disabled = _shape_mode == ShapeMode.TORIC_SQUARE and _toric_size() % 2 == 0
+	if _symmetry_check != null:
+		_symmetry_check.button_pressed = _show_symmetry_regions
+		_symmetry_check.visible = _shape_mode == ShapeMode.TORIC_SQUARE
+		_symmetry_check.disabled = _shape_mode == ShapeMode.TORIC_SQUARE and _toric_size() % 2 == 0
 	if _domain_check != null:
 		_domain_check.button_pressed = _center_toric_domain
 		_domain_check.visible = _shape_mode == ShapeMode.TORIC_SQUARE
@@ -395,6 +467,8 @@ func _update_summary() -> void:
 		_summary_label.text += "  path=%d" % _path_points.size()
 	if _shape_mode == ShapeMode.TORIC_SQUARE and _show_split and _split_rule != null:
 		_summary_label.text += "  split=9"
+	if _shape_mode == ShapeMode.TORIC_SQUARE and _show_symmetry_regions and _split_rule != null:
+		_summary_label.text += "  symmetry=phase%d" % ((int((_toric_size() - 1) / 2) - 1) % 3)
 	if _shape_mode == ShapeMode.TORIC_SQUARE and _center_toric_domain:
 		_summary_label.text += "  domain=hex"
 	if _shape_mode == ShapeMode.TORIC_SQUARE:
@@ -417,7 +491,7 @@ func _draw_header() -> void:
 	draw_string(
 		font,
 		Vector2(24.0, 122.0),
-		"Space: new seed   Tab: shape   R: restore   O: orientation   P: path   S: split   D: domain   U: unfold   N: size",
+		"Space: new seed   Tab: shape   R: restore   O: orientation   P: path   S: split   Y: symmetry   D: domain   U: unfold   N: size",
 		HORIZONTAL_ALIGNMENT_LEFT,
 		-1.0,
 		16,
@@ -457,6 +531,13 @@ func _draw_map() -> void:
 			min_position.y = minf(min_position.y, local.y)
 			max_position.x = maxf(max_position.x, local.x)
 			max_position.y = maxf(max_position.y, local.y)
+	if _show_symmetry_regions and _shape_mode == ShapeMode.TORIC_SQUARE and _split_rule != null:
+		for vector in _symmetry_equivalence_tiling_vectors():
+			var local = HexMapTileAdapter.hex_to_local(vector, HEX_SIZE, _flat_top)
+			min_position.x = minf(min_position.x, local.x)
+			min_position.y = minf(min_position.y, local.y)
+			max_position.x = maxf(max_position.x, local.x)
+			max_position.y = maxf(max_position.y, local.y)
 
 	var offset = MAP_ORIGIN - (min_position + max_position) * 0.5
 	for item in positions:
@@ -470,6 +551,7 @@ func _draw_map() -> void:
 		_draw_hex(offset + item["local"], _flat_top, fill, OUTLINE_COLOR)
 
 	_draw_split_overlay(offset, positions)
+	_draw_symmetry_overlay(offset, positions)
 	_draw_path(offset, local_by_key)
 
 
@@ -545,15 +627,202 @@ func _draw_split_overlay(map_offset: Vector2, positions: Array) -> void:
 		)
 
 
+func _draw_symmetry_overlay(map_offset: Vector2, positions: Array) -> void:
+	if not _show_symmetry_regions or _shape_mode != ShapeMode.TORIC_SQUARE or _split_rule == null:
+		return
+
+	var tags = _split_rule.symmetry_generation_tags()
+	for item in positions:
+		var entry: Dictionary = item["entry"]
+		var tag = tags.get(entry["vector"].key(), null)
+		if tag == null:
+			continue
+		_draw_hex(
+			map_offset + item["local"],
+			_flat_top,
+			_symmetry_color_for_tag(tag),
+			Color.TRANSPARENT
+		)
+		if tag["kind"] == HexToricMapSplitRule.SYMMETRY_KIND_CENTER:
+			draw_circle(map_offset + item["local"], 6.0, Color(0.16, 0.14, 0.10, 0.72))
+	_draw_phase2_outer_mod_groups(map_offset)
+	_draw_unity_reference_groups(map_offset)
+
+
+func _draw_phase2_outer_mod_groups(map_offset: Vector2) -> void:
+	for group in _split_rule.symmetry_phase2_outer_mod_groups():
+		var display_vectors = _compact_toric_group_vectors(group["points"])
+		var vertices := PackedVector2Array()
+		for vector in display_vectors:
+			vertices.append(map_offset + HexMapTileAdapter.hex_to_local(vector, HEX_SIZE, _flat_top))
+		var color = SYMMETRY_OUTER_PHASE2_TRIANGLE_COLOR
+		if group["group"] == HexToricMapSplitRule.SYMMETRY_GROUP_PAIR:
+			color = SYMMETRY_OUTER_PHASE2_PAIR_COLOR
+		else:
+			vertices.append(vertices[0])
+		var fill_color = Color(color.r, color.g, color.b, 0.20)
+		var outline_color = Color(color.r, color.g, color.b, 0.72)
+		for vector in display_vectors:
+			_draw_hex(
+				map_offset + HexMapTileAdapter.hex_to_local(vector, HEX_SIZE, _flat_top),
+				_flat_top,
+				fill_color,
+				outline_color
+			)
+		draw_polyline(vertices, color, 3.0, true)
+
+
+func _draw_unity_reference_groups(map_offset: Vector2) -> void:
+	for group in _split_rule.symmetry_unity_reference_groups():
+		_draw_symmetry_equivalence_group(
+			map_offset,
+			_compact_toric_group_vectors(group["sources"]),
+			_reference_group_color(group["kind"]),
+			2.0
+		)
+
+
+func _draw_symmetry_equivalence_group(
+	map_offset: Vector2,
+	display_vectors: Array,
+	color: Color,
+	width: float
+) -> void:
+	if display_vectors.size() <= 1:
+		return
+
+	var vertices := PackedVector2Array()
+	for vector in display_vectors:
+		vertices.append(map_offset + HexMapTileAdapter.hex_to_local(vector, HEX_SIZE, _flat_top))
+	if display_vectors.size() > 2:
+		vertices.append(vertices[0])
+
+	var fill_color = Color(color.r, color.g, color.b, 0.14)
+	var outline_color = Color(color.r, color.g, color.b, 0.60)
+	for vector in display_vectors:
+		_draw_hex(
+			map_offset + HexMapTileAdapter.hex_to_local(vector, HEX_SIZE, _flat_top),
+			_flat_top,
+			fill_color,
+			outline_color
+		)
+	draw_polyline(vertices, color, width, true)
+
+
+func _symmetry_equivalence_tiling_vectors() -> Array:
+	var result: Array = []
+	if _split_rule == null:
+		return result
+	for group in _split_rule.symmetry_phase2_outer_mod_groups():
+		result.append_array(_compact_toric_group_vectors(group["points"]))
+	for group in _split_rule.symmetry_unity_reference_groups():
+		result.append_array(_compact_toric_group_vectors(group["sources"]))
+	return result
+
+
+func _compact_toric_group_vectors(vectors: Array) -> Array:
+	if vectors.size() <= 1:
+		return vectors.duplicate()
+
+	var options: Array = []
+	for vector in vectors:
+		options.append(_toric_period_copies(vector))
+
+	var best := {
+		"score": INF,
+		"vectors": [],
+	}
+	_search_compact_toric_group(options, 0, [], best)
+	return best["vectors"]
+
+
+func _toric_period_copies(vector) -> Array:
+	var result: Array = []
+	var size = _toric_size()
+	for q_offset in range(-1, 2):
+		for r_offset in range(-1, 2):
+			result.append(vector.add(HexVector.apply_basis(q_offset * size, 0, r_offset * size)))
+	return result
+
+
+func _search_compact_toric_group(options: Array, index: int, current: Array, best: Dictionary) -> void:
+	if index >= options.size():
+		var score = _toric_group_score(current)
+		if score < best["score"]:
+			best["score"] = score
+			best["vectors"] = current.duplicate()
+		return
+
+	for vector in options[index]:
+		current.append(vector)
+		_search_compact_toric_group(options, index + 1, current, best)
+		current.pop_back()
+
+
+func _toric_group_score(vectors: Array) -> float:
+	var locals: Array = []
+	var centroid := Vector2.ZERO
+	for vector in vectors:
+		var local = HexMapTileAdapter.hex_to_local(vector, HEX_SIZE, _flat_top)
+		locals.append(local)
+		centroid += local
+	centroid /= float(locals.size())
+
+	var max_pair_distance := 0.0
+	var total_pair_distance := 0.0
+	for left in range(locals.size()):
+		for right in range(left + 1, locals.size()):
+			var distance = locals[left].distance_to(locals[right])
+			max_pair_distance = maxf(max_pair_distance, distance)
+			total_pair_distance += distance
+	return max_pair_distance * 100000.0 + total_pair_distance * 100.0 + centroid.length()
+
+
+func _reference_group_color(kind: String) -> Color:
+	match kind:
+		HexToricMapSplitRule.SYMMETRY_KIND_OUTER_MOD:
+			return SYMMETRY_REFERENCE_OUTER_MOD_COLOR
+		HexToricMapSplitRule.SYMMETRY_KIND_OUTER_WAVE:
+			return SYMMETRY_REFERENCE_OUTER_WAVE_COLOR
+		HexToricMapSplitRule.SYMMETRY_KIND_BORDER_INITIAL:
+			return SYMMETRY_REFERENCE_BORDER_INITIAL_COLOR
+		HexToricMapSplitRule.SYMMETRY_KIND_BORDER_EDGE:
+			return SYMMETRY_REFERENCE_BORDER_EDGE_COLOR
+		_:
+			return Color(1.0, 1.0, 1.0, 0.0)
+
+
+func _symmetry_color_for_tag(tag: Dictionary) -> Color:
+	match tag["kind"]:
+		HexToricMapSplitRule.SYMMETRY_KIND_OUTER_MOD:
+			return SYMMETRY_OUTER_PHASE_COLORS[tag["phase"]]
+		HexToricMapSplitRule.SYMMETRY_KIND_OUTER_WAVE:
+			return SYMMETRY_OUTER_WAVE_COLOR
+		HexToricMapSplitRule.SYMMETRY_KIND_OUTER_PHASE2_BOUNDARY:
+			return SYMMETRY_OUTER_PHASE2_BOUNDARY_COLOR
+		HexToricMapSplitRule.SYMMETRY_KIND_OUTER_DUMMY:
+			return SYMMETRY_OUTER_DUMMY_COLOR
+		HexToricMapSplitRule.SYMMETRY_KIND_BORDER_INITIAL, HexToricMapSplitRule.SYMMETRY_KIND_BORDER_EDGE:
+			return SYMMETRY_BORDER_MOVED_COLOR if tag["moved"] else SYMMETRY_BORDER_COLOR
+		HexToricMapSplitRule.SYMMETRY_KIND_INNER_ARC:
+			return SYMMETRY_INNER_ARC_COLOR
+		HexToricMapSplitRule.SYMMETRY_KIND_CENTER:
+			return SYMMETRY_CENTER_COLOR
+		_:
+			return Color(1.0, 1.0, 1.0, 0.0)
+
+
 func _display_vector(vector):
 	return _display_vectors(vector)[0]
 
 
 func _display_vectors(vector) -> Array:
-	if _shape_mode != ShapeMode.TORIC_SQUARE or not _center_toric_domain:
+	if _shape_mode != ShapeMode.TORIC_SQUARE:
 		return [vector]
 	if _unfold_toric_domain:
 		return HexToricCoordinate.unfolded_vectors(vector, _toric_size())
+	if not _center_toric_domain:
+		return [vector]
 	return [HexToricCoordinate.centered_vector(vector, _toric_size())]
 
 

@@ -29,6 +29,8 @@ func _run() -> void:
 	_test_toric_split_rule_triangle_units()
 	_test_toric_split_rule_partitions_square_canvas()
 	_test_toric_split_rule_rough_tags()
+	_test_toric_split_rule_symmetry_regions_follow_unity_flow()
+	_test_toric_split_rule_unity_reference_groups()
 
 	if _failures.is_empty():
 		print("test_hex_core.gd: all tests passed")
@@ -370,3 +372,113 @@ func _test_toric_split_rule_rough_tags() -> void:
 	_assert_eq(rule.get_rough_split_tag(rule.split_canvas[7][0]), 7, "rough tag preserves split 7")
 	_assert_eq(rule.get_rough_split_tag(rule.split_canvas[3][0]), 8, "rough tag groups inner side split")
 	_assert_eq(rule.get_rough_split_tag(rule.split_canvas[8][0]), 8, "rough tag preserves center group")
+
+
+func _test_toric_split_rule_symmetry_regions_follow_unity_flow() -> void:
+	for radius in [3, 4, 5, 6]:
+		var rule = HexToricMapSplitRule.new(radius)
+		var entries = rule.symmetry_generation_entries()
+		var tags = rule.symmetry_generation_tags()
+		var phase = (radius - 1) % 3
+		var kinds := {}
+		var has_moved_border := false
+		var has_phase2_boundary := false
+		var center_entries: Array = []
+		var outer_mod_points := {}
+		var outer_mod_split_counts := {}
+		var phase2_groups = rule.symmetry_phase2_outer_mod_groups()
+
+		_assert_true(entries.size() > 0, "symmetry flow emits draw positions")
+		for entry in entries:
+			kinds[entry["kind"]] = true
+			if entry["kind"] == HexToricMapSplitRule.SYMMETRY_KIND_OUTER_MOD:
+				outer_mod_points[entry["vector"].key()] = true
+				outer_mod_split_counts[entry["source_split"]] = outer_mod_split_counts.get(entry["source_split"], 0) + 1
+			if entry["kind"] == HexToricMapSplitRule.SYMMETRY_KIND_OUTER_PHASE2_BOUNDARY:
+				has_phase2_boundary = true
+			if entry["kind"] == HexToricMapSplitRule.SYMMETRY_KIND_CENTER:
+				center_entries.append(entry)
+			_assert_eq(entry["phase"], phase, "symmetry flow stores MapUnitRadius mod3 phase")
+			_assert_true(rule.split_index_for(entry["vector"]) >= 0, "symmetry flow draws only canvas positions")
+			var is_border = entry["kind"] == HexToricMapSplitRule.SYMMETRY_KIND_BORDER_INITIAL
+			is_border = is_border or entry["kind"] == HexToricMapSplitRule.SYMMETRY_KIND_BORDER_EDGE
+			if entry["moved"] and is_border:
+				has_moved_border = true
+
+		_assert_true(kinds.has(HexToricMapSplitRule.SYMMETRY_KIND_OUTER_MOD), "symmetry flow has mod3 outer shape")
+		if phase == 2:
+			_assert_true(
+				has_phase2_boundary,
+				"phase2 symmetry flow marks corrected outer boundary"
+			)
+			_assert_true(
+				phase2_groups.size() == 5,
+				"phase2 symmetry flow exposes five outer_mod toric groups"
+			)
+			var pair_count = 0
+			var triple_count = 0
+			var grouped_points := {}
+			for group in phase2_groups:
+				if group["group"] == HexToricMapSplitRule.SYMMETRY_GROUP_PAIR:
+					pair_count += 1
+					_assert_eq(group["points"].size(), 2, "phase2 outer_mod pair has two points")
+				if group["group"] == HexToricMapSplitRule.SYMMETRY_GROUP_TRIPLE:
+					triple_count += 1
+					_assert_eq(group["points"].size(), 3, "phase2 outer_mod triple has three points")
+				for point in group["points"]:
+					grouped_points[point.key()] = true
+			_assert_eq(pair_count, 3, "phase2 outer_mod has three pair groups")
+			_assert_eq(triple_count, 2, "phase2 outer_mod has two triple groups")
+			_assert_eq(grouped_points.size(), 12, "phase2 outer_mod groups cover twelve generated points")
+			_assert_eq(outer_mod_points.size(), 12, "phase2 outer_mod emits twelve generated points")
+			_assert_eq(outer_mod_split_counts.get(0, 0), 6, "phase2 outer_mod emits six points on split 0")
+			_assert_eq(outer_mod_split_counts.get(7, 0), 6, "phase2 outer_mod emits six points on split 7")
+			for point_key in grouped_points:
+				_assert_true(outer_mod_points.has(point_key), "phase2 groups only use emitted outer_mod points")
+		else:
+			_assert_true(kinds.has(HexToricMapSplitRule.SYMMETRY_KIND_OUTER_WAVE), "symmetry flow has outer-to-center waves")
+			_assert_true(not has_phase2_boundary, "non-phase2 flow does not use phase2 boundary")
+			_assert_eq(phase2_groups.size(), 0, "non-phase2 flow has no phase2 outer_mod groups")
+		_assert_true(kinds.has(HexToricMapSplitRule.SYMMETRY_KIND_BORDER_EDGE), "symmetry flow has moved border arcs")
+		_assert_true(kinds.has(HexToricMapSplitRule.SYMMETRY_KIND_INNER_ARC), "symmetry flow has common inner arcs")
+		_assert_true(kinds.has(HexToricMapSplitRule.SYMMETRY_KIND_CENTER), "symmetry flow has center")
+		_assert_true(has_moved_border, "symmetry flow maps outside border positions back to canvas")
+		_assert_eq(center_entries.size(), 1, "symmetry flow has one center entry")
+		_assert_true(tags.has(center_entries[0]["vector"].key()), "symmetry center is included in merged tags")
+		_assert_eq(tags[center_entries[0]["vector"].key()]["kind"], HexToricMapSplitRule.SYMMETRY_KIND_CENTER, "symmetry center wins merged tag priority")
+		_assert_eq(center_entries[0]["split"], 8, "symmetry center belongs to split 8")
+
+
+func _test_toric_split_rule_unity_reference_groups() -> void:
+	var expected_counts := {
+		3: {
+			HexToricMapSplitRule.SYMMETRY_KIND_OUTER_MOD: 1,
+			HexToricMapSplitRule.SYMMETRY_KIND_OUTER_WAVE: 2,
+		},
+		4: {},
+		5: {},
+		6: {
+			HexToricMapSplitRule.SYMMETRY_KIND_OUTER_WAVE: 7,
+		},
+		7: {},
+	}
+
+	for radius in expected_counts.keys():
+		var rule = HexToricMapSplitRule.new(radius)
+		var groups = rule.symmetry_unity_reference_groups()
+		var counts := {}
+		for group in groups:
+			counts[group["kind"]] = counts.get(group["kind"], 0) + 1
+			_assert_true(group["sources"].size() > 1, "unity reference group has multiple sources")
+			for source in group["sources"]:
+				var reference = HexToricCoordinate.wrap_vector(source, rule.cyclic_size)
+				_assert_eq(reference.key(), group["reference"].key(), "unity reference group sources share toric reference")
+
+		for kind in [
+			HexToricMapSplitRule.SYMMETRY_KIND_OUTER_MOD,
+			HexToricMapSplitRule.SYMMETRY_KIND_OUTER_WAVE,
+			HexToricMapSplitRule.SYMMETRY_KIND_BORDER_INITIAL,
+			HexToricMapSplitRule.SYMMETRY_KIND_BORDER_EDGE,
+		]:
+			var expected = expected_counts[radius].get(kind, 0)
+			_assert_eq(counts.get(kind, 0), expected, "unity reference group count radius %d kind %s" % [radius, kind])

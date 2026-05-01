@@ -57,6 +57,21 @@ toric は現時点では正方形のみを対象にする。`cyclic_size = size`
 
 この分割は、正方形 toric map と六角形としての理解を対応づける処理、および外周から内側への対称生成アルゴリズムの前提になる。
 
+分割に使える toric square の一辺サイズは `N = 2 * map_unit_radius + 1` で表される奇数に限る。Unity 版の constructor 自体は明示的な検証を持たないが、`MapUnitRadius` を整数として三角形の辺長、中心 cell、外周参照を決めるため、9 分割としては正の整数半径 `map_unit_radius >= 1`、つまり `N >= 3` の奇数が前提である。対称生成内の外周描画は `(MapUnitRadius - 1) % 3` による 3 パターンを扱うため、`map_unit_radius` が 3 の倍数である必要はない。
+
+`symmetry_generation_entries()` は Unity 版 `HexToricMap.DrawThreadsOnToricMap()` の幾何的な描画順を可視化用に移植したものである。乱数による壁生成結果ではなく、どの領域が描画候補になるかだけを返す。
+
+- `outer_mod`: `DrawAreaCenter()` に対応する、`(MapUnitRadius - 1) % 3` で形が変わる外周側の開始領域
+- `outer_wave`: `DrawAreaFromCenter()` に対応する、split 0 / split 7 から外周側領域を作る波状の領域
+- `outer_phase2_boundary`: phase 2 で `DrawAreaCenter()` の開始形状から補正した外周境界ノード。border / inner に渡す基準点になる
+- `border_initial` / `border_edge`: `DrawBoarder()` に対応する、外周を越える参照位置を `ReferencePositions` によって canvas 内へ移した領域
+- `inner_arc`: `DrawInnerArea()` に対応する、6 方向の arc で中心へ向かう共通領域
+- `center`: `DrawInnerArea()` の最後にコード上で求める中心 cell。phase 2 では `DrawAreaCenter()` の開始形状から外周境界ノードへの補正を入れ、split index 8 の中心へ収束させる
+
+phase 2 の `outer_mod` は split 0 / split 7 にそれぞれ 6 個、合計 12 個の生成座標を持つ。hexagonal toric の境界同一視として扱うと、これらは 3 組の pair と 2 組の triple に分かれる。`symmetry_phase2_outer_mod_groups()` はこの 5 グループを返す。debug scene では pair を線分、triple を三角形として描き、面塗りだけでは見えない糊代的な同一座標関係を確認する。表示時は raw な square 座標同士を直接結ばず、周期コピーの中で最も局所的になる等価配置を選び、Unity 版の対称生成過程で現れる糊代側のタイリングとして確認できるようにする。
+
+`symmetry_unity_reference_groups()` は Unity 版の raw な `DrawAreaFromCenter()` まで含めた生成 source 座標を `HexToricCoordinate.ApplyCyclic()` 相当で畳み、同じ canvas 座標に対応するものだけを返す。現時点で確認できる同一視は、`N=7` の `outer_mod` 1 組 / `outer_wave` 2 組、`N=13` の `outer_wave` 7 組である。`border_initial` / `border_edge` については、テスト対象の odd N では同一視グループを確認していない。
+
 ### 2. ランダム壁を配置する
 
 `HexMapGenerator.generate_random_walls(cells, wall_probability, seed, protected_floor)` が、各 cell に対して独立に乱数を引く。
