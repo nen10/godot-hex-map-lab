@@ -1,0 +1,301 @@
+extends Node2D
+
+const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
+const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
+const HexMapDebug = preload("res://addons/hex_map_kit/core/hex_map_debug.gd")
+const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
+
+const HEX_SIZE := 24.0
+const MAP_ORIGIN := Vector2(520.0, 350.0)
+const RECTANGLE_WIDTH := 8
+const RECTANGLE_HEIGHT := 6
+const HEXAGON_RADIUS := 3
+const TORIC_SIZE := 7
+const WALL_PROBABILITIES := [0.25, 0.45, 0.65]
+const SHAPE_NAMES := ["Rectangle", "Hexagon", "Toric"]
+const FLOOR_COLOR := Color(0.78, 0.84, 0.78)
+const WALL_COLOR := Color(0.26, 0.28, 0.31)
+const PROTECTED_COLOR := Color(0.92, 0.78, 0.35)
+const OUTLINE_COLOR := Color(0.12, 0.13, 0.14)
+
+enum ShapeMode {
+	RECTANGLE,
+	HEXAGON,
+	TORIC_SQUARE,
+}
+
+const SHAPE_RECTANGLE := ShapeMode.RECTANGLE
+const SHAPE_HEXAGON := ShapeMode.HEXAGON
+const SHAPE_TORIC_SQUARE := ShapeMode.TORIC_SQUARE
+
+var _shape_mode := ShapeMode.RECTANGLE
+var _seed := 1201
+var _wall_probability := 0.45
+var _ensure_connected := true
+var _flat_top := true
+var _map_data
+var _shape_buttons: Array[Button] = []
+var _summary_label: Label
+var _orientation_option: OptionButton
+var _probability_option: OptionButton
+var _connected_check: CheckButton
+
+
+func _ready() -> void:
+	_build_controls()
+	_generate_map()
+
+
+func configure_for_test(
+	shape_mode: int,
+	seed: int,
+	wall_probability: float,
+	ensure_connected: bool,
+	flat_top: bool
+) -> void:
+	_shape_mode = shape_mode
+	_seed = seed
+	_wall_probability = wall_probability
+	_ensure_connected = ensure_connected
+	_flat_top = flat_top
+	_sync_controls()
+	_generate_map()
+
+
+func get_current_map_data():
+	return _map_data
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not event is InputEventKey:
+		return
+	var key_event := event as InputEventKey
+	if not key_event.pressed or key_event.echo:
+		return
+
+	match key_event.keycode:
+		KEY_SPACE:
+			_seed += 1
+			_generate_map()
+		KEY_TAB:
+			_set_shape_mode((_shape_mode + 1) % SHAPE_NAMES.size())
+		KEY_R:
+			_set_connected(not _ensure_connected)
+		KEY_O:
+			_set_orientation(1 if _flat_top else 0)
+
+
+func _draw() -> void:
+	_draw_map()
+	_draw_header()
+
+
+func _build_controls() -> void:
+	_add_shape_button("Rect", ShapeMode.RECTANGLE, Vector2(24.0, 20.0))
+	_add_shape_button("Hex", ShapeMode.HEXAGON, Vector2(108.0, 20.0))
+	_add_shape_button("Toric", ShapeMode.TORIC_SQUARE, Vector2(192.0, 20.0))
+
+	_orientation_option = OptionButton.new()
+	_orientation_option.position = Vector2(296.0, 20.0)
+	_orientation_option.size = Vector2(122.0, 32.0)
+	_orientation_option.add_item("flat-top")
+	_orientation_option.add_item("pointy-top")
+	_orientation_option.item_selected.connect(_set_orientation)
+	add_child(_orientation_option)
+
+	_connected_check = CheckButton.new()
+	_connected_check.text = "Connected"
+	_connected_check.position = Vector2(436.0, 18.0)
+	_connected_check.size = Vector2(132.0, 36.0)
+	_connected_check.button_pressed = _ensure_connected
+	_connected_check.toggled.connect(_set_connected)
+	add_child(_connected_check)
+
+	_probability_option = OptionButton.new()
+	_probability_option.position = Vector2(586.0, 20.0)
+	_probability_option.size = Vector2(96.0, 32.0)
+	for probability in WALL_PROBABILITIES:
+		_probability_option.add_item("%.2f" % probability)
+	_probability_option.select(1)
+	_probability_option.item_selected.connect(_set_probability_index)
+	add_child(_probability_option)
+
+	var next_seed_button = Button.new()
+	next_seed_button.text = "New Seed"
+	next_seed_button.position = Vector2(700.0, 20.0)
+	next_seed_button.size = Vector2(96.0, 32.0)
+	next_seed_button.pressed.connect(_next_seed)
+	add_child(next_seed_button)
+
+	_summary_label = Label.new()
+	_summary_label.position = Vector2(24.0, 606.0)
+	_summary_label.size = Vector2(960.0, 52.0)
+	_summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	add_child(_summary_label)
+	_sync_controls()
+
+
+func _add_shape_button(text: String, mode: int, position: Vector2) -> void:
+	var button = Button.new()
+	button.text = text
+	button.position = position
+	button.size = Vector2(72.0, 32.0)
+	button.toggle_mode = true
+	button.button_pressed = mode == _shape_mode
+	button.pressed.connect(_set_shape_mode.bind(mode))
+	add_child(button)
+	_shape_buttons.append(button)
+
+
+func _set_shape_mode(mode: int) -> void:
+	_shape_mode = mode
+	_sync_controls()
+	_generate_map()
+
+
+func _set_orientation(index: int) -> void:
+	_flat_top = index == 0
+	_sync_controls()
+	queue_redraw()
+
+
+func _set_connected(value: bool) -> void:
+	_ensure_connected = value
+	_sync_controls()
+	_generate_map()
+
+
+func _set_probability_index(index: int) -> void:
+	_wall_probability = WALL_PROBABILITIES[index]
+	_generate_map()
+
+
+func _next_seed() -> void:
+	_seed += 1
+	_generate_map()
+
+
+func _sync_controls() -> void:
+	for index in range(_shape_buttons.size()):
+		_shape_buttons[index].button_pressed = index == _shape_mode
+	if _orientation_option != null:
+		_orientation_option.select(0 if _flat_top else 1)
+	if _connected_check != null:
+		_connected_check.button_pressed = _ensure_connected
+	if _probability_option != null:
+		var selected_index = 0
+		for index in range(WALL_PROBABILITIES.size()):
+			if is_equal_approx(WALL_PROBABILITIES[index], _wall_probability):
+				selected_index = index
+		_probability_option.select(selected_index)
+
+
+func _generate_map() -> void:
+	var protected_floor = [HexVector.zero()]
+	match _shape_mode:
+		ShapeMode.HEXAGON:
+			_map_data = HexMapGenerator.generate_hexagon(
+				HEXAGON_RADIUS,
+				_wall_probability,
+				_seed,
+				_ensure_connected,
+				protected_floor
+			)
+		ShapeMode.TORIC_SQUARE:
+			_map_data = HexMapGenerator.generate_toric_square(
+				TORIC_SIZE,
+				_wall_probability,
+				_seed,
+				_ensure_connected,
+				protected_floor
+			)
+		_:
+			_map_data = HexMapGenerator.generate_rectangle(
+				RECTANGLE_WIDTH,
+				RECTANGLE_HEIGHT,
+				_wall_probability,
+				_seed,
+				_ensure_connected,
+				false,
+				protected_floor
+			)
+	_update_summary()
+	queue_redraw()
+
+
+func _update_summary() -> void:
+	if _summary_label == null or _map_data == null:
+		return
+	var connected = HexMapGenerator.is_floor_connected(_map_data)
+	_summary_label.text = "%s  seed=%d  wall_prob=%.2f  restore=%s  connected=%s  %s" % [
+		SHAPE_NAMES[_shape_mode],
+		_seed,
+		_wall_probability,
+		str(_ensure_connected),
+		str(connected),
+		HexMapDebug.render_summary(_map_data),
+	]
+
+
+func _draw_header() -> void:
+	var font = ThemeDB.fallback_font
+	draw_string(
+		font,
+		Vector2(24.0, 92.0),
+		"Generated map debug",
+		HORIZONTAL_ALIGNMENT_LEFT,
+		-1.0,
+		26,
+		Color(0.08, 0.08, 0.08)
+	)
+	draw_string(
+		font,
+		Vector2(24.0, 122.0),
+		"Space: new seed   Tab: shape   R: restore   O: orientation",
+		HORIZONTAL_ALIGNMENT_LEFT,
+		-1.0,
+		16,
+		Color(0.25, 0.25, 0.25)
+	)
+
+
+func _draw_map() -> void:
+	if _map_data == null:
+		return
+	var entries = HexMapTileAdapter.to_tile_entries(_map_data)
+	if entries.is_empty():
+		return
+
+	var positions: Array = []
+	var first_position = HexMapTileAdapter.hex_to_local(entries[0]["vector"], HEX_SIZE, _flat_top)
+	var min_position = first_position
+	var max_position = first_position
+	for entry in entries:
+		var local = HexMapTileAdapter.hex_to_local(entry["vector"], HEX_SIZE, _flat_top)
+		positions.append({"entry": entry, "local": local})
+		min_position.x = minf(min_position.x, local.x)
+		min_position.y = minf(min_position.y, local.y)
+		max_position.x = maxf(max_position.x, local.x)
+		max_position.y = maxf(max_position.y, local.y)
+
+	var offset = MAP_ORIGIN - (min_position + max_position) * 0.5
+	for item in positions:
+		var entry: Dictionary = item["entry"]
+		var vector = entry["vector"]
+		var fill = WALL_COLOR if entry["kind"] == HexMapTileAdapter.KIND_WALL else FLOOR_COLOR
+		if vector.is_equal(HexVector.zero()):
+			fill = PROTECTED_COLOR
+		_draw_hex(offset + item["local"], _flat_top, fill, OUTLINE_COLOR)
+
+
+func _draw_hex(center: Vector2, flat_top: bool, fill: Color, stroke: Color) -> void:
+	var points: PackedVector2Array = []
+	var rotation = 0.0 if flat_top else 30.0
+	for index in range(6):
+		var angle = deg_to_rad(rotation + 60.0 * float(index))
+		points.append(center + Vector2(cos(angle), sin(angle)) * HEX_SIZE)
+
+	draw_colored_polygon(points, fill)
+	var outline = points
+	outline.append(points[0])
+	draw_polyline(outline, stroke, 1.5)

@@ -18,21 +18,4 @@ if [[ -z "$GODOT_BIN" ]]; then
   fi
 fi
 
-LOG_DIR="$ROOT_DIR/.godot_user"
-mkdir -p "$LOG_DIR"
-
-TEST_SCRIPTS=(
-  "res://tests/test_hex_core.gd"
-  "res://tests/test_hex_map_generation.gd"
-  "res://tests/test_hex_adapter.gd"
-  "res://tests/test_debug_scenes.gd"
-)
-
-for test_script in "${TEST_SCRIPTS[@]}"; do
-  log_name="$(basename "$test_script").log"
-  "$GODOT_BIN" \
-    --headless \
-    --log-file "$LOG_DIR/$log_name" \
-    --path . \
-    --script "$test_script"
-done
+"$GODOT_BIN" --path . --scene res://debug/generated_map_debug.tscn

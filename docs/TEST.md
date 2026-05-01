@@ -12,6 +12,7 @@ intaractiveなテスト作成時、実行方法を簡潔にdocumentationする
 - `tests/test_hex_core.gd`
 - `tests/test_hex_map_generation.gd`
 - `tests/test_hex_adapter.gd`
+- `tests/test_debug_scenes.gd`
 
 ### テスト方針
 
@@ -46,3 +47,11 @@ flat-top/pointy-top の視覚的な近傍配置確認:
 ```
 
 この画面は `HexMapTileAdapter.hex_to_local()` の結果をそのまま表示する手動確認用です。`Both` / `Flat` / `Pointy` / `Parity` / `Custom` で表示ケースを切り替えます。`Parity` は Unity の `HexPoint.coord()` 相当の offset 変換を経由し、中心点の R 偶奇が違う場合の近傍配置を比較します。`Custom` は flat-top/pointy-top と中心座標 `q/s/r` を入力して近傍配置を確認します。
+
+生成マップの視覚確認:
+
+```sh
+./tools/debug_generated_map.sh
+```
+
+この画面は `HexMapGenerator` の rectangle / hexagon / toric square 生成結果を `HexMapTileAdapter.hex_to_local()` で描画する手動確認用です。`Space` で seed 更新、`Tab` で形状切り替え、`R` で連結性回復の切り替え、`O` で flat-top/pointy-top を切り替えます。
