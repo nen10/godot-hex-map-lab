@@ -16,6 +16,7 @@ func _init() -> void:
 func _run() -> void:
 	_test_distribution_probabilities_match_unity_tables()
 	_test_rectangle_map_data()
+	_test_hexagon_map_data()
 	_test_random_walls_are_seeded_and_protect_floor_cells()
 	_test_connection_detection_uses_wall_set()
 	_test_restore_connectivity_removes_blocking_walls()
@@ -23,6 +24,7 @@ func _run() -> void:
 	_test_restore_connectivity_uses_toric_shortcut()
 	_test_generate_rectangle_can_restore_connectivity()
 	_test_generate_toric_square_can_restore_connectivity()
+	_test_generate_hexagon_can_restore_connectivity()
 	_test_debug_ascii_renders_wall_layout()
 	_test_debug_summary_reports_counts()
 
@@ -112,6 +114,18 @@ func _test_rectangle_map_data() -> void:
 	_assert_eq(toric_data.cyclic_size, 3, "toric square stores cyclic size")
 
 
+func _test_hexagon_map_data() -> void:
+	var data = HexMapData.hexagon(2)
+
+	_assert_eq(data.cells.size(), 19, "radius 2 hexagon has 1 + 3r(r + 1) cells")
+	_assert_eq(data.cyclic_size, 0, "hexagon map is non-toric")
+	for direction in HexVector.directions():
+		_assert_true(
+			data.has_cell(direction.scaled(2)),
+			"hexagon includes every radius corner"
+		)
+
+
 func _test_random_walls_are_seeded_and_protect_floor_cells() -> void:
 	var cells = HexMapData.rectangle(4, 4).cells
 	var protected = [HexVector.zero()]
@@ -184,6 +198,14 @@ func _test_generate_toric_square_can_restore_connectivity() -> void:
 	_assert_eq(data.cyclic_size, 6, "generated toric square stores cyclic size")
 	_assert_false(HexMapData.has_key(data.walls, HexVector.zero().key()), "protected toric cell remains floor")
 	_assert_true(HexMapGenerator.is_floor_connected(data), "generated toric square can be restored")
+
+
+func _test_generate_hexagon_can_restore_connectivity() -> void:
+	var data = HexMapGenerator.generate_hexagon(3, 0.45, 246, true, [HexVector.zero()])
+
+	_assert_eq(data.cells.size(), 37, "generated radius 3 hexagon has expected cell count")
+	_assert_false(HexMapData.has_key(data.walls, HexVector.zero().key()), "protected hex cell remains floor")
+	_assert_true(HexMapGenerator.is_floor_connected(data), "generated hexagon can be restored")
 
 
 func _test_debug_ascii_renders_wall_layout() -> void:

@@ -19,6 +19,32 @@ static func neighbors(position, cyclic_size: int = 0) -> Array:
 	return result
 
 
+static func l1_ring(radius: int, origin = null) -> Array:
+	assert(radius >= 0)
+	var center = origin if origin != null else HexVectorScript.zero()
+	var result: Array = []
+	for r in range(-radius, radius + 1):
+		for q in range(-radius, radius + 1):
+			var offset = HexVectorScript.apply_basis(q, 0, r)
+			if offset.l1_norm() != radius:
+				continue
+			result.append(center.add(offset))
+	return result
+
+
+static func l1_disc(radius: int, origin = null) -> Array:
+	assert(radius >= 0)
+	var center = origin if origin != null else HexVectorScript.zero()
+	var result: Array = []
+	for r in range(-radius, radius + 1):
+		for q in range(-radius, radius + 1):
+			var offset = HexVectorScript.apply_basis(q, 0, r)
+			if offset.l1_norm() > radius:
+				continue
+			result.append(center.add(offset))
+	return result
+
+
 static func make_set(points: Array) -> Dictionary:
 	var result := {}
 	for point in points:

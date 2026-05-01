@@ -20,6 +20,7 @@ func _run() -> void:
 	_test_toric_coordinate_wraps_axial_values()
 	_test_grid_neighbors_and_connected_area()
 	_test_grid_toric_connected_area_wraps_neighbors()
+	_test_grid_l1_ring_and_disc()
 
 	if _failures.is_empty():
 		print("test_hex_core.gd: all tests passed")
@@ -141,3 +142,31 @@ func _test_grid_toric_connected_area_wraps_neighbors() -> void:
 	var connected = HexGrid.connected_area(origin, enterable, 3)
 
 	_assert_eq(connected.size(), 2, "toric connected area follows wrapped neighbor")
+
+
+func _test_grid_l1_ring_and_disc() -> void:
+	var radius = 2
+	var ring = HexGrid.l1_ring(radius)
+	var ring_keys := {}
+	for point in ring:
+		ring_keys[point.key()] = true
+		_assert_eq(point.l1_norm(), radius, "L1 ring contains only radius-distance cells")
+
+	_assert_eq(ring.size(), 12, "radius 2 L1 ring has 6r cells")
+	for direction in HexVector.directions():
+		_assert_true(
+			ring_keys.has(direction.scaled(radius).key()),
+			"L1 ring contains every axial corner"
+		)
+
+	var disc = HexGrid.l1_disc(radius)
+	for point in disc:
+		_assert_true(point.l1_norm() <= radius, "L1 disc contains only cells within radius")
+
+	_assert_eq(disc.size(), 19, "radius 2 L1 disc has hexagonal cell count")
+	_assert_vector_eq(HexGrid.l1_disc(0)[0], HexVector.zero(), "radius 0 disc is origin only")
+
+	var center = HexVector.apply_basis(2, 0, 3)
+	var shifted = HexGrid.l1_disc(1, center)
+	for point in shifted:
+		_assert_true(point.subtract(center).l1_norm() <= 1, "shifted L1 disc is relative to origin")

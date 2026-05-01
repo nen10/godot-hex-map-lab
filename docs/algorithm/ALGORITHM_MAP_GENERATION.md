@@ -37,6 +37,10 @@ r = 0 ... height - 1
 cell = HexVector.apply_basis(q, 0, r)
 ```
 
+六角形 map の入口は `HexMapData.hexagon(radius)` または `HexMapGenerator.generate_hexagon(...)`。
+
+`HexGrid.l1_disc(radius)` により、中心 `HexVector.zero()` から `HexVector.l1_norm() <= radius` の cell を列挙する。半径 `0` は中心 1 cell、半径 `r` の cell 数は `1 + 3r(r + 1)`。
+
 toric の入口は `HexMapData.toric_square(size)` または `HexMapGenerator.generate_toric_square(...)`。
 
 toric は現時点では正方形のみを対象にする。`cyclic_size = size` として保存する。
@@ -99,7 +103,7 @@ toric では `cyclic_size > 0`。`HexGrid.neighbors()` は各 neighbor を `HexT
 
 ### 領域形状
 
-non-toric は長方形 `width x height` を扱える。
+non-toric は長方形 `width x height` と半径指定の六角形を扱える。
 
 toric は現時点では `size x size` の正方形のみを扱う。`HexMapData.rectangle(width, height, true)` は `width == height` を要求する。明示 API としては `HexMapData.toric_square(size)` と `HexMapGenerator.generate_toric_square(...)` を使う。
 

@@ -2,6 +2,7 @@ class_name HexMapData
 extends RefCounted
 
 const HexVectorScript = preload("res://addons/hex_map_kit/core/hex_vector.gd")
+const HexGridScript = preload("res://addons/hex_map_kit/core/hex_grid.gd")
 
 var cells: Array = []
 var walls: Array = []
@@ -30,6 +31,11 @@ static func rectangle(width: int, height: int, toric: bool = false):
 
 static func toric_square(size: int):
 	return rectangle(size, size, true)
+
+
+static func hexagon(radius: int):
+	assert(radius >= 0)
+	return from_cells(HexGridScript.l1_disc(radius), [], 0)
 
 
 static func from_cells(p_cells: Array, p_walls: Array = [], p_cyclic_size: int = 0):

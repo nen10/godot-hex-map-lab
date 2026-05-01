@@ -35,6 +35,20 @@ static func generate_toric_square(
 	return data
 
 
+static func generate_hexagon(
+	radius: int,
+	wall_probability: float,
+	seed: int = 0,
+	ensure_connected: bool = false,
+	protected_floor: Array = []
+):
+	var data = HexMapDataScript.hexagon(radius)
+	data.set_walls(generate_random_walls(data.cells, wall_probability, seed, protected_floor))
+	if ensure_connected:
+		restore_connectivity(data)
+	return data
+
+
 static func generate_random_walls(
 	cells: Array,
 	wall_probability: float,
