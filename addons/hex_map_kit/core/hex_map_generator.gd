@@ -112,12 +112,17 @@ static func restore_connectivity(data) -> Array:
 		if components.size() <= 1:
 			return removed_walls
 
-		var target_set = {}
+		var targets: Array = []
 		for index in range(1, components.size()):
 			for point in components[index]:
-				target_set[point.key()] = true
+				targets.append(point)
 
-		var path = _shortest_path_to_any(components[0], target_set, data)
+		var path = HexGridScript.shortest_path_to_any(
+			components[0],
+			targets,
+			data.cells,
+			data.cyclic_size
+		)
 		if path.is_empty():
 			return removed_walls
 
@@ -138,60 +143,6 @@ static func restore_connectivity(data) -> Array:
 		data.set_walls(_points_without_keys(data.walls, remove_keys))
 
 	return removed_walls
-
-
-static func _shortest_path_to_any(starts: Array, goal_set: Dictionary, data) -> Array:
-	var cell_set = data.cell_set()
-	var open: Array = []
-	var closed = {}
-	var queued = {}
-	var parent = {}
-
-	for start in starts:
-		var start_key = start.key()
-		if not cell_set.has(start_key):
-			continue
-		open.append(cell_set[start_key])
-		queued[start_key] = true
-		parent[start_key] = ""
-
-	while not open.is_empty():
-		var current = open.pop_front()
-		var current_key = current.key()
-		if closed.has(current_key):
-			continue
-
-		closed[current_key] = current
-		if goal_set.has(current_key):
-			return _rebuild_path(current_key, parent, closed)
-
-		for neighbor in HexGridScript.neighbors(current, data.cyclic_size):
-			var neighbor_key = neighbor.key()
-			if closed.has(neighbor_key):
-				continue
-			if queued.has(neighbor_key):
-				continue
-			if not cell_set.has(neighbor_key):
-				continue
-			if not parent.has(neighbor_key):
-				parent[neighbor_key] = current_key
-			queued[neighbor_key] = true
-			open.append(cell_set[neighbor_key])
-
-	return []
-
-
-static func _rebuild_path(goal_key: String, parent: Dictionary, closed: Dictionary) -> Array:
-	var keys: Array = []
-	var current_key = goal_key
-	while current_key != "":
-		keys.push_front(current_key)
-		current_key = parent[current_key]
-
-	var result: Array = []
-	for key in keys:
-		result.append(closed[key])
-	return result
 
 
 static func _points_without_keys(points: Array, removed_keys: Dictionary) -> Array:

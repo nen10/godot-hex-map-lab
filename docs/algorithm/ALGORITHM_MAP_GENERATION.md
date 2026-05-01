@@ -63,6 +63,8 @@ randf() < wall_probability なら壁
 
 内部では `HexGrid.connected_area(start, floor_cells, cyclic_size)` による BFS を使う。
 
+`HexGrid.shortest_path(start, goals, enterable_points, cyclic_size)` は、`enterable_points` 上だけを通る最短経路を BFS で返す。戻り値は start と到達した goal を含む座標列。到達不能な場合は空配列を返す。
+
 ### 4. 連結性を回復する
 
 `HexMapGenerator.restore_connectivity(data)` は、floor が複数成分に分かれている場合に壁を削って接続する。
@@ -75,7 +77,7 @@ randf() < wall_probability なら壁
 4. 経路上の wall を `walls` から取り除く。
 5. 連結成分が 1 つになるまで繰り返す。
 
-BFS の探索空間は `cells` 全体であり、floor だけではない。これは「壁を削れば通路にできる候補」を探索するため。
+BFS の探索空間は `cells` 全体であり、floor だけではない。これは「壁を削れば通路にできる候補」を探索するため。実装では `HexGrid.shortest_path_to_any(component, targets, data.cells, cyclic_size)` を使う。
 
 ### 5. デバッグ表示
 

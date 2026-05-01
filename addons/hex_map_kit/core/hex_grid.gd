@@ -93,3 +93,90 @@ static func connected_area(
 			open.append(neighbor)
 
 	return result
+
+
+static func shortest_path(
+	start,
+	goals: Array,
+	enterable_points: Array,
+	cyclic_size: int = 0
+) -> Array:
+	return shortest_path_to_any([start], goals, enterable_points, cyclic_size)
+
+
+static func shortest_path_to_any(
+	starts: Array,
+	goals: Array,
+	enterable_points: Array,
+	cyclic_size: int = 0
+) -> Array:
+	var enterable := _make_wrapped_set(enterable_points, cyclic_size)
+	var goal_set := _make_wrapped_set(goals, cyclic_size)
+	var open: Array = []
+	var closed = {}
+	var queued = {}
+	var parent = {}
+
+	for start in starts:
+		var normalized_start = _wrap_if_needed(start, cyclic_size)
+		var start_key = normalized_start.key()
+		if not enterable.has(start_key):
+			continue
+		if queued.has(start_key):
+			continue
+		open.append(enterable[start_key])
+		queued[start_key] = true
+		parent[start_key] = ""
+
+	while not open.is_empty():
+		var current = open.pop_front()
+		var current_key = current.key()
+		if closed.has(current_key):
+			continue
+		if not enterable.has(current_key):
+			continue
+
+		closed[current_key] = enterable[current_key]
+		if goal_set.has(current_key):
+			return _rebuild_path(current_key, parent, closed)
+
+		for neighbor in neighbors(current, cyclic_size):
+			var neighbor_key = neighbor.key()
+			if closed.has(neighbor_key):
+				continue
+			if queued.has(neighbor_key):
+				continue
+			if not enterable.has(neighbor_key):
+				continue
+			parent[neighbor_key] = current_key
+			queued[neighbor_key] = true
+			open.append(enterable[neighbor_key])
+
+	return []
+
+
+static func _wrap_if_needed(point, cyclic_size: int):
+	if cyclic_size <= 0:
+		return point
+	return HexToricCoordinateScript.wrap_vector(point, cyclic_size)
+
+
+static func _make_wrapped_set(points: Array, cyclic_size: int) -> Dictionary:
+	var result := {}
+	for point in points:
+		var normalized = _wrap_if_needed(point, cyclic_size)
+		result[normalized.key()] = normalized
+	return result
+
+
+static func _rebuild_path(goal_key: String, parent: Dictionary, closed: Dictionary) -> Array:
+	var keys: Array = []
+	var current_key = goal_key
+	while current_key != "":
+		keys.push_front(current_key)
+		current_key = parent[current_key]
+
+	var result: Array = []
+	for key in keys:
+		result.append(closed[key])
+	return result

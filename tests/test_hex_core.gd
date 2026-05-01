@@ -21,6 +21,8 @@ func _run() -> void:
 	_test_grid_neighbors_and_connected_area()
 	_test_grid_toric_connected_area_wraps_neighbors()
 	_test_grid_l1_ring_and_disc()
+	_test_grid_shortest_path_uses_enterable_points()
+	_test_grid_toric_shortest_path_wraps_edges()
 
 	if _failures.is_empty():
 		print("test_hex_core.gd: all tests passed")
@@ -47,6 +49,20 @@ func _assert_vector_eq(actual, expected, message: String) -> void:
 		_failures.append(
 			"%s: expected %s, got %s" % [message, expected.debug_string(), actual.debug_string()]
 		)
+
+
+func _assert_keys_eq(actual: Array, expected: Array, message: String) -> void:
+	var actual_keys = _keys(actual)
+	var expected_keys = _keys(expected)
+	if actual_keys != expected_keys:
+		_failures.append("%s: expected %s, got %s" % [message, str(expected_keys), str(actual_keys)])
+
+
+func _keys(points: Array) -> Array:
+	var result: Array = []
+	for point in points:
+		result.append(point.key())
+	return result
 
 
 func _test_hex_vector_basis_normalization() -> void:
@@ -170,3 +186,49 @@ func _test_grid_l1_ring_and_disc() -> void:
 	var shifted = HexGrid.l1_disc(1, center)
 	for point in shifted:
 		_assert_true(point.subtract(center).l1_norm() <= 1, "shifted L1 disc is relative to origin")
+
+
+func _test_grid_shortest_path_uses_enterable_points() -> void:
+	var cells: Array = [
+		HexVector.zero(),
+		HexVector.q_axis(),
+		HexVector.q_axis().scaled(2),
+		HexVector.q_axis().scaled(3),
+	]
+	var path = HexGrid.shortest_path(HexVector.zero(), [HexVector.q_axis().scaled(3)], cells)
+	_assert_keys_eq(path, cells, "shortest path follows a simple line")
+
+	var blocked: Array = [
+		HexVector.zero(),
+		HexVector.q_axis(),
+		HexVector.q_axis().scaled(3),
+	]
+	_assert_eq(
+		HexGrid.shortest_path(HexVector.zero(), [HexVector.q_axis().scaled(3)], blocked).size(),
+		0,
+		"shortest path fails when enterable points are disconnected"
+	)
+
+	var nearest = HexGrid.shortest_path(
+		HexVector.zero(),
+		[HexVector.q_axis().scaled(3), HexVector.q_axis()],
+		cells
+	)
+	_assert_keys_eq(
+		nearest,
+		[HexVector.zero(), HexVector.q_axis()],
+		"shortest path stops at the nearest reachable goal"
+	)
+
+
+func _test_grid_toric_shortest_path_wraps_edges() -> void:
+	var origin = HexVector.zero()
+	var wrapped_west = HexToricCoordinate.wrap_vector(HexVector.q_axis().negated(), 3)
+	var path = HexGrid.shortest_path(
+		origin,
+		[HexVector.q_axis().negated()],
+		[origin, wrapped_west],
+		3
+	)
+
+	_assert_keys_eq(path, [origin, wrapped_west], "toric shortest path follows wrapped edge")

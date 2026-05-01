@@ -19,16 +19,19 @@ func _run() -> void:
 	var default_data = scene.get_current_map_data()
 	_assert_eq(default_data.cells.size(), 48, "generated map debug starts with rectangle data")
 	_assert_true(HexMapGenerator.is_floor_connected(default_data), "default debug data is restored")
+	_assert_true(scene.get_current_path().size() > 1, "default debug data exposes a path")
 
 	scene.configure_for_test(GeneratedMapDebug.SHAPE_HEXAGON, 246, 0.45, true, true)
 	var hexagon_data = scene.get_current_map_data()
 	_assert_eq(hexagon_data.cells.size(), 37, "generated map debug can show hexagon data")
 	_assert_true(HexMapGenerator.is_floor_connected(hexagon_data), "debug hexagon data is restored")
+	_assert_true(scene.get_current_path().size() > 1, "debug hexagon data exposes a path")
 
 	scene.configure_for_test(GeneratedMapDebug.SHAPE_TORIC_SQUARE, 987, 0.45, true, false)
 	var toric_data = scene.get_current_map_data()
 	_assert_eq(toric_data.cyclic_size, 7, "generated map debug can show toric data")
 	_assert_true(HexMapGenerator.is_floor_connected(toric_data), "debug toric data is restored")
+	_assert_true(scene.get_current_path().size() > 1, "debug toric data exposes a path")
 
 	scene.queue_free()
 	await process_frame

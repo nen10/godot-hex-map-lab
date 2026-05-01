@@ -1,6 +1,7 @@
 extends Node2D
 
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
+const HexGrid = preload("res://addons/hex_map_kit/core/hex_grid.gd")
 const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
 const HexMapDebug = preload("res://addons/hex_map_kit/core/hex_map_debug.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
@@ -17,6 +18,9 @@ const FLOOR_COLOR := Color(0.78, 0.84, 0.78)
 const WALL_COLOR := Color(0.26, 0.28, 0.31)
 const PROTECTED_COLOR := Color(0.92, 0.78, 0.35)
 const OUTLINE_COLOR := Color(0.12, 0.13, 0.14)
+const PATH_COLOR := Color(0.12, 0.48, 0.88, 0.90)
+const PATH_START_COLOR := Color(0.12, 0.62, 0.42)
+const PATH_GOAL_COLOR := Color(0.88, 0.24, 0.24)
 
 enum ShapeMode {
 	RECTANGLE,
@@ -33,12 +37,15 @@ var _seed := 1201
 var _wall_probability := 0.45
 var _ensure_connected := true
 var _flat_top := true
+var _show_path := true
 var _map_data
+var _path_points: Array = []
 var _shape_buttons: Array[Button] = []
 var _summary_label: Label
 var _orientation_option: OptionButton
 var _probability_option: OptionButton
 var _connected_check: CheckButton
+var _path_check: CheckButton
 
 
 func _ready() -> void:
@@ -66,6 +73,10 @@ func get_current_map_data():
 	return _map_data
 
 
+func get_current_path() -> Array:
+	return _path_points
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not event is InputEventKey:
 		return
@@ -83,6 +94,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			_set_connected(not _ensure_connected)
 		KEY_O:
 			_set_orientation(1 if _flat_top else 0)
+		KEY_P:
+			_set_path_visible(not _show_path)
 
 
 func _draw() -> void:
@@ -111,8 +124,16 @@ func _build_controls() -> void:
 	_connected_check.toggled.connect(_set_connected)
 	add_child(_connected_check)
 
+	_path_check = CheckButton.new()
+	_path_check.text = "Path"
+	_path_check.position = Vector2(568.0, 18.0)
+	_path_check.size = Vector2(86.0, 36.0)
+	_path_check.button_pressed = _show_path
+	_path_check.toggled.connect(_set_path_visible)
+	add_child(_path_check)
+
 	_probability_option = OptionButton.new()
-	_probability_option.position = Vector2(586.0, 20.0)
+	_probability_option.position = Vector2(668.0, 20.0)
 	_probability_option.size = Vector2(96.0, 32.0)
 	for probability in WALL_PROBABILITIES:
 		_probability_option.add_item("%.2f" % probability)
@@ -122,7 +143,7 @@ func _build_controls() -> void:
 
 	var next_seed_button = Button.new()
 	next_seed_button.text = "New Seed"
-	next_seed_button.position = Vector2(700.0, 20.0)
+	next_seed_button.position = Vector2(782.0, 20.0)
 	next_seed_button.size = Vector2(96.0, 32.0)
 	next_seed_button.pressed.connect(_next_seed)
 	add_child(next_seed_button)
@@ -175,6 +196,13 @@ func _next_seed() -> void:
 	_generate_map()
 
 
+func _set_path_visible(value: bool) -> void:
+	_show_path = value
+	_sync_controls()
+	_update_summary()
+	queue_redraw()
+
+
 func _sync_controls() -> void:
 	for index in range(_shape_buttons.size()):
 		_shape_buttons[index].button_pressed = index == _shape_mode
@@ -182,6 +210,8 @@ func _sync_controls() -> void:
 		_orientation_option.select(0 if _flat_top else 1)
 	if _connected_check != null:
 		_connected_check.button_pressed = _ensure_connected
+	if _path_check != null:
+		_path_check.button_pressed = _show_path
 	if _probability_option != null:
 		var selected_index = 0
 		for index in range(WALL_PROBABILITIES.size()):
@@ -219,6 +249,7 @@ func _generate_map() -> void:
 				false,
 				protected_floor
 			)
+	_refresh_path()
 	_update_summary()
 	queue_redraw()
 
@@ -235,6 +266,8 @@ func _update_summary() -> void:
 		str(connected),
 		HexMapDebug.render_summary(_map_data),
 	]
+	if _show_path:
+		_summary_label.text += "  path=%d" % _path_points.size()
 
 
 func _draw_header() -> void:
@@ -251,7 +284,7 @@ func _draw_header() -> void:
 	draw_string(
 		font,
 		Vector2(24.0, 122.0),
-		"Space: new seed   Tab: shape   R: restore   O: orientation",
+		"Space: new seed   Tab: shape   R: restore   O: orientation   P: path",
 		HORIZONTAL_ALIGNMENT_LEFT,
 		-1.0,
 		16,
@@ -267,12 +300,14 @@ func _draw_map() -> void:
 		return
 
 	var positions: Array = []
+	var local_by_key := {}
 	var first_position = HexMapTileAdapter.hex_to_local(entries[0]["vector"], HEX_SIZE, _flat_top)
 	var min_position = first_position
 	var max_position = first_position
 	for entry in entries:
 		var local = HexMapTileAdapter.hex_to_local(entry["vector"], HEX_SIZE, _flat_top)
 		positions.append({"entry": entry, "local": local})
+		local_by_key[entry["vector"].key()] = local
 		min_position.x = minf(min_position.x, local.x)
 		min_position.y = minf(min_position.y, local.y)
 		max_position.x = maxf(max_position.x, local.x)
@@ -286,6 +321,63 @@ func _draw_map() -> void:
 		if vector.is_equal(HexVector.zero()):
 			fill = PROTECTED_COLOR
 		_draw_hex(offset + item["local"], _flat_top, fill, OUTLINE_COLOR)
+
+	_draw_path(offset, local_by_key)
+
+
+func _refresh_path() -> void:
+	_path_points = []
+	if _map_data == null:
+		return
+
+	var floors = _map_data.floor_cells()
+	if floors.size() <= 1:
+		return
+
+	var start = HexVector.zero()
+	if not _map_data.has_cell(start) or _map_data.has_wall(start):
+		start = floors[0]
+
+	var goal = _farthest_floor_from(start, floors)
+	if goal == null or goal.is_equal(start):
+		return
+
+	_path_points = HexGrid.shortest_path(start, [goal], floors, _map_data.cyclic_size)
+
+
+func _farthest_floor_from(start, floors: Array):
+	var result = null
+	var result_distance = -1
+	var result_key = ""
+	for floor in floors:
+		if floor.is_equal(start):
+			continue
+		var distance = floor.subtract(start).l1_norm()
+		var key = floor.key()
+		if distance > result_distance or (distance == result_distance and key > result_key):
+			result = floor
+			result_distance = distance
+			result_key = key
+	return result
+
+
+func _draw_path(map_offset: Vector2, local_by_key: Dictionary) -> void:
+	if not _show_path or _path_points.size() <= 1:
+		return
+
+	var points := PackedVector2Array()
+	for point in _path_points:
+		var key = point.key()
+		if not local_by_key.has(key):
+			continue
+		points.append(map_offset + local_by_key[key])
+
+	if points.size() <= 1:
+		return
+
+	draw_polyline(points, PATH_COLOR, 6.0, true)
+	draw_circle(points[0], 8.0, PATH_START_COLOR)
+	draw_circle(points[points.size() - 1], 8.0, PATH_GOAL_COLOR)
 
 
 func _draw_hex(center: Vector2, flat_top: bool, fill: Color, stroke: Color) -> void:
