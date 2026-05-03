@@ -169,7 +169,7 @@ func _test_restore_connectivity_removes_blocking_walls() -> void:
 
 
 func _test_toric_connection_detection_wraps_edges() -> void:
-	var data = HexMapData.toric_square(3)
+	var data = HexMapData.square(3, true)
 	var left = HexVector.zero()
 	var right = HexVector.q_axis().scaled(2)
 	data.walls = HexMapData.points_except(data.cells, [left, right])
@@ -178,7 +178,7 @@ func _test_toric_connection_detection_wraps_edges() -> void:
 
 
 func _test_restore_connectivity_uses_toric_shortcut() -> void:
-	var data = HexMapData.toric_square(4)
+	var data = HexMapData.square(4, true)
 	var start = HexVector.zero()
 	var goal = HexVector.q_axis().scaled(2)
 	data.walls = HexMapData.points_except(data.cells, [start, goal])
@@ -207,12 +207,13 @@ func _test_generate_toric_square_can_restore_connectivity() -> void:
 func _test_symmetric_toric_walls_are_seeded_and_mapped_to_split_canvas() -> void:
 	var protected = [HexVector.zero()]
 	for size in [7, 9, 11, 13]:
+		var radius = int((size - 1) / 2)
 		var seed = 1200 + size
-		var walls_a = HexMapGenerator.generate_symmetric_toric_walls(size, 0.45, seed, 20, protected)
-		var walls_b = HexMapGenerator.generate_symmetric_toric_walls(size, 0.45, seed, 20, protected)
-		var walls_c = HexMapGenerator.generate_symmetric_toric_walls(size, 0.45, seed + 1, 20, protected)
-		var data = HexMapData.toric_square(size)
-		var split_rule = HexToricMapSplitRule.new(int((size - 1) / 2))
+		var walls_a = HexMapGenerator.generate_symmetric_toric_walls(radius, 0.45, seed, 20, protected)
+		var walls_b = HexMapGenerator.generate_symmetric_toric_walls(radius, 0.45, seed, 20, protected)
+		var walls_c = HexMapGenerator.generate_symmetric_toric_walls(radius, 0.45, seed + 1, 20, protected)
+		var data = HexMapData.square(size, true)
+		var split_rule = HexToricMapSplitRule.new(radius)
 		var split_counts := {}
 
 		_assert_keys_eq(walls_a, walls_b, "symmetric toric walls are seeded for N=%d" % size)
@@ -230,7 +231,7 @@ func _test_symmetric_toric_walls_are_seeded_and_mapped_to_split_canvas() -> void
 
 
 func _test_restore_terminal_connectivity_connects_only_requested_terminals() -> void:
-	var data = HexMapData.toric_square(5)
+	var data = HexMapData.square(5, true)
 	var start = HexVector.zero()
 	var goal = HexVector.q_axis().scaled(2)
 	var unrelated_floor = HexVector.r_axis().scaled(2)
@@ -256,14 +257,15 @@ func _test_generate_symmetric_toric_square_can_restore_terminal_connectivity() -
 		center.add(HexVector.r_axis().subtract(HexVector.q_axis()).scaled(terminal_offset)),
 		center.add(HexVector.q_axis().subtract(HexVector.r_axis()).scaled(terminal_offset)),
 	]
-	var data = HexMapGenerator.generate_symmetric_toric_square(
-		size,
+	var data = HexMapGenerator.generate_symmetric_square(
+		radius,
 		0.45,
 		2468,
 		true,
 		[HexVector.zero()],
 		20,
-		terminals
+		terminals,
+		true
 	)
 
 	_assert_eq(data.cyclic_size, size, "symmetric toric square stores cyclic size")
@@ -303,7 +305,7 @@ func _test_debug_ascii_renders_wall_layout() -> void:
 
 
 func _test_debug_summary_reports_counts() -> void:
-	var data = HexMapData.toric_square(2)
+	var data = HexMapData.square(2, true)
 	data.set_walls([HexVector.zero()])
 
 	_assert_eq(

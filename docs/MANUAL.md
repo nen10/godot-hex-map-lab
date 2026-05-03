@@ -2,24 +2,50 @@
 
 ## 目次
 
-1. [セットアップ](#1-セットアップ)
-2. [クイックスタート](#2-クイックスタート)
-3. [スクリプティングガイド](#3-スクリプティングガイド)
-   - [3.1 座標系: HexVector と HexPoint](#31-座標系-hexvector-と-hexpoint)
-   - [3.2 マップデータ: HexMapData](#32-マップデータ-hexmapdata)
-   - [3.3 マップ生成: HexMapGenerator](#33-マップ生成-hexmapgenerator)
-   - [3.4 連結性と回復](#34-連結性と回復)
-   - [3.5 経路探索: HexGrid](#35-経路探索-hexgrid)
-   - [3.6 TileMapLayer への適用](#36-tilemaplayer-への適用)
-   - [3.7 リソース保存: HexMapResource](#37-リソース保存-hexmapresource)
-   - [3.8 トーラスマップと対称生成](#38-トーラスマップと対称生成)
-   - [3.9 デバッグ出力](#39-デバッグ出力)
-4. [EditorPlugin ガイド](#4-editorplugin-ガイド)
-   - [4.1 有効化](#41-有効化)
-   - [4.2 マップ生成ドック](#42-マップ生成ドック)
-   - [4.3 生成結果の保存と利用](#43-生成結果の保存と利用)
-   - [4.4 デバッグ実行](#44-デバッグ実行)
-5. [API リファレンス](#5-api-リファレンス)
+- [Hex Map Kit Manual](#hex-map-kit-manual)
+  - [目次](#目次)
+  - [1. セットアップ](#1-セットアップ)
+    - [プロジェクトへの導入](#プロジェクトへの導入)
+    - [アドオン構造](#アドオン構造)
+    - [スクリプトからの利用](#スクリプトからの利用)
+  - [2. クイックスタート](#2-クイックスタート)
+  - [3. スクリプティングガイド](#3-スクリプティングガイド)
+    - [3.1 座標系: HexVector と HexPoint](#31-座標系-hexvector-と-hexpoint)
+      - [HexVector](#hexvector)
+      - [HexPoint（軸座標・オフセット座標）](#hexpoint軸座標オフセット座標)
+    - [3.2 マップデータ: HexMapData](#32-マップデータ-hexmapdata)
+    - [3.3 マップ生成: HexMapGenerator](#33-マップ生成-hexmapgenerator)
+      - [基本生成](#基本生成)
+      - [パラメータ解説](#パラメータ解説)
+      - [一様分布による壁生成](#一様分布による壁生成)
+    - [3.4 連結性と回復](#34-連結性と回復)
+    - [3.5 経路探索: HexGrid](#35-経路探索-hexgrid)
+    - [3.6 TileMapLayer への適用](#36-tilemaplayer-への適用)
+    - [3.7 リソース保存: HexMapResource](#37-リソース保存-hexmapresource)
+    - [3.8 トーラスマップと対称生成](#38-トーラスマップと対称生成)
+      - [トーラス座標 (HexToricCoordinate)](#トーラス座標-hextoriccoordinate)
+      - [9-Split 分割ルール (HexToricMapSplitRule)](#9-split-分割ルール-hextoricmapsplitrule)
+      - [対称生成](#対称生成)
+    - [3.9 デバッグ出力](#39-デバッグ出力)
+  - [4. EditorPlugin ガイド](#4-editorplugin-ガイド)
+    - [4.1 有効化](#41-有効化)
+    - [4.2 マップ生成ドック](#42-マップ生成ドック)
+      - [操作方法](#操作方法)
+      - [形状ごとの動き](#形状ごとの動き)
+      - [Stats 表示](#stats-表示)
+    - [4.3 生成結果の保存と利用](#43-生成結果の保存と利用)
+    - [4.4 デバッグ実行](#44-デバッグ実行)
+  - [5. API リファレンス](#5-api-リファレンス)
+    - [HexVector](#hexvector-1)
+    - [HexPoint](#hexpoint)
+    - [HexMapData](#hexmapdata)
+    - [HexMapGenerator](#hexmapgenerator)
+    - [HexGrid](#hexgrid)
+    - [HexToricCoordinate](#hextoriccoordinate)
+    - [HexToricMapSplitRule](#hextoricmapsplitrule)
+    - [HexMapTileAdapter](#hexmaptileadapter)
+    - [HexMapResource](#hexmapresource)
+    - [HexMapDebug](#hexmapdebug)
 
 ---
 
@@ -104,18 +130,23 @@ func generate() -> void:
 
 ### 3.1 座標系: HexVector と HexPoint
 
-#### HexVector（立方体座標）
+#### HexVector
 
-`(q, s, r)` の 3 成分で hex 座標を表現します。**`q + s + r == 0`** が常に成り立ちます。
+3次元空間を対角方向から見て平面に射影して`(q, s, r)` の 3 成分によるhex座標を2次元平面に表現します。
+同一の地点に複数の3次元座標が対応するため内部で正規化処理を行ない、uniquenessを保証しています。
+入力した `(q, s, r)` と実際に作成される座標には、3次元の対角線の範囲において違いが発生します。
+この正規化による代表点は、距離計算をシンプルに表現する値を採用しています。
 
 ```gdscript
-var origin = HexVector.zero()           # (0, 0, 0)
-var east   = HexVector.q_axis()         # (+1, 0, -1)
-var south  = HexVector.s_axis()         # (-1, +1, 0)
-var west   = HexVector.q_axis().negated()  # (-1, 0, +1)
+var origin = HexVector.zero()           # (  0,  0,  0 )
+var Q      = HexVector.q_axis()         # ( +1,  0,  0 )
+var R      = HexVector.r_axis()         # (  0,  0, +1 )
+var S      = HexVector.s_axis()         # (  0, +1,  0 )
+var east   = Q.subtract(R)              # ( +1,  0, -1 )
+var south  = S.negated()                # (  0, -1,  0 )
 
 # 任意の方向ベクトル
-var v = HexVector.apply_basis(2, -1, -1)  # q=2, s=-1, r=-1 → 正規化後 (3, 0, -3): Q*3
+var v = HexVector.apply_basis(2, -1, -1)  # q=2, s=-1, r=-1 → 正規化後 (3, 0, 0): Q.scaled(3)
 
 # 演算
 var sum       = east.add(south)
@@ -131,7 +162,7 @@ var chebyshev = v.l_infinity_norm()  # Chebyshev 距離
 # 識別キーと表示
 print(east.key())          # "1,0,-1"
 print(east.debug_string()) # "(Q:1, S:0, R:-1)"
-print(east.axial())        # Vector2i(2,1)  (q-s, r-s)
+print(east.axial())        # Vector2i(1,-1)  (q-s, r-s)
 ```
 
 **6方向ベクトル:**
@@ -139,12 +170,12 @@ print(east.axial())        # Vector2i(2,1)  (q-s, r-s)
 ```gdscript
 var directions = HexVector.directions()
 # [Q, -R, S, -Q, R, -S]
-#  (1,0,-1), (0,1,-1), (-1,1,0), (-1,0,1), (0,-1,1), (1,-1,0)
 ```
 
 #### HexPoint（軸座標・オフセット座標）
 
-`(q, r)` の軸座標と、Unity 互換のオフセット座標変換を提供します。
+HexVector（立方体座標）での正規化と異なり、sを0にする点を代表点として採用した正規化を行い、3成分の座標値を`(q, r)` の2成分で表現します。
+これによって、ディスプレイ上でのhex座標表現に適したオフセット座標との変換機能をサポートします。
 
 ```gdscript
 # 生成
@@ -154,12 +185,16 @@ var offset_point = HexPoint.from_offset(3, 2)  # オフセット座標から
 # 変換
 var offset = point.to_offset()    # Vector2i オフセット座標
 
-# 方向ベクトルを使った移動
+# point + vector -> point
 var neighbor = point.add_vector(HexVector.q_axis())
+
+# point - point -> vector
+point.vector_to(neighbor) == Q
+point.vector_from(neighbor) == -Q
+
+# 2点間の距離
 var dist = point.l1_distance_to(neighbor)  # 1
 
-# ベクトル差分
-var vec = point.vector_to(neighbor)    # HexVector
 ```
 
 ---
@@ -195,7 +230,7 @@ var rect      = HexMapData.rectangle(8, 6)              # 8x6, non-toric
 var toric_rect = HexMapData.rectangle(5, 5, true)       # 5x5 toric
 
 # トーラス正方形 (toric rectangle のショートカット)
-var toric     = HexMapData.toric_square(7)              # 7x7 toric
+var toric     = HexMapData.square(7, true)              # 7x7 toric
 
 # 正六角形
 var hex       = HexMapData.hexagon(3)                   # radius=3 → 37 cells
@@ -263,12 +298,12 @@ var hex = HexMapGenerator.generate_hexagon(
 | `wall_probability` | `float` | 0.0–1.0。壁生成確率 |
 | `seed` | `int` | 乱数シード。同一シード・同一パラメータで同一マップを再現 |
 | `ensure_connected` | `bool` | `true` で壁を削って全床セルを連結にする |
-| `protected_floor` | `Array[HexVector]` | 壁にしない保護セル。原点保護が推奨 |
+| `protected_floor` | `Array[HexVector]` | 壁にしない保護セル |
 
-#### 低レベル壁生成
+#### 一様分布による壁生成
 
 ```gdscript
-# セル集合に対してランダム壁を生成（マップデータは作らない）
+# セル集合に対してランダム壁を生成
 var walls = HexMapGenerator.generate_random_walls(
     cells,   # Array[HexVector]
     0.45,    # wall_probability
@@ -317,8 +352,8 @@ if HexMapGenerator.are_terminals_connected(data, [terminal_a, terminal_b]):
 const HexGrid = preload("res://addons/hex_map_kit/core/hex_grid.gd")
 
 # 近傍取得
-var neighbors = HexGrid.neighbors(HexVector.zero())    # 6方向の隣接セル
-var toric_neighbors = HexGrid.neighbors(origin, 7)     # トーラス周期あり
+var neighbors = HexGrid.neighbors(HexVector.zero())    # 入力: HexPoint or HexVector
+var toric_neighbors = HexGrid.neighbors(origin, 7)     # 入力: (HexPoint, cyclic_size:トーラス周期)
 
 # L1 リング / ディスク
 var ring = HexGrid.l1_ring(2)            # L1距離がちょうど radius のセル (12 cells)
@@ -337,7 +372,7 @@ var path = HexGrid.shortest_path(
     start,                # HexVector
     [goal],               # Array[HexVector] — 複数ゴールの中から最短のものへ
     enterable_cells,      # 通行可能なセル一覧
-    0                     # cyclic_size。>0 でトーラスエッジをまたぐ
+    0                     # cyclic_size >0 でトーラスエッジをまたぐ最短
 )
 # path は start から goal までの HexVector 配列。到達不能なら []
 
@@ -463,15 +498,16 @@ var tags = rule.symmetry_generation_tags()
 #### 対称生成
 
 ```gdscript
-# 対称生成（トーラス正方形, odd N 必須）
-var symmetric_data = HexMapGenerator.generate_symmetric_toric_square(
-    7,    # size (odd 必須)
+# 対称生成（正方形）
+var symmetric_data = HexMapGenerator.generate_symmetric_square(
+    3,    # 生成半径
     0.45, # wall_probability
     42,   # seed
     true, # ensure_connected
     [HexVector.zero()],   # protected_floor
     20,   # distribution_id (確率分布テーブル ID)
-    []    # terminal_floor (terminal 連結性回復用)
+    [],   # terminal_floor (terminal 連結性回復用)
+    false # toric/non-toricを指定
 )
 
 # 低レベル: 壁のみ生成
@@ -684,7 +720,7 @@ flat-top/pointy-top の近傍方向を視覚的に確認。`Both` / `Flat` / `Po
 | `has_wall` | `(point) -> bool` | 壁判定 |
 | `set_walls` | `(Array) -> void` | 壁設定 |
 | *(static)* `rectangle` | `(w,h,toric=false) -> HexMapData` | 長方形 |
-| *(static)* `toric_square` | `(size) -> HexMapData` | トーラス正方形 |
+| *(static)* `square` | `(size,toric=false) -> HexMapData` | 正方形 |
 | *(static)* `hexagon` | `(radius) -> HexMapData` | 正六角形 |
 | *(static)* `from_cells` | `(cells,walls=[],cyclic=0) -> HexMapData` | 任意セル集合 |
 | *(static)* `make_set` | `(Array) -> Dictionary` | 辞書化 |
@@ -700,7 +736,7 @@ flat-top/pointy-top の近傍方向を視覚的に確認。`Both` / `Flat` / `Po
 |---|---|---|
 | *(static)* `generate_rectangle` | `(w,h,prob,seed=0,connected=false,toric=false,prot=[]) -> HexMapData` | 長方形生成 |
 | *(static)* `generate_toric_square` | `(size,prob,seed=0,connected=false,prot=[]) -> HexMapData` | トーラス正方形生成 |
-| *(static)* `generate_symmetric_toric_square` | `(size,prob,seed=0,connected=false,prot=[],dist_id=20,terminals=[]) -> HexMapData` | 対称生成 |
+| *(static)* `generate_symmetric_square` | `(size,prob,seed=0,connected=false,prot=[],dist_id=20,terminals=[],connect_toric=false) -> HexMapData` | 対称生成 |
 | *(static)* `generate_hexagon` | `(radius,prob,seed=0,connected=false,prot=[]) -> HexMapData` | 六角形生成 |
 | *(static)* `generate_random_walls` | `(cells,prob,seed=0,prot=[]) -> Array` | 壁生成 |
 | *(static)* `generate_symmetric_toric_walls` | `(size,prob,seed=0,dist_id=20,prot=[]) -> Array` | 対称壁生成 |

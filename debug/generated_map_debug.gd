@@ -460,12 +460,15 @@ func _generate_map() -> void:
 		ShapeMode.TORUS:
 			_refresh_split_rule()
 			if _uses_symmetric_toric_generation():
-				_map_data = HexMapGenerator.generate_symmetric_toric_square(
-					_toric_size(),
+				_map_data = HexMapGenerator.generate_symmetric_square(
+					(_toric_size() - 1) / 2,
 					_wall_probability,
 					_seed,
 					_ensure_connected,
-					protected_floor
+					protected_floor,
+					20,
+					[],
+					true
 				)
 			else:
 				_map_data = HexMapGenerator.generate_toric_square(

@@ -29,8 +29,8 @@ static func rectangle(width: int, height: int, toric: bool = false):
 	return from_cells(result, [], width if toric else 0)
 
 
-static func toric_square(size: int):
-	return rectangle(size, size, true)
+static func square(size: int, is_toric: bool = false):
+	return rectangle(size, size, is_toric)
 
 
 static func hexagon(radius: int):

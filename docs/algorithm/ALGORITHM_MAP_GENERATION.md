@@ -42,7 +42,7 @@ cell = HexVector.apply_basis(q, 0, r)
 
 `HexGrid.l1_disc(radius)` により、中心 `HexVector.zero()` から `HexVector.l1_norm() <= radius` の cell を列挙する。半径 `0` は中心 1 cell、半径 `r` の cell 数は `1 + 3r(r + 1)`。
 
-toric の入口は `HexMapData.toric_square(size)` または `HexMapGenerator.generate_toric_square(...)`。
+toric の入口は `HexMapData.square(size, true)` または `HexMapGenerator.generate_toric_square(...)`。
 
 toric は現時点では正方形のみを対象にする。`cyclic_size = size` として保存する。
 
@@ -61,20 +61,19 @@ toric は現時点では正方形のみを対象にする。`cyclic_size = size`
 
 `symmetry_generation_entries()` は Unity 版 `HexToricMap.DrawThreadsOnToricMap()` の幾何的な描画順を可視化用に移植したものである。乱数による壁生成結果ではなく、どの領域が描画候補になるかだけを返す。
 
-- `outer_mod`: `DrawAreaCenter()` に対応する、`(MapUnitRadius - 1) % 3` で形が変わる外周側の開始領域
-- `outer_wave`: `DrawAreaFromCenter()` に対応する、split 0 / split 7 から外周側領域を作る波状の領域
+- `outer_mod`: `DrawAreaCenter()` に対応する。`(MapUnitRadius - 1) % 3` で形が変わる外周側の開始領域
+- `outer_wave`: `DrawAreaFromCenter()` に対応する。split 0 / split 7 に位置する、外周側領域。
 - `outer_phase2_boundary`: phase 2 で `DrawAreaCenter()` の開始形状から補正した外周境界ノード。border / inner に渡す基準点になる
 - `border_initial` / `border_edge`: `DrawBoarder()` に対応する、外周を越える参照位置を `ReferencePositions` によって canvas 内へ移した領域
 - `inner_arc`: `DrawInnerArea()` に対応する、6 方向の arc で中心へ向かう共通領域
-- `center`: `DrawInnerArea()` の最後にコード上で求める中心 cell。phase 2 では `DrawAreaCenter()` の開始形状から外周境界ノードへの補正を入れ、split index 8 の中心へ収束させる
+- `center`: `DrawInnerArea()` の最後にコード上で求める中心 cell。phase 2 では `DrawAreaCenter()` の開始形状から外周境界ノードへの補正を入れ、split index 8 の中心で完了する
 
 phase 2 の `outer_mod` は split 0 / split 7 にそれぞれ 6 個、合計 12 個の生成座標を持つ。hexagonal toric の境界同一視として扱うと、これらは 3 組の pair と 2 組の triple に分かれる。`symmetry_phase2_outer_mod_groups()` はこの 5 グループを返す。debug scene では pair を線分、triple を三角形として描き、面塗りだけでは見えない糊代的な同一座標関係を確認する。表示時は raw な square 座標同士を直接結ばず、周期コピーの中で最も局所的になる等価配置を選び、Unity 版の対称生成過程で現れる糊代側のタイリングとして確認できるようにする。
 
-`symmetry_unity_reference_groups()` は Unity 版の raw な `DrawAreaFromCenter()` まで含めた生成 source 座標を `HexToricCoordinate.ApplyCyclic()` 相当で畳み、同じ canvas 座標に対応するものだけを返す。現時点で確認できる同一視は、`N=7` の `outer_mod` 1 組 / `outer_wave` 2 組、`N=13` の `outer_wave` 7 組である。`border_initial` / `border_edge` については、テスト対象の odd N では同一視グループを確認していない。
 
 ### 対称 toric 正方形の壁生成
 
-`HexMapGenerator.generate_symmetric_toric_square(size, wall_probability, seed, ensure_connected, protected_floor, distribution_id, terminal_floor)` は Unity 版 `HexToricMap.DrawThreadsOnToricMap()` の描画順を Core の壁生成として使う。
+`HexMapGenerator.generate_symmetric_square(size, wall_probability, seed, ensure_connected, protected_floor, distribution_id, terminal_floor, connect_toric)` は Unity 版 `HexToricMap.DrawThreadsOnToricMap()` の描画順を Core の壁生成として使う。
 
 - `size` は `2 * map_unit_radius + 1` の odd N のみ
 - `distribution_id` は `HexRandomizer.prob_from_distribution()` の 2x2x2 テーブルを使う
@@ -117,7 +116,7 @@ randf() < wall_probability なら壁
 
 BFS の探索空間は `cells` 全体であり、floor だけではない。これは「壁を削れば通路にできる候補」を探索するため。実装では `HexGrid.shortest_path_to_any(component, targets, data.cells, cyclic_size)` を使う。
 
-`HexMapGenerator.restore_terminal_connectivity(data, terminals)` は、指定 terminal を先に floor 化し、最初の terminal から未接続 terminal への最短経路上の壁だけを削る。これは terminal 間の到達性を優先する処理であり、terminal と無関係な floor 成分までは接続しない。全 floor の連結性も必要な場合は、その後に `restore_connectivity(data)` を実行する。`generate_symmetric_toric_square(..., ensure_connected=true, terminal_floor=...)` は terminal 回復を先に行い、その後に全体回復を行う。
+`HexMapGenerator.restore_terminal_connectivity(data, terminals)` は、指定 terminal を先に floor 化し、最初の terminal から未接続 terminal への最短経路上の壁だけを削る。これは terminal 間の到達性を優先する処理であり、terminal と無関係な floor 成分までは接続しない。全 floor の連結性も必要な場合は、その後に `restore_connectivity(data)` を実行する。`generate_symmetric_square(..., ensure_connected=true, terminal_floor=...)` は terminal 回復を先に行い、その後に全体回復を行う。
 
 ### 5. デバッグ表示
 
@@ -147,7 +146,7 @@ toric では `cyclic_size > 0`。`HexGrid.neighbors()` は各 neighbor を `HexT
 
 non-toric は長方形 `width x height` と半径指定の六角形を扱える。
 
-toric は現時点では `size x size` の正方形のみを扱う。`HexMapData.rectangle(width, height, true)` は `width == height` を要求する。明示 API としては `HexMapData.toric_square(size)` と `HexMapGenerator.generate_toric_square(...)` を使う。
+toric は現時点では `size x size` の正方形のみを扱う。`HexMapData.rectangle(width, height, true)` は `width == height` を要求する。明示 API としては `HexMapData.square(size, true)` と `HexMapGenerator.generate_toric_square(...)` を使う。
 
 ### 連結性回復
 

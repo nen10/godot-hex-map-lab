@@ -53,12 +53,15 @@ func _run() -> void:
 		true
 	)
 	var symmetric_toric_data = scene.get_current_map_data()
-	var expected_symmetric_data = HexMapGenerator.generate_symmetric_toric_square(
-		7,
+	var expected_symmetric_data = HexMapGenerator.generate_symmetric_square(
+		3,
 		0.45,
 		987,
 		true,
-		[HexVector.zero()]
+		[HexVector.zero()],
+		20,
+		[],
+		true
 	)
 	_assert_true(scene.uses_symmetric_toric_generation(), "debug sym-gen mode is active for odd N")
 	_assert_eq(symmetric_toric_data.cyclic_size, 7, "debug sym-gen data stores cyclic size")

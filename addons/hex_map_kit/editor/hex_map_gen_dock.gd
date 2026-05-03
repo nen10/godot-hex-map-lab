@@ -313,12 +313,15 @@ func _generate_map() -> void:
 			)
 		SHAPE_TORUS:
 			if _uses_symmetric_generation():
-				_current_data = HexMapGenerator.generate_symmetric_toric_square(
-					_torus_size(),
+				_current_data = HexMapGenerator.generate_symmetric_square(
+					(_torus_size() - 1) / 2,
 					wall_prob,
 					seed,
 					connected,
-					protected
+					protected,
+					20,
+					[],
+					true
 				)
 			else:
 				_current_data = HexMapGenerator.generate_toric_square(

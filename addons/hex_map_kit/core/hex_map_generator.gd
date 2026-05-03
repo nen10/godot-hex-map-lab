@@ -32,38 +32,39 @@ static func generate_toric_square(
 	ensure_connected: bool = false,
 	protected_floor: Array = []
 ):
-	var data = HexMapDataScript.toric_square(size)
+	var data = HexMapDataScript.square(size, true)
 	data.set_walls(generate_random_walls(data.cells, wall_probability, seed, protected_floor))
 	if ensure_connected:
 		restore_connectivity(data)
 	return data
 
 
-static func generate_symmetric_toric_square(
-	size: int,
+static func generate_symmetric_square(
+	radius: int,
 	wall_probability: float,
 	seed: int = 0,
 	ensure_connected: bool = false,
 	protected_floor: Array = [],
 	distribution_id: int = 20,
-	terminal_floor: Array = []
+	terminal_floor: Array = [],
+	connect_toric: bool = false,
 ):
-	assert(size >= 3)
-	assert(size % 2 == 1)
-	var data = HexMapDataScript.toric_square(size)
+	assert(radius > 0)
+	var size: int = radius * 2 + 1 
+	var data = HexMapDataScript.square(size, connect_toric)
 	var forced_floor = protected_floor.duplicate()
 	for terminal in terminal_floor:
 		forced_floor.append(terminal)
 	data.set_walls(generate_symmetric_toric_walls(
-		size,
+		radius,
 		wall_probability,
 		seed,
 		distribution_id,
 		forced_floor
 	))
+	if not terminal_floor.is_empty():
+		restore_terminal_connectivity(data, terminal_floor)
 	if ensure_connected:
-		if not terminal_floor.is_empty():
-			restore_terminal_connectivity(data, terminal_floor)
 		restore_connectivity(data)
 	return data
 
@@ -77,6 +78,56 @@ static func generate_hexagon(
 ):
 	var data = HexMapDataScript.hexagon(radius)
 	data.set_walls(generate_random_walls(data.cells, wall_probability, seed, protected_floor))
+	if ensure_connected:
+		restore_connectivity(data)
+	return data
+
+
+static func generate_symmetric_hexagon(
+	radius: int,
+	wall_probability: float,
+	seed: int = 0,
+	ensure_connected: bool = false,
+	protected_floor: Array = [],
+	distribution_id: int = 20,
+	terminal_floor: Array = []
+):
+	assert(radius > 0)
+	var size: int = radius * 2 + 1
+
+	var forced_floor = protected_floor.duplicate()
+	for terminal in terminal_floor:
+		forced_floor.append(terminal)
+
+	var all_walls = generate_symmetric_toric_walls(
+		radius,
+		wall_probability,
+		seed,
+		distribution_id,
+		forced_floor
+	)
+
+	var rule = HexToricMapSplitRuleScript.new(radius)
+	var edge_keys := {}
+	for area_index in [0, 7]:
+		for point in rule.split_canvas[area_index]:
+			edge_keys[point.key()] = true
+
+	var square_cells = HexMapDataScript.square(size, false).cells
+	var hex_cells: Array = []
+	for cell in square_cells:
+		if not edge_keys.has(cell.key()):
+			hex_cells.append(cell)
+
+	var hex_walls: Array = []
+	var wall_set = HexMapDataScript.make_set(all_walls)
+	for wall in all_walls:
+		if not edge_keys.has(wall.key()):
+			hex_walls.append(wall)
+
+	var data = HexMapDataScript.from_cells(hex_cells, hex_walls, 0)
+	if not terminal_floor.is_empty():
+		restore_terminal_connectivity(data, terminal_floor)
 	if ensure_connected:
 		restore_connectivity(data)
 	return data
@@ -105,18 +156,18 @@ static func generate_random_walls(
 
 
 static func generate_symmetric_toric_walls(
-	size: int,
+	radius: int,
 	wall_probability: float,
 	seed: int = 0,
 	distribution_id: int = 20,
 	protected_floor: Array = []
 ) -> Array:
-	assert(size >= 3)
-	assert(size % 2 == 1)
+	assert(radius > 0)
+	var size: int = radius * 2 + 1 
 	assert(wall_probability >= 0.0)
 	assert(wall_probability <= 1.0)
 
-	var rule = HexToricMapSplitRuleScript.new(int((size - 1) / 2))
+	var rule = HexToricMapSplitRuleScript.new(radius)
 	var rng = RandomNumberGenerator.new()
 	rng.seed = seed
 
@@ -141,7 +192,7 @@ static func generate_symmetric_toric_walls(
 		wall_probability
 	)
 
-	var data = HexMapDataScript.toric_square(size)
+	var data = HexMapDataScript.square(size, true)
 	var result: Array = []
 	var wall_set: Dictionary = state["walls"]
 	for cell in data.cells:

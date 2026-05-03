@@ -235,7 +235,7 @@ func _test_pointy_top_neighbor_layout() -> void:
 
 
 func _test_map_resource_stores_map_data() -> void:
-	var data = HexMapData.toric_square(2)
+	var data = HexMapData.square(2, true)
 	data.set_walls([HexVector.q_axis()])
 
 	var resource = HexMapResource.from_map_data(data)
