@@ -18,6 +18,17 @@ const DISTRIBUTION_2_BASE_000 := [0.0, 0.0]
 const DISTRIBUTION_2_BASE_500 := [5.0, 2.0]
 const DISTRIBUTION_2_BASE_888 := [8.0, 8.0]
 
+const PRESETS := {
+	"200 (recommended)": 20,
+	"113": 11,
+	"240": 24,
+	"340": 34,
+	"440": 44,
+	"740": 74,
+	"888 (max walls)": 88,
+	"000 (no walls)": 0,
+}
+
 
 static func distribution3(distribution_id: int) -> Array:
 	match distribution_id:
@@ -80,6 +91,31 @@ static func prob_from_distribution(ref_conditions: Array, distribution_id: int) 
 			return distribution1(distribution_id)[state] / 8.0
 		_:
 			return -1.0
+
+
+static func prob_from_arrays(ref_conditions: Array, d3: Array, d2: Array, d1: Array) -> float:
+	var state := 0
+	for index in range(ref_conditions.size()):
+		if ref_conditions[index]:
+			state += 1 << index
+
+	match ref_conditions.size():
+		3:
+			return d3[state] / 8.0
+		2:
+			return d2[state] / 8.0
+		1:
+			return d1[state] / 8.0
+		_:
+			return -1.0
+
+
+static func get_preset_names() -> Array:
+	return PRESETS.keys()
+
+
+static func get_preset_id(name: String) -> int:
+	return PRESETS.get(name, 20)
 
 
 static func one_of(rng: RandomNumberGenerator, count: int) -> int:

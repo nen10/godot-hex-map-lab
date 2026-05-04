@@ -7,40 +7,45 @@ Hex Map Kit を Godot 4 EditorPlugin として提供する。
 
 ---
 
-## Phase 1: 基盤と生成 (現行APIで実装可能)
+## Phase 1: 基盤と生成
 
-### 1.1 plugin.cfg / plugin.gd
+### 1.1 plugin.cfg / plugin.gd ✅
 - アドオンとしての登録情報
 - EditorPlugin エントリポイント
 - Dock の追加/削除管理
+- InspectorPlugin の追加/削除管理
 
-### 1.2 マップ生成ドック
+### 1.2 マップ生成ドック ✅
 Godot エディタ下部パネルにドッキングされる生成用UI。
 
-- 形状選択: Rectangle / Hexagon / Torus
-- サイズ指定: 形状に応じて動的切替
-  - Rectangle: Width, Height
-  - Hexagon: Radius
-  - Torus: N (9-split 用に odd 推奨)
-- 壁確率: スライダー (0.0–1.0)
-- Seed: SpinBox + Randomize ボタン
-- 連結性回復: toggle
-- 対称生成モード: toggle (Torus + odd N のみ有効)
-- 生成ボタン: 即時生成
-- Stats 表示: cells/walls/floors/connected
-- .tres 保存ボタン: HexMapResource をファイルシステムに保存
-- EditorInterface 連携
+- ✅ 壁確率: スライダー (0.0–1.0)
+- ✅ Seed: SpinBox + Randomize ボタン
+- ✅ 連結性回復: toggle
+- ✅ 生成モード 簡易/対称
+  - ✅ 簡易生成
+    - ✅ 形状選択: Hexagon / Rectangle
+    - ✅ サイズ指定: 形状に応じて動的切替
+      - ✅ Hexagon: Radius
+      - ✅ Rectangle: Width, Height
+  - ✅ 対称生成
+    - ✅ 形状選択: Hexagon / Square / Torus
+    - ✅ サイズ指定: Radius
+    - ✅ 対称生成用distribution選択 (プリセットドロップダウン)
+    - ✅ 対称生成用distribution編集画面 (ビジュアルエディタ、プリセット選択 + SpinBox編集 + HexDistribution .tres 保存/読込)
+- ✅ 生成ボタン: 即時生成
+- ✅ Stats 表示: cells/walls/floors/connected + generation mode
+- ✅ .tres 保存ボタン: HexMapResource をファイルシステムに保存
+- ✅ EditorInterface 連携
 
-### 1.3 HexMapResource インスペクタ
+### 1.3 HexMapResource インスペクタ ✅
 EditorInspectorPlugin による HexMapResource の専用編集UI。
 
-- マップ形状のテキスト表示
-- Wall/Floor カウント
-- cyclic_size 表示
-- 生成パラメータの表示 (生成時のみ記録)
+- ✅ cells/walls/floors/connected のテキスト表示
+- ✅ cyclic_size / torus 情報の表示
 
 ### 1.4 生成結果のシーン反映 (TileMapLayer 連携)
-- 選択中の TileMapLayer に生成結果を適用するボタン
+- ✅ シーン内の TileMapLayer に生成結果を適用する "Apply Layer" ボタン
+- ✅ タイル間隔指定機能(縦,横の指定分離): TileMapLayerのTileSize機能そのもの
 - タイルセット設定ヘルパー
 - Node2D 描画モード切替
 
@@ -93,12 +98,4 @@ EditorInspectorPlugin による HexMapResource の専用編集UI。
 - Unity データ形式からのインポート
 - TileSet アセットの自動生成
 
----
 
-## 実装優先度
-
-1. **Phase 1.1 + 1.2** — マップ生成ドック ← 今回実装
-2. Phase 1.3 — HexMapResource インスペクタ
-3. Phase 1.4 — TileMapLayer 連携
-4. Phase 2.1 — HexMapNode
-5. 以降順次

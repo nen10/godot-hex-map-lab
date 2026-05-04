@@ -48,6 +48,7 @@ static func generate_symmetric_square(
 	distribution_id: int = 20,
 	terminal_floor: Array = [],
 	connect_toric: bool = false,
+	custom_distribution = null
 ):
 	assert(radius > 0)
 	var size: int = radius * 2 + 1 
@@ -60,7 +61,8 @@ static func generate_symmetric_square(
 		wall_probability,
 		seed,
 		distribution_id,
-		forced_floor
+		forced_floor,
+		custom_distribution
 	))
 	if not terminal_floor.is_empty():
 		restore_terminal_connectivity(data, terminal_floor)
@@ -90,7 +92,8 @@ static func generate_symmetric_hexagon(
 	ensure_connected: bool = false,
 	protected_floor: Array = [],
 	distribution_id: int = 20,
-	terminal_floor: Array = []
+	terminal_floor: Array = [],
+	custom_distribution = null
 ):
 	assert(radius > 0)
 	var size: int = radius * 2 + 1
@@ -104,7 +107,8 @@ static func generate_symmetric_hexagon(
 		wall_probability,
 		seed,
 		distribution_id,
-		forced_floor
+		forced_floor,
+		custom_distribution
 	)
 
 	var rule = HexToricMapSplitRuleScript.new(radius)
@@ -160,7 +164,8 @@ static func generate_symmetric_toric_walls(
 	wall_probability: float,
 	seed: int = 0,
 	distribution_id: int = 20,
-	protected_floor: Array = []
+	protected_floor: Array = [],
+	custom_distribution = null
 ) -> Array:
 	assert(radius > 0)
 	var size: int = radius * 2 + 1 
@@ -178,6 +183,8 @@ static func generate_symmetric_toric_walls(
 		"protected": HexMapDataScript.make_set(_wrapped_points(protected_floor, size)),
 		"distribution_id": distribution_id,
 	}
+	if custom_distribution and custom_distribution.has_method("prob"):
+		state["custom_dist"] = custom_distribution
 	var outer = _draw_symmetric_outer_area(state, wall_probability)
 	var border = _draw_symmetric_border(
 		state,
@@ -560,11 +567,12 @@ static func _draw_from_distribution(state: Dictionary, pen, reference_points: Ar
 	for point in reference_points:
 		var reference = _reference_position(state, point)
 		ref_conditions.append(wall_set.has(reference.key()))
-	return _draw_from_prob(
-		state,
-		pen,
-		HexRandomizerScript.prob_from_distribution(ref_conditions, state["distribution_id"])
-	)
+	var prob: float
+	if state.has("custom_dist"):
+		prob = state["custom_dist"].prob(ref_conditions)
+	else:
+		prob = HexRandomizerScript.prob_from_distribution(ref_conditions, state["distribution_id"])
+	return _draw_from_prob(state, pen, prob)
 
 
 static func _over_draw_from_distribution(state: Dictionary, pen, reference_points: Array) -> int:
@@ -573,11 +581,12 @@ static func _over_draw_from_distribution(state: Dictionary, pen, reference_point
 	for point in reference_points:
 		var reference = _reference_position(state, point)
 		ref_conditions.append(wall_set.has(reference.key()))
-	return _over_draw_from_prob(
-		state,
-		pen,
-		HexRandomizerScript.prob_from_distribution(ref_conditions, state["distribution_id"])
-	)
+	var prob: float
+	if state.has("custom_dist"):
+		prob = state["custom_dist"].prob(ref_conditions)
+	else:
+		prob = HexRandomizerScript.prob_from_distribution(ref_conditions, state["distribution_id"])
+	return _over_draw_from_prob(state, pen, prob)
 
 
 static func _draw_from_prob(state: Dictionary, point, draw_probability: float) -> int:
