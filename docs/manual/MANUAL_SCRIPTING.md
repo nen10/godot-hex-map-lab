@@ -490,7 +490,7 @@ var symmetric_data = HexMapGenerator.generate_symmetric_square(
     false # toric/non-toricを指定
 )
 
-# 低レベル: 壁のみ生成
+# 壁のみ生成
 var sym_walls = HexMapGenerator.generate_symmetric_toric_walls(
     7,    # size
     0.45, # wall_probability
