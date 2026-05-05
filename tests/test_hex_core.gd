@@ -419,6 +419,7 @@ func _test_toric_split_rule_symmetry_regions_follow_unity_flow() -> void:
 			var triple_count = 0
 			var grouped_points := {}
 			for group in phase2_groups:
+				var wrapped_group_points := {}
 				if group["group"] == HexToricMapSplitRule.SYMMETRY_GROUP_PAIR:
 					pair_count += 1
 					_assert_eq(group["points"].size(), 2, "phase2 outer_mod pair has two points")
@@ -426,6 +427,12 @@ func _test_toric_split_rule_symmetry_regions_follow_unity_flow() -> void:
 					triple_count += 1
 					_assert_eq(group["points"].size(), 3, "phase2 outer_mod triple has three points")
 				for point in group["points"]:
+					var wrapped = HexToricCoordinate.wrap_vector(point, rule.cyclic_size)
+					_assert_true(
+						not wrapped_group_points.has(wrapped.key()),
+						"phase2 outer_mod group points are not the same toric cell"
+					)
+					wrapped_group_points[wrapped.key()] = true
 					grouped_points[point.key()] = true
 			_assert_eq(pair_count, 3, "phase2 outer_mod has three pair groups")
 			_assert_eq(triple_count, 2, "phase2 outer_mod has two triple groups")

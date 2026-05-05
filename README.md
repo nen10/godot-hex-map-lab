@@ -1,98 +1,81 @@
-
 # godot-hex-map-lab
 
-- Unity C#で実装したHex座標系によるRandom Map生成機能をGodot4用にGDScriptとして移植する
-  - `/Users/nenten/Desktop/cosmos/_archive/ecologic-survivor/ecologic-survivor/Assets/Script/HexTileSystem` を中心としたスクリプト群にによってUnity上での生成機能の実行確認済み
-- マップ管理のためのアドオンとして利用できるようにする。
-  - マップ表示ごとの選択要素
-    - Hex Tileの論理サイズ
-    - flat-top/pointy-top (元スクリプト実装はflat-topを想定)
-    - マップの形状選択機能
-      - toric (ループ表示)
-      - non-toric (四角形/六角形)
-  - 壁タイル配置箇所の生成ごとの選択要素
-    - 壁のランダム生成時の生成用パラメータ
-    - マップの連結性回復処理の有無
-  - マップ上に配置する項目・タイルセットの管理機能を追加したい(未実装)
-  - マップ生成機能アドオン化の際の利用形態
-    - 実行時ランダム生成
-    - シーンノード生成
+Godot 4 向けの Hex map generation addon 実験リポジトリです。Unity C# 版の Hex 座標系・ランダム壁生成・連結性回復処理を GDScript へ移植し、EditorPlugin と実行時ノードから利用できる形に整理しています。
 
-## 開発マップ
+## 主な機能
 
-### 完了項目
+- Hex 座標 Core
+  - `HexVector` / `HexPoint`
+  - 6 近傍、L1 ring/disc、toric wrap
+  - floor 連結性判定、連結性回復、最短経路
+- Map generation
+  - rectangle / hexagon / toric square
+  - seed 固定の壁生成
+  - protected floor と terminal 接続回復
+  - toric square の 9 split と外周から中心へ進む対称生成
+- Godot 連携
+  - `HexMapResource` による `.tres` 保存
+  - `HexMapTileAdapter` による `TileMapLayer` 反映
+  - `HexTileMapLayer` による実行時 helper
+  - EditorPlugin の生成 Dock、Distribution Editor、Resource Inspector
+- Debug scene
+  - flat-top / pointy-top の配置確認
+  - 生成 map、toric domain、9 split、対称生成 overlay の視覚確認
 
-- Core: 四角形マップデータ生成機能
-  1.1. Hex座標・距離・近傍列挙をGDScriptに移植
-  1.2. ランダム壁生成をデータだけで実行
-  1.3. 連結性判定・回復処理をデータだけで検証
-  1.4. デバッグ表示
+## 使い方
 
-- Adapter: TileMapLayer/TileSet対応
-  Coreの結果をTileMapLayer、Node2D、Resourceに変換する層。
-  2.1. Adapter
-  2.2. Godot実行による生成マップアルゴリズム実行結果の視覚的表示
+セットアップと利用方法は以下を参照してください。
 
-- マップ生成・管理に関するさらなる機能追加
-  - 経路アルゴリズムの視覚的表示
-  - Toricマップ用のHex正方形マップの三角形9分割
-  - Hex正方形マップの対称生成機能
-    4.2. 外周から内側への壁生成アルゴリズム(対称生成機能)を移植(Core)
-    4.3. 対称生成時の形状について(マップサイズに応じて必要があれば、タイリングが穴あきにならないよう外周の項目をduplicateして)Hex正方形マップの三角形9分割の各領域と対応つける。
-    4.4. terminal 指向の連結性回復機能を移植
+- `docs/manual/MANUAL_SETUP.md`
+- `docs/manual/MANUAL_SCRIPTING.md`
+- `docs/manual/MANUAL_EDITOR_PLUGIN.md`
 
-- 概念検証
-  4.1 対称生成形状と正方形マップの関係に関する観察
+アルゴリズム詳細:
 
+- `docs/algorithm/ALGORITHM_MAP_GENERATION.md`
+- `docs/algorithm/ALGORITHM_ADAPTER.md`
 
-### 実装中
-
-- EditorPlugin化
-  `docs/plan/EDITOR_PLUGIN.md` を参照
-
-- マップ生成・管理に関するさらなる機能追加
-  1. マップ実行用独自クラス拡張
-    TileMapLayerは機能が汎用的でHex座標系に最適化されていない。
-    hex-map-kit APIとの連携が強化された HexTileMapLayer クラスへと拡張し、座標データのレイアウト機能や実行時の汎用的な機能を強化したい。
-  2. マップ上の地点選択機能
-    5.1. マップ上での選択カーソル表示
-    5.2. 選択地点間での経路アルゴリズムの視覚的表示
-  3. マップのループ処理
-    6.1. ∞マップ/Toricマップ実行時、カーソル追従によるループ表示機能
-    6.2. 視覚的な経路長が最短(ジャンプしない)ように、ループ表示したマップ上で連結な経路表示(Toric Map:異なる座標でも同一になることがある,toricな近傍処理,連結な範囲内での始点・終点を選び直す)
-    6.3. 視覚的な経路長が最短になるように、ループ表示したマップ上で連結な経路表示(∞ Map:異なる座標点は必ず区別する, non-toricな近傍処理)
-  4. アセット管理・アセット生成・タイルノード等の動的生成に関する編集機能強化
- 
-
-## Structure
-
-- addons/hex_map_kit/**
-  - 配布用
-
-- docs/**
-  - document
-
-## Docs
-
-- `docs/TEST.md`: テスト実行方法
-- `docs/algorithm/**`: 独自のデータ構造・数学的な詳細を伴うコードに関して、混乱を防ぐためのドキュメント群
-  - `docs/algorithm/ALGORITHM_MAP_GENERATION.md`: map 生成アルゴリズム(移行済み部分のみ)
-  - `docs/algorithm/ALGORITHM_ADAPTER.md`: Adapter 変換
-
-## Test
+## テスト
 
 ```sh
 ./tools/test.sh
 ```
 
-詳細は `docs/TEST.md` を参照
+Godot 実行ファイルを明示する場合:
 
+```sh
+GODOT_BIN=/path/to/Godot ./tools/test.sh
+```
 
-## Unity source reference
+テスト対象と手動 debug 実行は `docs/TEST.md` を参照してください。
 
-`/Users/nenten/Desktop/cosmos/_archive/ecologic-survivor/ecologic-survivor/Assets/Script/HexTileSystem`
+## 開発計画
 
-## Debug用画像Asset
+実装計画とレビュー残件は `docs/plan/` 以下で管理します。
 
-随時生成します。
-マップタイルの場合、flat-top/pointy-topを区別して管理します。
+- `docs/plan/EDITOR_PLUGIN.md`: EditorPlugin の実装計画
+- `docs/plan/TILEMAP_LAYER.md`: `HexTileMapLayer` 周辺の実行時拡張計画
+- `docs/plan/REMAINS_FROM_USER_REVIEW.md`: ユーザーレビュー由来の要望
+
+現在の重点は、EditorPlugin の操作品質、Distribution 管理、TileMapLayer 表示/実行時 API、toric map の表示・経路・選択操作です。
+
+## リポジトリ構成
+
+```text
+addons/hex_map_kit/
+  core/      Hex 座標、map data、生成、経路、toric 9 split
+  adapter/   TileMapLayer / Resource / runtime layer 連携
+  editor/    EditorPlugin UI
+debug/       視覚確認用 scene
+docs/        manual、algorithm note、plan、test note
+tests/       headless Godot test scripts
+tools/       test/debug 起動 script
+```
+
+## Unity Source Reference
+
+移植元の参照先:
+
+```text
+/Users/nenten/Desktop/cosmos/_archive/ecologic-survivor/ecologic-survivor/Assets/Script/HexTileSystem
+```

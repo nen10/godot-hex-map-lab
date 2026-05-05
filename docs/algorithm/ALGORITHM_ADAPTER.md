@@ -8,6 +8,7 @@ Core の `HexMapData` を Godot 側で使いやすい形式へ変換する Adapt
 
 - `addons/hex_map_kit/adapter/hex_map_tile_adapter.gd`
 - `addons/hex_map_kit/adapter/hex_map_resource.gd`
+- `addons/hex_map_kit/adapter/hex_tile_map_layer.gd`
 
 ## TileMapLayer 用変換
 
@@ -85,3 +86,11 @@ toric square を六角形寄りに表示する場合は、描画前に `HexToric
 `HexMapResource.from_map_data(data)` は `HexMapData` から Resource を作る。
 
 `resource.to_map_data()` は Resource から `HexMapData` を復元する。
+
+## Runtime Layer
+
+`HexTileMapLayer` は `Node2D` 派生の実行時 helper で、内部に子 `TileMapLayer` を持つ。`HexMapResource` を `apply_map(resource)` で読み込み、`HexMapTileAdapter.to_tile_entries()` と同じ cell 変換で TileMapLayer へ反映する。
+
+`hex_to_local(hex)` は `HexMapTileAdapter.hex_to_local(hex, hex_size, flat_top)` と同じ表示用 axial を使う。`local_to_hex(local_pos)` はその逆変換で、local 座標から表示用 axial `(a, b)` を求めたあと、`HexVector` の basis へ `q = a + b`, `r = b` として戻す。これにより flat-top / pointy-top のどちらでも `local_to_hex(hex_to_local(hex)) == hex` が成り立つ。
+
+`set_wall(hex)` / `set_floor(hex)` は内部の `HexMapData.walls` を更新し、該当 cell だけ TileMapLayer に反映する。`find_path(start, goal)`、`is_map_connected()`、`connected_component(hex)` は内部 map data の floor cell と `cyclic_size` を使って Core の `HexGrid` / `HexMapGenerator` に委譲する。

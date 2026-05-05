@@ -13,6 +13,7 @@ const FLOOR_FILL := Color(0.9, 0.9, 0.9)
 const OUTLINE_COLOR := Color(0.67, 0.67, 0.67)
 
 var _preset_option: OptionButton
+var _pattern_controls: Array[Control] = []
 var _d3_spins: Array[SpinBox] = []
 var _d2_spins: Array[SpinBox] = []
 var _d1_spins: Array[SpinBox] = []
@@ -40,6 +41,7 @@ func _init(
 
 
 func _ready() -> void:
+	close_requested.connect(_on_cancel_pressed)
 	_build_ui()
 	if _editing_path != "":
 		_load_from_file(_editing_path)
@@ -61,6 +63,7 @@ func _build_ui() -> void:
 	_preset_option = OptionButton.new()
 	for name in HexRandomizer.get_preset_names():
 		_preset_option.add_item(name)
+	_preset_option.select(0)
 	_preset_option.item_selected.connect(_on_preset_changed)
 	top_row.add_child(_preset_option)
 
@@ -153,6 +156,7 @@ func _build_pattern_panel(n_neighbor: int, state_index: int) -> Control:
 	var draw_control = Control.new()
 	draw_control.custom_minimum_size = Vector2(140, 72)
 	draw_control.draw.connect(_draw_pattern.bind(n_neighbor, state_index, draw_control))
+	_pattern_controls.append(draw_control)
 	panel.add_child(draw_control)
 
 	var spin = SpinBox.new()
@@ -239,12 +243,12 @@ func _apply_preset(dist_id: int) -> void:
 		_d2_spins[i].set_value_no_signal(dist.distribution_2[i])
 	for i in range(_d1_spins.size()):
 		_d1_spins[i].set_value_no_signal(dist.distribution_1[i])
-	queue_redraw()
+	_queue_pattern_redraw()
 
 
 func _on_spin_changed(_value: float, n_neighbor: int, state_index: int) -> void:
 	_center_color(n_neighbor, state_index)
-	queue_redraw()
+	_queue_pattern_redraw()
 
 
 func _current_distribution() -> HexDistribution:
@@ -280,7 +284,7 @@ func _on_save_new_file_selected(path: String) -> void:
 		_editing_path = path
 		_filepath_label.text = path
 		_filepath_label.tooltip_text = path
-		_preset_option.deselect()
+		_preset_option.select(-1)
 		_refresh_save_buttons()
 		print("Distribution saved to: %s" % path)
 	else:
@@ -327,12 +331,12 @@ func _load_from_file(path: String) -> void:
 		_d2_spins[i].set_value_no_signal(dist.distribution_2[i])
 	for i in range(_d1_spins.size()):
 		_d1_spins[i].set_value_no_signal(dist.distribution_1[i])
-	_preset_option.deselect()
+	_preset_option.select(-1)
 	_editing_path = path
 	_filepath_label.text = path
 	_filepath_label.tooltip_text = path
 	_refresh_save_buttons()
-	queue_redraw()
+	_queue_pattern_redraw()
 
 
 func _center_color(n_neighbor: int, state_index: int) -> Color:
@@ -344,5 +348,6 @@ func _center_color(n_neighbor: int, state_index: int) -> Color:
 	var brightness = 0.9 - value/10
 	return Color(brightness, brightness, brightness)
 
-func queue_redraw():
-	root.queue_redraw()
+func _queue_pattern_redraw() -> void:
+	for control in _pattern_controls:
+		control.queue_redraw()

@@ -9,9 +9,9 @@ const HexRandomizerScript = preload("res://addons/hex_map_kit/core/hex_randomize
 
 
 func _init(p_d3: Array = [], p_d2: Array = [], p_d1: Array = []) -> void:
-	distribution_3 = p_d3
-	distribution_2 = p_d2
-	distribution_1 = p_d1
+	distribution_3 = _to_float_array(p_d3)
+	distribution_2 = _to_float_array(p_d2)
+	distribution_1 = _to_float_array(p_d1)
 
 
 func is_valid() -> bool:
@@ -37,3 +37,10 @@ static func from_preset_id(distribution_id: int) -> HexDistribution:
 
 static func recommended() -> HexDistribution:
 	return from_preset_id(20)
+
+
+static func _to_float_array(values: Array) -> Array[float]:
+	var result: Array[float] = []
+	for value in values:
+		result.append(float(value))
+	return result

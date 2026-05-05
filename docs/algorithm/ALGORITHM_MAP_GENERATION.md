@@ -68,7 +68,9 @@ toric は現時点では正方形のみを対象にする。`cyclic_size = size`
 - `inner_arc`: `DrawInnerArea()` に対応する、6 方向の arc で中心へ向かう共通領域
 - `center`: `DrawInnerArea()` の最後にコード上で求める中心 cell。phase 2 では `DrawAreaCenter()` の開始形状から外周境界ノードへの補正を入れ、split index 8 の中心で完了する
 
-phase 2 の `outer_mod` は split 0 / split 7 にそれぞれ 6 個、合計 12 個の生成座標を持つ。hexagonal toric の境界同一視として扱うと、これらは 3 組の pair と 2 組の triple に分かれる。`symmetry_phase2_outer_mod_groups()` はこの 5 グループを返す。debug scene では pair を線分、triple を三角形として描き、面塗りだけでは見えない糊代的な同一座標関係を確認する。表示時は raw な square 座標同士を直接結ばず、周期コピーの中で最も局所的になる等価配置を選び、Unity 版の対称生成過程で現れる糊代側のタイリングとして確認できるようにする。
+phase 2 の `outer_mod` は split 0 / split 7 にそれぞれ 6 個、合計 12 個の生成座標を持つ。`symmetry_phase2_outer_mod_groups()` は、外周開始形状を `outer_phase2_boundary` へ補正するときに同じ生成タイミングとして扱う pair/triple を返す。この pair/triple は同一 toric cell を意味しない。各 group 内の座標は `cyclic_size` で wrap しても distinct であり、debug scene では raw な square 座標同士を直接結ばず、周期コピーの中で局所的に見える配置を選んで生成手順上の関係として表示する。
+
+`symmetry_unity_reference_groups()` は、Unity 版の `ReferencePositions` 相当で canvas 内に戻される source を debug 表示用に bucket 化する helper である。これは外周を越えた描画 source がどの reference へ戻されるかを調べるための情報で、`symmetry_phase2_outer_mod_groups()` の pair/triple と同じ意味の group ではない。
 
 
 ### 対称 toric 正方形の壁生成
@@ -80,7 +82,7 @@ phase 2 の `outer_mod` は split 0 / split 7 にそれぞれ 6 個、合計 12 
 - `protected_floor` と `terminal_floor` は生成中も floor として扱い、壁にしない
 - 生成された壁は toric 座標で `size x size` の正方形 canvas に畳み、9 分割された split のいずれかに対応する
 
-`(map_unit_radius - 1) % 3 == 2` の phase 2 相当では、外周開始形状を `outer_phase2_boundary` に補正してから border / inner の生成へ渡す。これにより、対称生成時に外周側の同一 toric cell が複数 source として現れる場合も、正方形 canvas 上の壁集合として扱える。
+`(map_unit_radius - 1) % 3 == 2` の phase 2 相当では、外周開始形状を `outer_phase2_boundary` に補正してから border / inner の生成へ渡す。これにより、外周開始点が pair/triple の生成関係を持つ場合も、最終的な壁集合は `cyclic_size x cyclic_size` の正方形 canvas 上の distinct な cell として扱える。
 
 ### 2. ランダム壁を配置する
 

@@ -73,7 +73,7 @@ EditorInspectorPlugin による HexMapResource の専用編集UI。
 
 ---
 
-## Phase 3: 高度な編集 (将来のAPI拡張が必要)
+## Phase 3: 有用な機能
 
 ### 3.1 ビジュアルマッププレビュー
 - Control ノード上の `_draw()` による Hex グリッド描画
@@ -98,4 +98,5 @@ EditorInspectorPlugin による HexMapResource の専用編集UI。
 - Unity データ形式からのインポート
 - TileSet アセットの自動生成
 
+### アセット管理・アセット生成・タイルノード等の動的生成に関する編集機能強化
 

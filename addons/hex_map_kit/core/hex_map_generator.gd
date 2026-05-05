@@ -172,6 +172,16 @@ static func generate_symmetric_toric_walls(
 	assert(wall_probability >= 0.0)
 	assert(wall_probability <= 1.0)
 
+	if radius == 1:
+		# No previous ring exists for Markov references at the minimum radius.
+		var unit_data = HexMapDataScript.square(size, true)
+		return generate_random_walls(
+			unit_data.cells,
+			wall_probability,
+			seed,
+			_wrapped_points(protected_floor, size)
+		)
+
 	var rule = HexToricMapSplitRuleScript.new(radius)
 	var rng = RandomNumberGenerator.new()
 	rng.seed = seed
