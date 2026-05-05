@@ -37,11 +37,13 @@ func _run() -> void:
 	await _test_distribution_editor_loads_resource_values_and_colors_cells()
 	await _test_distribution_editor_close_button_uses_cancel_flow()
 	await _test_generation_dock_symmetric_hexagon_minimum_radii()
+	await _test_generation_dock_tracks_generation_progress_state()
 	await _test_generation_dock_applies_configured_tile_entries()
 	await _test_generation_dock_applies_orientation_to_tile_entries()
 	await _test_generation_dock_resource_stores_orientation()
 	await _test_generation_dock_configures_tile_map_layer_tileset()
 	await _test_generation_dock_sets_up_sample_tiles()
+	await _test_generation_dock_selects_atlas_image()
 	await _test_generation_dock_generate_and_apply_refreshes_map()
 
 	if _failures.is_empty():
@@ -143,6 +145,37 @@ func _test_generation_dock_symmetric_hexagon_minimum_radii() -> void:
 		_assert_eq(data.walls.size(), hex_cell_count - 1, "generation dock radius %d symmetric hexagon uses wall probability" % radius)
 		_assert_true(HexMapGenerator.is_floor_connected(data), "generation dock radius %d symmetric hexagon completes connectivity" % radius)
 		_assert_true(dock._stats_label.text.contains("Hex-inward Markov mesh model"), "generation dock stats include generation mode")
+
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_tracks_generation_progress_state() -> void:
+	var dock = HexMapGenDock.new()
+	root.add_child(dock)
+	await process_frame
+
+	var ready_status = dock.generation_status()
+	_assert_true(not ready_status["running"], "generation dock is not running after initial generation")
+	_assert_true(not ready_status["cancel_requested"], "generation dock clears cancel request after initial generation")
+	_assert_eq(ready_status["progress"], 1.0, "generation dock reports completed progress")
+	_assert_eq(ready_status["status"], "Ready", "generation dock reports ready status")
+	_assert_eq(dock._generation_progress_bar.value, 1.0, "generation dock updates progress bar after generation")
+	_assert_true(dock._cancel_generation_button.disabled, "generation dock disables cancel button when idle")
+
+	dock._begin_generation()
+	dock.request_generation_cancel()
+	var cancel_status = dock.generation_status()
+	_assert_true(cancel_status["running"], "generation dock keeps running state after cancel request")
+	_assert_true(cancel_status["cancel_requested"], "generation dock stores cancel request state")
+	_assert_eq(cancel_status["status"], "Cancel requested", "generation dock reports cancel request status")
+	_assert_true(dock._cancel_generation_button.disabled, "generation dock disables cancel after cancel request")
+
+	dock._finish_generation(true)
+	var cancelled_status = dock.generation_status()
+	_assert_true(not cancelled_status["running"], "generation dock clears running state after cancelled finish")
+	_assert_true(not cancelled_status["cancel_requested"], "generation dock clears cancel request after cancelled finish")
+	_assert_eq(cancelled_status["status"], "Cancelled", "generation dock reports cancelled status")
 
 	dock.queue_free()
 	await process_frame
@@ -260,6 +293,39 @@ func _test_generation_dock_sets_up_sample_tiles() -> void:
 	_assert_eq(Vector2i(int(dock._floor_atlas_x_spin.value), int(dock._floor_atlas_y_spin.value)), Vector2i.ZERO, "sample tile setup sets floor atlas")
 	_assert_eq(int(dock._wall_source_spin.value), 0, "sample tile setup sets wall source")
 	_assert_eq(Vector2i(int(dock._wall_atlas_x_spin.value), int(dock._wall_atlas_y_spin.value)), Vector2i(1, 0), "sample tile setup sets wall atlas")
+
+	layer.free()
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_selects_atlas_image() -> void:
+	var dock = HexMapGenDock.new()
+	root.add_child(dock)
+	await process_frame
+
+	dock._tile_orientation_option.select(0)
+	var layer = TileMapLayer.new()
+	_assert_true(
+		dock.setup_atlas_tiles_on_tile_map_layer(
+			layer,
+			HexMapTileAdapter.SAMPLE_TILE_ATLAS_PATH,
+			3,
+			HexMapTileAdapter.SAMPLE_TILE_SIZE,
+			Vector2i(0, 0),
+			Vector2i(1, 0)
+		),
+		"generation dock configures selected atlas image"
+	)
+	_assert_eq(dock._current_atlas_image_path, HexMapTileAdapter.SAMPLE_TILE_ATLAS_PATH, "generation dock stores selected atlas path")
+	_assert_true(layer.tile_set.has_source(3), "selected atlas creates configured source id")
+	_assert_eq(layer.tile_set.tile_offset_axis, TileSet.TILE_OFFSET_AXIS_VERTICAL, "selected atlas follows flat-top orientation")
+	var source = layer.tile_set.get_source(3)
+	_assert_true(source is TileSetAtlasSource, "selected atlas source is TileSetAtlasSource")
+	_assert_true(source.has_tile(Vector2i(0, 0)), "selected atlas creates floor tile")
+	_assert_true(source.has_tile(Vector2i(1, 0)), "selected atlas creates wall tile")
+	_assert_eq(int(dock._floor_source_spin.value), 3, "selected atlas syncs floor source")
+	_assert_eq(int(dock._wall_source_spin.value), 3, "selected atlas syncs wall source")
 
 	layer.free()
 	dock.queue_free()

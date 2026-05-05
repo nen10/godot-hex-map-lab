@@ -11,8 +11,12 @@
 
 - Editor Dock上で [pointy-top, flat-top] を切り替え時に、合わせてTileSizeの二つのSpinBox value : x, yを入れ替えるようにしたいです。
 
+- タイルセット管理機能:
+  - floor, wallのSpinBoxの値を更新するたび、applyを実行します(タイル画像を即座に確認したい)
+
 - Apply Layer の操作 flow
   - 複数 `TileMapLayer` が scene にある場合の選択 UI
+
 
 ### 3.2 DISTRIBUTION EDITOR
 

@@ -79,6 +79,8 @@
 - [x] Seed 固定生成
 - [x] Restore Connectivity
 - [x] Stats 表示
+- [x] progress UI と `generation_status()` による生成状態保持
+- [x] 実行中 generation の cancel request 状態保持
 - [x] `.tres` 保存 flow
 
 ### テスト
@@ -90,6 +92,56 @@
 - `tests/test_editor_plugin.gd`
   - Dock から Symmetric Hexagon radius 1 / 2 を生成
   - Stats に generator name が反映される
+  - progress / running / cancel request / status が更新される
+
+実装:
+
+- [x] 入力 control から `_current_data` を生成する
+- [x] stats label に shape / seed / wall probability / cell count / wall count / floor count / connected / generator name を表示する
+- [x] `current_resource()` で orientation 付き `HexMapResource` を出力する
+- [x] progress UI と `generation_status()` に `running` / `cancel_requested` / `progress` / `status` を保持する
+- [x] `Cancel` で実行中 generation の cancel request 状態を保持する
+
+テスト:
+
+- `tests/test_hex_map_generation.gd`
+- `tests/test_editor_plugin.gd`
+
+
+### タイルセット管理機能
+
+入力:
+
+- `TileMapLayer`
+- orientation
+- tile size
+- floor / wall source id
+- floor / wall atlas coords
+- atlas image resource path
+- sample atlas image
+
+出力:
+
+- `TileSet`
+- `TileSetAtlasSource`
+- floor / wall tile 設定
+- `TileMapLayer` cell
+
+実装:
+
+- [x] `TileSet.tile_shape = TILE_SHAPE_HEXAGON`
+- [x] `TileSet.tile_layout = TILE_LAYOUT_STACKED`
+- [x] flat-top は `TILE_OFFSET_AXIS_VERTICAL`
+- [x] pointy-top は `TILE_OFFSET_AXIS_HORIZONTAL`
+- [x] Dock の source id / atlas coords を `TileMapLayer.set_cell()` に渡す
+- [x] `Select Atlas Image` で画像 resource path から `TileSetAtlasSource` を作成する
+- [x] `Use Sample Tiles` で sample atlas を設定する
+- [x] atlas 画像に関する Godot 公式ドキュメントへのリンクと Dock 項目との関係を `docs/manual/MANUAL_EDITOR_PLUGIN.md` に記録する
+
+テスト:
+
+- `tests/test_hex_adapter.gd`
+- `tests/test_editor_plugin.gd`
 
 ## 3. Distribution Editor
 
@@ -199,7 +251,7 @@ orientation は `HexMapResource` に保存し、Dock / Resource 側を表示レ�
   - Dock が `TileMapLayer` の `TileSet` を作成・設定する
   - Generate & Apply が現在の control 値で再生成してから apply する
 
-## 5. Sample TileSet 管理
+## 5. Atlas / Sample TileSet 管理
 
 ### 入力
 
@@ -211,20 +263,26 @@ orientation は `HexMapResource` に保存し、Dock / Resource 側を表示レ�
   - wall tile: atlas `Vector2i(1, 0)`
 - 対象 `TileMapLayer`
 - Dock の orientation
+- 任意 atlas image resource path
+- source id / floor atlas coords / wall atlas coords
 
 ### 出力
 
 - 対象 `TileMapLayer.tile_set`
-- source id `0` の `TileSetAtlasSource`
+- sample 用 source id `0` の `TileSetAtlasSource`
 - Dock の Tile Size / Floor / Wall control
+- 任意 source id の `TileSetAtlasSource`
 
 ### 実装状況
 
 - [x] sample atlas image を addon asset として作成
 - [x] sample atlas 生成用 tool を `tools/create_sample_hex_tiles.gd` に作成
+- [x] `HexMapTileAdapter.configure_atlas_tile_set()` で任意 texture から atlas source を作成
 - [x] `HexMapTileAdapter.configure_sample_tile_set()` で sample atlas source を作成
+- [x] Dock の `Select Atlas Image` で画像 resource path を `TileSetAtlasSource` として設定
 - [x] Dock の `Use Sample Tiles` で選択中 `TileMapLayer` に sample TileSet を設定
 - [x] sample setup 後に Dock の Tile Size / Floor / Wall control を sample 値へ同期
+- [x] atlas setup 後に Dock の Tile Size / Floor / Wall control を atlas 値へ同期
 
 ### テスト
 
@@ -233,6 +291,7 @@ orientation は `HexMapResource` に保存し、Dock / Resource 側を表示レ�
   - sample TileSet に source id `0` が作成される
   - floor / wall atlas tile が作成される
 - `tests/test_editor_plugin.gd`
+  - Dock から atlas image path / source id / atlas coords を `TileMapLayer` に設定できる
   - Dock から sample TileSet を `TileMapLayer` に設定できる
   - Dock の orientation が sample TileSet の TileOffsetAxis に反映される
   - Dock の Tile Size / Floor / Wall control が sample 値へ同期される

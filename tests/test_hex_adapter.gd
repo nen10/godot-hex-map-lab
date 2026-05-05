@@ -401,6 +401,7 @@ func _assert_radius_two_hexagon_matches_godot_layout(flat_top: bool) -> void:
 			expected,
 			"Godot TileMapLayer neighbor layout flat_top=%s direction=%s" % [str(flat_top), direction.key()]
 		)
+	layer.free()
 
 
 func _entries_by_key(entries: Array) -> Dictionary:

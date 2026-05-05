@@ -68,6 +68,17 @@ Shape  seed=1201  wall_prob=0.45  cells=48  walls=12  floors=36  connected=yes  
 
 `connected` は現在の `HexMapData` に対する `HexMapGenerator.is_floor_connected()` の結果です。
 
+### Generation Progress
+
+Dock は生成処理の状態を `generation_status()` と progress UI に保持します。
+
+- `running`: 生成中かどうか
+- `cancel_requested`: `Cancel` が押されたかどうか
+- `progress`: 0.0 から 1.0
+- `status`: `Generating` / `Preparing` / `Updating` / `Ready` / `Cancel requested` / `Cancelled`
+
+現在の生成 API は同期処理です。`Cancel` は実行中状態に cancel request を記録しますが、重い生成をフレーム途中で中断するには、生成器を async / chunked 実行へ分割する必要があります。
+
 ### TileMapLayer Settings
 
 `Apply Layer` で使う TileMapLayer 設定を Dock から指定できます。
@@ -93,12 +104,27 @@ tile_offset_axis = TILE_OFFSET_AXIS_HORIZONTAL  # pointy-top
 TileSet が未設定の `TileMapLayer` へ適用した場合は、新しい `TileSet` を作成してから設定します。
 Apply 後に TileMapLayer Inspector 側だけで `Horizontal Offset` / `Vertical Offset` を手動変更する経路は管理対象外です。
 
+Godot 側の対応 API は公式ドキュメントの `TileMapLayer`、`TileSet`、`TileSetAtlasSource` を参照します。
+
+- https://docs.godotengine.org/en/stable/classes/class_tilemaplayer.html
+- https://docs.godotengine.org/en/stable/classes/class_tileset.html
+- https://docs.godotengine.org/en/stable/classes/class_tilesetatlassource.html
+
+### Atlas Image
+
+`Select Atlas Image` は resource path の画像を読み込み、対象 `TileMapLayer.tile_set` に `TileSetAtlasSource` を作成します。source id は Dock の `Floor` source を使い、floor / wall の atlas coords と `Tile Size` を TileSetAtlasSource に反映します。設定後は `Wall` source も同じ source id に同期されます。
+
+`Use Sample Tiles` は addon 同梱の `addons/hex_map_kit/assets/sample_hex_tiles.png` を使うショートカットです。sample は `source_id=0`、floor `Vector2i(0, 0)`、wall `Vector2i(1, 0)`、tile size `64 x 57` に設定します。
+
 ### Buttons
 
 - `Generate`: 現在の設定で再生成
+- `Cancel`: 実行中 generation に cancel request を記録
 - `Save .tres`: `HexMapResource` として保存
 - `Apply Layer`: 選択中の `TileMapLayer`、または編集中 scene の最初の `TileMapLayer` に現在の map を適用
 - `Generate & Apply`: 現在の設定で再生成してから `Apply Layer` と同じ設定で反映
+- `Select Atlas Image`: 画像 resource を `TileSetAtlasSource` として対象 `TileMapLayer` に設定
+- `Use Sample Tiles`: addon 同梱 sample atlas を対象 `TileMapLayer` に設定
 
 `Apply Layer` は `HexMapTileAdapter.apply_to_tile_map_layer()` を使います。表示するには、対象 `TileMapLayer` の `TileSet` 側に、Dock で指定した floor / wall の source と atlas coords に対応する tile を用意します。
 

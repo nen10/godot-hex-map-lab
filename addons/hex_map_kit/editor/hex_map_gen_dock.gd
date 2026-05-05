@@ -60,16 +60,24 @@ var _floor_atlas_y_spin: SpinBox
 var _wall_source_spin: SpinBox
 var _wall_atlas_x_spin: SpinBox
 var _wall_atlas_y_spin: SpinBox
+var _atlas_image_button: Button
 var _sample_tiles_button: Button
+var _current_atlas_image_path := ""
 
 var _generate_button: Button
 var _save_button: Button
 var _apply_layer_button: Button
 var _generate_apply_button: Button
+var _generation_progress_bar: ProgressBar
+var _generation_status_label: Label
+var _cancel_generation_button: Button
 var _stats_label: Label
 
 var _current_data = null
 var _current_orientation := HexMapResource.ORIENTATION_FLAT_TOP
+var _generation_running := false
+var _generation_cancel_requested := false
+var _generation_progress := 0.0
 
 
 func _ready() -> void:
@@ -151,6 +159,9 @@ func _build_ui() -> void:
 
 	root.add_child(_build_separator())
 	root.add_child(_build_tile_layer_controls())
+
+	root.add_child(_build_separator())
+	root.add_child(_build_generation_progress_controls())
 
 	root.add_child(_build_separator())
 	_stats_label = Label.new()
@@ -323,11 +334,46 @@ func _build_tile_layer_controls() -> Control:
 	wall_row.add_child(_wall_atlas_y_spin)
 	box.add_child(wall_row)
 
+	var atlas_row = HBoxContainer.new()
+	_atlas_image_button = Button.new()
+	_atlas_image_button.text = "Select Atlas Image"
+	_atlas_image_button.pressed.connect(_on_atlas_image_pressed)
+	atlas_row.add_child(_atlas_image_button)
+
 	_sample_tiles_button = Button.new()
 	_sample_tiles_button.text = "Use Sample Tiles"
 	_sample_tiles_button.pressed.connect(_on_sample_tiles_pressed)
-	box.add_child(_sample_tiles_button)
+	atlas_row.add_child(_sample_tiles_button)
+	box.add_child(atlas_row)
 
+	return box
+
+
+func _build_generation_progress_controls() -> Control:
+	var box = VBoxContainer.new()
+	box.add_child(_build_section_label("Generation"))
+
+	var row = HBoxContainer.new()
+	_generation_status_label = Label.new()
+	_generation_status_label.text = "Ready"
+	_generation_status_label.custom_minimum_size = Vector2(80, 0)
+	row.add_child(_generation_status_label)
+
+	_generation_progress_bar = ProgressBar.new()
+	_generation_progress_bar.min_value = 0.0
+	_generation_progress_bar.max_value = 1.0
+	_generation_progress_bar.step = 0.01
+	_generation_progress_bar.value = 0.0
+	_generation_progress_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(_generation_progress_bar)
+
+	_cancel_generation_button = Button.new()
+	_cancel_generation_button.text = "Cancel"
+	_cancel_generation_button.disabled = true
+	_cancel_generation_button.pressed.connect(_on_cancel_generation_pressed)
+	row.add_child(_cancel_generation_button)
+
+	box.add_child(row)
 	return box
 
 
@@ -406,6 +452,10 @@ func _on_generate_pressed() -> void:
 	_generate_map()
 
 
+func _on_cancel_generation_pressed() -> void:
+	request_generation_cancel()
+
+
 func _on_generate_apply_pressed() -> void:
 	var layer = _find_tile_map_layer()
 	if layer == null:
@@ -422,6 +472,33 @@ func _on_sample_tiles_pressed() -> void:
 		return
 	if setup_sample_tiles_on_tile_map_layer(layer):
 		print("Configured sample hex tiles on TileMapLayer: %s" % layer.name)
+
+
+func _on_atlas_image_pressed() -> void:
+	var layer = _find_tile_map_layer()
+	if layer == null:
+		push_error("No TileMapLayer found in the scene. Add one first.")
+		return
+
+	var dialog = EditorFileDialog.new()
+	dialog.file_mode = EditorFileDialog.FILE_MODE_OPEN_FILE
+	dialog.access = EditorFileDialog.ACCESS_RESOURCES
+	dialog.add_filter("*.png, *.jpg, *.jpeg, *.webp", "Image atlas")
+	dialog.file_selected.connect(_on_atlas_image_selected.bind(layer))
+	EditorInterface.get_base_control().add_child(dialog)
+	dialog.popup_centered_ratio(0.5)
+
+
+func _on_atlas_image_selected(path: String, layer) -> void:
+	if setup_atlas_tiles_on_tile_map_layer(
+		layer,
+		path,
+		int(_floor_source_spin.value),
+		_tile_settings_tile_size(),
+		Vector2i(int(_floor_atlas_x_spin.value), int(_floor_atlas_y_spin.value)),
+		Vector2i(int(_wall_atlas_x_spin.value), int(_wall_atlas_y_spin.value))
+	):
+		print("Configured hex atlas on TileMapLayer: %s" % layer.name)
 
 
 func _on_save_pressed() -> void:
@@ -466,6 +543,24 @@ func generate_and_apply_to_tile_map_layer(layer) -> bool:
 	return apply_current_data_to_tile_map_layer(layer)
 
 
+func generation_status() -> Dictionary:
+	return {
+		"running": _generation_running,
+		"cancel_requested": _generation_cancel_requested,
+		"progress": _generation_progress,
+		"status": "" if _generation_status_label == null else _generation_status_label.text,
+	}
+
+
+func request_generation_cancel() -> void:
+	if not _generation_running:
+		return
+	_generation_cancel_requested = true
+	_set_generation_progress(_generation_progress, "Cancel requested")
+	if _cancel_generation_button != null:
+		_cancel_generation_button.disabled = true
+
+
 func apply_current_data_to_tile_map_layer(layer) -> bool:
 	if _current_data == null or layer == null:
 		return false
@@ -495,6 +590,25 @@ func apply_current_data_to_tile_map_layer(layer) -> bool:
 
 
 func setup_sample_tiles_on_tile_map_layer(layer) -> bool:
+	var ok = setup_atlas_tiles_on_tile_map_layer(
+		layer,
+		HexMapTileAdapter.SAMPLE_TILE_ATLAS_PATH,
+		0,
+		HexMapTileAdapter.SAMPLE_TILE_SIZE,
+		Vector2i(0, 0),
+		Vector2i(1, 0)
+	)
+	return ok
+
+
+func setup_atlas_tiles_on_tile_map_layer(
+	layer,
+	atlas_path: String,
+	source_id: int = 0,
+	tile_size: Vector2i = HexMapTileAdapter.SAMPLE_TILE_SIZE,
+	floor_atlas_coords: Vector2i = Vector2i(0, 0),
+	wall_atlas_coords: Vector2i = Vector2i(1, 0)
+) -> bool:
 	if not layer is TileMapLayer:
 		return false
 
@@ -502,22 +616,27 @@ func setup_sample_tiles_on_tile_map_layer(layer) -> bool:
 	if layer.tile_set == null:
 		layer.tile_set = TileSet.new()
 
-	_tile_width_spin.value = HexMapTileAdapter.SAMPLE_TILE_SIZE.x
-	_tile_height_spin.value = HexMapTileAdapter.SAMPLE_TILE_SIZE.y
-	var ok = HexMapTileAdapter.configure_sample_tile_set(
+	var texture := HexMapTileAdapter.load_tile_texture(atlas_path)
+	var ok = HexMapTileAdapter.configure_atlas_tile_set(
 		layer.tile_set,
+		texture,
 		_tile_settings_flat_top(),
-		HexMapTileAdapter.SAMPLE_TILE_SIZE
+		tile_size,
+		source_id,
+		[floor_atlas_coords, wall_atlas_coords]
 	)
 	if not ok:
 		return false
 
-	_floor_source_spin.value = 0
-	_floor_atlas_x_spin.value = 0
-	_floor_atlas_y_spin.value = 0
-	_wall_source_spin.value = 0
-	_wall_atlas_x_spin.value = 1
-	_wall_atlas_y_spin.value = 0
+	_current_atlas_image_path = atlas_path
+	_tile_width_spin.value = tile_size.x
+	_tile_height_spin.value = tile_size.y
+	_floor_source_spin.value = source_id
+	_floor_atlas_x_spin.value = floor_atlas_coords.x
+	_floor_atlas_y_spin.value = floor_atlas_coords.y
+	_wall_source_spin.value = source_id
+	_wall_atlas_x_spin.value = wall_atlas_coords.x
+	_wall_atlas_y_spin.value = wall_atlas_coords.y
 	return true
 
 
@@ -591,7 +710,7 @@ func _uses_symmetric_generation() -> bool:
 
 
 func _generate_map() -> void:
-	var gen_method = _generate_option.selected
+	_begin_generation()
 	var shape = 0
 	var wall_prob = _wall_prob_slider.value
 	var seed = int(_seed_spin.value)
@@ -600,14 +719,21 @@ func _generate_map() -> void:
 	var symmetric = _uses_symmetric_generation()
 	var dist_id = HexRandomizer.get_preset_id(_dist_option.get_item_text(_dist_option.selected))
 
+	_set_generation_progress(0.2, "Preparing")
 
 	match _generate_option.selected:
 		GENERATE_SYMMETRIC:
 			shape = _shape_option_symmetric.selected
 			symmetric = true
-		GENERATE_SIMPLE, _: 
+		GENERATE_SIMPLE, _:
 			shape = _shape_option_simple.selected
 			symmetric = false
+
+	if _generation_cancel_requested:
+		_finish_generation(true)
+		return
+
+	_set_generation_progress(0.6, "Generating")
 
 	match shape:
 		SHAPE_HEXAGON:
@@ -666,7 +792,40 @@ func _generate_map() -> void:
 				_current_distribution
 			)
 
+	if _generation_cancel_requested:
+		_finish_generation(true)
+		return
+
+	_set_generation_progress(0.9, "Updating")
 	_update_stats()
+	_finish_generation(false)
+
+
+func _begin_generation() -> void:
+	_generation_running = true
+	_generation_cancel_requested = false
+	_set_generation_progress(0.0, "Generating")
+	if _cancel_generation_button != null:
+		_cancel_generation_button.disabled = false
+
+
+func _finish_generation(cancelled: bool) -> void:
+	_generation_running = false
+	if cancelled:
+		_set_generation_progress(_generation_progress, "Cancelled")
+	else:
+		_set_generation_progress(1.0, "Ready")
+	_generation_cancel_requested = false
+	if _cancel_generation_button != null:
+		_cancel_generation_button.disabled = true
+
+
+func _set_generation_progress(progress: float, status: String) -> void:
+	_generation_progress = clampf(progress, 0.0, 1.0)
+	if _generation_progress_bar != null:
+		_generation_progress_bar.value = _generation_progress
+	if _generation_status_label != null:
+		_generation_status_label.text = status
 
 
 func _update_stats() -> void:

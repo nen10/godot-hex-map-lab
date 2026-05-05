@@ -91,28 +91,51 @@ static func configure_sample_tile_set(
 	flat_top: bool = true,
 	tile_size: Vector2i = SAMPLE_TILE_SIZE
 ) -> bool:
-	if tile_set == null:
-		return false
 	var texture := load_sample_tile_texture()
-	if texture == null:
-		return false
+	return configure_atlas_tile_set(
+		tile_set,
+		texture,
+		flat_top,
+		tile_size,
+		0,
+		[Vector2i(0, 0), Vector2i(1, 0)]
+	)
 
+
+static func configure_atlas_tile_set(
+	tile_set: TileSet,
+	texture: Texture2D,
+	flat_top: bool = true,
+	tile_size: Vector2i = SAMPLE_TILE_SIZE,
+	source_id: int = 0,
+	tile_coords: Array[Vector2i] = [Vector2i(0, 0), Vector2i(1, 0)]
+) -> bool:
+	if tile_set == null or texture == null:
+		return false
 	configure_hex_tile_set(tile_set, flat_top, tile_size)
-	if tile_set.has_source(0):
-		tile_set.remove_source(0)
+	if tile_set.has_source(source_id):
+		tile_set.remove_source(source_id)
 
 	var source := TileSetAtlasSource.new()
 	source.texture = texture
 	source.texture_region_size = tile_size
-	tile_set.add_source(source, 0)
-	source.create_tile(Vector2i(0, 0))
-	source.create_tile(Vector2i(1, 0))
+	tile_set.add_source(source, source_id)
+	for coords in tile_coords:
+		if not source.has_tile(coords):
+			source.create_tile(coords)
 	return true
 
 
 static func load_sample_tile_texture() -> Texture2D:
+	return load_tile_texture(SAMPLE_TILE_ATLAS_PATH)
+
+
+static func load_tile_texture(path: String) -> Texture2D:
+	var resource = load(path)
+	if resource is Texture2D:
+		return resource
 	var image := Image.new()
-	var error = image.load(ProjectSettings.globalize_path(SAMPLE_TILE_ATLAS_PATH))
+	var error = image.load(ProjectSettings.globalize_path(path))
 	if error != OK:
 		return null
 	return ImageTexture.create_from_image(image)

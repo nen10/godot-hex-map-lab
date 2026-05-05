@@ -3,46 +3,47 @@
 ## 目的
 
 Hex Map Kit を Godot 4 EditorPlugin として利用できる状態にする。
-EditorPlugin は map data resource、TileMapLayer 表示、distribution 編集、サンプル TileSet セットアップをエディタ上で接続する。
+EditorPlugin は map data resource、TileMapLayer 表示、distribution 編集、atlas TileSet セットアップをエディタ上で接続する。
 
+実装済み仕様とテスト根拠は `docs/complete_on_test/EDITOR_PLUGIN.md` に移動する。
 
-## 詳細実装計画
+## 計画
 
 ### 生成機能
 
-- 入力: generator / shape / size / wall probability / seed / connectivity / distribution
-- 出力: `_current_data: HexMapData`、stats label、`HexMapResource`
-- 次の実装単位:
-  - 生成処理の進捗状態を Dock に保持する
-  - 大きいマップ生成中に progress UI を更新する
-  - 実行中 generation を cancel できる状態を持つ
+入力:
 
-### タイルセット管理機能
+- generator: `Simple` / `Hex-inward Markov mesh model`
+- shape: `Hexagon` / `Rectangle` / `Square` / `Torus`
+- size: `Radius` / `Width` / `Height` / `Generation Radius`
+- wall probability
+- seed
+- connectivity
+- distribution preset id / custom `HexDistribution`
 
-- 入力: `TileMapLayer`、orientation、tile size、floor/wall source id、atlas coords、sample atlas image
-- 出力: `TileSet`、`TileSetAtlasSource`、floor/wall tile 設定、TileMapLayer cell
-- 実装単位:
-  - atlas 画像に関連する`TileMapLayer`側での公式ドキュメントへのリンクをマニュアルに追加する。dock上の項目との関係性を明示する。
-  - atlas 画像への参照の選択機能(sample適用ボタンの置き換え)
+出力:
 
-### マップのマニュアル編集機能
+- `_current_data: HexMapData`
+- stats label
+- `HexMapResource`
+- progress UI
+- `generation_status()`
 
-方針案であり、Godot の既存編集機能と連携できる範囲を優先する。
 
-- マップ形状編集機能
-- 壁の配置(座標情報)の編集機能 (マップのペイント機能 - 壁有無)
-  - リソースとして保存(保存したいLayerをDock上で選択)
-- 座標ごとの壁タイル画像編集機能 (ペイント機能 - タイル画像選択)
-- 座標ごとの床タイル画像編集機能 (ペイント機能 - タイル画像選択)
-- 座標ごとのオブジェクト編集機能
-- ラベル付き座標の編集・保存機能
-- ラベルとタイルチップ画像データベースの連携
-- マップオブジェクトデータベース作成機能
-- Undo/Redo 対応
+仕様分割:
+
+- 大きいマップ生成中にフレームごと progress UI を描画更新する処理と、生成器の途中割り込みは同期 API `HexMapGenerator.generate_*() -> HexMapData` と矛盾する。
+- -> generator を async / chunked 実行に分け、`progress(current, total)` と `cancel_requested` を各 chunk 境界...外周部分及びinner 1週ごとで処理する別仕様にする。
+
+async / chunked 実行のテスト計画:
+
+- 入力: generator request、chunk size、cancel request
+- 出力: partial progress、completed `HexMapData`、cancelled status
+- headless test: chunk ごとの progress 単調増加、cancel request 後に未完了 status で停止、cancel 後に `_current_data` を破壊しないこと
+- editor workflow test: 大きい map で Dock の progress が描画更新され、Cancel がクリック可能であること
+
 
 ## 完了条件
 
-- テストの完了
-- headless testできない場合: UI ワークフローのドキュメント作成, 機能検証用のユーザー向けテスト作成
-
--> `docs/complete_on_test/`に移動する
+- `docs/complete_on_test/EDITOR_PLUGIN.md` の実装済み項目が `tools/test.sh` で通る
+- headless test できない editor lifecycle は UI workflow と検証観点を manual / plan に記録する
