@@ -21,11 +21,38 @@ Core の `HexMapData` を Godot 側で使いやすい形式へ変換する Adapt
 - `map_cell`: Godot の TileMapLayer で使う `Vector2i`
 - `sort_z`: scene node 生成時の補助順序
 
-`map_cell` は `HexPoint.from_cube(q, s, r).to_offset()` によって求める。これは現行 Core が移植している Unity 版の offset 変換と同じ理解を使う。
+`map_cell` は display axial 座標を Godot の TileMapLayer offset 座標へ変換して求める。display axial は以下。
 
-Unity 版の対応箇所は `HexPoint.cs` の `coord()` / `relCoord()` である。`R` の偶奇により offset cell 上の近傍差分は変わるが、これは flat-top offset 座標の表現差であり、実座標上の六方向配置は変わらない。
+```text
+a = q - r
+b = r - s
+```
+
+flat-top / Vertical Offset の場合:
+
+```text
+map_cell = Vector2i(a, b + floor(a / 2))
+```
+
+pointy-top / Horizontal Offset の場合:
+
+```text
+map_cell = Vector2i(a + floor(b / 2), b)
+```
+
+負座標を含む radius 2 Hexagon でも Godot の `TileMapLayer.map_to_local()` 上で六方向近傍が崩れないよう、offset 計算の 2 除算は truncate ではなく floor を使う。
 
 `apply_to_tile_map_layer(layer, data, ...)` は `to_tile_entries()` の結果を使い、floor/wall の source id と atlas coords を `TileMapLayer.set_cell()` に渡す薄い adapter である。
+
+`configure_hex_tile_set(tile_set, flat_top, tile_size)` は TileSet 側の Hex 表示設定をそろえる helper である。
+
+- `tile_shape = TILE_SHAPE_HEXAGON`
+- `tile_layout = TILE_LAYOUT_STACKED`
+- `flat_top=true`: `tile_offset_axis = TILE_OFFSET_AXIS_VERTICAL`
+- `flat_top=false`: `tile_offset_axis = TILE_OFFSET_AXIS_HORIZONTAL`
+- `tile_size` が正の場合は `TileSet.tile_size` に反映
+
+Editor Dock / `HexMapResource` が orientation の管理主体である。Apply 後に TileMapLayer Inspector 側だけで `tile_offset_axis` を手動変更する経路は管理対象外で、表示レイアウトは resource の orientation と `map_cell` 変換を同時に適用して保つ。
 
 ## Node2D 用変換
 
@@ -80,16 +107,19 @@ toric square を六角形寄りに表示する場合は、描画前に `HexToric
 - `cells: Array[Vector3i]`
 - `walls: Array[Vector3i]`
 - `cyclic_size: int`
+- `orientation: int`
+
+`orientation` は `ORIENTATION_FLAT_TOP = 0` または `ORIENTATION_POINTY_TOP = 1` である。既定値は flat-top。
 
 `Vector3i` は `HexVector` の `(q, s, r)` 成分を保存する。読み戻し時は `HexVector.apply_basis(q, s, r)` を通すため、保存データが非正規化成分を含んでも Core 側では正規化される。
 
-`HexMapResource.from_map_data(data)` は `HexMapData` から Resource を作る。
+`HexMapResource.from_map_data(data, orientation)` は `HexMapData` と orientation から Resource を作る。
 
 `resource.to_map_data()` は Resource から `HexMapData` を復元する。
 
 ## Runtime Layer
 
-`HexTileMapLayer` は `Node2D` 派生の実行時 helper で、内部に子 `TileMapLayer` を持つ。`HexMapResource` を `apply_map(resource)` で読み込み、`HexMapTileAdapter.to_tile_entries()` と同じ cell 変換で TileMapLayer へ反映する。
+`HexTileMapLayer` は `Node2D` 派生の実行時 helper で、内部に子 `TileMapLayer` を持つ。`HexMapResource` を `apply_map(resource)` で読み込み、resource の orientation に従って `HexMapTileAdapter.to_tile_entries()` と同じ cell 変換で TileMapLayer へ反映する。
 
 `hex_to_local(hex)` は `HexMapTileAdapter.hex_to_local(hex, hex_size, flat_top)` と同じ表示用 axial を使う。`local_to_hex(local_pos)` はその逆変換で、local 座標から表示用 axial `(a, b)` を求めたあと、`HexVector` の basis へ `q = a + b`, `r = b` として戻す。これにより flat-top / pointy-top のどちらでも `local_to_hex(hex_to_local(hex)) == hex` が成り立つ。
 

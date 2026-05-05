@@ -51,12 +51,23 @@ var _dist_edit_button: Button
 var _current_dist_file := ""
 var _current_distribution = null
 
+var _tile_orientation_option: OptionButton
+var _tile_width_spin: SpinBox
+var _tile_height_spin: SpinBox
+var _floor_source_spin: SpinBox
+var _floor_atlas_x_spin: SpinBox
+var _floor_atlas_y_spin: SpinBox
+var _wall_source_spin: SpinBox
+var _wall_atlas_x_spin: SpinBox
+var _wall_atlas_y_spin: SpinBox
+
 var _generate_button: Button
 var _save_button: Button
 var _apply_layer_button: Button
 var _stats_label: Label
 
 var _current_data = null
+var _current_orientation := HexMapResource.ORIENTATION_FLAT_TOP
 
 
 func _ready() -> void:
@@ -137,6 +148,9 @@ func _build_ui() -> void:
 	_sym_options_container.add_child(dist_row)
 
 	root.add_child(_build_separator())
+	root.add_child(_build_tile_layer_controls())
+
+	root.add_child(_build_separator())
 	_stats_label = Label.new()
 	_stats_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_stats_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
@@ -144,6 +158,12 @@ func _build_ui() -> void:
 
 	root.add_child(_build_separator())
 	var button_row = HBoxContainer.new()
+
+	_apply_layer_button = Button.new()
+	_apply_layer_button.text = "Apply Layer"
+	_apply_layer_button.pressed.connect(_on_generate_apply_pressed)
+	button_row.add_child(_apply_layer_button)
+
 	_generate_button = Button.new()
 	_generate_button.text = "Generate"
 	_generate_button.pressed.connect(_on_generate_pressed)
@@ -154,10 +174,6 @@ func _build_ui() -> void:
 	_save_button.pressed.connect(_on_save_pressed)
 	button_row.add_child(_save_button)
 
-	_apply_layer_button = Button.new()
-	_apply_layer_button.text = "Apply Layer"
-	_apply_layer_button.pressed.connect(_on_apply_layer_pressed)
-	button_row.add_child(_apply_layer_button)
 	root.add_child(button_row)
 
 
@@ -261,6 +277,65 @@ func _build_seed_controls() -> Control:
 	return row
 
 
+func _build_tile_layer_controls() -> Control:
+	var box = VBoxContainer.new()
+	box.add_child(_build_section_label("TileMapLayer"))
+
+	_tile_orientation_option = OptionButton.new()
+	_tile_orientation_option.add_item("flat-top / Vertical Offset")
+	_tile_orientation_option.add_item("pointy-top / Horizontal Offset")
+	_tile_orientation_option.select(0)
+	_tile_orientation_option.item_selected.connect(_on_tile_orientation_changed)
+	box.add_child(_wrap_labeled("Orientation", _tile_orientation_option))
+
+	var size_row = HBoxContainer.new()
+	size_row.add_child(_build_small_label("Tile Size"))
+	_tile_width_spin = _new_int_spin(64, 1, 512)
+	_tile_height_spin = _new_int_spin(57, 1, 512)
+	size_row.add_child(_tile_width_spin)
+	size_row.add_child(_tile_height_spin)
+	box.add_child(size_row)
+
+	var floor_row = HBoxContainer.new()
+	floor_row.add_child(_build_small_label("Floor"))
+	_floor_source_spin = _new_int_spin(0, 0, 1024)
+	_floor_atlas_x_spin = _new_int_spin(0, 0, 4096)
+	_floor_atlas_y_spin = _new_int_spin(0, 0, 4096)
+	floor_row.add_child(_floor_source_spin)
+	floor_row.add_child(_floor_atlas_x_spin)
+	floor_row.add_child(_floor_atlas_y_spin)
+	box.add_child(floor_row)
+
+	var wall_row = HBoxContainer.new()
+	wall_row.add_child(_build_small_label("Wall"))
+	_wall_source_spin = _new_int_spin(0, 0, 1024)
+	_wall_atlas_x_spin = _new_int_spin(1, 0, 4096)
+	_wall_atlas_y_spin = _new_int_spin(0, 0, 4096)
+	wall_row.add_child(_wall_source_spin)
+	wall_row.add_child(_wall_atlas_x_spin)
+	wall_row.add_child(_wall_atlas_y_spin)
+	box.add_child(wall_row)
+
+	return box
+
+
+func _new_int_spin(value: int, min_value: int, max_value: int) -> SpinBox:
+	var spin = SpinBox.new()
+	spin.min_value = min_value
+	spin.max_value = max_value
+	spin.step = 1
+	spin.value = value
+	spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	return spin
+
+
+func _build_small_label(text: String) -> Label:
+	var label = Label.new()
+	label.text = text
+	label.custom_minimum_size = Vector2(72, 0)
+	return label
+
+
 func _wrap_labeled(label_text: String, control: Control) -> Control:
 	var row = HBoxContainer.new()
 	var label = Label.new()
@@ -311,15 +386,28 @@ func _on_seed_randomize() -> void:
 	_generate_map()
 
 
+func _on_tile_orientation_changed(_index: int) -> void:
+	_current_orientation = _tile_settings_orientation()
+
+
 func _on_generate_pressed() -> void:
 	_generate_map()
+
+
+func _on_generate_apply_pressed() -> void:
+	var layer = _find_tile_map_layer()
+	if layer == null:
+		push_error("No TileMapLayer found in the scene. Add one first.")
+		return
+	generate_and_apply_to_tile_map_layer(layer)
+	print("Generated and applied hex map to TileMapLayer: %s" % layer.name)
 
 
 func _on_save_pressed() -> void:
 	if _current_data == null:
 		return
 
-	var resource = HexMapResource.from_map_data(_current_data)
+	var resource = current_resource()
 	var dialog = EditorFileDialog.new()
 	dialog.file_mode = EditorFileDialog.FILE_MODE_SAVE_FILE
 	dialog.access = EditorFileDialog.ACCESS_RESOURCES
@@ -348,8 +436,64 @@ func _on_apply_layer_pressed() -> void:
 		push_error("No TileMapLayer found in the scene. Add one first.")
 		return
 
-	HexMapTileAdapter.apply_to_tile_map_layer(layer, _current_data)
+	apply_current_data_to_tile_map_layer(layer)
 	print("Applied hex map to TileMapLayer: %s" % layer.name)
+
+
+func generate_and_apply_to_tile_map_layer(layer) -> bool:
+	_generate_map()
+	return apply_current_data_to_tile_map_layer(layer)
+
+
+func apply_current_data_to_tile_map_layer(layer) -> bool:
+	if _current_data == null or layer == null:
+		return false
+
+	_current_orientation = _tile_settings_orientation()
+	var flat_top := _tile_settings_flat_top()
+	if layer is TileMapLayer:
+		if layer.tile_set == null:
+			layer.tile_set = TileSet.new()
+		HexMapTileAdapter.configure_hex_tile_set(
+			layer.tile_set,
+			flat_top,
+			_tile_settings_tile_size()
+		)
+
+	HexMapTileAdapter.apply_to_tile_map_layer(
+		layer,
+		_current_data,
+		int(_floor_source_spin.value),
+		Vector2i(int(_floor_atlas_x_spin.value), int(_floor_atlas_y_spin.value)),
+		int(_wall_source_spin.value),
+		Vector2i(int(_wall_atlas_x_spin.value), int(_wall_atlas_y_spin.value)),
+		true,
+		flat_top
+	)
+	return true
+
+
+func current_resource() -> HexMapResource:
+	if _current_data == null:
+		return null
+	_current_orientation = _tile_settings_orientation()
+	return HexMapResource.from_map_data(_current_data, _current_orientation)
+
+
+func _tile_settings_orientation() -> int:
+	if _tile_orientation_option == null:
+		return _current_orientation
+	if _tile_orientation_option.selected == 1:
+		return HexMapResource.ORIENTATION_POINTY_TOP
+	return HexMapResource.ORIENTATION_FLAT_TOP
+
+
+func _tile_settings_flat_top() -> bool:
+	return _tile_settings_orientation() == HexMapResource.ORIENTATION_FLAT_TOP
+
+
+func _tile_settings_tile_size() -> Vector2i:
+	return Vector2i(int(_tile_width_spin.value), int(_tile_height_spin.value))
 
 
 func _find_tile_map_layer():

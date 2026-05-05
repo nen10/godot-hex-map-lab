@@ -82,6 +82,7 @@ func _draw_hex_highlight(center: Vector2, color: Color) -> void:
 func apply_map(resource: HexMapResource) -> void:
 	if resource == null:
 		return
+	flat_top = resource.is_flat_top()
 	_data = resource.to_map_data()
 	_data = _normalize_data(_data)
 	_highlights.clear()
@@ -238,8 +239,9 @@ func _cube_round(frac_q: float, frac_r: float) -> HexVector:
 func _redraw() -> void:
 	if _tile_map == null or _data == null:
 		return
+	_configure_tile_map()
 	_tile_map.clear()
-	for entry in HexMapTileAdapter.to_tile_entries(_data):
+	for entry in HexMapTileAdapter.to_tile_entries(_data, true, true, flat_top):
 		if entry["kind"] == HexMapTileAdapter.KIND_WALL:
 			_tile_map.set_cell(entry["map_cell"], wall_source_id, wall_atlas_coords)
 		else:
@@ -251,7 +253,7 @@ func _update_tile(hex: HexVector) -> void:
 	if _tile_map == null:
 		return
 	var normalized = HexVector.apply_basis(hex.q, hex.s, hex.r)
-	var map_cell = HexMapTileAdapter.vector_to_map_cell(normalized)
+	var map_cell = HexMapTileAdapter.vector_to_map_cell(normalized, flat_top)
 	var key = normalized.key()
 	if _data.wall_set().has(key):
 		_tile_map.set_cell(map_cell, wall_source_id, wall_atlas_coords)
@@ -267,6 +269,12 @@ func _ensure_tile_map_layer() -> void:
 	_tile_map = TileMapLayer.new()
 	_tile_map.name = "TileMapLayer"
 	add_child(_tile_map, false, INTERNAL_MODE_BACK)
+
+
+func _configure_tile_map() -> void:
+	if _tile_map.tile_set == null:
+		_tile_map.tile_set = TileSet.new()
+	HexMapTileAdapter.configure_hex_tile_set(_tile_map.tile_set, flat_top)
 
 
 static func _normalize_data(data) -> HexMapData:

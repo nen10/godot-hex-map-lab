@@ -7,8 +7,11 @@ const KIND_WALL := "wall"
 const HexPointScript = preload("res://addons/hex_map_kit/core/hex_point.gd")
 
 
-static func vector_to_map_cell(vector) -> Vector2i:
-	return _vector_to_point(vector).to_offset()
+static func vector_to_map_cell(vector, flat_top: bool = true) -> Vector2i:
+	var axial := vector_to_display_axial(vector)
+	if flat_top:
+		return Vector2i(axial.x, axial.y + _floor_div2(axial.x))
+	return Vector2i(axial.x + _floor_div2(axial.y), axial.y)
 
 
 static func vector_to_sort_z(vector) -> int:
@@ -22,7 +25,8 @@ static func vector_to_display_axial(vector) -> Vector2i:
 static func to_tile_entries(
 	data,
 	include_floors: bool = true,
-	include_walls: bool = true
+	include_walls: bool = true,
+	flat_top: bool = true
 ) -> Array:
 	var wall_set = data.wall_set()
 	var entries: Array = []
@@ -38,7 +42,7 @@ static func to_tile_entries(
 		entries.append({
 			"vector": cell,
 			"kind": kind,
-			"map_cell": vector_to_map_cell(cell),
+			"map_cell": vector_to_map_cell(cell, flat_top),
 			"sort_z": vector_to_sort_z(cell),
 		})
 
@@ -53,16 +57,31 @@ static func apply_to_tile_map_layer(
 	floor_atlas_coords: Vector2i = Vector2i.ZERO,
 	wall_source_id: int = 0,
 	wall_atlas_coords: Vector2i = Vector2i(1, 0),
-	clear_layer: bool = true
+	clear_layer: bool = true,
+	flat_top: bool = true
 ) -> void:
 	if clear_layer and layer.has_method("clear"):
 		layer.clear()
 
-	for entry in to_tile_entries(data):
+	for entry in to_tile_entries(data, true, true, flat_top):
 		if entry["kind"] == KIND_WALL:
 			layer.set_cell(entry["map_cell"], wall_source_id, wall_atlas_coords)
 		else:
 			layer.set_cell(entry["map_cell"], floor_source_id, floor_atlas_coords)
+
+
+static func configure_hex_tile_set(
+	tile_set: TileSet,
+	flat_top: bool = true,
+	tile_size: Vector2i = Vector2i.ZERO
+) -> void:
+	if tile_set == null:
+		return
+	tile_set.tile_shape = TileSet.TILE_SHAPE_HEXAGON
+	tile_set.tile_layout = TileSet.TILE_LAYOUT_STACKED
+	tile_set.tile_offset_axis = TileSet.TILE_OFFSET_AXIS_VERTICAL if flat_top else TileSet.TILE_OFFSET_AXIS_HORIZONTAL
+	if tile_size.x > 0 and tile_size.y > 0:
+		tile_set.tile_size = tile_size
 
 
 static func hex_to_local(vector, hex_size: float, flat_top: bool = true) -> Vector2:
@@ -85,6 +104,10 @@ static func hex_to_local(vector, hex_size: float, flat_top: bool = true) -> Vect
 
 static func _vector_to_point(vector):
 	return HexPointScript.from_cube(vector.q, vector.s, vector.r)
+
+
+static func _floor_div2(value: int) -> int:
+	return int(floor(float(value) / 2.0))
 
 
 static func _compare_entries(left: Dictionary, right: Dictionary) -> bool:

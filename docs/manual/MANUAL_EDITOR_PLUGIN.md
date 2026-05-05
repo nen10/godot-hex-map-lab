@@ -41,7 +41,7 @@ Dock は現在のパラメータを変更すると即時に `_current_data` を�
 - `Square`: non-toric square
 - `Torus`: toric square
 
-`Generation Radius` は `map_unit_radius` です。square / torus の一辺は `2 * radius + 1` になります。`Generation Radius = 1` では参照済みリングが存在しないため、distribution ではなく `Wall Prob` で直接壁を生成します。
+`Generation Radius` は `map_unit_radius` です。square / torus の一辺は `2 * radius + 1` になります。`Generation Radius = 1 / 2` では安定した参照リングが存在しないため、distribution ではなく `Wall Prob` で直接壁を生成します。
 
 ### Distribution
 
@@ -68,13 +68,39 @@ Shape  seed=1201  wall_prob=0.45  cells=48  walls=12  floors=36  connected=yes  
 
 `connected` は現在の `HexMapData` に対する `HexMapGenerator.is_floor_connected()` の結果です。
 
+### TileMapLayer Settings
+
+`Apply Layer` で使う TileMapLayer 設定を Dock から指定できます。
+
+| 設定 | 内容 |
+|---|---|
+| `Orientation` | `flat-top / Vertical Offset` または `pointy-top / Horizontal Offset` |
+| `Tile Size` | `TileSet.tile_size` に設定する width / height |
+| `Floor` | floor tile の `source_id`, `atlas_x`, `atlas_y` |
+| `Wall` | wall tile の `source_id`, `atlas_x`, `atlas_y` |
+
+`Orientation` は `HexMapResource` に保存されます。`Apply Layer` / `Generate & Apply` はこの orientation を正として、対象 `TileMapLayer.tile_set` と `set_cell()` 用の cell 座標を同時に設定します。
+
+TileSet は以下に設定されます。
+
+```text
+tile_shape = TILE_SHAPE_HEXAGON
+tile_layout = TILE_LAYOUT_STACKED
+tile_offset_axis = TILE_OFFSET_AXIS_VERTICAL    # flat-top
+tile_offset_axis = TILE_OFFSET_AXIS_HORIZONTAL  # pointy-top
+```
+
+TileSet が未設定の `TileMapLayer` へ適用した場合は、新しい `TileSet` を作成してから設定します。
+Apply 後に TileMapLayer Inspector 側だけで `Horizontal Offset` / `Vertical Offset` を手動変更する経路は管理対象外です。
+
 ### Buttons
 
 - `Generate`: 現在の設定で再生成
 - `Save .tres`: `HexMapResource` として保存
 - `Apply Layer`: 選択中の `TileMapLayer`、または編集中 scene の最初の `TileMapLayer` に現在の map を適用
+- `Generate & Apply`: 現在の設定で再生成してから `Apply Layer` と同じ設定で反映
 
-`Apply Layer` は `HexMapTileAdapter.apply_to_tile_map_layer()` を使います。既定では floor が `source_id=0, atlas=(0,0)`、wall が `source_id=0, atlas=(1,0)` です。表示するには、対象 `TileMapLayer` の `TileSet` 側に対応する tile を用意します。
+`Apply Layer` は `HexMapTileAdapter.apply_to_tile_map_layer()` を使います。表示するには、対象 `TileMapLayer` の `TileSet` 側に、Dock で指定した floor / wall の source と atlas coords に対応する tile を用意します。
 
 ## 3. Distribution Editor
 
@@ -110,7 +136,7 @@ Window 起動時は preset の値が SpinBox に入ります。`Preset` を変�
 `HexMapResource` を Inspector で選択すると、先頭に以下の summary が表示されます。
 
 ```text
-cells=49  walls=20  floors=29  connected=yes  torus=7x7
+cells=49  walls=20  floors=29  connected=yes  orientation=flat-top  torus=7x7
 ```
 
 この表示は `resource.to_map_data()` の結果をもとに算出されます。

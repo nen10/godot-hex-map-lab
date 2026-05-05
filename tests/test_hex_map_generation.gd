@@ -33,7 +33,7 @@ func _run() -> void:
 	_test_generate_rectangle_can_restore_connectivity()
 	_test_generate_toric_square_can_restore_connectivity()
 	_test_symmetric_toric_walls_are_seeded_and_mapped_to_split_canvas()
-	_test_radius_one_symmetric_generation_uses_direct_wall_probability()
+	_test_minimum_radius_symmetric_generation_uses_direct_wall_probability()
 	_test_restore_terminal_connectivity_connects_only_requested_terminals()
 	_test_generate_symmetric_toric_square_can_restore_terminal_connectivity()
 	_test_generate_hexagon_can_restore_connectivity()
@@ -238,51 +238,55 @@ func _test_symmetric_toric_walls_are_seeded_and_mapped_to_split_canvas() -> void
 		_assert_true(split_counts.size() >= 2, "symmetric generation maps walls across split regions for N=%d" % size)
 
 
-func _test_radius_one_symmetric_generation_uses_direct_wall_probability() -> void:
-	var custom_distribution = ZeroDistribution.new()
+func _test_minimum_radius_symmetric_generation_uses_direct_wall_probability() -> void:
 	var protected = [HexVector.zero()]
-	var walls = HexMapGenerator.generate_symmetric_toric_walls(
-		1,
-		1.0,
-		909,
-		20,
-		protected,
-		custom_distribution
-	)
+	for radius in [1, 2]:
+		var custom_distribution = ZeroDistribution.new()
+		var size = radius * 2 + 1
+		var square_cell_count = size * size
+		var hex_cell_count = 1 + 3 * radius * (radius + 1)
+		var walls = HexMapGenerator.generate_symmetric_toric_walls(
+			radius,
+			1.0,
+			909,
+			20,
+			protected,
+			custom_distribution
+		)
 
-	_assert_eq(custom_distribution.calls, 0, "radius 1 symmetric generation does not require distribution references")
-	_assert_eq(walls.size(), 8, "radius 1 direct generation walls every unprotected square cell")
-	_assert_false(HexMapData.has_key(walls, HexVector.zero().key()), "radius 1 protected cell remains floor")
+		_assert_eq(custom_distribution.calls, 0, "radius %d symmetric generation does not require distribution references" % radius)
+		_assert_eq(walls.size(), square_cell_count - 1, "radius %d direct generation walls every unprotected square cell" % radius)
+		_assert_false(HexMapData.has_key(walls, HexVector.zero().key()), "radius %d protected cell remains floor" % radius)
 
-	var hexagon = HexMapGenerator.generate_symmetric_hexagon(
-		1,
-		1.0,
-		909,
-		true,
-		protected,
-		20,
-		[],
-		custom_distribution
-	)
-	_assert_eq(hexagon.cells.size(), 7, "radius 1 symmetric hexagon keeps the expected hex cell count")
-	_assert_eq(hexagon.walls.size(), 6, "radius 1 symmetric hexagon walls every unprotected hex cell")
-	_assert_true(HexMapGenerator.is_floor_connected(hexagon), "radius 1 symmetric hexagon completes connectivity check")
+		var hexagon = HexMapGenerator.generate_symmetric_hexagon(
+			radius,
+			1.0,
+			909,
+			true,
+			protected,
+			20,
+			[],
+			custom_distribution
+		)
+		_assert_eq(hexagon.cells.size(), hex_cell_count, "radius %d symmetric hexagon keeps the expected hex cell count" % radius)
+		_assert_eq(hexagon.walls.size(), hex_cell_count - 1, "radius %d symmetric hexagon walls every unprotected hex cell" % radius)
+		_assert_true(HexMapGenerator.is_floor_connected(hexagon), "radius %d symmetric hexagon completes connectivity check" % radius)
 
-	var toric = HexMapGenerator.generate_symmetric_square(
-		1,
-		1.0,
-		909,
-		true,
-		protected,
-		20,
-		[],
-		true,
-		custom_distribution
-	)
-	_assert_eq(toric.cells.size(), 9, "radius 1 symmetric toric square keeps the expected square cell count")
-	_assert_eq(toric.cyclic_size, 3, "radius 1 symmetric toric square stores cyclic size")
-	_assert_eq(toric.walls.size(), 8, "radius 1 symmetric toric square walls every unprotected cell")
-	_assert_true(HexMapGenerator.is_floor_connected(toric), "radius 1 symmetric toric square completes connectivity check")
+		var toric = HexMapGenerator.generate_symmetric_square(
+			radius,
+			1.0,
+			909,
+			true,
+			protected,
+			20,
+			[],
+			true,
+			custom_distribution
+		)
+		_assert_eq(toric.cells.size(), square_cell_count, "radius %d symmetric toric square keeps the expected square cell count" % radius)
+		_assert_eq(toric.cyclic_size, size, "radius %d symmetric toric square stores cyclic size" % radius)
+		_assert_eq(toric.walls.size(), square_cell_count - 1, "radius %d symmetric toric square walls every unprotected cell" % radius)
+		_assert_true(HexMapGenerator.is_floor_connected(toric), "radius %d symmetric toric square completes connectivity check" % radius)
 
 
 func _test_restore_terminal_connectivity_connects_only_requested_terminals() -> void:

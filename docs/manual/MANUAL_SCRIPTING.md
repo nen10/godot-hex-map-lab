@@ -137,7 +137,7 @@ var symmetric_torus = HexMapGenerator.generate_symmetric_square(
 )
 ```
 
-`radius` は `map_unit_radius` で、toric square の一辺は `2 * radius + 1` です。`radius == 1` は参照済みリングが存在しないため、distribution ではなく `wall_probability` による直接生成として扱います。
+`radius` は `map_unit_radius` で、toric square の一辺は `2 * radius + 1` です。`radius <= 2` は安定した参照リングが存在しないため、distribution ではなく `wall_probability` による直接生成として扱います。
 
 distribution は `HexRandomizer` の preset id、または `HexDistribution` resource で指定できます。値は 0.0 から 8.0 の重みで、確率は `value / 8.0` です。
 
@@ -184,18 +184,32 @@ HexMapTileAdapter.apply_to_tile_map_layer(
 	0,
 	Vector2i.ZERO,
 	0,
-	Vector2i(1, 0)
+	Vector2i(1, 0),
+	true,
+	true
 )
 ```
 
-`vector_to_map_cell()` は TileMapLayer の cell 座標を返します。`hex_to_local(vector, hex_size, flat_top)` は Node2D 描画用の local 座標を返します。`flat_top=false` にすると pointy-top 投影になります。
+最後の `true` は `flat-top / Vertical Offset` を表します。`false` にすると `pointy-top / Horizontal Offset` 用の cell 座標を出力します。`vector_to_map_cell(vector, flat_top)` は TileMapLayer の cell 座標を返します。`hex_to_local(vector, hex_size, flat_top)` は Node2D 描画用の local 座標を返します。
+
+TileSet を Hex 表示用に合わせる場合:
+
+```gdscript
+HexMapTileAdapter.configure_hex_tile_set(
+	$TileMapLayer.tile_set,
+	true,
+	Vector2i(64, 64)
+)
+```
+
+`flat_top=true` は `TileSet.TILE_OFFSET_AXIS_VERTICAL`、`flat_top=false` は `TileSet.TILE_OFFSET_AXIS_HORIZONTAL` を設定します。どちらも `TileSet.TILE_SHAPE_HEXAGON` と `TileSet.TILE_LAYOUT_STACKED` を使います。
 
 ### HexMapResource
 
 `.tres` に保存する場合は `HexMapResource` に変換します。
 
 ```gdscript
-var resource = HexMapResource.from_map_data(data)
+var resource = HexMapResource.from_map_data(data, HexMapResource.ORIENTATION_FLAT_TOP)
 ResourceSaver.save(resource, "res://maps/level_01.tres")
 
 var loaded = load("res://maps/level_01.tres")
@@ -207,6 +221,9 @@ var loaded_data = loaded.to_map_data()
 - `cells: Array[Vector3i]`
 - `walls: Array[Vector3i]`
 - `cyclic_size: int`
+- `orientation: int`
+
+`orientation` は `ORIENTATION_FLAT_TOP` または `ORIENTATION_POINTY_TOP` です。Editor Dock と `HexTileMapLayer.apply_map()` はこの値を表示レイアウトの正として扱います。
 
 ### HexTileMapLayer
 
@@ -217,7 +234,6 @@ var loaded_data = loaded.to_map_data()
 
 func _ready() -> void:
 	layer.apply_map(load("res://maps/level_01.tres"))
-	layer.flat_top = true
 	layer.hex_size = 24.0
 
 func _unhandled_input(event: InputEvent) -> void:

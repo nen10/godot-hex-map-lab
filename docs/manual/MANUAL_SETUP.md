@@ -33,6 +33,8 @@ Godot エディタを起動し、Project Settings の Plugins で **Hex Map Kit*
 - floor: `source_id=0`, `atlas_coords=Vector2i(0, 0)`
 - wall: `source_id=0`, `atlas_coords=Vector2i(1, 0)`
 
+Editor Dock から適用する場合、`TileShape=Hexagon`、`TileLayout=Stacked`、`TileOffsetAxis` は `HexMapResource` の orientation に従って設定されます。
+
 別の atlas を使う場合は、スクリプトから `HexMapTileAdapter.apply_to_tile_map_layer()` または `HexTileMapLayer` の export property で source / atlas を指定します。
 
 ## 4. 動作確認

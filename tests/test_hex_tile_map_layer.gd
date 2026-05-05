@@ -14,6 +14,7 @@ func _init() -> void:
 
 func _run() -> void:
 	await _test_apply_map_and_cell_editing()
+	await _test_apply_map_uses_resource_orientation()
 	await _test_coordinate_roundtrips()
 	await _test_path_highlight_and_connectivity_helpers()
 	await _test_apply_map_before_ready_redraws_after_ready()
@@ -49,6 +50,29 @@ func _test_apply_map_and_cell_editing() -> void:
 	_assert_true(layer.is_wall(HexVector.zero()), "set_wall changes a floor to wall")
 	layer.set_wall(HexVector.apply_basis(9, 0, 9))
 	_assert_eq(layer.get_floor_cells().size(), 5, "editing ignores cells outside the map")
+
+	layer.queue_free()
+	await process_frame
+
+
+func _test_apply_map_uses_resource_orientation() -> void:
+	var data = HexMapData.from_cells([
+		HexVector.zero(),
+		HexVector.r_axis().negated(),
+	])
+	var layer = HexTileMapLayer.new()
+	root.add_child(layer)
+	await process_frame
+
+	layer.apply_map(HexMapResource.from_map_data(data, HexMapResource.ORIENTATION_POINTY_TOP))
+	_assert_true(not layer.flat_top, "layer adopts pointy-top resource orientation")
+	_assert_eq(layer._tile_map.tile_set.tile_offset_axis, TileSet.TILE_OFFSET_AXIS_HORIZONTAL, "layer configures pointy-top TileSet axis")
+	_assert_true(layer._tile_map.get_used_cells().has(Vector2i(0, -1)), "layer uses pointy-top map cell")
+
+	layer.apply_map(HexMapResource.from_map_data(data, HexMapResource.ORIENTATION_FLAT_TOP))
+	_assert_true(layer.flat_top, "layer adopts flat-top resource orientation")
+	_assert_eq(layer._tile_map.tile_set.tile_offset_axis, TileSet.TILE_OFFSET_AXIS_VERTICAL, "layer configures flat-top TileSet axis")
+	_assert_true(layer._tile_map.get_used_cells().has(Vector2i(1, -1)), "layer uses flat-top map cell")
 
 	layer.queue_free()
 	await process_frame

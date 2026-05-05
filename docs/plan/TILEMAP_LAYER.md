@@ -15,11 +15,11 @@ Hex Map Kit の TileMapLayer 周りを実行時利用可能な形に拡張する
 - プロパティ
   - `hex_map: HexMapResource` — マップデータリソース参照（変更時自動再描画）
   - `hex_size: float` — タイルサイズ (default 24.0)
-  - `flat_top: bool` — flat-top / pointy-top 切替 (default true)
+  - `flat_top: bool` — 現在の flat-top / pointy-top 状態。`HexMapResource` 適用時は resource orientation に従う
   - `floor_source_id / floor_atlas_coords` — 床タイル設定
   - `wall_source_id / wall_atlas_coords` — 壁タイル設定
 - メソッド
-  - `apply_map(resource)` — HexMapResource を読み込み TileMapLayer に反映
+  - `apply_map(resource)` — HexMapResource を読み込み、resource orientation に従って TileMapLayer に反映
   - `local_to_hex(local_pos: Vector2) -> HexVector` — ローカル座標→Hex座標
   - `hex_to_local(hex: HexVector) -> Vector2` — Hex座標→ローカル座標
   - `is_wall(hex: HexVector) -> bool` — 壁判定

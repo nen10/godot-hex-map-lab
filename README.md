@@ -57,8 +57,6 @@ GODOT_BIN=/path/to/Godot ./tools/test.sh
 - `docs/plan/TILEMAP_LAYER.md`: `HexTileMapLayer` 周辺の実行時拡張計画
 - `docs/plan/REMAINS_FROM_USER_REVIEW.md`: ユーザーレビュー由来の要望
 
-現在の重点は、EditorPlugin の操作品質、Distribution 管理、TileMapLayer 表示/実行時 API、toric map の表示・経路・選択操作です。
-
 ## リポジトリ構成
 
 ```text

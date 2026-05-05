@@ -15,8 +15,11 @@ func _init() -> void:
 
 func _run() -> void:
 	_test_vector_to_map_cell_matches_flat_top_offset()
+	_test_vector_to_map_cell_matches_pointy_top_offset()
 	_test_to_tile_entries_marks_floor_and_wall()
 	_test_entries_are_sorted_for_stable_scene_generation()
+	_test_radius_two_hexagon_matches_godot_flat_top_layout()
+	_test_radius_two_hexagon_matches_godot_pointy_top_layout()
 	_test_vector_to_display_axial_keeps_six_neighbor_shape()
 	_test_flat_top_offset_neighbor_deltas_match_unity_even_row()
 	_test_flat_top_offset_neighbor_deltas_match_unity_odd_row()
@@ -25,6 +28,7 @@ func _run() -> void:
 	_test_hex_to_local_pointy_top_positions()
 	_test_flat_top_neighbor_layout()
 	_test_pointy_top_neighbor_layout()
+	_test_configure_hex_tileset_sets_hex_layout()
 	_test_map_resource_stores_map_data()
 	_test_map_resource_roundtrips_to_map_data()
 
@@ -68,9 +72,32 @@ func _test_vector_to_map_cell_matches_flat_top_offset() -> void:
 		"origin maps to TileMap cell origin"
 	)
 	_assert_eq(
-		HexMapTileAdapter.vector_to_map_cell(HexVector.apply_basis(1, 0, 1)),
-		Vector2i(0, 1),
-		"basis-normalized vector maps through HexPoint offset conversion"
+		HexMapTileAdapter.vector_to_map_cell(HexVector.q_axis().negated()),
+		Vector2i(-1, -1),
+		"negative flat-top Q axis uses floor column offset"
+	)
+	_assert_eq(
+		HexMapTileAdapter.vector_to_map_cell(HexVector.r_axis()),
+		Vector2i(-1, 0),
+		"flat-top R axis maps to vertical offset"
+	)
+
+
+func _test_vector_to_map_cell_matches_pointy_top_offset() -> void:
+	_assert_eq(
+		HexMapTileAdapter.vector_to_map_cell(HexVector.zero(), false),
+		Vector2i(0, 0),
+		"pointy-top origin maps to TileMap cell origin"
+	)
+	_assert_eq(
+		HexMapTileAdapter.vector_to_map_cell(HexVector.r_axis().negated(), false),
+		Vector2i(0, -1),
+		"negative pointy-top R axis uses floor row offset"
+	)
+	_assert_eq(
+		HexMapTileAdapter.vector_to_map_cell(HexVector.q_axis(), false),
+		Vector2i(1, 0),
+		"pointy-top Q axis maps to horizontal offset"
 	)
 
 
@@ -80,12 +107,13 @@ func _test_to_tile_entries_marks_floor_and_wall() -> void:
 	data.set_walls([wall])
 
 	var entries = HexMapTileAdapter.to_tile_entries(data)
+	var entry_by_key = _entries_by_key(entries)
 
 	_assert_eq(entries.size(), 4, "adapter emits every cell by default")
-	_assert_eq(entries[0]["kind"], HexMapTileAdapter.KIND_FLOOR, "origin is floor")
-	_assert_eq(entries[0]["map_cell"], Vector2i(0, 0), "origin map cell")
-	_assert_eq(entries[1]["kind"], HexMapTileAdapter.KIND_WALL, "wall is marked")
-	_assert_eq(entries[1]["map_cell"], Vector2i(1, 0), "wall map cell")
+	_assert_eq(entry_by_key[HexVector.zero().key()]["kind"], HexMapTileAdapter.KIND_FLOOR, "origin is floor")
+	_assert_eq(entry_by_key[HexVector.zero().key()]["map_cell"], Vector2i(0, 0), "origin map cell")
+	_assert_eq(entry_by_key[wall.key()]["kind"], HexMapTileAdapter.KIND_WALL, "wall is marked")
+	_assert_eq(entry_by_key[wall.key()]["map_cell"], Vector2i(1, 0), "wall map cell")
 
 
 func _test_entries_are_sorted_for_stable_scene_generation() -> void:
@@ -100,6 +128,14 @@ func _test_entries_are_sorted_for_stable_scene_generation() -> void:
 	_assert_eq(entries[0]["vector"].key(), HexVector.zero().key(), "origin sorts first")
 	_assert_eq(entries[1]["vector"].key(), HexVector.apply_basis(1, 0, 0).key(), "row 0 q=1 sorts second")
 	_assert_eq(entries[2]["vector"].key(), HexVector.apply_basis(1, 0, 1).key(), "next row sorts last")
+
+
+func _test_radius_two_hexagon_matches_godot_flat_top_layout() -> void:
+	_assert_radius_two_hexagon_matches_godot_layout(true)
+
+
+func _test_radius_two_hexagon_matches_godot_pointy_top_layout() -> void:
+	_assert_radius_two_hexagon_matches_godot_layout(false)
 
 
 func _test_vector_to_display_axial_keeps_six_neighbor_shape() -> void:
@@ -234,6 +270,19 @@ func _test_pointy_top_neighbor_layout() -> void:
 		)
 
 
+func _test_configure_hex_tileset_sets_hex_layout() -> void:
+	var tile_set = TileSet.new()
+
+	HexMapTileAdapter.configure_hex_tile_set(tile_set, true, Vector2i(80, 72))
+	_assert_eq(tile_set.tile_shape, TileSet.TILE_SHAPE_HEXAGON, "configured TileSet uses Hexagon shape")
+	_assert_eq(tile_set.tile_layout, TileSet.TILE_LAYOUT_STACKED, "configured TileSet uses Stacked layout")
+	_assert_eq(tile_set.tile_offset_axis, TileSet.TILE_OFFSET_AXIS_VERTICAL, "flat-top maps to Vertical Offset axis")
+	_assert_eq(tile_set.tile_size, Vector2i(80, 72), "configured TileSet stores tile size")
+
+	HexMapTileAdapter.configure_hex_tile_set(tile_set, false)
+	_assert_eq(tile_set.tile_offset_axis, TileSet.TILE_OFFSET_AXIS_HORIZONTAL, "pointy-top maps to Horizontal Offset axis")
+
+
 func _test_map_resource_stores_map_data() -> void:
 	var data = HexMapData.square(2, true)
 	data.set_walls([HexVector.q_axis()])
@@ -243,6 +292,7 @@ func _test_map_resource_stores_map_data() -> void:
 	_assert_eq(resource.cyclic_size, 2, "resource stores cyclic size")
 	_assert_eq(resource.cells.size(), 4, "resource stores all cells")
 	_assert_eq(resource.walls, [Vector3i(1, 0, 0)], "resource stores wall vector components")
+	_assert_eq(resource.orientation, HexMapResource.ORIENTATION_FLAT_TOP, "resource defaults to flat-top orientation")
 
 
 func _test_map_resource_roundtrips_to_map_data() -> void:
@@ -257,6 +307,11 @@ func _test_map_resource_roundtrips_to_map_data() -> void:
 	_assert_eq(roundtrip.cyclic_size, data.cyclic_size, "roundtrip preserves cyclic size")
 	_assert_keys_eq(roundtrip.cells, data.cells, "roundtrip preserves cells")
 	_assert_keys_eq(roundtrip.walls, data.walls, "roundtrip preserves walls")
+
+	var resource = HexMapResource.from_map_data(data, HexMapResource.ORIENTATION_POINTY_TOP)
+	_assert_eq(resource.orientation, HexMapResource.ORIENTATION_POINTY_TOP, "resource stores pointy-top orientation")
+	resource.set_from_map_data(data, 99)
+	_assert_eq(resource.orientation, HexMapResource.ORIENTATION_FLAT_TOP, "resource normalizes unknown orientation to flat-top")
 
 
 func _assert_neighbor_offset_deltas(center, expected: Array, message: String) -> void:
@@ -288,3 +343,45 @@ func _flat_top_point_local_from_unity_offset(point, size: float) -> Vector2:
 		size * 1.5 * a,
 		size * sqrt3 * (b + a * 0.5)
 	)
+
+
+func _assert_radius_two_hexagon_matches_godot_layout(flat_top: bool) -> void:
+	var tile_set = TileSet.new()
+	HexMapTileAdapter.configure_hex_tile_set(tile_set, flat_top, Vector2i(64, 64))
+	var layer = TileMapLayer.new()
+	layer.tile_set = tile_set
+	var data = HexMapData.hexagon(2)
+	var entries = HexMapTileAdapter.to_tile_entries(data, true, true, flat_top)
+	var entry_by_key := {}
+	for entry in entries:
+		entry_by_key[entry["vector"].key()] = entry
+
+	_assert_eq(entries.size(), 19, "radius 2 hexagon emits 19 entries flat_top=%s" % str(flat_top))
+	var origin_entry = entry_by_key[HexVector.zero().key()]
+	var origin_local = layer.map_to_local(origin_entry["map_cell"])
+	var directions = HexVector.directions()
+	for direction in directions:
+		var entry = entry_by_key[direction.key()]
+		var actual = layer.map_to_local(entry["map_cell"]) - origin_local
+		var expected = _godot_neighbor_delta(direction, flat_top)
+		_assert_vec2_approx(
+			actual,
+			expected,
+			"Godot TileMapLayer neighbor layout flat_top=%s direction=%s" % [str(flat_top), direction.key()]
+		)
+
+
+func _entries_by_key(entries: Array) -> Dictionary:
+	var result := {}
+	for entry in entries:
+		result[entry["vector"].key()] = entry
+	return result
+
+
+func _godot_neighbor_delta(direction, flat_top: bool) -> Vector2:
+	var axial = HexMapTileAdapter.vector_to_display_axial(direction)
+	var q = float(axial.x)
+	var r = float(axial.y)
+	if flat_top:
+		return Vector2(48.0 * q, 64.0 * (r + q * 0.5))
+	return Vector2(64.0 * (q + r * 0.5), 48.0 * r)
