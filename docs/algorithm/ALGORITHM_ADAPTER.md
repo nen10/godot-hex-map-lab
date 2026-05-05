@@ -54,6 +54,8 @@ map_cell = Vector2i(a + floor(b / 2), b)
 
 Editor Dock / `HexMapResource` が orientation の管理主体である。Apply 後に TileMapLayer Inspector 側だけで `tile_offset_axis` を手動変更する経路は管理対象外で、表示レイアウトは resource の orientation と `map_cell` 変換を同時に適用して保つ。
 
+`configure_sample_tile_set(tile_set, flat_top, tile_size)` は addon 同梱の `addons/hex_map_kit/assets/sample_hex_tiles.png` を source id `0` の `TileSetAtlasSource` として設定する。sample atlas は `64 x 57` の tile region を横に 2 つ持ち、floor は atlas `Vector2i(0, 0)`、wall は atlas `Vector2i(1, 0)` である。
+
 ## Node2D 用変換
 
 `HexMapTileAdapter.hex_to_local(vector, hex_size, flat_top)` は、Hex 座標からローカル座標 `Vector2` を返す。

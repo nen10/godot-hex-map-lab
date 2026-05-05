@@ -3,6 +3,8 @@ extends RefCounted
 
 const KIND_FLOOR := "floor"
 const KIND_WALL := "wall"
+const SAMPLE_TILE_ATLAS_PATH := "res://addons/hex_map_kit/assets/sample_hex_tiles.png"
+const SAMPLE_TILE_SIZE := Vector2i(64, 57)
 
 const HexPointScript = preload("res://addons/hex_map_kit/core/hex_point.gd")
 
@@ -82,6 +84,38 @@ static func configure_hex_tile_set(
 	tile_set.tile_offset_axis = TileSet.TILE_OFFSET_AXIS_VERTICAL if flat_top else TileSet.TILE_OFFSET_AXIS_HORIZONTAL
 	if tile_size.x > 0 and tile_size.y > 0:
 		tile_set.tile_size = tile_size
+
+
+static func configure_sample_tile_set(
+	tile_set: TileSet,
+	flat_top: bool = true,
+	tile_size: Vector2i = SAMPLE_TILE_SIZE
+) -> bool:
+	if tile_set == null:
+		return false
+	var texture := load_sample_tile_texture()
+	if texture == null:
+		return false
+
+	configure_hex_tile_set(tile_set, flat_top, tile_size)
+	if tile_set.has_source(0):
+		tile_set.remove_source(0)
+
+	var source := TileSetAtlasSource.new()
+	source.texture = texture
+	source.texture_region_size = tile_size
+	tile_set.add_source(source, 0)
+	source.create_tile(Vector2i(0, 0))
+	source.create_tile(Vector2i(1, 0))
+	return true
+
+
+static func load_sample_tile_texture() -> Texture2D:
+	var image := Image.new()
+	var error = image.load(ProjectSettings.globalize_path(SAMPLE_TILE_ATLAS_PATH))
+	if error != OK:
+		return null
+	return ImageTexture.create_from_image(image)
 
 
 static func hex_to_local(vector, hex_size: float, flat_top: bool = true) -> Vector2:

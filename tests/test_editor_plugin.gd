@@ -6,6 +6,7 @@ const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator
 const HexRandomizer = preload("res://addons/hex_map_kit/core/hex_randomizer.gd")
 const HexDistribution = preload("res://addons/hex_map_kit/adapter/hex_distribution.gd")
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
+const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexMapGenDock = preload("res://addons/hex_map_kit/editor/hex_map_gen_dock.gd")
 const HexDistEditor = preload("res://addons/hex_map_kit/editor/hex_dist_editor.gd")
 
@@ -40,6 +41,7 @@ func _run() -> void:
 	await _test_generation_dock_applies_orientation_to_tile_entries()
 	await _test_generation_dock_resource_stores_orientation()
 	await _test_generation_dock_configures_tile_map_layer_tileset()
+	await _test_generation_dock_sets_up_sample_tiles()
 	await _test_generation_dock_generate_and_apply_refreshes_map()
 
 	if _failures.is_empty():
@@ -235,6 +237,29 @@ func _test_generation_dock_configures_tile_map_layer_tileset() -> void:
 	_assert_eq(layer.tile_set.tile_layout, TileSet.TILE_LAYOUT_STACKED, "generation dock configures TileSet layout")
 	_assert_eq(layer.tile_set.tile_offset_axis, TileSet.TILE_OFFSET_AXIS_HORIZONTAL, "generation dock maps pointy-top to Horizontal Offset")
 	_assert_eq(layer.tile_set.tile_size, Vector2i(96, 84), "generation dock configures TileSet tile size")
+
+	layer.free()
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_sets_up_sample_tiles() -> void:
+	var dock = HexMapGenDock.new()
+	root.add_child(dock)
+	await process_frame
+
+	dock._tile_orientation_option.select(1)
+	var layer = TileMapLayer.new()
+	_assert_true(dock.setup_sample_tiles_on_tile_map_layer(layer), "generation dock configures sample tiles")
+	_assert_true(layer.tile_set != null, "sample tile setup creates TileSet")
+	_assert_eq(layer.tile_set.tile_offset_axis, TileSet.TILE_OFFSET_AXIS_HORIZONTAL, "sample tile setup follows dock orientation")
+	_assert_eq(layer.tile_set.tile_size, HexMapTileAdapter.SAMPLE_TILE_SIZE, "sample tile setup uses sample tile size")
+	_assert_true(layer.tile_set.has_source(0), "sample tile setup creates source 0")
+	_assert_eq(Vector2i(int(dock._tile_width_spin.value), int(dock._tile_height_spin.value)), HexMapTileAdapter.SAMPLE_TILE_SIZE, "sample tile setup syncs tile size controls")
+	_assert_eq(int(dock._floor_source_spin.value), 0, "sample tile setup sets floor source")
+	_assert_eq(Vector2i(int(dock._floor_atlas_x_spin.value), int(dock._floor_atlas_y_spin.value)), Vector2i.ZERO, "sample tile setup sets floor atlas")
+	_assert_eq(int(dock._wall_source_spin.value), 0, "sample tile setup sets wall source")
+	_assert_eq(Vector2i(int(dock._wall_atlas_x_spin.value), int(dock._wall_atlas_y_spin.value)), Vector2i(1, 0), "sample tile setup sets wall atlas")
 
 	layer.free()
 	dock.queue_free()

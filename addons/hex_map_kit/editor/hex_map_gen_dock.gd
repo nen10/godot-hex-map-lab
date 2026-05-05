@@ -60,10 +60,12 @@ var _floor_atlas_y_spin: SpinBox
 var _wall_source_spin: SpinBox
 var _wall_atlas_x_spin: SpinBox
 var _wall_atlas_y_spin: SpinBox
+var _sample_tiles_button: Button
 
 var _generate_button: Button
 var _save_button: Button
 var _apply_layer_button: Button
+var _generate_apply_button: Button
 var _stats_label: Label
 
 var _current_data = null
@@ -161,7 +163,7 @@ func _build_ui() -> void:
 
 	_apply_layer_button = Button.new()
 	_apply_layer_button.text = "Apply Layer"
-	_apply_layer_button.pressed.connect(_on_generate_apply_pressed)
+	_apply_layer_button.pressed.connect(_on_apply_layer_pressed)
 	button_row.add_child(_apply_layer_button)
 
 	_generate_button = Button.new()
@@ -173,6 +175,11 @@ func _build_ui() -> void:
 	_save_button.text = "Save .tres"
 	_save_button.pressed.connect(_on_save_pressed)
 	button_row.add_child(_save_button)
+
+	_generate_apply_button = Button.new()
+	_generate_apply_button.text = "Generate & Apply"
+	_generate_apply_button.pressed.connect(_on_generate_apply_pressed)
+	button_row.add_child(_generate_apply_button)
 
 	root.add_child(button_row)
 
@@ -316,6 +323,11 @@ func _build_tile_layer_controls() -> Control:
 	wall_row.add_child(_wall_atlas_y_spin)
 	box.add_child(wall_row)
 
+	_sample_tiles_button = Button.new()
+	_sample_tiles_button.text = "Use Sample Tiles"
+	_sample_tiles_button.pressed.connect(_on_sample_tiles_pressed)
+	box.add_child(_sample_tiles_button)
+
 	return box
 
 
@@ -403,6 +415,15 @@ func _on_generate_apply_pressed() -> void:
 	print("Generated and applied hex map to TileMapLayer: %s" % layer.name)
 
 
+func _on_sample_tiles_pressed() -> void:
+	var layer = _find_tile_map_layer()
+	if layer == null:
+		push_error("No TileMapLayer found in the scene. Add one first.")
+		return
+	if setup_sample_tiles_on_tile_map_layer(layer):
+		print("Configured sample hex tiles on TileMapLayer: %s" % layer.name)
+
+
 func _on_save_pressed() -> void:
 	if _current_data == null:
 		return
@@ -470,6 +491,33 @@ func apply_current_data_to_tile_map_layer(layer) -> bool:
 		true,
 		flat_top
 	)
+	return true
+
+
+func setup_sample_tiles_on_tile_map_layer(layer) -> bool:
+	if not layer is TileMapLayer:
+		return false
+
+	_current_orientation = _tile_settings_orientation()
+	if layer.tile_set == null:
+		layer.tile_set = TileSet.new()
+
+	_tile_width_spin.value = HexMapTileAdapter.SAMPLE_TILE_SIZE.x
+	_tile_height_spin.value = HexMapTileAdapter.SAMPLE_TILE_SIZE.y
+	var ok = HexMapTileAdapter.configure_sample_tile_set(
+		layer.tile_set,
+		_tile_settings_flat_top(),
+		HexMapTileAdapter.SAMPLE_TILE_SIZE
+	)
+	if not ok:
+		return false
+
+	_floor_source_spin.value = 0
+	_floor_atlas_x_spin.value = 0
+	_floor_atlas_y_spin.value = 0
+	_wall_source_spin.value = 0
+	_wall_atlas_x_spin.value = 1
+	_wall_atlas_y_spin.value = 0
 	return true
 
 

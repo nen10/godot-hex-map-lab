@@ -29,6 +29,8 @@ func _run() -> void:
 	_test_flat_top_neighbor_layout()
 	_test_pointy_top_neighbor_layout()
 	_test_configure_hex_tileset_sets_hex_layout()
+	_test_sample_tile_asset_exists()
+	_test_configure_sample_tile_set_creates_atlas_source()
 	_test_map_resource_stores_map_data()
 	_test_map_resource_roundtrips_to_map_data()
 
@@ -281,6 +283,36 @@ func _test_configure_hex_tileset_sets_hex_layout() -> void:
 
 	HexMapTileAdapter.configure_hex_tile_set(tile_set, false)
 	_assert_eq(tile_set.tile_offset_axis, TileSet.TILE_OFFSET_AXIS_HORIZONTAL, "pointy-top maps to Horizontal Offset axis")
+
+
+func _test_sample_tile_asset_exists() -> void:
+	_assert_eq(FileAccess.file_exists(HexMapTileAdapter.SAMPLE_TILE_ATLAS_PATH), true, "sample tile atlas exists")
+	var image := Image.new()
+	var error = image.load(ProjectSettings.globalize_path(HexMapTileAdapter.SAMPLE_TILE_ATLAS_PATH))
+	_assert_eq(error, OK, "sample tile atlas loads as image")
+	_assert_eq(Vector2i(image.get_width(), image.get_height()), Vector2i(128, 57), "sample tile atlas dimensions")
+
+
+func _test_configure_sample_tile_set_creates_atlas_source() -> void:
+	var tile_set = TileSet.new()
+
+	_assert_eq(
+		HexMapTileAdapter.configure_sample_tile_set(tile_set, false),
+		true,
+		"sample TileSet configuration succeeds"
+	)
+	_assert_eq(tile_set.tile_shape, TileSet.TILE_SHAPE_HEXAGON, "sample TileSet uses Hexagon shape")
+	_assert_eq(tile_set.tile_layout, TileSet.TILE_LAYOUT_STACKED, "sample TileSet uses Stacked layout")
+	_assert_eq(tile_set.tile_offset_axis, TileSet.TILE_OFFSET_AXIS_HORIZONTAL, "sample TileSet uses requested orientation")
+	_assert_eq(tile_set.tile_size, HexMapTileAdapter.SAMPLE_TILE_SIZE, "sample TileSet uses sample tile size")
+	_assert_eq(tile_set.has_source(0), true, "sample TileSet creates source 0")
+
+	var source = tile_set.get_source(0)
+	_assert_eq(source is TileSetAtlasSource, true, "sample TileSet source is atlas source")
+	_assert_eq(source.texture != null, true, "sample TileSet atlas has texture")
+	_assert_eq(source.texture_region_size, HexMapTileAdapter.SAMPLE_TILE_SIZE, "sample atlas source region size")
+	_assert_eq(source.has_tile(Vector2i(0, 0)), true, "sample atlas creates floor tile")
+	_assert_eq(source.has_tile(Vector2i(1, 0)), true, "sample atlas creates wall tile")
 
 
 func _test_map_resource_stores_map_data() -> void:

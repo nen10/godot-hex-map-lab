@@ -29,9 +29,9 @@ GodotでのDebug実行によるテストが有用なケースについては、�
 
 - `tests/test_hex_core.gd`: HexVector/HexPoint、toric coordinate、近傍・連結・経路、9分割と対称生成領域タグを検証する。phase2 outer_mod の pair/triple は同一 toric cell ではなく、生成タイミング上の distinct な局所グループとして検証する。
 - `tests/test_hex_map_generation.gd`: rectangle/hexagon/toric square の生成、壁生成、連結性回復、terminal 接続、対称生成を検証する。Generation Radius 1 / 2 の対称生成は distribution 参照ではなく wall probability で完了することを検証する。
-- `tests/test_hex_adapter.gd`: HexMapData から TileMapLayer 用 entry、flat-top / pointy-top の offset cell 変換、表示用 local 座標、HexMapResource への変換、TileSet の Hexagon/Stacked/OffsetAxis 設定を検証する。
+- `tests/test_hex_adapter.gd`: HexMapData から TileMapLayer 用 entry、flat-top / pointy-top の offset cell 変換、表示用 local 座標、HexMapResource への変換、TileSet の Hexagon/Stacked/OffsetAxis 設定、sample atlas asset と sample TileSet source 作成を検証する。
 - `tests/test_hex_tile_map_layer.gd`: `HexTileMapLayer` の `HexMapResource` 適用、resource orientation に基づく TileMapLayer 反映、セル照会、壁/床編集、local/hex 座標往復、経路・ハイライト・連結性 helper を検証する。
-- `tests/test_editor_plugin.gd`: 生成ドックの対称 Hexagon / Generation Radius 1 / 2、orientation を含む TileMapLayer apply 設定、Generate & Apply、Distribution Editor のプリセット値表示、`.tres` 読み込み、SpinBox 値に基づく色、window close の cancel flow を headless で検証する。
+- `tests/test_editor_plugin.gd`: 生成ドックの対称 Hexagon / Generation Radius 1 / 2、orientation を含む TileMapLayer apply 設定、sample TileSet setup、Generate & Apply、Distribution Editor のプリセット値表示、`.tres` 読み込み、SpinBox 値に基づく色、window close の cancel flow を headless で検証する。
 - `tests/test_debug_scenes.gd`: debug scene の生成形状切替、toric 表示 domain、対称生成 overlay、phase2 grouping 表示用データを検証する。
 
 
