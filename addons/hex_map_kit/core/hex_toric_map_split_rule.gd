@@ -53,11 +53,11 @@ func get_split_area_unit(origin, flat_left: bool = true) -> Array:
 
 
 func symmetry_generation_entries() -> Array:
-	return _symmetry_generation_entries(true)
+	return _symmetry_generation_entries()
 
 
 func symmetry_unity_generation_entries() -> Array:
-	return _symmetry_generation_entries(false)
+	return _symmetry_generation_entries()
 
 
 func symmetry_unity_reference_groups() -> Array:
@@ -96,11 +96,10 @@ func symmetry_unity_reference_groups() -> Array:
 	return result
 
 
-func _symmetry_generation_entries(use_phase2_boundary: bool) -> Array:
+func _symmetry_generation_entries() -> Array:
 	var tracker := {
 		"entries": [],
 		"order": 0,
-		"use_phase2_boundary": use_phase2_boundary,
 	}
 	var draw_node = _symmetry_draw_outer_area(tracker)
 	draw_node = _symmetry_draw_border(draw_node, tracker)
@@ -223,8 +222,6 @@ func _symmetry_draw_edge_area(
 	split_index: int
 ) -> Array:
 	var draw_node = _symmetry_draw_area_center(flat_left, origin, tracker, split_index)
-	if tracker["use_phase2_boundary"] and (map_unit_radius - 1) % 3 == 2:
-		return _symmetry_draw_phase2_outer_boundary(flat_left, origin, draw_node, tracker, split_index)
 	return _symmetry_draw_area_from_center(flat_left, origin, draw_node, tracker, split_index)
 
 
@@ -287,46 +284,6 @@ func _symmetry_phase2_outer_mod_points(flat_left: bool, origin) -> Array:
 			"side": side,
 		})
 	return result
-
-
-func _symmetry_draw_phase2_outer_boundary(
-	flat_left: bool,
-	origin,
-	draw_node: Array,
-	tracker: Dictionary,
-	split_index: int
-) -> Array:
-	var result = _symmetry_outer_boundary_nodes(flat_left, origin)
-	for side in range(result.size()):
-		_track_symmetry_point(
-			tracker,
-			result[side],
-			SYMMETRY_KIND_OUTER_PHASE2_BOUNDARY,
-			2,
-			split_index,
-			side,
-			1
-		)
-		if side < draw_node.size() and not draw_node[side].is_equal(result[side]):
-			_track_symmetry_point(
-				tracker,
-				draw_node[side],
-				SYMMETRY_KIND_OUTER_DUMMY,
-				2,
-				split_index,
-				side,
-				1
-			)
-	return result
-
-
-func _symmetry_outer_boundary_nodes(flat_left: bool, origin) -> Array:
-	var forward = _r_axis() if flat_left else _q_axis()
-	return [
-		origin,
-		origin.add(forward.scaled(map_unit_radius - 1)),
-		origin.add(_s_axis().negated().scaled(map_unit_radius - 1)),
-	]
 
 
 func _symmetry_draw_area_from_center(

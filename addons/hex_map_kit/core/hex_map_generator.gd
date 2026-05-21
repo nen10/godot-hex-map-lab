@@ -16,12 +16,24 @@ static func generate_rectangle(
 	seed: int = 0,
 	ensure_connected: bool = false,
 	toric: bool = false,
-	protected_floor: Array = []
+	protected_floor: Array = [],
+	interrupt_options: Dictionary = {}
 ):
 	var data = HexMapDataScript.rectangle(width, height, toric)
-	data.set_walls(generate_random_walls(data.cells, wall_probability, seed, protected_floor))
+	var wall_result = generate_random_walls_interruptible(
+		data.cells,
+		wall_probability,
+		seed,
+		protected_floor,
+		interrupt_options
+	)
+	data.set_walls(wall_result["walls"])
+	if wall_result["cancelled"]:
+		_record_generation_result(interrupt_options, data, true)
+		return data
 	if ensure_connected:
 		restore_connectivity(data)
+	_record_generation_result(interrupt_options, data, false)
 	return data
 
 
@@ -30,12 +42,24 @@ static func generate_toric_square(
 	wall_probability: float,
 	seed: int = 0,
 	ensure_connected: bool = false,
-	protected_floor: Array = []
+	protected_floor: Array = [],
+	interrupt_options: Dictionary = {}
 ):
 	var data = HexMapDataScript.square(size, true)
-	data.set_walls(generate_random_walls(data.cells, wall_probability, seed, protected_floor))
+	var wall_result = generate_random_walls_interruptible(
+		data.cells,
+		wall_probability,
+		seed,
+		protected_floor,
+		interrupt_options
+	)
+	data.set_walls(wall_result["walls"])
+	if wall_result["cancelled"]:
+		_record_generation_result(interrupt_options, data, true)
+		return data
 	if ensure_connected:
 		restore_connectivity(data)
+	_record_generation_result(interrupt_options, data, false)
 	return data
 
 
@@ -48,7 +72,8 @@ static func generate_symmetric_square(
 	distribution_id: int = 20,
 	terminal_floor: Array = [],
 	connect_toric: bool = false,
-	custom_distribution = null
+	custom_distribution = null,
+	interrupt_options: Dictionary = {}
 ):
 	assert(radius > 0)
 	var size: int = radius * 2 + 1 
@@ -56,18 +81,24 @@ static func generate_symmetric_square(
 	var forced_floor = protected_floor.duplicate()
 	for terminal in terminal_floor:
 		forced_floor.append(terminal)
-	data.set_walls(generate_symmetric_toric_walls(
+	var wall_result = generate_symmetric_toric_walls_interruptible(
 		radius,
 		wall_probability,
 		seed,
 		distribution_id,
 		forced_floor,
-		custom_distribution
-	))
+		custom_distribution,
+		interrupt_options
+	)
+	data.set_walls(wall_result["walls"])
+	if wall_result["cancelled"]:
+		_record_generation_result(interrupt_options, data, true)
+		return data
 	if not terminal_floor.is_empty():
 		restore_terminal_connectivity(data, terminal_floor)
 	if ensure_connected:
 		restore_connectivity(data)
+	_record_generation_result(interrupt_options, data, false)
 	return data
 
 
@@ -76,12 +107,24 @@ static func generate_hexagon(
 	wall_probability: float,
 	seed: int = 0,
 	ensure_connected: bool = false,
-	protected_floor: Array = []
+	protected_floor: Array = [],
+	interrupt_options: Dictionary = {}
 ):
 	var data = HexMapDataScript.hexagon(radius)
-	data.set_walls(generate_random_walls(data.cells, wall_probability, seed, protected_floor))
+	var wall_result = generate_random_walls_interruptible(
+		data.cells,
+		wall_probability,
+		seed,
+		protected_floor,
+		interrupt_options
+	)
+	data.set_walls(wall_result["walls"])
+	if wall_result["cancelled"]:
+		_record_generation_result(interrupt_options, data, true)
+		return data
 	if ensure_connected:
 		restore_connectivity(data)
+	_record_generation_result(interrupt_options, data, false)
 	return data
 
 
@@ -93,7 +136,8 @@ static func generate_symmetric_hexagon(
 	protected_floor: Array = [],
 	distribution_id: int = 20,
 	terminal_floor: Array = [],
-	custom_distribution = null
+	custom_distribution = null,
+	interrupt_options: Dictionary = {}
 ):
 	assert(radius > 0)
 	var size: int = radius * 2 + 1
@@ -102,14 +146,16 @@ static func generate_symmetric_hexagon(
 	for terminal in terminal_floor:
 		forced_floor.append(terminal)
 
-	var all_walls = generate_symmetric_toric_walls(
+	var wall_result = generate_symmetric_toric_walls_interruptible(
 		radius,
 		wall_probability,
 		seed,
 		distribution_id,
 		forced_floor,
-		custom_distribution
+		custom_distribution,
+		interrupt_options
 	)
+	var all_walls = wall_result["walls"]
 
 	var rule = HexToricMapSplitRuleScript.new(radius)
 	var edge_keys := {}
@@ -130,10 +176,14 @@ static func generate_symmetric_hexagon(
 			hex_walls.append(wall)
 
 	var data = HexMapDataScript.from_cells(hex_cells, hex_walls, 0)
+	if wall_result["cancelled"]:
+		_record_generation_result(interrupt_options, data, true)
+		return data
 	if not terminal_floor.is_empty():
 		restore_terminal_connectivity(data, terminal_floor)
 	if ensure_connected:
 		restore_connectivity(data)
+	_record_generation_result(interrupt_options, data, false)
 	return data
 
 
@@ -143,6 +193,21 @@ static func generate_random_walls(
 	seed: int = 0,
 	protected_floor: Array = []
 ) -> Array:
+	return generate_random_walls_interruptible(
+		cells,
+		wall_probability,
+		seed,
+		protected_floor
+	)["walls"]
+
+
+static func generate_random_walls_interruptible(
+	cells: Array,
+	wall_probability: float,
+	seed: int = 0,
+	protected_floor: Array = [],
+	interrupt_options: Dictionary = {}
+) -> Dictionary:
 	assert(wall_probability >= 0.0)
 	assert(wall_probability <= 1.0)
 
@@ -151,12 +216,23 @@ static func generate_random_walls(
 	rng.seed = seed
 
 	var result: Array = []
-	for cell in cells:
+	var total = cells.size()
+	var chunk_size = _interrupt_chunk_size(interrupt_options)
+	if _interrupt_update(interrupt_options, "random_walls", 0, total):
+		return _wall_generation_result(result, true, 0, total)
+
+	for index in range(cells.size()):
+		var cell = cells[index]
 		if protected_set.has(cell.key()):
-			continue
-		if rng.randf() < wall_probability:
+			pass
+		elif rng.randf() < wall_probability:
 			result.append(cell)
-	return result
+		var steps = index + 1
+		if steps % chunk_size == 0 or steps == total:
+			if _interrupt_update(interrupt_options, "random_walls", steps, total):
+				return _wall_generation_result(result, true, steps, total)
+	_interrupt_update(interrupt_options, "random_walls", total, total)
+	return _wall_generation_result(result, false, total, total)
 
 
 static func generate_symmetric_toric_walls(
@@ -165,8 +241,29 @@ static func generate_symmetric_toric_walls(
 	seed: int = 0,
 	distribution_id: int = 20,
 	protected_floor: Array = [],
-	custom_distribution = null
+	custom_distribution = null,
+	interrupt_options: Dictionary = {}
 ) -> Array:
+	return generate_symmetric_toric_walls_interruptible(
+		radius,
+		wall_probability,
+		seed,
+		distribution_id,
+		protected_floor,
+		custom_distribution,
+		interrupt_options
+	)["walls"]
+
+
+static func generate_symmetric_toric_walls_interruptible(
+	radius: int,
+	wall_probability: float,
+	seed: int = 0,
+	distribution_id: int = 20,
+	protected_floor: Array = [],
+	custom_distribution = null,
+	interrupt_options: Dictionary = {}
+) -> Dictionary:
 	assert(radius > 0)
 	var size: int = radius * 2 + 1 
 	assert(wall_probability >= 0.0)
@@ -175,16 +272,20 @@ static func generate_symmetric_toric_walls(
 	if radius <= 2:
 		# No stable previous ring exists for Markov references at minimum radii.
 		var unit_data = HexMapDataScript.square(size, true)
-		return generate_random_walls(
+		return generate_random_walls_interruptible(
 			unit_data.cells,
 			wall_probability,
 			seed,
-			_wrapped_points(protected_floor, size)
+			_wrapped_points(protected_floor, size),
+			interrupt_options
 		)
 
 	var rule = HexToricMapSplitRuleScript.new(radius)
 	var rng = RandomNumberGenerator.new()
 	rng.seed = seed
+	var total_steps = max(radius + 2, 1)
+	if _interrupt_update(interrupt_options, "symmetric_toric_start", 0, total_steps):
+		return _wall_generation_result([], true, 0, total_steps)
 
 	var state := {
 		"rule": rule,
@@ -196,26 +297,118 @@ static func generate_symmetric_toric_walls(
 	if custom_distribution and custom_distribution.has_method("prob"):
 		state["custom_dist"] = custom_distribution
 	var outer = _draw_symmetric_outer_area(state, wall_probability)
+	if _interrupt_update(interrupt_options, "symmetric_toric_outer", 1, total_steps):
+		return _symmetric_wall_generation_result(state, size, true, 1, total_steps)
 	var border = _draw_symmetric_border(
 		state,
 		outer["edge_count"],
 		outer["draw_node"],
 		wall_probability
 	)
-	_draw_symmetric_inner_area(
+	if _interrupt_update(interrupt_options, "symmetric_toric_border", 2, total_steps):
+		return _symmetric_wall_generation_result(state, size, true, 2, total_steps)
+	if _draw_symmetric_inner_area(
 		state,
 		border["edge_count"],
 		border["draw_node"],
-		wall_probability
-	)
+		wall_probability,
+		interrupt_options,
+		2,
+		total_steps
+	):
+		return _symmetric_wall_generation_result(
+			state,
+			size,
+			true,
+			int(interrupt_options.get("steps", 2)),
+			total_steps
+		)
 
+	return _symmetric_wall_generation_result(state, size, false, total_steps, total_steps)
+
+
+static func _symmetric_wall_generation_result(
+	state: Dictionary,
+	size: int,
+	cancelled: bool,
+	steps: int,
+	total_steps: int
+) -> Dictionary:
 	var data = HexMapDataScript.square(size, true)
 	var result: Array = []
 	var wall_set: Dictionary = state["walls"]
 	for cell in data.cells:
 		if wall_set.has(cell.key()):
 			result.append(cell)
-	return result
+	return _wall_generation_result(result, cancelled, steps, total_steps)
+
+
+static func _wall_generation_result(
+	walls: Array,
+	cancelled: bool,
+	steps: int,
+	total_steps: int
+) -> Dictionary:
+	var progress = 1.0 if total_steps <= 0 else float(steps) / float(total_steps)
+	return {
+		"walls": walls,
+		"cancelled": cancelled,
+		"progress": clampf(progress, 0.0, 1.0),
+		"steps": steps,
+		"total_steps": total_steps,
+	}
+
+
+static func _record_generation_result(
+	interrupt_options: Dictionary,
+	data,
+	cancelled: bool
+) -> void:
+	if interrupt_options.is_empty():
+		return
+	interrupt_options["data"] = data
+	interrupt_options["cancelled"] = cancelled
+	if not interrupt_options.has("progress"):
+		interrupt_options["progress"] = 0.0 if cancelled else 1.0
+
+
+static func _interrupt_chunk_size(interrupt_options: Dictionary) -> int:
+	if interrupt_options.has("chunk_size"):
+		return max(1, int(interrupt_options["chunk_size"]))
+	return 1
+
+
+static func _interrupt_update(
+	interrupt_options: Dictionary,
+	phase: String,
+	steps: int,
+	total_steps: int
+) -> bool:
+	if interrupt_options.is_empty():
+		return false
+
+	var progress = 1.0 if total_steps <= 0 else clampf(float(steps) / float(total_steps), 0.0, 1.0)
+	var status := {
+		"phase": phase,
+		"steps": steps,
+		"total_steps": total_steps,
+		"progress": progress,
+	}
+	interrupt_options["phase"] = phase
+	interrupt_options["steps"] = steps
+	interrupt_options["total_steps"] = total_steps
+	interrupt_options["progress"] = progress
+	interrupt_options["cancelled"] = false
+
+	var progress_callback = interrupt_options.get("progress_callback", Callable())
+	if progress_callback is Callable and progress_callback.is_valid():
+		progress_callback.call(status)
+
+	var cancel_callback = interrupt_options.get("cancel_callback", Callable())
+	if cancel_callback is Callable and cancel_callback.is_valid() and bool(cancel_callback.call(status)):
+		interrupt_options["cancelled"] = true
+		return true
+	return false
 
 
 static func is_floor_connected(data) -> bool:
@@ -376,12 +569,6 @@ static func _draw_symmetric_edge_area(
 	wall_probability: float
 ) -> Dictionary:
 	var centered = _draw_symmetric_area_center(state, flat_left, origin, wall_probability)
-	var rule = state["rule"]
-	if (rule.map_unit_radius - 1) % 3 == 2:
-		return {
-			"edge_count": _sum_int(centered["draw_counts"]),
-			"draw_node": _symmetry_outer_boundary_nodes(rule, flat_left, origin),
-		}
 	return _draw_symmetric_area_from_center(
 		state,
 		flat_left,
@@ -523,8 +710,11 @@ static func _draw_symmetric_inner_area(
 	state: Dictionary,
 	edge_count: int,
 	draw_node: Array,
-	wall_probability: float
-) -> void:
+	wall_probability: float,
+	interrupt_options: Dictionary = {},
+	progress_start: int = 0,
+	total_steps: int = 1
+) -> bool:
 	var rule = state["rule"]
 	var step_directions = _symmetry_step_directions_for_arcs()
 	var reference_directions = _symmetry_reference_directions_for_arcs()
@@ -540,6 +730,13 @@ static func _draw_symmetric_inner_area(
 					draw_node[side].add(step_directions[side].scaled(index)),
 					reference_directions[side]
 				)
+		if _interrupt_update(
+			interrupt_options,
+			"symmetric_toric_inner",
+			min(progress_start + wave, total_steps),
+			total_steps
+		):
+			return true
 
 	var denominator = float(int((rule.map_unit_radius + 2) / 3) * 6) + 4.0
 	var density = (float(edge_count) + wall_probability) / denominator
@@ -548,6 +745,7 @@ static func _draw_symmetric_inner_area(
 		draw_node[0].add(draw_node[1]).add(draw_node[2]).divided(3),
 		1.0 - density
 	)
+	return _interrupt_update(interrupt_options, "symmetric_toric_complete", total_steps, total_steps)
 
 
 static func _draw_arc_point(state: Dictionary, pen, reference_orders: Array) -> int:
@@ -693,15 +891,6 @@ static func _remove_walls_at_points(data, points: Array, removed_walls: Array) -
 	if changed:
 		data.set_walls(_points_without_keys(data.walls, remove_keys))
 	return changed
-
-
-static func _symmetry_outer_boundary_nodes(rule, flat_left: bool, origin) -> Array:
-	var forward = _r_axis() if flat_left else _q_axis()
-	return [
-		origin,
-		origin.add(forward.scaled(rule.map_unit_radius - 1)),
-		origin.add(_s_axis().negated().scaled(rule.map_unit_radius - 1)),
-	]
 
 
 static func _symmetry_edge_step_directions(flat_left: bool) -> Array:

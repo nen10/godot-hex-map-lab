@@ -74,7 +74,7 @@ func _run() -> void:
 		"debug sym-gen data uses symmetric generator"
 	)
 
-	var toric_sizes = [7, 8, 9, 11, 13]
+	var toric_sizes = [7, 8, 9, 11, 13, 19]
 	for index in range(toric_sizes.size()):
 		scene.configure_for_test(
 			GeneratedMapDebug.SHAPE_TORUS,
@@ -89,7 +89,7 @@ func _run() -> void:
 		_assert_eq(size_data.cells.size(), toric_sizes[index] * toric_sizes[index], "debug torus size cell count")
 		_assert_true(HexMapGenerator.is_floor_connected(size_data), "debug torus size data is restored")
 
-	for index in [0, 2, 3, 4]:
+	for index in [0, 2, 3, 4, 5]:
 		scene.configure_for_test(
 			GeneratedMapDebug.SHAPE_TORUS,
 			987,

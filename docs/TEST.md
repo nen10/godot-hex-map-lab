@@ -27,11 +27,11 @@ GodotでのDebug実行によるテストが有用なケースについては、�
 
 ### テスト概要
 
-- `tests/test_hex_core.gd`: HexVector/HexPoint、toric coordinate、近傍・連結・経路、9分割と対称生成領域タグを検証する。phase2 outer_mod の pair/triple は同一 toric cell ではなく、生成タイミング上の distinct な局所グループとして検証する。
-- `tests/test_hex_map_generation.gd`: rectangle/hexagon/toric square の生成、壁生成、連結性回復、terminal 接続、対称生成を検証する。Generation Radius 1 / 2 の対称生成は distribution 参照ではなく wall probability で完了することを検証する。
+- `tests/test_hex_core.gd`: HexVector/HexPoint、toric coordinate、近傍・連結・経路、9分割と対称生成領域タグを検証する。phase2 outer_mod の pair/triple は同一 toric cell ではなく、生成タイミング上の distinct な局所グループとして検証し、phase2 でも outer-to-center wave を通ることを検証する。
+- `tests/test_hex_map_generation.gd`: rectangle/hexagon/toric square の生成、壁生成、割り込み可能な progress / cancel 付き壁生成、shape API の interrupt option、連結性回復、terminal 接続、対称生成を検証する。Generation Radius 1 / 2 の対称生成は distribution 参照ではなく wall probability で完了すること、Generation Radius 3 / 6 は `DrawAreaCenter -> DrawAreaFromCenter` を通って canvas 内・split 分布・protected floor・連結性回復を満たすことを検証する。
 - `tests/test_hex_adapter.gd`: HexMapData から TileMapLayer 用 entry、flat-top / pointy-top の offset cell 変換、表示用 local 座標、HexMapResource への変換、TileSet の Hexagon/Stacked/OffsetAxis 設定、sample atlas asset と atlas source 作成を検証する。
 - `tests/test_hex_tile_map_layer.gd`: `HexTileMapLayer` の `HexMapResource` 適用、resource orientation に基づく TileMapLayer 反映、セル照会、壁/床編集、local/hex 座標往復、経路・ハイライト・連結性 helper を検証する。
-- `tests/test_editor_plugin.gd`: 生成ドックの対称 Hexagon / Generation Radius 1 / 2、生成 progress / cancel request 状態、orientation を含む TileMapLayer apply 設定、atlas image selection、sample TileSet setup、Generate & Apply、Distribution Editor のプリセット値表示、`.tres` 読み込み、SpinBox 値に基づく色、window close の cancel flow を headless で検証する。
+- `tests/test_editor_plugin.gd`: 生成ドックの対称 Hexagon / Generation Radius 1 / 2、Generate ボタン限定実行、Dock 内 progress UI の Generate 時表示と成功時の最短表示時間後の非表示、modal progress window を生成しないこと、Core callback 由来の progress / cancel wiring、cancel 時に partial data を current map へ反映しないこと、orientation を含む TileMapLayer apply 設定、orientation 変更時の Tile Size swap、複数 TileMapLayer の Target 選択、TileMapLayer 設定 SpinBox の即時 apply、atlas image selection、sample TileSet setup、Generate 後の自動 apply、Apply Layer button の手動再反映、Distribution Editor のプリセット値表示、`.tres` 読み込み、recent custom distribution、preset 複製保存、SpinBox 値に基づく色、window close の cancel flow を headless で検証する。
 - `tests/test_debug_scenes.gd`: debug scene の生成形状切替、toric 表示 domain、対称生成 overlay、phase2 grouping 表示用データを検証する。
 
 
@@ -65,7 +65,7 @@ flat-top/pointy-top の視覚的な近傍配置確認:
 ./tools/debug_generated_map.sh
 ```
 
-この画面は `HexMapGenerator` の rectangle / hexagon / toric square 生成結果を `HexMapTileAdapter.hex_to_local()` で描画する手動確認用です。`Space` で seed 更新、`Tab` で形状切り替え、`R` で連結性回復の切り替え、`O` で flat-top/pointy-top、`P` で中心から代表 floor への経路表示、`S` で toric square の 9 分割 overlay、`Y` で対称生成の外周から中心へ進む領域 overlay、`D` で toric square の square/hex domain 表示、`U` で同一 toric cell を糊代として複数配置する展開表示、`N` で toric square の一辺サイズを切り替え、`G` で toric square の通常ランダム生成 / 対称生成を切り替えます。サイズは `7` / `8` / `9` / `11` / `13` を確認します。
+この画面は `HexMapGenerator` の rectangle / hexagon / toric square 生成結果を `HexMapTileAdapter.hex_to_local()` で描画する手動確認用です。`Space` で seed 更新、`Tab` で形状切り替え、`R` で連結性回復の切り替え、`O` で flat-top/pointy-top、`P` で中心から代表 floor への経路表示、`S` で toric square の 9 分割 overlay、`Y` で対称生成の外周から中心へ進む領域 overlay、`D` で toric square の square/hex domain 表示、`U` で同一 toric cell を糊代として複数配置する展開表示、`N` で toric square の一辺サイズを切り替え、`G` で toric square の通常ランダム生成 / 対称生成を切り替えます。サイズは `7` / `8` / `9` / `11` / `13` / `19` を確認します。`7` / `13` / `19` は Generation Radius `3` / `6` / `9` に対応する `radius % 3 == 0` の目視確認に使います。
 
 対称 toric square 版の機能:
 

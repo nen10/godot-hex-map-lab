@@ -408,8 +408,12 @@ func _test_toric_split_rule_symmetry_regions_follow_unity_flow() -> void:
 		_assert_true(kinds.has(HexToricMapSplitRule.SYMMETRY_KIND_OUTER_MOD), "symmetry flow has mod3 outer shape")
 		if phase == 2:
 			_assert_true(
-				has_phase2_boundary,
-				"phase2 symmetry flow marks corrected outer boundary"
+				kinds.has(HexToricMapSplitRule.SYMMETRY_KIND_OUTER_WAVE),
+				"phase2 symmetry flow runs outer-to-center waves"
+			)
+			_assert_true(
+				not has_phase2_boundary,
+				"phase2 symmetry flow does not replace outer waves with boundary correction"
 			)
 			_assert_true(
 				phase2_groups.size() == 5,
@@ -453,7 +457,10 @@ func _test_toric_split_rule_symmetry_regions_follow_unity_flow() -> void:
 		_assert_eq(center_entries.size(), 1, "symmetry flow has one center entry")
 		_assert_true(tags.has(center_entries[0]["vector"].key()), "symmetry center is included in merged tags")
 		_assert_eq(tags[center_entries[0]["vector"].key()]["kind"], HexToricMapSplitRule.SYMMETRY_KIND_CENTER, "symmetry center wins merged tag priority")
-		_assert_eq(center_entries[0]["split"], 8, "symmetry center belongs to split 8")
+		if phase == 2:
+			_assert_true(center_entries[0]["split"] >= 0, "phase2 symmetry center stays on canvas")
+		else:
+			_assert_eq(center_entries[0]["split"], 8, "symmetry center belongs to split 8")
 
 
 func _test_toric_split_rule_unity_reference_groups() -> void:

@@ -19,12 +19,9 @@ const DISTRIBUTION_2_BASE_500 := [5.0, 2.0]
 const DISTRIBUTION_2_BASE_888 := [8.0, 8.0]
 
 const PRESETS := {
-	"200 (recommended)": 20,
-	"113": 11,
-	"240": 24,
-	"340": 34,
-	"440": 44,
-	"740": 74,
+	"200 (sparse maze)": 20,
+	"240 (dence maze)": 24,
+	"113 (room and passage)": 11,
 	"888 (max walls)": 88,
 	"000 (no walls)": 0,
 }

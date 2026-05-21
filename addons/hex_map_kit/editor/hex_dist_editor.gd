@@ -11,8 +11,12 @@ const HEX_SIZE := 16.0
 const WALL_FILL := Color(0.1, 0.1, 0.1)
 const FLOOR_FILL := Color(0.9, 0.9, 0.9)
 const OUTLINE_COLOR := Color(0.67, 0.67, 0.67)
+const MAX_RECENT_DISTRIBUTIONS := 8
+
+static var _recent_distribution_paths: Array[String] = []
 
 var _preset_option: OptionButton
+var _recent_option: OptionButton
 var _pattern_controls: Array[Control] = []
 var _d3_spins: Array[SpinBox] = []
 var _d2_spins: Array[SpinBox] = []
@@ -22,6 +26,7 @@ var _cancel_callback: Callable
 
 var _filepath_label: Label
 var _save_new_button: Button
+var _duplicate_preset_button: Button
 var _save_button: Button
 var _editing_path: String = ""
 
@@ -67,6 +72,11 @@ func _build_ui() -> void:
 	_preset_option.item_selected.connect(_on_preset_changed)
 	top_row.add_child(_preset_option)
 
+	_duplicate_preset_button = Button.new()
+	_duplicate_preset_button.text = "Duplicate Preset..."
+	_duplicate_preset_button.pressed.connect(_on_duplicate_preset_pressed)
+	top_row.add_child(_duplicate_preset_button)
+
 	var top_row2 = HBoxContainer.new()
 	_filepath_label = Label.new()
 	_filepath_label.text = "" if _editing_path == "" else _editing_path
@@ -80,8 +90,19 @@ func _build_ui() -> void:
 	load_btn.pressed.connect(_on_load_pressed)
 	top_row2.add_child(load_btn)
 
+	var recent_row = HBoxContainer.new()
+	var recent_label = Label.new()
+	recent_label.text = "Recent"
+	recent_row.add_child(recent_label)
+	_recent_option = OptionButton.new()
+	_recent_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_recent_option.item_selected.connect(_on_recent_selected)
+	recent_row.add_child(_recent_option)
+	_refresh_recent_options()
+
 	header.add_child(top_row)
 	header.add_child(top_row2)
+	header.add_child(recent_row)
 	root.add_child(header)
 
 	root.add_child(_build_separator())
@@ -262,7 +283,78 @@ func _current_distribution() -> HexDistribution:
 
 
 func _refresh_save_buttons() -> void:
+	if _save_button == null:
+		return
 	_save_button.disabled = _editing_path == ""
+
+
+static func clear_recent_distributions() -> void:
+	_recent_distribution_paths.clear()
+
+
+static func recent_distribution_paths() -> Array[String]:
+	return _recent_distribution_paths.duplicate()
+
+
+static func remember_recent_distribution(path: String) -> void:
+	if path == "":
+		return
+	_recent_distribution_paths.erase(path)
+	_recent_distribution_paths.push_front(path)
+	while _recent_distribution_paths.size() > MAX_RECENT_DISTRIBUTIONS:
+		_recent_distribution_paths.pop_back()
+
+
+func save_current_distribution_as(path: String) -> bool:
+	return _save_current_distribution_to(path)
+
+
+func _refresh_recent_options() -> void:
+	if _recent_option == null:
+		return
+	_recent_option.clear()
+	var paths = recent_distribution_paths()
+	if paths.is_empty():
+		_recent_option.add_item("(no recent custom distribution)")
+		_recent_option.set_item_disabled(0, true)
+		return
+	for path in paths:
+		_recent_option.add_item(path)
+
+
+func _set_editing_path(path: String) -> void:
+	_editing_path = path
+	if _filepath_label != null:
+		_filepath_label.text = path
+		_filepath_label.tooltip_text = path
+	if _preset_option != null and path != "":
+		_preset_option.select(-1)
+	_refresh_save_buttons()
+	_refresh_recent_options()
+
+
+func _save_current_distribution_to(path: String) -> bool:
+	var dist = _current_distribution()
+	var error = ResourceSaver.save(dist, path)
+	if error != OK:
+		push_error("Failed to save distribution: %d" % error)
+		return false
+	_scan_editor_filesystem()
+	remember_recent_distribution(path)
+	_set_editing_path(path)
+	print("Distribution saved to: %s" % path)
+	return true
+
+
+func _scan_editor_filesystem() -> void:
+	if Engine.is_editor_hint():
+		EditorInterface.get_resource_filesystem().scan()
+
+
+func _on_duplicate_preset_pressed() -> void:
+	_editing_path = ""
+	_refresh_save_buttons()
+	_on_save_new_pressed()
 
 
 func _on_save_new_pressed() -> void:
@@ -277,18 +369,7 @@ func _on_save_new_pressed() -> void:
 
 
 func _on_save_new_file_selected(path: String) -> void:
-	var dist = _current_distribution()
-	var error = ResourceSaver.save(dist, path)
-	if error == OK:
-		EditorInterface.get_resource_filesystem().scan()
-		_editing_path = path
-		_filepath_label.text = path
-		_filepath_label.tooltip_text = path
-		_preset_option.select(-1)
-		_refresh_save_buttons()
-		print("Distribution saved to: %s" % path)
-	else:
-		push_error("Failed to save distribution: %d" % error)
+	save_current_distribution_as(path)
 
 
 func _on_load_pressed() -> void:
@@ -300,19 +381,22 @@ func _on_load_pressed() -> void:
 	EditorInterface.get_base_control().add_child(dialog)
 	dialog.popup_centered_ratio(0.5)
 
+
+func _on_recent_selected(index: int) -> void:
+	var paths = recent_distribution_paths()
+	if index < 0 or index >= paths.size():
+		return
+	_load_from_file(paths[index])
+
+
 func _on_save_pressed() -> void:
 	if _editing_path == "":
 		return
-	var dist = _current_distribution()
-	var error = ResourceSaver.save(dist, _editing_path)
-	if error == OK:
-		EditorInterface.get_resource_filesystem().scan()
-		print("Distribution saved to: %s" % _editing_path)
-		if _apply_callback.is_valid():
-			_apply_callback.call(_editing_path)
-		queue_free()
-	else:
-		push_error("Failed to save distribution: %d" % error)
+	if not _save_current_distribution_to(_editing_path):
+		return
+	if _apply_callback.is_valid():
+		_apply_callback.call(_editing_path)
+	queue_free()
 
 
 func _on_cancel_pressed() -> void:
@@ -331,11 +415,8 @@ func _load_from_file(path: String) -> void:
 		_d2_spins[i].set_value_no_signal(dist.distribution_2[i])
 	for i in range(_d1_spins.size()):
 		_d1_spins[i].set_value_no_signal(dist.distribution_1[i])
-	_preset_option.select(-1)
-	_editing_path = path
-	_filepath_label.text = path
-	_filepath_label.tooltip_text = path
-	_refresh_save_buttons()
+	remember_recent_distribution(path)
+	_set_editing_path(path)
 	_queue_pattern_redraw()
 
 

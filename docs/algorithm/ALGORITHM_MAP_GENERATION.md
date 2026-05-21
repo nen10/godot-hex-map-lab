@@ -63,12 +63,11 @@ toric は現時点では正方形のみを対象にする。`cyclic_size = size`
 
 - `outer_mod`: `DrawAreaCenter()` に対応する。`(MapUnitRadius - 1) % 3` で形が変わる外周側の開始領域
 - `outer_wave`: `DrawAreaFromCenter()` に対応する。split 0 / split 7 に位置する、外周側領域。
-- `outer_phase2_boundary`: phase 2 で `DrawAreaCenter()` の開始形状から補正した外周境界ノード。border / inner に渡す基準点になる
 - `border_initial` / `border_edge`: `DrawBoarder()` に対応する、外周を越える参照位置を `ReferencePositions` によって canvas 内へ移した領域
 - `inner_arc`: `DrawInnerArea()` に対応する、6 方向の arc で中心へ向かう共通領域
-- `center`: `DrawInnerArea()` の最後にコード上で求める中心 cell。phase 2 では `DrawAreaCenter()` の開始形状から外周境界ノードへの補正を入れ、split index 8 の中心で完了する
+- `center`: `DrawInnerArea()` の最後にコード上で求める中心 cell。phase 2 では `DrawAreaFromCenter()` の結果をそのまま使うため、debug tag の split は 8 固定ではなく canvas 上の生成位置を示す
 
-phase 2 の `outer_mod` は split 0 / split 7 にそれぞれ 6 個、合計 12 個の生成座標を持つ。`symmetry_phase2_outer_mod_groups()` は、外周開始形状を `outer_phase2_boundary` へ補正するときに同じ生成タイミングとして扱う pair/triple を返す。この pair/triple は同一 toric cell を意味しない。各 group 内の座標は `cyclic_size` で wrap しても distinct であり、debug scene では raw な square 座標同士を直接結ばず、周期コピーの中で局所的に見える配置を選んで生成手順上の関係として表示する。
+phase 2 の `outer_mod` は split 0 / split 7 にそれぞれ 6 個、合計 12 個の生成座標を持つ。`symmetry_phase2_outer_mod_groups()` は、phase 2 の開始形状に含まれる pair/triple の生成タイミングを可視化する診断用 helper である。この pair/triple は同一 toric cell を意味しない。各 group 内の座標は `cyclic_size` で wrap しても distinct であり、debug scene では raw な square 座標同士を直接結ばず、周期コピーの中で局所的に見える配置を選んで生成手順上の関係として表示する。
 
 `symmetry_unity_reference_groups()` は、Unity 版の `ReferencePositions` 相当で canvas 内に戻される source を debug 表示用に bucket 化する helper である。これは外周を越えた描画 source がどの reference へ戻されるかを調べるための情報で、`symmetry_phase2_outer_mod_groups()` の pair/triple と同じ意味の group ではない。
 
@@ -82,7 +81,33 @@ phase 2 の `outer_mod` は split 0 / split 7 にそれぞれ 6 個、合計 12 
 - `protected_floor` と `terminal_floor` は生成中も floor として扱い、壁にしない
 - 生成された壁は toric 座標で `size x size` の正方形 canvas に畳み、9 分割された split のいずれかに対応する
 
-`(map_unit_radius - 1) % 3 == 2` の phase 2 相当では、外周開始形状を `outer_phase2_boundary` に補正してから border / inner の生成へ渡す。これにより、外周開始点が pair/triple の生成関係を持つ場合も、最終的な壁集合は `cyclic_size x cyclic_size` の正方形 canvas 上の distinct な cell として扱える。
+`(map_unit_radius - 1) % 3 == 2` の phase 2 相当でも、Unity 版と同じく `DrawAreaCenter()` の後に `DrawAreaFromCenter()` を実行し、その結果の draw node を border / inner の生成へ渡す。`map_unit_radius % 3 == 0` だけ外周境界補正へ置き換える分岐は持たない。
+
+### 2026-05-21: radius 3倍数の調査記録
+
+`seed=888`、`wall_probability=1.0`、`protected_floor=[HexVector.zero()]` で radius `3` / `6` / `9` を headless 確認した。これらはすべて `(radius - 1) % 3 == 2` の phase 2 で、`symmetry_phase2_outer_mod_groups()` は 5 groups を返す。
+
+`ensure_connected=false` の raw 生成では square と torus は同じ wall count になる。`ensure_connected=true` では torus の方が cyclic 経路を使えるため、non-toric square / hex と floor corridor の削られ方が変わる。
+
+| radius | shape | raw walls/floors | connected walls/floors |
+|---:|---|---:|---:|
+| 3 | square | 23 / 26 | 18 / 31 |
+| 3 | torus | 23 / 26 | 22 / 27 |
+| 3 | hex | 15 / 22 | 12 / 25 |
+| 6 | square | 75 / 94 | 69 / 100 |
+| 6 | torus | 75 / 94 | 73 / 96 |
+| 6 | hex | 52 / 75 | 48 / 79 |
+| 9 | square | 174 / 187 | 149 / 212 |
+| 9 | torus | 174 / 187 | 156 / 205 |
+| 9 | hex | 117 / 154 | 106 / 165 |
+
+原因候補は次の通り。
+
+- `wall_probability=1.0` でも対称生成は distribution 参照を使うため、raw の時点で floor seed が多数残る。
+- `Restore Connectivity` は既存 floor component を接続するために壁を削る。max wall 条件ではこの削除結果が長い通路として目立つ。
+- `HexVector.zero()` は 9 split の幾何中心ではなく、protected floor の起点として通路の見た目に強く影響する。
+- Hexagon shape は square 生成後に split 0 / 7 を除くため、phase2 の outer_mod / outer_wave が形状外へ落ち、border / inner / 未タグ領域の見え方が square / torus と異なる。
+- `symmetry_generation_tags()` は生成理解用の tag helper で、現状は全 cell を網羅しない。調査出力では radius 3 / 6 / 9 に未タグ cell が残るため、修正判断には生成時 trace の追加が必要。
 
 ### 2. ランダム壁を配置する
 
@@ -95,6 +120,31 @@ randf() < wall_probability なら壁
 `protected_floor` に含まれる cell は壁にしない。
 
 乱数は `RandomNumberGenerator.seed` により固定するため、同じ seed と同じ cell 順なら同じ壁集合になる。
+
+### 2.1 割り込み可能な壁生成
+
+progressbar / cancel 用に、Core は interruptible 版の壁生成 API を持つ。
+
+- `generate_random_walls_interruptible(...) -> Dictionary`
+- `generate_symmetric_toric_walls_interruptible(...) -> Dictionary`
+
+戻り値:
+
+- `walls: Array[HexVector]`
+- `cancelled: bool`
+- `progress: float`
+- `steps: int`
+- `total_steps: int`
+
+`interrupt_options` には以下を渡せる。
+
+- `chunk_size: int`
+- `progress_callback: Callable`
+- `cancel_callback: Callable`
+
+callback には `phase` / `steps` / `total_steps` / `progress` を持つ `Dictionary` を渡す。`cancel_callback` が `true` を返した場合、その時点までの wall set を返して中断する。
+
+`generate_rectangle()`、`generate_toric_square()`、`generate_hexagon()`、`generate_symmetric_square()`、`generate_symmetric_hexagon()` は末尾の `interrupt_options` を受け取り、指定された場合だけ interruptible 版の壁生成に分岐する。cancel 時は connectivity restoration を実行せず、partial wall map を返す。
 
 ### 3. 連結性を判定する
 

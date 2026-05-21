@@ -15,7 +15,7 @@ Godot エディタ起動後、Dock に **Hex Map Kit** が表示されます。
 
 ## 2. Map Generation Dock
 
-Dock は現在のパラメータを変更すると即時に `_current_data` を再生成します。`Generate` ボタンは同じ設定で明示的に再生成するときに使います。
+Dock は生成パラメータの変更だけでは `_current_data` を再生成しません。`Generate` ボタンを押したときだけ現在の設定で明示的に再生成し、対象 `TileMapLayer` があれば自動で反映します。
 
 ### Generator
 
@@ -70,27 +70,33 @@ Shape  seed=1201  wall_prob=0.45  cells=48  walls=12  floors=36  connected=yes  
 
 ### Generation Progress
 
-Dock は生成処理の状態を `generation_status()` と progress UI に保持します。
+`Generate` ボタンから開始した生成中は Dock 内の progress UI に進行状況と `Cancel` を表示します。Dock は生成処理の状態を `generation_status()` に保持します。
 
 - `running`: 生成中かどうか
 - `cancel_requested`: `Cancel` が押されたかどうか
 - `progress`: 0.0 から 1.0
 - `status`: `Generating` / `Preparing` / `Updating` / `Ready` / `Cancel requested` / `Cancelled`
 
-現在の生成 API は同期処理です。`Cancel` は実行中状態に cancel request を記録しますが、重い生成をフレーム途中で中断するには、生成器を async / chunked 実行へ分割する必要があります。
+生成は Worker Thread で実行され、Core の `interrupt_options` に `progress_callback` / `cancel_callback` / `chunk_size` を渡します。`Generate` ボタンから開始した生成は短時間で完了する場合でも Dock 内 progress を表示し、成功時は最低 0.8 秒は表示してから非表示にします。Dock 内 progress の `Cancel` は cancel request を立て、Core の cancel callback が検出した時点で生成を中断します。Generate flow では modal progress window を作成しません。cancel 時は生成途中の partial data を Dock の current map へ反映せず、最後に完了した map を保持します。
 
 ### TileMapLayer Settings
 
-`Apply Layer` で使う TileMapLayer 設定を Dock から指定できます。
+Generate 後の自動 apply と `Apply Layer` で使う TileMapLayer 設定を Dock から指定できます。
 
 | 設定 | 内容 |
 |---|---|
+| `Target` | apply 先の `TileMapLayer` |
 | `Orientation` | `flat-top / Vertical Offset` または `pointy-top / Horizontal Offset` |
 | `Tile Size` | `TileSet.tile_size` に設定する width / height |
 | `Floor` | floor tile の `source_id`, `atlas_x`, `atlas_y` |
 | `Wall` | wall tile の `source_id`, `atlas_x`, `atlas_y` |
 
-`Orientation` は `HexMapResource` に保存されます。`Apply Layer` / `Generate & Apply` はこの orientation を正として、対象 `TileMapLayer.tile_set` と `set_cell()` 用の cell 座標を同時に設定します。
+`Orientation` は `HexMapResource` に保存されます。Generate 後の自動 apply と `Apply Layer` はこの orientation を正として、対象 `TileMapLayer.tile_set` と `set_cell()` 用の cell 座標を同時に設定します。
+`Orientation` を切り替えると、flat-top / pointy-top で横長・縦長が入れ替わる前提に合わせて `Tile Size` の width / height も入れ替えます。
+
+`Target` は scene root 以下の `TileMapLayer` を一覧化します。`Refresh` は scene 内の `TileMapLayer` を再取得します。Target が未指定の場合、Editor の選択中 `TileMapLayer`、または scene 内の最初の `TileMapLayer` を使います。
+
+`Tile Size` / `Floor` / `Wall` の SpinBox を変更すると、現在の map data を Target の `TileMapLayer` に即時 apply します。生成が完了した場合も、Target があれば自動 apply します。atlas coords を変更しながら、TileMapLayer 上の見た目を確認するための flow です。
 
 TileSet は以下に設定されます。
 
@@ -118,15 +124,14 @@ Godot 側の対応 API は公式ドキュメントの `TileMapLayer`、`TileSet`
 
 ### Buttons
 
-- `Generate`: 現在の設定で再生成
-- `Cancel`: 実行中 generation に cancel request を記録
+- `Generate`: 現在の設定で再生成し、対象 `TileMapLayer` があれば自動 apply
+- `Cancel`: 生成中の Dock 内 progress から実行中 generation に cancel request を記録
 - `Save .tres`: `HexMapResource` として保存
-- `Apply Layer`: 選択中の `TileMapLayer`、または編集中 scene の最初の `TileMapLayer` に現在の map を適用
-- `Generate & Apply`: 現在の設定で再生成してから `Apply Layer` と同じ設定で反映
+- `Apply Layer`: 選択中の `TileMapLayer`、または編集中 scene の最初の `TileMapLayer` に現在の map を手動再反映
 - `Select Atlas Image`: 画像 resource を `TileSetAtlasSource` として対象 `TileMapLayer` に設定
 - `Use Sample Tiles`: addon 同梱 sample atlas を対象 `TileMapLayer` に設定
 
-`Apply Layer` は `HexMapTileAdapter.apply_to_tile_map_layer()` を使います。表示するには、対象 `TileMapLayer` の `TileSet` 側に、Dock で指定した floor / wall の source と atlas coords に対応する tile を用意します。
+Generate 後の自動 apply と `Apply Layer` は `HexMapTileAdapter.apply_to_tile_map_layer()` を使います。表示するには、対象 `TileMapLayer` の `TileSet` 側に、Dock で指定した floor / wall の source と atlas coords に対応する tile を用意します。
 
 ## 3. Distribution Editor
 
@@ -148,12 +153,16 @@ brightness = 0.9 - value / 10.0
 
 Window 起動時は preset の値が SpinBox に入ります。`Preset` を変更すると、現在の編集 path はクリアされ、preset 値が再読み込みされます。
 
+`Duplicate Preset...` は現在表示中の preset 値を新しい custom `.tres` として保存します。保存後はその path が編集中 path になり、`Recent` に追加されます。
+
 ### Load / Save
 
 - `Load .tres`: `HexDistribution` resource を読み込み、SpinBox に反映
 - `Save New...`: 現在値を新しい `.tres` として保存
 - `Apply`: 読み込み済み path へ保存し、Map Generation Dock へ適用
 - `Cancel` または window close: 保存せず閉じる
+
+読み込みまたは保存した custom `.tres` は `Recent` に表示されます。`Recent` から path を選ぶと、その custom distribution を再読み込みします。
 
 保存後は FileSystem scan が実行されます。
 

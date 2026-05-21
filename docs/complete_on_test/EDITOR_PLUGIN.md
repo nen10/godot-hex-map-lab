@@ -79,8 +79,10 @@
 - [x] Seed 固定生成
 - [x] Restore Connectivity
 - [x] Stats 表示
-- [x] progress UI と `generation_status()` による生成状態保持
-- [x] 実行中 generation の cancel request 状態保持
+- [x] Dock 内 progress UI と `generation_status()` による生成状態保持
+- [x] `Generate` ボタン実行時だけ生成し、Dock 内 progress を出す
+- [x] 生成入力の変更、focus exit、seed randomize、distribution 変更では生成しない
+- [x] Core cancel callback へ接続した実行中 generation の cancel request 状態保持
 - [x] `.tres` 保存 flow
 
 ### テスト
@@ -92,15 +94,23 @@
 - `tests/test_editor_plugin.gd`
   - Dock から Symmetric Hexagon radius 1 / 2 を生成
   - Stats に generator name が反映される
-  - progress / running / cancel request / status が更新される
+  - Dock 内 progress / running / cancel request / status が更新される
+  - `Generate` ボタン実行時は短時間生成でも Dock 内 progress が表示される
+  - 表示済み Dock 内 progress は成功直後に即非表示にせず、最短表示時間後に非表示にする
+  - Generate flow では modal progress window を生成しない
+  - 生成入力の値変更、focus exit、seed randomize、distribution 変更では生成しない
+  - Core progress callback と cancel callback が Dock に接続される
+  - cancel 時に partial data が current map へ反映されない
 
 実装:
 
 - [x] 入力 control から `_current_data` を生成する
 - [x] stats label に shape / seed / wall probability / cell count / wall count / floor count / connected / generator name を表示する
 - [x] `current_resource()` で orientation 付き `HexMapResource` を出力する
-- [x] progress UI と `generation_status()` に `running` / `cancel_requested` / `progress` / `status` を保持する
-- [x] `Cancel` で実行中 generation の cancel request 状態を保持する
+- [x] Dock 内 progress UI と `generation_status()` に `running` / `cancel_requested` / `progress` / `status` を保持する
+- [x] Dock 内 progress は `Generate` ボタン実行時に表示し、成功後の非表示まで最低 0.8 秒待つ
+- [x] SpinBox / OptionButton / Slider / CheckButton の生成入力変更では自動生成しない
+- [x] `Cancel` で実行中 generation の cancel request 状態を保持し、Core cancel callback に伝える
 
 テスト:
 
@@ -134,6 +144,9 @@
 - [x] flat-top は `TILE_OFFSET_AXIS_VERTICAL`
 - [x] pointy-top は `TILE_OFFSET_AXIS_HORIZONTAL`
 - [x] Dock の source id / atlas coords を `TileMapLayer.set_cell()` に渡す
+- [x] orientation 切り替え時に Tile Size width / height を入れ替える
+- [x] 複数 `TileMapLayer` を Target OptionButton で選択する
+- [x] Tile Size / Floor / Wall の SpinBox 変更時に選択中 `TileMapLayer` へ即時 apply する
 - [x] `Select Atlas Image` で画像 resource path から `TileSetAtlasSource` を作成する
 - [x] `Use Sample Tiles` で sample atlas を設定する
 - [x] atlas 画像に関する Godot 公式ドキュメントへのリンクと Dock 項目との関係を `docs/manual/MANUAL_EDITOR_PLUGIN.md` に記録する
@@ -142,6 +155,9 @@
 
 - `tests/test_hex_adapter.gd`
 - `tests/test_editor_plugin.gd`
+  - Tile Size swap
+  - 複数 `TileMapLayer` の一覧化
+  - 選択中 `TileMapLayer` への SpinBox 即時 apply
 
 ## 3. Distribution Editor
 
@@ -165,6 +181,9 @@
 - [x] preset 値を SpinBox に表示
 - [x] `.tres` 読み込み値を SpinBox に表示
 - [x] SpinBox 更新時に pattern preview を redraw
+- [x] `Recent` で custom `.tres` 一覧を表示
+- [x] 保存 / 読み込みした custom `.tres` を recent list に記録
+- [x] `Duplicate Preset...` で preset を custom `.tres` として保存
 - [x] `Save New...`
 - [x] `Apply`
 - [x] `Cancel` と window close
@@ -174,6 +193,8 @@
 - `tests/test_editor_plugin.gd`
   - preset values
   - resource load values
+  - duplicate preset save
+  - recent custom distribution list
   - center color
   - close button cancel flow
 
@@ -225,13 +246,16 @@ orientation は `HexMapResource` に保存し、Dock / Resource 側を表示レ�
 
 ### 実装状況
 
-- [x] Apply Layer button
-- [x] Generate & Apply button
+- [x] Generate 後の自動 apply
+- [x] Apply Layer button による手動再反映
 - [x] 選択中の `TileMapLayer` を優先
 - [x] scene 内の最初の `TileMapLayer` を fallback
+- [x] scene 内の複数 `TileMapLayer` を Target OptionButton で選択
 - [x] TileSet 設定 helper
 - [x] floor/wall source / atlas 設定
+- [x] floor/wall source / atlas 設定変更時の即時 apply
 - [x] flat-top / pointy-top と TileOffsetAxis の対応
+- [x] flat-top / pointy-top 切り替え時の Tile Size swap
 - [x] `HexMapResource` への orientation 保存
 
 ### テスト
@@ -248,8 +272,12 @@ orientation は `HexMapResource` に保存し、Dock / Resource 側を表示レ�
 - `tests/test_editor_plugin.gd`
   - Dock の floor/wall source / atlas 設定が apply に渡る
   - Dock の orientation が resource と apply に反映される
+  - Dock の orientation 変更時に Tile Size が入れ替わる
+  - Dock の Target 選択が apply 先を切り替える
+  - Dock の SpinBox 変更が選択中 `TileMapLayer` に即時反映される
   - Dock が `TileMapLayer` の `TileSet` を作成・設定する
-  - Generate & Apply が現在の control 値で再生成してから apply する
+  - Generate 後に現在の control 値で再生成した map が選択中 `TileMapLayer` へ自動 apply される
+  - Dock に `Apply Layer` button が残り、`Generate & Apply` button が存在しない
 
 ## 5. Atlas / Sample TileSet 管理
 

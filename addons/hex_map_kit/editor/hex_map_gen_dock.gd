@@ -2,6 +2,8 @@
 class_name HexMapGenDock
 extends Control
 
+signal generation_finished(cancelled: bool)
+
 const HexMapData = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
 const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
@@ -20,6 +22,10 @@ const GENERATE_NAMES := ["Simple", "Hex-inward Markov mesh model"]
 const SHAPE_NAMES_SIMPLE := ["Hexagon", "Rectangle"]
 const SHAPE_NAMES_SYMMETRIC := ["Hexagon", "Square", "Torus"]
 const TORIC_SIZE_OPTIONS := [7, 9, 11, 13]
+const GENERATION_PROGRESS_START := 0.1
+const GENERATION_PROGRESS_SCALE := 0.8
+const GENERATION_PROGRESS_UPDATE := 0.95
+const GENERATION_PROGRESS_MIN_VISIBLE_SEC := 0.8
 
 var _generate_option: OptionButton
 var _shape_simple_row: HBoxContainer
@@ -51,6 +57,9 @@ var _dist_edit_button: Button
 var _current_dist_file := ""
 var _current_distribution = null
 
+var _tile_layer_option: OptionButton
+var _tile_layer_refresh_button: Button
+var _tile_layer_nodes: Array[Node] = []
 var _tile_orientation_option: OptionButton
 var _tile_width_spin: SpinBox
 var _tile_height_spin: SpinBox
@@ -67,24 +76,56 @@ var _current_atlas_image_path := ""
 var _generate_button: Button
 var _save_button: Button
 var _apply_layer_button: Button
-var _generate_apply_button: Button
-var _generation_progress_bar: ProgressBar
-var _generation_status_label: Label
-var _cancel_generation_button: Button
 var _stats_label: Label
+var _generation_progress_container: VBoxContainer
+var _generation_progress_status_label: Label
+var _generation_progress_bar: ProgressBar
+var _generation_progress_cancel_button: Button
 
 var _current_data = null
 var _current_orientation := HexMapResource.ORIENTATION_FLAT_TOP
 var _generation_running := false
 var _generation_cancel_requested := false
 var _generation_progress := 0.0
+var _generation_status := "Ready"
+var _last_generation_cancelled := false
+var _generation_thread: Thread
+var _generation_mutex := Mutex.new()
+var _generation_id := 0
+var _generation_chunk_size := 1
+var _generation_progress_delay_usec := 0
+var _generation_core_progress_event_count := 0
+var _generation_cancel_poll_count := 0
+var _generation_last_core_progress := 0.0
+var _generation_progress_hide_token := 0
+var _generation_progress_scheduled_hide_token := 0
+var _generation_progress_visible_started_msec := 0
+var _generation_progress_hide_after_msec := 0
+var _suppress_tile_settings_apply := false
 
 
 func _ready() -> void:
+	set_process(true)
 	custom_minimum_size = Vector2(260, 220)
 	_build_ui()
+	refresh_tile_layer_options()
 	_refresh_controls()
-	_generate_map()
+	_update_stats()
+
+
+func _process(_delta: float) -> void:
+	_process_generation_progress_hide_timer()
+
+
+func _exit_tree() -> void:
+	_generation_progress_hide_token += 1
+	_generation_progress_hide_after_msec = 0
+	if _generation_running:
+		_set_generation_cancel_requested(true)
+	if _generation_thread != null:
+		_generation_thread.wait_to_finish()
+		_generation_thread = null
+	_hide_generation_progress_controls()
 
 
 func _build_ui() -> void:
@@ -161,13 +202,12 @@ func _build_ui() -> void:
 	root.add_child(_build_tile_layer_controls())
 
 	root.add_child(_build_separator())
-	root.add_child(_build_generation_progress_controls())
-
-	root.add_child(_build_separator())
 	_stats_label = Label.new()
 	_stats_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_stats_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
 	root.add_child(_stats_label)
+
+	root.add_child(_build_generation_progress_controls())
 
 	root.add_child(_build_separator())
 	var button_row = HBoxContainer.new()
@@ -186,11 +226,6 @@ func _build_ui() -> void:
 	_save_button.text = "Save .tres"
 	_save_button.pressed.connect(_on_save_pressed)
 	button_row.add_child(_save_button)
-
-	_generate_apply_button = Button.new()
-	_generate_apply_button.text = "Generate & Apply"
-	_generate_apply_button.pressed.connect(_on_generate_apply_pressed)
-	button_row.add_child(_generate_apply_button)
 
 	root.add_child(button_row)
 
@@ -299,6 +334,17 @@ func _build_tile_layer_controls() -> Control:
 	var box = VBoxContainer.new()
 	box.add_child(_build_section_label("TileMapLayer"))
 
+	var target_row = HBoxContainer.new()
+	target_row.add_child(_build_small_label("Target"))
+	_tile_layer_option = OptionButton.new()
+	_tile_layer_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	target_row.add_child(_tile_layer_option)
+	_tile_layer_refresh_button = Button.new()
+	_tile_layer_refresh_button.text = "Refresh"
+	_tile_layer_refresh_button.pressed.connect(_on_tile_layer_refresh_pressed)
+	target_row.add_child(_tile_layer_refresh_button)
+	box.add_child(target_row)
+
 	_tile_orientation_option = OptionButton.new()
 	_tile_orientation_option.add_item("flat-top / Vertical Offset")
 	_tile_orientation_option.add_item("pointy-top / Horizontal Offset")
@@ -309,7 +355,9 @@ func _build_tile_layer_controls() -> Control:
 	var size_row = HBoxContainer.new()
 	size_row.add_child(_build_small_label("Tile Size"))
 	_tile_width_spin = _new_int_spin(64, 1, 512)
+	_tile_width_spin.value_changed.connect(_on_tile_setting_changed)
 	_tile_height_spin = _new_int_spin(57, 1, 512)
+	_tile_height_spin.value_changed.connect(_on_tile_setting_changed)
 	size_row.add_child(_tile_width_spin)
 	size_row.add_child(_tile_height_spin)
 	box.add_child(size_row)
@@ -317,8 +365,11 @@ func _build_tile_layer_controls() -> Control:
 	var floor_row = HBoxContainer.new()
 	floor_row.add_child(_build_small_label("Floor"))
 	_floor_source_spin = _new_int_spin(0, 0, 1024)
+	_floor_source_spin.value_changed.connect(_on_tile_setting_changed)
 	_floor_atlas_x_spin = _new_int_spin(0, 0, 4096)
+	_floor_atlas_x_spin.value_changed.connect(_on_tile_setting_changed)
 	_floor_atlas_y_spin = _new_int_spin(0, 0, 4096)
+	_floor_atlas_y_spin.value_changed.connect(_on_tile_setting_changed)
 	floor_row.add_child(_floor_source_spin)
 	floor_row.add_child(_floor_atlas_x_spin)
 	floor_row.add_child(_floor_atlas_y_spin)
@@ -327,8 +378,11 @@ func _build_tile_layer_controls() -> Control:
 	var wall_row = HBoxContainer.new()
 	wall_row.add_child(_build_small_label("Wall"))
 	_wall_source_spin = _new_int_spin(0, 0, 1024)
+	_wall_source_spin.value_changed.connect(_on_tile_setting_changed)
 	_wall_atlas_x_spin = _new_int_spin(1, 0, 4096)
+	_wall_atlas_x_spin.value_changed.connect(_on_tile_setting_changed)
 	_wall_atlas_y_spin = _new_int_spin(0, 0, 4096)
+	_wall_atlas_y_spin.value_changed.connect(_on_tile_setting_changed)
 	wall_row.add_child(_wall_source_spin)
 	wall_row.add_child(_wall_atlas_x_spin)
 	wall_row.add_child(_wall_atlas_y_spin)
@@ -350,14 +404,12 @@ func _build_tile_layer_controls() -> Control:
 
 
 func _build_generation_progress_controls() -> Control:
-	var box = VBoxContainer.new()
-	box.add_child(_build_section_label("Generation"))
+	_generation_progress_container = VBoxContainer.new()
+	_generation_progress_container.visible = false
 
-	var row = HBoxContainer.new()
-	_generation_status_label = Label.new()
-	_generation_status_label.text = "Ready"
-	_generation_status_label.custom_minimum_size = Vector2(80, 0)
-	row.add_child(_generation_status_label)
+	_generation_progress_status_label = Label.new()
+	_generation_progress_status_label.text = "Ready"
+	_generation_progress_container.add_child(_generation_progress_status_label)
 
 	_generation_progress_bar = ProgressBar.new()
 	_generation_progress_bar.min_value = 0.0
@@ -365,16 +417,17 @@ func _build_generation_progress_controls() -> Control:
 	_generation_progress_bar.step = 0.01
 	_generation_progress_bar.value = 0.0
 	_generation_progress_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(_generation_progress_bar)
+	_generation_progress_container.add_child(_generation_progress_bar)
 
-	_cancel_generation_button = Button.new()
-	_cancel_generation_button.text = "Cancel"
-	_cancel_generation_button.disabled = true
-	_cancel_generation_button.pressed.connect(_on_cancel_generation_pressed)
-	row.add_child(_cancel_generation_button)
+	var cancel_row = HBoxContainer.new()
+	_generation_progress_cancel_button = Button.new()
+	_generation_progress_cancel_button.text = "Cancel"
+	_generation_progress_cancel_button.disabled = true
+	_generation_progress_cancel_button.pressed.connect(_on_cancel_generation_pressed)
+	cancel_row.add_child(_generation_progress_cancel_button)
+	_generation_progress_container.add_child(cancel_row)
 
-	box.add_child(row)
-	return box
+	return _generation_progress_container
 
 
 func _new_int_spin(value: int, min_value: int, max_value: int) -> SpinBox:
@@ -420,49 +473,48 @@ func _build_separator() -> HSeparator:
 
 func _on_generate_changed(_index: int) -> void:
 	_refresh_controls()
-	_generate_map()
 
 
 func _on_shape_changed(_index: int) -> void:
 	_refresh_controls()
-	_generate_map()
 
 
 func _on_wall_prob_changed(value: float) -> void:
 	_wall_prob_label.text = "%.2f" % value
-	if _connectivity_check.button_pressed:
-		return
-	_generate_map()
 
 
 func _on_option_changed(_v = null) -> void:
-	_generate_map()
+	pass
 
 
 func _on_seed_randomize() -> void:
 	_seed_spin.value = randi() % 100000
-	_generate_map()
+
+
+func _on_tile_layer_refresh_pressed() -> void:
+	refresh_tile_layer_options()
 
 
 func _on_tile_orientation_changed(_index: int) -> void:
+	var previous_orientation = _current_orientation
 	_current_orientation = _tile_settings_orientation()
+	if previous_orientation != _current_orientation:
+		_swap_tile_size_controls()
+	_apply_tile_settings_to_current_layer()
+
+
+func _on_tile_setting_changed(_value: float) -> void:
+	if _suppress_tile_settings_apply:
+		return
+	_apply_tile_settings_to_current_layer()
 
 
 func _on_generate_pressed() -> void:
-	_generate_map()
+	_generate_map(true)
 
 
 func _on_cancel_generation_pressed() -> void:
 	request_generation_cancel()
-
-
-func _on_generate_apply_pressed() -> void:
-	var layer = _find_tile_map_layer()
-	if layer == null:
-		push_error("No TileMapLayer found in the scene. Add one first.")
-		return
-	generate_and_apply_to_tile_map_layer(layer)
-	print("Generated and applied hex map to TileMapLayer: %s" % layer.name)
 
 
 func _on_sample_tiles_pressed() -> void:
@@ -538,27 +590,63 @@ func _on_apply_layer_pressed() -> void:
 	print("Applied hex map to TileMapLayer: %s" % layer.name)
 
 
-func generate_and_apply_to_tile_map_layer(layer) -> bool:
-	_generate_map()
-	return apply_current_data_to_tile_map_layer(layer)
+func refresh_tile_layer_options(root_node: Node = null) -> void:
+	if _tile_layer_option == null:
+		return
+
+	var scan_root = root_node
+	if scan_root == null and Engine.is_editor_hint():
+		scan_root = EditorInterface.get_edited_scene_root()
+
+	_tile_layer_nodes.clear()
+	_tile_layer_option.clear()
+	if scan_root != null:
+		_collect_tile_map_layers_recursive(scan_root, _tile_layer_nodes)
+
+	if _tile_layer_nodes.is_empty():
+		_tile_layer_option.add_item("Auto: selected / first scene layer")
+		_tile_layer_option.select(0)
+		return
+
+	for node in _tile_layer_nodes:
+		_tile_layer_option.add_item(_tile_layer_display_name(node))
+	_tile_layer_option.select(0)
+
+
+func selected_tile_map_layer():
+	if _tile_layer_option == null:
+		return null
+	var index = _tile_layer_option.selected
+	if index < 0 or index >= _tile_layer_nodes.size():
+		return null
+	var node = _tile_layer_nodes[index]
+	return node if is_instance_valid(node) else null
 
 
 func generation_status() -> Dictionary:
 	return {
 		"running": _generation_running,
-		"cancel_requested": _generation_cancel_requested,
+		"cancel_requested": _is_generation_cancel_requested(),
 		"progress": _generation_progress,
-		"status": "" if _generation_status_label == null else _generation_status_label.text,
+		"status": _generation_status,
 	}
 
 
 func request_generation_cancel() -> void:
 	if not _generation_running:
 		return
-	_generation_cancel_requested = true
+	_set_generation_cancel_requested(true)
 	_set_generation_progress(_generation_progress, "Cancel requested")
-	if _cancel_generation_button != null:
-		_cancel_generation_button.disabled = true
+	_set_generation_progress_cancel_enabled(false)
+
+
+func _apply_tile_settings_to_current_layer() -> bool:
+	if _current_data == null:
+		return false
+	var layer = _find_tile_map_layer()
+	if layer == null:
+		return false
+	return apply_current_data_to_tile_map_layer(layer)
 
 
 func apply_current_data_to_tile_map_layer(layer) -> bool:
@@ -628,6 +716,7 @@ func setup_atlas_tiles_on_tile_map_layer(
 	if not ok:
 		return false
 
+	_suppress_tile_settings_apply = true
 	_current_atlas_image_path = atlas_path
 	_tile_width_spin.value = tile_size.x
 	_tile_height_spin.value = tile_size.y
@@ -637,6 +726,7 @@ func setup_atlas_tiles_on_tile_map_layer(
 	_wall_source_spin.value = source_id
 	_wall_atlas_x_spin.value = wall_atlas_coords.x
 	_wall_atlas_y_spin.value = wall_atlas_coords.y
+	_suppress_tile_settings_apply = false
 	return true
 
 
@@ -663,7 +753,24 @@ func _tile_settings_tile_size() -> Vector2i:
 	return Vector2i(int(_tile_width_spin.value), int(_tile_height_spin.value))
 
 
+func _swap_tile_size_controls() -> void:
+	if _tile_width_spin == null or _tile_height_spin == null:
+		return
+	_suppress_tile_settings_apply = true
+	var width = _tile_width_spin.value
+	_tile_width_spin.value = _tile_height_spin.value
+	_tile_height_spin.value = width
+	_suppress_tile_settings_apply = false
+
+
 func _find_tile_map_layer():
+	var selected_layer = selected_tile_map_layer()
+	if selected_layer != null:
+		return selected_layer
+
+	if not Engine.is_editor_hint():
+		return null
+
 	var selection = EditorInterface.get_selection()
 	var selected = selection.get_selected_nodes()
 	for node in selected:
@@ -686,8 +793,22 @@ func _find_tile_map_layer_recursive(node: Node):
 	return null
 
 
+func _collect_tile_map_layers_recursive(node: Node, result: Array[Node]) -> void:
+	if node is TileMapLayer:
+		result.append(node)
+	for child in node.get_children():
+		_collect_tile_map_layers_recursive(child, result)
+
+
+func _tile_layer_display_name(node: Node) -> String:
+	if node == null:
+		return ""
+	if node.is_inside_tree():
+		return str(node.get_path())
+	return node.name
+
+
 func _refresh_controls() -> void:
-	var gen_method = _generate_option.selected
 	match _generate_option.selected:
 		GENERATE_SYMMETRIC:
 			_shape_symmetric_row.visible = true
@@ -709,57 +830,123 @@ func _uses_symmetric_generation() -> bool:
 	return _generate_option.selected == GENERATE_SYMMETRIC
 
 
-func _generate_map() -> void:
-	_begin_generation()
-	var shape = 0
-	var wall_prob = _wall_prob_slider.value
-	var seed = int(_seed_spin.value)
-	var connected = _connectivity_check.button_pressed
-	var protected = [HexVector.zero()]
-	var symmetric = _uses_symmetric_generation()
-	var dist_id = HexRandomizer.get_preset_id(_dist_option.get_item_text(_dist_option.selected))
+func _generate_map(show_progress: bool = false) -> bool:
+	if _generation_running:
+		return false
+	var snapshot = _create_generation_snapshot()
+	_begin_generation(int(snapshot["generation_id"]), show_progress)
+	await get_tree().process_frame
 
-	_set_generation_progress(0.2, "Preparing")
-
-	match _generate_option.selected:
-		GENERATE_SYMMETRIC:
-			shape = _shape_option_symmetric.selected
-			symmetric = true
-		GENERATE_SIMPLE, _:
-			shape = _shape_option_simple.selected
-			symmetric = false
-
-	if _generation_cancel_requested:
+	if _is_generation_cancel_requested():
 		_finish_generation(true)
-		return
+		return false
 
-	_set_generation_progress(0.6, "Generating")
+	_set_generation_progress(GENERATION_PROGRESS_START, "Preparing")
+	await get_tree().process_frame
+
+	if _is_generation_cancel_requested():
+		_finish_generation(true)
+		return false
+
+	_generation_thread = Thread.new()
+	var error = _generation_thread.start(Callable(self, "_generation_thread_main").bind(snapshot))
+	if error != OK:
+		_generation_thread = null
+		push_error("Failed to start map generation thread: %d" % error)
+		_set_generation_progress(_generation_progress, "Failed")
+		_finish_generation(true)
+		return false
+
+	await generation_finished
+	if _last_generation_cancelled:
+		return false
+
+	var layer = _find_tile_map_layer()
+	if layer != null:
+		apply_current_data_to_tile_map_layer(layer)
+	return true
+
+
+func _create_generation_snapshot() -> Dictionary:
+	var symmetric = _uses_symmetric_generation()
+	var shape = _shape_option_symmetric.selected if symmetric else _shape_option_simple.selected
+	var dist_id = 0
+	if _dist_option.selected >= 0 and _dist_option.selected < _dist_option.item_count:
+		dist_id = HexRandomizer.get_preset_id(_dist_option.get_item_text(_dist_option.selected))
+	_generation_id += 1
+	return {
+		"generation_id": _generation_id,
+		"shape": shape,
+		"symmetric": symmetric,
+		"wall_probability": float(_wall_prob_slider.value),
+		"seed": int(_seed_spin.value),
+		"ensure_connected": _connectivity_check.button_pressed,
+		"protected_floor": [HexVector.zero()],
+		"distribution_id": dist_id,
+		"custom_distribution": _current_distribution,
+		"hex_radius": int(_hex_radius_spin.value),
+		"rect_width": int(_rect_width_spin.value),
+		"rect_height": int(_rect_height_spin.value),
+		"generation_radius": int(_gen_radius_spin.value),
+		"chunk_size": _generation_chunk_size,
+		"progress_delay_usec": _generation_progress_delay_usec,
+	}
+
+
+func _generation_thread_main(snapshot: Dictionary) -> Dictionary:
+	var generation_id = int(snapshot["generation_id"])
+	var interrupt_options := {
+		"chunk_size": int(snapshot["chunk_size"]),
+		"progress_callback": Callable(self, "_generation_progress_from_thread").bind(generation_id),
+		"cancel_callback": Callable(self, "_generation_cancel_from_thread").bind(generation_id),
+	}
+	var data = _generate_data_from_snapshot(snapshot, interrupt_options)
+	var result := {
+		"generation_id": generation_id,
+		"data": data,
+		"cancelled": bool(interrupt_options.get("cancelled", false)),
+	}
+	call_deferred("_complete_generation_from_thread", generation_id)
+	return result
+
+
+func _generate_data_from_snapshot(snapshot: Dictionary, interrupt_options: Dictionary):
+	var shape = int(snapshot["shape"])
+	var symmetric = bool(snapshot["symmetric"])
+	var wall_prob = float(snapshot["wall_probability"])
+	var seed = int(snapshot["seed"])
+	var connected = bool(snapshot["ensure_connected"])
+	var protected = snapshot["protected_floor"]
+	var dist_id = int(snapshot["distribution_id"])
+	var custom_distribution = snapshot["custom_distribution"]
 
 	match shape:
 		SHAPE_HEXAGON:
 			if symmetric:
-				_current_data = HexMapGenerator.generate_symmetric_hexagon(
-					int(_gen_radius_spin.value),
+				return HexMapGenerator.generate_symmetric_hexagon(
+					int(snapshot["generation_radius"]),
 					wall_prob,
 					seed,
 					connected,
 					protected,
 					dist_id,
 					[],
-					_current_distribution
+					custom_distribution,
+					interrupt_options
 				)
 			else:
-				_current_data = HexMapGenerator.generate_hexagon(
-					_hex_radius_spin.value,
+				return HexMapGenerator.generate_hexagon(
+					int(snapshot["hex_radius"]),
 					wall_prob,
 					seed,
 					connected,
-					protected
+					protected,
+					interrupt_options
 				)
 		SHAPE_RECTANGLE:
 			if symmetric:
-				_current_data = HexMapGenerator.generate_symmetric_square(
-					int(_gen_radius_spin.value),
+				return HexMapGenerator.generate_symmetric_square(
+					int(snapshot["generation_radius"]),
 					wall_prob,
 					seed,
 					connected,
@@ -767,21 +954,23 @@ func _generate_map() -> void:
 					dist_id,
 					[],
 					false,
-					_current_distribution
+					custom_distribution,
+					interrupt_options
 				)
 			else:
-				_current_data = HexMapGenerator.generate_rectangle(
-					int(_rect_width_spin.value),
-					int(_rect_height_spin.value),
+				return HexMapGenerator.generate_rectangle(
+					int(snapshot["rect_width"]),
+					int(snapshot["rect_height"]),
 					wall_prob,
 					seed,
 					connected,
 					false,
-					protected
+					protected,
+					interrupt_options
 				)
 		SHAPE_TORUS, _:
-			_current_data = HexMapGenerator.generate_symmetric_square(
-				int(_gen_radius_spin.value),
+			return HexMapGenerator.generate_symmetric_square(
+				int(snapshot["generation_radius"]),
 				wall_prob,
 				seed,
 				connected,
@@ -789,43 +978,210 @@ func _generate_map() -> void:
 				dist_id,
 				[],
 				true,
-				_current_distribution
+				custom_distribution,
+				interrupt_options
 			)
+	return null
 
-	if _generation_cancel_requested:
-		_finish_generation(true)
+
+func _generation_progress_from_thread(status: Dictionary, generation_id: int) -> void:
+	var progress = float(status.get("progress", 0.0))
+	var delay_usec := 0
+	_generation_mutex.lock()
+	_generation_core_progress_event_count += 1
+	_generation_last_core_progress = progress
+	delay_usec = _generation_progress_delay_usec
+	_generation_mutex.unlock()
+	call_deferred("_apply_generation_core_progress", generation_id, status.duplicate(true))
+	if delay_usec > 0:
+		OS.delay_usec(delay_usec)
+
+
+func _generation_cancel_from_thread(_status: Dictionary, _generation_id_from_thread: int) -> bool:
+	_generation_mutex.lock()
+	_generation_cancel_poll_count += 1
+	var requested = _generation_cancel_requested
+	_generation_mutex.unlock()
+	return requested
+
+
+func _apply_generation_core_progress(generation_id: int, status: Dictionary) -> void:
+	if generation_id != _generation_id or not _generation_running:
+		return
+	var core_progress = float(status.get("progress", 0.0))
+	var mapped_progress = GENERATION_PROGRESS_START + core_progress * GENERATION_PROGRESS_SCALE
+	_set_generation_progress(mapped_progress, "Generating")
+
+
+func _complete_generation_from_thread(generation_id: int) -> void:
+	if _generation_thread == null:
+		return
+	var result = _generation_thread.wait_to_finish()
+	_generation_thread = null
+	if generation_id != _generation_id or not _generation_running:
 		return
 
-	_set_generation_progress(0.9, "Updating")
-	_update_stats()
-	_finish_generation(false)
+	var cancelled := true
+	var data = null
+	if result is Dictionary:
+		cancelled = bool(result.get("cancelled", false)) or _is_generation_cancel_requested()
+		data = result.get("data", null)
+	else:
+		push_error("Map generation thread returned an invalid result.")
+
+	if not cancelled and data != null:
+		_set_generation_progress(GENERATION_PROGRESS_UPDATE, "Updating")
+		_current_data = data
+		_update_stats()
+	_finish_generation(cancelled)
 
 
-func _begin_generation() -> void:
-	_generation_running = true
+func _begin_generation(_generation_id_from_snapshot: int, show_progress: bool = false) -> void:
+	_generation_mutex.lock()
 	_generation_cancel_requested = false
-	_set_generation_progress(0.0, "Generating")
-	if _cancel_generation_button != null:
-		_cancel_generation_button.disabled = false
+	_generation_core_progress_event_count = 0
+	_generation_cancel_poll_count = 0
+	_generation_last_core_progress = 0.0
+	_generation_mutex.unlock()
+	_generation_progress_hide_token += 1
+	_generation_progress_hide_after_msec = 0
+	_generation_running = true
+	_last_generation_cancelled = false
+	_set_generation_controls_disabled(true)
+	_set_generation_progress(0.0, "Preparing")
+	if show_progress:
+		_show_generation_progress_controls()
+	else:
+		_hide_generation_progress_controls()
 
 
 func _finish_generation(cancelled: bool) -> void:
 	_generation_running = false
+	_last_generation_cancelled = cancelled
 	if cancelled:
 		_set_generation_progress(_generation_progress, "Cancelled")
 	else:
 		_set_generation_progress(1.0, "Ready")
-	_generation_cancel_requested = false
-	if _cancel_generation_button != null:
-		_cancel_generation_button.disabled = true
+	_set_generation_cancel_requested(false)
+	_set_generation_controls_disabled(false)
+	if _generation_progress_container != null and _generation_progress_container.visible:
+		if cancelled:
+			_hide_generation_progress_controls()
+		else:
+			_finish_generation_progress_controls_success()
+	generation_finished.emit(cancelled)
 
 
 func _set_generation_progress(progress: float, status: String) -> void:
 	_generation_progress = clampf(progress, 0.0, 1.0)
+	_generation_status = status
 	if _generation_progress_bar != null:
 		_generation_progress_bar.value = _generation_progress
-	if _generation_status_label != null:
-		_generation_status_label.text = status
+	if _generation_progress_status_label != null:
+		_generation_progress_status_label.text = _generation_status
+
+
+func _set_generation_cancel_requested(requested: bool) -> void:
+	_generation_mutex.lock()
+	_generation_cancel_requested = requested
+	_generation_mutex.unlock()
+
+
+func _is_generation_cancel_requested() -> bool:
+	_generation_mutex.lock()
+	var requested = _generation_cancel_requested
+	_generation_mutex.unlock()
+	return requested
+
+
+func _show_generation_progress_controls() -> void:
+	if _generation_progress_container == null:
+		return
+	_generation_progress_hide_token += 1
+	_generation_progress_hide_after_msec = 0
+	_generation_progress_container.visible = true
+	_generation_progress_visible_started_msec = Time.get_ticks_msec()
+	_set_generation_progress_cancel_enabled(true)
+	_set_generation_progress(_generation_progress, _generation_status)
+
+
+func _finish_generation_progress_controls_success() -> void:
+	if _generation_progress_container == null or not _generation_progress_container.visible:
+		return
+	_set_generation_progress_cancel_enabled(false)
+	_set_generation_progress(1.0, "Ready")
+
+	_generation_progress_hide_token += 1
+	var hide_token = _generation_progress_hide_token
+	_generation_progress_scheduled_hide_token = hide_token
+	var elapsed_sec = float(Time.get_ticks_msec() - _generation_progress_visible_started_msec) / 1000.0
+	var wait_sec = maxf(GENERATION_PROGRESS_MIN_VISIBLE_SEC - elapsed_sec, 0.0)
+	if wait_sec <= 0.0:
+		_hide_generation_progress_controls_if_current(hide_token)
+		return
+	_generation_progress_hide_after_msec = Time.get_ticks_msec() \
+		+ int(ceil(wait_sec * 1000.0))
+
+
+func _process_generation_progress_hide_timer() -> void:
+	var now = Time.get_ticks_msec()
+	if _generation_progress_hide_after_msec > 0 \
+		and now >= _generation_progress_hide_after_msec:
+		var hide_token = _generation_progress_scheduled_hide_token
+		_generation_progress_hide_after_msec = 0
+		_hide_generation_progress_controls_if_current(hide_token)
+
+
+func _hide_generation_progress_controls_if_current(hide_token: int) -> void:
+	if hide_token != _generation_progress_hide_token:
+		return
+	if _generation_running:
+		return
+	_hide_generation_progress_controls()
+
+
+func _hide_generation_progress_controls() -> void:
+	_generation_progress_hide_after_msec = 0
+	_generation_progress_visible_started_msec = 0
+	if _generation_progress_container != null:
+		_generation_progress_container.visible = false
+	_set_generation_progress_cancel_enabled(false)
+
+
+func _set_generation_progress_cancel_enabled(enabled: bool) -> void:
+	if _generation_progress_cancel_button != null:
+		_generation_progress_cancel_button.disabled = not enabled
+
+
+func _set_generation_controls_disabled(disabled: bool) -> void:
+	for control in [
+		_generate_option,
+		_shape_option_simple,
+		_shape_option_symmetric,
+		_rect_width_spin,
+		_rect_height_spin,
+		_hex_radius_spin,
+		_gen_radius_spin,
+		_wall_prob_slider,
+		_seed_spin,
+		_seed_random_button,
+		_connectivity_check,
+		_dist_option,
+		_dist_edit_button,
+		_generate_button,
+	]:
+		_set_control_disabled(control, disabled)
+
+
+func _set_control_disabled(control: Control, disabled: bool) -> void:
+	if control == null:
+		return
+	if control is BaseButton:
+		control.disabled = disabled
+	elif control is SpinBox:
+		control.editable = not disabled
+	elif control is Slider:
+		control.editable = not disabled
 
 
 func _update_stats() -> void:
@@ -872,7 +1228,6 @@ func _on_dist_editor_apply(filepath: String) -> void:
 	_current_dist_file = filepath
 	_current_distribution = load(filepath)
 	_refill_dist_options()
-	_generate_map()
 
 
 func _on_dist_editor_cancel() -> void:
@@ -887,7 +1242,6 @@ func _on_dist_changed(idx: int) -> void:
 	else:
 		# Custom entry selected — keep current distribution
 		pass
-	_generate_map()
 
 
 func _refill_dist_options() -> void:

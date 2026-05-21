@@ -1,19 +1,9 @@
 
 ## 概念検証: 壁の対称生成とデータ管理用マップ形状について
 
-### 観察結果
+### 簡単な実験
 
-`./tools/debug_generated_map.sh` の実行による観察結果
-
-- 三角形9分割されたHex正方形マップの端二つをToricな座標理解によって六角形マップへと再配置することによる、(正方形/六角形 マップの)相互変換機能の可能性に関して
-  - 正方形/対称生成形状 マップの変換であれば部分的に可能。実装するべきは六角形マップとの相互変換ではない。
-  - その上で、テストケースの観察から厳密な実装は不可能であることが判明した。
-    - 正方形 -> 対称生成形状 : 
-      - splitの端二つを3分割して対称生成風に割り当てることはありうるが、正方形としてのマップでは別の座標を、対称生成形状では同一の座標として扱うケースが生じる。この射影が不可逆な操作になる。
-    - 対称生成形状 -> 正方形 : 
-      - タイル生成時のtoricな隣接関係から帰結される、生成したマップの外側へとtoricに配置できるタイルを一定程度並べ、正方形形状のタイルを切り出すことで結果を得られる。
-    - 対称生成形状 -> 正方形 -> 対称生成形状 : 
-      - もともと同一なタイルのデータをduplicateした上で元に射映するだけなので、変換可能
+`./tools/debug_generated_map.sh`
 
 ### 可能な実装に関する検討
 
@@ -43,3 +33,49 @@
         - ∞平面 : 生成方式選択可能/ ループ周期 N を選択 / toric正方形を保持
         - トーラス平面 : 生成方式選択可能/ ループ周期 N を選択 / toric正方形を保持
 
+### 2026-05-21: Generation Radius 3倍数の見た目調査
+
+再現条件:
+
+- `Generator = Hex-inward Markov mesh model`
+- `seed = 888`
+- `Wall Prob = 1.0`
+- `Restore Connectivity = true`
+- `Generation Radius = 3` を主対象にし、`6` / `9` も同じ傾向を確認
+
+
+
+headless 調査結果:
+
+| radius | shape | cells | walls | floors | connected |
+|---:|---|---:|---:|---:|---|
+| 3 | square | 49 | 18 | 31 | true |
+| 3 | torus | 49 | 22 | 27 | true |
+| 3 | hex | 37 | 12 | 25 | true |
+| 6 | square | 169 | 69 | 100 | true |
+| 6 | torus | 169 | 73 | 96 | true |
+| 6 | hex | 127 | 48 | 79 | true |
+| 9 | square | 361 | 149 | 212 | true |
+| 9 | torus | 361 | 156 | 205 | true |
+| 9 | hex | 271 | 106 | 165 | true |
+
+切り分け:
+
+- `ensure_connected=false` でも raw floor は多い。`wall_probability=1.0` が全 cell wall を意味するのは radius 1 / 2 の direct generation だけで、radius 3 以上の対称生成は distribution 参照で floor を残す。
+- `ensure_connected=true` では raw wall がさらに削られる。radius 3 の square は `23 -> 18`、torus は `23 -> 22`、hex は `15 -> 12` へ変化した。
+- torus は cyclic path を使えるため、同じ raw wall set でも non-toric square より wall 削除が少ない。
+- hex は split 0 / 7 を除外するため、phase2 の outer_mod / outer_wave が出力形状から消え、square / torus と分布が変わる。
+- phase2 は radius 3 / 6 / 9 すべてで `phase2_groups=5`、`outer_mod entries=12`。border は moved reference を含む。
+
+原因候補:
+
+- max wall + connectivity restoration の組み合わせで、連結化のための削除経路が直線的に目立つ。
+- protected floor の `HexVector.zero()` は split 8 の中心 cell ではないため、見た目の中心からではない連結経路が作られる。
+- `symmetry_generation_tags()` は全 cell を網羅しない診断 tag で、radius 3 / 6 / 9 に未タグ cell が残る。アルゴリズム修正判断には生成処理そのものの trace 追加が必要。
+
+異常判定の基準が決まった後、生成処理そのものの trace と期待分布を使って修正範囲を決める。
+
+(*) 本来期待していた条件:
+dist id  -> 888
+任意seed
+他generate radiusとの比較
