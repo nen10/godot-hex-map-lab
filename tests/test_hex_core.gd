@@ -29,6 +29,7 @@ func _run() -> void:
 	_test_toric_split_rule_triangle_units()
 	_test_toric_split_rule_partitions_square_canvas()
 	_test_toric_split_rule_rough_tags()
+	_test_toric_split_rule_symmetry_tags_cover_canvas()
 	_test_toric_split_rule_symmetry_regions_follow_unity_flow()
 	_test_toric_split_rule_unity_reference_groups()
 
@@ -374,6 +375,32 @@ func _test_toric_split_rule_rough_tags() -> void:
 	_assert_eq(rule.get_rough_split_tag(rule.split_canvas[8][0]), 8, "rough tag preserves center group")
 
 
+func _test_toric_split_rule_symmetry_tags_cover_canvas() -> void:
+	for radius in range(1, 10):
+		var rule = HexToricMapSplitRule.new(radius)
+		var tags = rule.symmetry_generation_tags()
+		var tag_keys = tags.keys()
+		tag_keys.sort()
+		_assert_eq(
+			tag_keys,
+			_sorted_keys(rule.canvas_cells()),
+			"radius %d symmetry tags cover every canvas cell" % radius
+		)
+		for tag in tags.values():
+			var wrapped = HexToricCoordinate.wrap_vector(tag["source"], rule.cyclic_size)
+			_assert_eq(
+				tag["vector"].key(),
+				wrapped.key(),
+				"radius %d symmetry tag vector stores wrapped canvas position" % radius
+			)
+			_assert_eq(
+				tag["moved"],
+				not tag["source"].is_equal(tag["vector"]),
+				"radius %d symmetry tag moved matches source wrapping" % radius
+			)
+			_assert_true(rule.split_index_for(tag["vector"]) >= 0, "radius %d symmetry tag vector is on canvas" % radius)
+
+
 func _test_toric_split_rule_symmetry_regions_follow_unity_flow() -> void:
 	for radius in [3, 4, 5, 6]:
 		var rule = HexToricMapSplitRule.new(radius)
@@ -392,7 +419,7 @@ func _test_toric_split_rule_symmetry_regions_follow_unity_flow() -> void:
 		for entry in entries:
 			kinds[entry["kind"]] = true
 			if entry["kind"] == HexToricMapSplitRule.SYMMETRY_KIND_OUTER_MOD:
-				outer_mod_points[entry["vector"].key()] = true
+				outer_mod_points[entry["source"].key()] = true
 				outer_mod_split_counts[entry["source_split"]] = outer_mod_split_counts.get(entry["source_split"], 0) + 1
 			if entry["kind"] == HexToricMapSplitRule.SYMMETRY_KIND_OUTER_PHASE2_BOUNDARY:
 				has_phase2_boundary = true
@@ -408,12 +435,12 @@ func _test_toric_split_rule_symmetry_regions_follow_unity_flow() -> void:
 		_assert_true(kinds.has(HexToricMapSplitRule.SYMMETRY_KIND_OUTER_MOD), "symmetry flow has mod3 outer shape")
 		if phase == 2:
 			_assert_true(
-				kinds.has(HexToricMapSplitRule.SYMMETRY_KIND_OUTER_WAVE),
-				"phase2 symmetry flow runs outer-to-center waves"
+				kinds.has(HexToricMapSplitRule.SYMMETRY_KIND_OUTER_PHASE2_BOUNDARY),
+				"phase2 symmetry flow uses outer boundary correction"
 			)
 			_assert_true(
-				not has_phase2_boundary,
-				"phase2 symmetry flow does not replace outer waves with boundary correction"
+				has_phase2_boundary,
+				"phase2 symmetry flow has outer boundary correction"
 			)
 			_assert_true(
 				phase2_groups.size() == 5,
@@ -423,7 +450,7 @@ func _test_toric_split_rule_symmetry_regions_follow_unity_flow() -> void:
 			var triple_count = 0
 			var grouped_points := {}
 			for group in phase2_groups:
-				var wrapped_group_points := {}
+				var raw_group_points := {}
 				if group["group"] == HexToricMapSplitRule.SYMMETRY_GROUP_PAIR:
 					pair_count += 1
 					_assert_eq(group["points"].size(), 2, "phase2 outer_mod pair has two points")
@@ -431,13 +458,16 @@ func _test_toric_split_rule_symmetry_regions_follow_unity_flow() -> void:
 					triple_count += 1
 					_assert_eq(group["points"].size(), 3, "phase2 outer_mod triple has three points")
 				for point in group["points"]:
-					var wrapped = HexToricCoordinate.wrap_vector(point, rule.cyclic_size)
 					_assert_true(
-						not wrapped_group_points.has(wrapped.key()),
-						"phase2 outer_mod group points are not the same toric cell"
+						not raw_group_points.has(point.key()),
+						"phase2 outer_mod group points are distinct raw draw positions"
 					)
-					wrapped_group_points[wrapped.key()] = true
+					raw_group_points[point.key()] = true
 					grouped_points[point.key()] = true
+					_assert_true(
+						rule.split_index_for(HexToricCoordinate.wrap_vector(point, rule.cyclic_size)) >= 0,
+						"phase2 outer_mod group point wraps to the canvas"
+					)
 			_assert_eq(pair_count, 3, "phase2 outer_mod has three pair groups")
 			_assert_eq(triple_count, 2, "phase2 outer_mod has two triple groups")
 			_assert_eq(grouped_points.size(), 12, "phase2 outer_mod groups cover twelve generated points")
@@ -457,23 +487,17 @@ func _test_toric_split_rule_symmetry_regions_follow_unity_flow() -> void:
 		_assert_eq(center_entries.size(), 1, "symmetry flow has one center entry")
 		_assert_true(tags.has(center_entries[0]["vector"].key()), "symmetry center is included in merged tags")
 		_assert_eq(tags[center_entries[0]["vector"].key()]["kind"], HexToricMapSplitRule.SYMMETRY_KIND_CENTER, "symmetry center wins merged tag priority")
-		if phase == 2:
-			_assert_true(center_entries[0]["split"] >= 0, "phase2 symmetry center stays on canvas")
-		else:
-			_assert_eq(center_entries[0]["split"], 8, "symmetry center belongs to split 8")
+		_assert_eq(center_entries[0]["split"], 8, "symmetry center belongs to split 8")
 
 
 func _test_toric_split_rule_unity_reference_groups() -> void:
 	var expected_counts := {
 		3: {
 			HexToricMapSplitRule.SYMMETRY_KIND_OUTER_MOD: 1,
-			HexToricMapSplitRule.SYMMETRY_KIND_OUTER_WAVE: 2,
 		},
 		4: {},
 		5: {},
-		6: {
-			HexToricMapSplitRule.SYMMETRY_KIND_OUTER_WAVE: 7,
-		},
+		6: {},
 		7: {},
 	}
 

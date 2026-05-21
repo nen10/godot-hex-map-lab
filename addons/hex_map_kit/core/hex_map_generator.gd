@@ -269,17 +269,6 @@ static func generate_symmetric_toric_walls_interruptible(
 	assert(wall_probability >= 0.0)
 	assert(wall_probability <= 1.0)
 
-	if radius <= 2:
-		# No stable previous ring exists for Markov references at minimum radii.
-		var unit_data = HexMapDataScript.square(size, true)
-		return generate_random_walls_interruptible(
-			unit_data.cells,
-			wall_probability,
-			seed,
-			_wrapped_points(protected_floor, size),
-			interrupt_options
-		)
-
 	var rule = HexToricMapSplitRuleScript.new(radius)
 	var rng = RandomNumberGenerator.new()
 	rng.seed = seed
@@ -291,6 +280,7 @@ static func generate_symmetric_toric_walls_interruptible(
 		"rule": rule,
 		"rng": rng,
 		"walls": {},
+		"visited": {},
 		"protected": HexMapDataScript.make_set(_wrapped_points(protected_floor, size)),
 		"distribution_id": distribution_id,
 	}
@@ -568,7 +558,10 @@ static func _draw_symmetric_edge_area(
 	origin,
 	wall_probability: float
 ) -> Dictionary:
+	var rule = state["rule"]
 	var centered = _draw_symmetric_area_center(state, flat_left, origin, wall_probability)
+	if (rule.map_unit_radius - 1) % 3 == 2:
+		return _draw_symmetric_phase2_outer_boundary(state, flat_left, origin, centered, wall_probability)
 	return _draw_symmetric_area_from_center(
 		state,
 		flat_left,
@@ -629,7 +622,6 @@ static func _draw_symmetric_area_from_center(
 	var wave_directions: Array = []
 	var reference_directions: Array = []
 	var arc_size = (rule.map_unit_radius - 1) % 3
-	var pen = _zero()
 	var edge_count = _sum_int(draw_counts) * (1 if arc_size == 2 else 2)
 
 	for side in range(3):
@@ -641,11 +633,11 @@ static func _draw_symmetric_area_from_center(
 			wave_directions[side].negated().subtract(step_directions[side]),
 		])
 
-	while not pen.is_equal(origin):
+	for _wave_index in range(int(rule.map_unit_radius / 3)):
 		arc_size += 3
 		for side in range(3):
 			draw_node[side] = draw_node[side].add(wave_directions[side])
-			pen = draw_node[side]
+			var pen = draw_node[side]
 			var density = (float(draw_counts[side]) + 1.0 + wall_probability) / float(arc_size)
 			draw_counts[side] = _draw_from_prob(state, pen, 1.0 - density)
 			_draw_from_prob(
@@ -657,13 +649,13 @@ static func _draw_symmetric_area_from_center(
 		edge_count += _sum_int(draw_counts)
 
 		for side in range(3):
-			pen = draw_node[side]
+			var pen = draw_node[side]
 			for _index in range(1, arc_size - 1):
 				pen = pen.add(step_directions[side])
 				draw_counts[side] += _draw_arc_point(state, pen, reference_directions[side])
 
 		for side in range(3):
-			pen = draw_node[side].add(step_directions[side].scaled(arc_size - 1))
+			var pen = draw_node[side].add(step_directions[side].scaled(arc_size - 1))
 			draw_counts[side] += _over_draw_arc_point(state, pen, reference_directions[side])
 			pen = pen.add(step_directions[side])
 
@@ -671,6 +663,38 @@ static func _draw_symmetric_area_from_center(
 		"edge_count": edge_count,
 		"draw_node": draw_node,
 	}
+
+
+static func _draw_symmetric_phase2_outer_boundary(
+	state: Dictionary,
+	flat_left: bool,
+	origin,
+	centered: Dictionary,
+	wall_probability: float
+) -> Dictionary:
+	var rule = state["rule"]
+	var from_center = _draw_symmetric_area_from_center(
+		state,
+		flat_left,
+		origin,
+		centered["draw_node"].duplicate(),
+		centered["draw_counts"].duplicate(),
+		wall_probability
+	)
+	var draw_node = _outer_boundary_nodes(flat_left, origin, rule.map_unit_radius)
+	return {
+		"edge_count": from_center["edge_count"],
+		"draw_node": draw_node,
+	}
+
+
+static func _outer_boundary_nodes(flat_left: bool, origin, map_unit_radius: int) -> Array:
+	var forward = _r_axis() if flat_left else _q_axis()
+	return [
+		origin,
+		origin.add(forward.scaled(map_unit_radius - 1)),
+		origin.add(_s_axis().negated().scaled(map_unit_radius - 1)),
+	]
 
 
 static func _draw_symmetric_border(
@@ -745,6 +769,7 @@ static func _draw_symmetric_inner_area(
 		draw_node[0].add(draw_node[1]).add(draw_node[2]).divided(3),
 		1.0 - density
 	)
+	_draw_symmetric_canvas_completion(state, wall_probability)
 	return _interrupt_update(interrupt_options, "symmetric_toric_complete", total_steps, total_steps)
 
 
@@ -802,6 +827,8 @@ static func _draw_from_prob(state: Dictionary, point, draw_probability: float) -
 	var protected_set: Dictionary = state["protected"]
 	var wall_set: Dictionary = state["walls"]
 	var key = pen.key()
+	if state.has("visited"):
+		state["visited"][key] = pen
 	if protected_set.has(key):
 		wall_set.erase(key)
 		return 0
@@ -823,6 +850,8 @@ static func _over_draw_from_prob(state: Dictionary, point, draw_probability: flo
 	var protected_set: Dictionary = state["protected"]
 	var wall_set: Dictionary = state["walls"]
 	var key = pen.key()
+	if state.has("visited"):
+		state["visited"][key] = pen
 	wall_set.erase(key)
 	if protected_set.has(key):
 		return 0
@@ -832,6 +861,15 @@ static func _over_draw_from_prob(state: Dictionary, point, draw_probability: flo
 		wall_set[key] = pen
 		return 1
 	return 0
+
+
+static func _draw_symmetric_canvas_completion(state: Dictionary, wall_probability: float) -> void:
+	var rule = state["rule"]
+	var visited: Dictionary = state.get("visited", {})
+	for cell in rule.canvas_cells():
+		if visited.has(cell.key()):
+			continue
+		_draw_from_prob(state, cell, wall_probability)
 
 
 static func _erase_wall(state: Dictionary, point) -> bool:

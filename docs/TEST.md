@@ -27,12 +27,12 @@ GodotでのDebug実行によるテストが有用なケースについては、�
 
 ### テスト概要
 
-- `tests/test_hex_core.gd`: HexVector/HexPoint、toric coordinate、近傍・連結・経路、9分割と対称生成領域タグを検証する。phase2 outer_mod の pair/triple は同一 toric cell ではなく、生成タイミング上の distinct な局所グループとして検証し、phase2 でも outer-to-center wave を通ることを検証する。
-- `tests/test_hex_map_generation.gd`: rectangle/hexagon/toric square の生成、壁生成、割り込み可能な progress / cancel 付き壁生成、shape API の interrupt option、連結性回復、terminal 接続、対称生成を検証する。Generation Radius 1 / 2 の対称生成は distribution 参照ではなく wall probability で完了すること、Generation Radius 3 / 6 は `DrawAreaCenter -> DrawAreaFromCenter` を通って canvas 内・split 分布・protected floor・連結性回復を満たすことを検証する。
+- `tests/test_hex_core.gd`: HexVector/HexPoint、toric coordinate、近傍・連結・経路、9分割と対称生成領域タグを検証する。`symmetry_generation_tags()` が radius 1..9 の全 canvas cell を網羅し、`source` は raw draw position、`vector` は wrap 済み canvas position、`moved` は wrap 有無を表すことを検証する。phase2 outer_mod の pair/triple は raw 生成タイミング上の distinct な局所グループとして検証し、phase2 でも outer-to-center wave を通ることを検証する。
+- `tests/test_hex_map_generation.gd`: rectangle/hexagon/toric square の生成、壁生成、割り込み可能な progress / cancel 付き壁生成、shape API の interrupt option、連結性回復、terminal 接続、対称生成を検証する。Generation Radius 1 / 2 も larger radius と同じ対称生成フローを通り、radius 3 / 6 / 9 は `DrawAreaCenter -> DrawAreaFromCenter` 後の completion pass で canvas 内・split 分布・protected floor・連結性回復を満たすことを検証する。
 - `tests/test_hex_adapter.gd`: HexMapData から TileMapLayer 用 entry、flat-top / pointy-top の offset cell 変換、表示用 local 座標、HexMapResource への変換、TileSet の Hexagon/Stacked/OffsetAxis 設定、sample atlas asset と atlas source 作成を検証する。
 - `tests/test_hex_tile_map_layer.gd`: `HexTileMapLayer` の `HexMapResource` 適用、resource orientation に基づく TileMapLayer 反映、セル照会、壁/床編集、local/hex 座標往復、経路・ハイライト・連結性 helper を検証する。
 - `tests/test_editor_plugin.gd`: 生成ドックの対称 Hexagon / Generation Radius 1 / 2、Generate ボタン限定実行、Dock 内 progress UI の Generate 時表示と成功時の最短表示時間後の非表示、modal progress window を生成しないこと、Core callback 由来の progress / cancel wiring、cancel 時に partial data を current map へ反映しないこと、orientation を含む TileMapLayer apply 設定、orientation 変更時の Tile Size swap、複数 TileMapLayer の Target 選択、TileMapLayer 設定 SpinBox の即時 apply、atlas image selection、sample TileSet setup、Generate 後の自動 apply、Apply Layer button の手動再反映、Distribution Editor のプリセット値表示、`.tres` 読み込み、recent custom distribution、preset 複製保存、SpinBox 値に基づく色、window close の cancel flow を headless で検証する。
-- `tests/test_debug_scenes.gd`: debug scene の生成形状切替、toric 表示 domain、対称生成 overlay、phase2 grouping 表示用データを検証する。
+- `tests/test_debug_scenes.gd`: debug scene の生成形状切替、toric 表示 domain、対称生成 overlay が toric canvas 全体を網羅すること、phase2 grouping 表示用データを検証する。
 
 
 ## 実行

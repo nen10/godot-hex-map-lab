@@ -137,7 +137,7 @@ var symmetric_torus = HexMapGenerator.generate_symmetric_square(
 )
 ```
 
-`radius` は `map_unit_radius` で、toric square の一辺は `2 * radius + 1` です。`radius <= 2` は安定した参照リングが存在しないため、distribution ではなく `wall_probability` による直接生成として扱います。
+`radius` は `map_unit_radius` で、toric square の一辺は `2 * radius + 1` です。radius `1` / `2` も larger radius と同じ対称生成フローを通ります。
 
 distribution は `HexRandomizer` の preset id、または `HexDistribution` resource で指定できます。値は 0.0 から 8.0 の重みで、確率は `value / 8.0` です。
 

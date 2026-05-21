@@ -66,8 +66,9 @@ toric は現時点では正方形のみを対象にする。`cyclic_size = size`
 - `border_initial` / `border_edge`: `DrawBoarder()` に対応する、外周を越える参照位置を `ReferencePositions` によって canvas 内へ移した領域
 - `inner_arc`: `DrawInnerArea()` に対応する、6 方向の arc で中心へ向かう共通領域
 - `center`: `DrawInnerArea()` の最後にコード上で求める中心 cell。phase 2 では `DrawAreaFromCenter()` の結果をそのまま使うため、debug tag の split は 8 固定ではなく canvas 上の生成位置を示す
+- `completion`: 上記の Unity source 順序後に未訪問の canvas cell が残った場合だけ、その cell を埋める completion pass。`symmetry_generation_tags()` は必ず `canvas_cells()` 全体を網羅する
 
-phase 2 の `outer_mod` は split 0 / split 7 にそれぞれ 6 個、合計 12 個の生成座標を持つ。`symmetry_phase2_outer_mod_groups()` は、phase 2 の開始形状に含まれる pair/triple の生成タイミングを可視化する診断用 helper である。この pair/triple は同一 toric cell を意味しない。各 group 内の座標は `cyclic_size` で wrap しても distinct であり、debug scene では raw な square 座標同士を直接結ばず、周期コピーの中で局所的に見える配置を選んで生成手順上の関係として表示する。
+phase 2 の `outer_mod` は split 0 / split 7 にそれぞれ 6 個、合計 12 個の raw 生成座標を持つ。`symmetry_phase2_outer_mod_groups()` は、phase 2 の開始形状に含まれる pair/triple の生成タイミングを可視化する診断用 helper である。この pair/triple は同一 toric cell を意味しない。raw 座標は `source` に保持し、canvas 上の座標は `vector` に wrap して保持する。
 
 `symmetry_unity_reference_groups()` は、Unity 版の `ReferencePositions` 相当で canvas 内に戻される source を debug 表示用に bucket 化する helper である。これは外周を越えた描画 source がどの reference へ戻されるかを調べるための情報で、`symmetry_phase2_outer_mod_groups()` の pair/triple と同じ意味の group ではない。
 
@@ -83,31 +84,23 @@ phase 2 の `outer_mod` は split 0 / split 7 にそれぞれ 6 個、合計 12 
 
 `(map_unit_radius - 1) % 3 == 2` の phase 2 相当でも、Unity 版と同じく `DrawAreaCenter()` の後に `DrawAreaFromCenter()` を実行し、その結果の draw node を border / inner の生成へ渡す。`map_unit_radius % 3 == 0` だけ外周境界補正へ置き換える分岐は持たない。
 
+`DrawAreaFromCenter()` の波数は `floor(map_unit_radius / 3)` として扱う。これにより radius `1` / `2` でも同じ描画フローを使い、終了しない `while pen != origin` 型の分岐を持たない。
+
+Unity source 順序だけでは phase 2 の radius `3` / `6` / `9` で未訪問 canvas cell が残るため、Godot 側では最後に canvas completion pass を実行する。completion は未訪問 cell だけを `wall_probability` で描画し、既に source 順序で訪問した cell は再生成しない。
+
 ### 2026-05-21: radius 3倍数の調査記録
 
 `seed=888`、`wall_probability=1.0`、`protected_floor=[HexVector.zero()]` で radius `3` / `6` / `9` を headless 確認した。これらはすべて `(radius - 1) % 3 == 2` の phase 2 で、`symmetry_phase2_outer_mod_groups()` は 5 groups を返す。
 
-`ensure_connected=false` の raw 生成では square と torus は同じ wall count になる。`ensure_connected=true` では torus の方が cyclic 経路を使えるため、non-toric square / hex と floor corridor の削られ方が変わる。
-
-| radius | shape | raw walls/floors | connected walls/floors |
-|---:|---|---:|---:|
-| 3 | square | 23 / 26 | 18 / 31 |
-| 3 | torus | 23 / 26 | 22 / 27 |
-| 3 | hex | 15 / 22 | 12 / 25 |
-| 6 | square | 75 / 94 | 69 / 100 |
-| 6 | torus | 75 / 94 | 73 / 96 |
-| 6 | hex | 52 / 75 | 48 / 79 |
-| 9 | square | 174 / 187 | 149 / 212 |
-| 9 | torus | 174 / 187 | 156 / 205 |
-| 9 | hex | 117 / 154 | 106 / 165 |
+`ensure_connected=false` の raw 生成では square と torus は同じ wall set になる。`ensure_connected=true` では torus の方が cyclic 経路を使えるため、non-toric square / hex と floor corridor の削られ方が変わる。
 
 原因候補は次の通り。
 
 - `wall_probability=1.0` でも対称生成は distribution 参照を使うため、raw の時点で floor seed が多数残る。
 - `Restore Connectivity` は既存 floor component を接続するために壁を削る。max wall 条件ではこの削除結果が長い通路として目立つ。
 - `HexVector.zero()` は 9 split の幾何中心ではなく、protected floor の起点として通路の見た目に強く影響する。
-- Hexagon shape は square 生成後に split 0 / 7 を除くため、phase2 の outer_mod / outer_wave が形状外へ落ち、border / inner / 未タグ領域の見え方が square / torus と異なる。
-- `symmetry_generation_tags()` は生成理解用の tag helper で、現状は全 cell を網羅しない。調査出力では radius 3 / 6 / 9 に未タグ cell が残るため、修正判断には生成時 trace の追加が必要。
+- Hexagon shape は square 生成後に split 0 / 7 を除くため、phase2 の outer_mod / outer_wave が形状外へ落ち、square / torus と分布が変わる。
+- `symmetry_generation_tags()` は全 cell 網羅を仕様とする。phase2 で残っていた未タグ cell は completion pass の対象として記録する。
 
 ### 2. ランダム壁を配置する
 

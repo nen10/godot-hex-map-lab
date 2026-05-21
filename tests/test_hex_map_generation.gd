@@ -48,7 +48,9 @@ func _run() -> void:
 	_test_symmetric_toric_walls_are_seeded_and_mapped_to_split_canvas()
 	_test_symmetric_toric_generation_handles_radius_multiple_of_three()
 	_test_phase2_edge_area_runs_from_center_for_radius_multiple_of_three()
-	_test_minimum_radius_symmetric_generation_uses_direct_wall_probability()
+	_test_symmetric_generation_matches_unity_source_sequence()
+	_test_symmetric_square_torus_and_hex_shape_outputs_share_source_walls()
+	_test_minimum_radius_symmetric_generation_uses_unified_flow()
 	_test_restore_terminal_connectivity_connects_only_requested_terminals()
 	_test_generate_symmetric_toric_square_can_restore_terminal_connectivity()
 	_test_generate_hexagon_can_restore_connectivity()
@@ -154,16 +156,34 @@ func _assert_progress_events_monotonic(events: Array, message: String) -> void:
 		previous = progress
 
 
-func _symmetric_draw_state(radius: int, seed: int) -> Dictionary:
+func _symmetric_draw_state(radius: int, seed: int, protected_floor: Array = []) -> Dictionary:
 	var rng = RandomNumberGenerator.new()
 	rng.seed = seed
+	var size = radius * 2 + 1
 	return {
 		"rule": HexToricMapSplitRule.new(radius),
 		"rng": rng,
 		"distribution_id": 20,
-		"protected": {},
+		"protected": HexMapData.make_set(HexMapGenerator._wrapped_points(protected_floor, size)),
 		"walls": {},
+		"visited": {},
 	}
+
+
+func _manual_draw_symmetric_edge_area_in_state(
+	state: Dictionary,
+	flat_left: bool,
+	origin,
+	wall_probability: float
+) -> Dictionary:
+	var result = HexMapGenerator._draw_symmetric_edge_area(
+		state,
+		flat_left,
+		origin,
+		wall_probability
+	)
+	result["wall_keys"] = _keys(state["walls"].values())
+	return result
 
 
 func _manual_draw_symmetric_edge_area(
@@ -174,21 +194,56 @@ func _manual_draw_symmetric_edge_area(
 	wall_probability: float
 ) -> Dictionary:
 	var state = _symmetric_draw_state(radius, seed)
-	var centered = HexMapGenerator._draw_symmetric_area_center(
+	return _manual_draw_symmetric_edge_area_in_state(
 		state,
 		flat_left,
 		origin,
 		wall_probability
 	)
-	var result = HexMapGenerator._draw_symmetric_area_from_center(
+
+
+func _manual_draw_threads_symmetric_toric_walls(
+	radius: int,
+	wall_probability: float,
+	seed: int,
+	protected_floor: Array = []
+) -> Array:
+	var state = _symmetric_draw_state(radius, seed, protected_floor)
+	var rule = state["rule"]
+	var left = _manual_draw_symmetric_edge_area_in_state(
 		state,
-		flat_left,
-		origin,
-		centered["draw_node"].duplicate(),
-		centered["draw_counts"].duplicate(),
+		true,
+		rule.split_canvas_origins[0],
 		wall_probability
 	)
-	result["wall_keys"] = _keys(state["walls"].values())
+	var right = _manual_draw_symmetric_edge_area_in_state(
+		state,
+		false,
+		rule.split_canvas_origins[7],
+		wall_probability
+	)
+	var draw_node: Array = []
+	draw_node.append_array(left["draw_node"])
+	draw_node.append_array(right["draw_node"])
+	var border = HexMapGenerator._draw_symmetric_border(
+		state,
+		int(left["edge_count"]) + int(right["edge_count"]),
+		draw_node,
+		wall_probability
+	)
+	HexMapGenerator._draw_symmetric_inner_area(
+		state,
+		int(border["edge_count"]),
+		border["draw_node"],
+		wall_probability
+	)
+
+	var data = HexMapData.square(radius * 2 + 1, true)
+	var wall_set: Dictionary = state["walls"]
+	var result: Array = []
+	for cell in data.cells:
+		if wall_set.has(cell.key()):
+			result.append(cell)
 	return result
 
 
@@ -643,7 +698,96 @@ func _test_phase2_edge_area_runs_from_center_for_radius_multiple_of_three() -> v
 			)
 
 
-func _test_minimum_radius_symmetric_generation_uses_direct_wall_probability() -> void:
+func _test_symmetric_generation_matches_unity_source_sequence() -> void:
+	var protected = [HexVector.zero()]
+	for scenario in [
+		{"radius": 1, "seed": 1401, "wall_probability": 0.45},
+		{"radius": 2, "seed": 1402, "wall_probability": 0.45},
+		{"radius": 3, "seed": 888, "wall_probability": 1.0},
+		{"radius": 4, "seed": 1404, "wall_probability": 0.45},
+		{"radius": 5, "seed": 1405, "wall_probability": 0.45},
+		{"radius": 6, "seed": 888, "wall_probability": 1.0},
+		{"radius": 9, "seed": 888, "wall_probability": 1.0},
+	]:
+		var radius = int(scenario["radius"])
+		var seed = int(scenario["seed"])
+		var wall_probability = float(scenario["wall_probability"])
+		var expected = _manual_draw_threads_symmetric_toric_walls(
+			radius,
+			wall_probability,
+			seed,
+			protected
+		)
+		var actual = HexMapGenerator.generate_symmetric_toric_walls(
+			radius,
+			wall_probability,
+			seed,
+			20,
+			protected
+		)
+		_assert_keys_eq(
+			actual,
+			expected,
+			"radius %d symmetric generation follows Unity DrawThreadsOnToricMap source order" % radius
+		)
+
+
+func _test_symmetric_square_torus_and_hex_shape_outputs_share_source_walls() -> void:
+	var protected = [HexVector.zero()]
+	for radius in [1, 2, 3, 6, 9]:
+		var wall_probability := 1.0
+		var seed := 888
+		var size = radius * 2 + 1
+		var square = HexMapGenerator.generate_symmetric_square(
+			radius,
+			wall_probability,
+			seed,
+			false,
+			protected,
+			20,
+			[],
+			false
+		)
+		var torus = HexMapGenerator.generate_symmetric_square(
+			radius,
+			wall_probability,
+			seed,
+			false,
+			protected,
+			20,
+			[],
+			true
+		)
+		_assert_eq(square.cyclic_size, 0, "radius %d symmetric square is non-toric" % radius)
+		_assert_eq(torus.cyclic_size, size, "radius %d symmetric torus stores cyclic size" % radius)
+		_assert_keys_eq(square.cells, torus.cells, "radius %d symmetric square and torus share cells" % radius)
+		_assert_keys_eq(square.walls, torus.walls, "radius %d raw symmetric square and torus share source walls" % radius)
+
+		var rule = HexToricMapSplitRule.new(radius)
+		var edge_keys := {}
+		for area_index in [0, 7]:
+			for point in rule.split_canvas[area_index]:
+				edge_keys[point.key()] = true
+		var expected_hex_cells: Array = []
+		for cell in square.cells:
+			if not edge_keys.has(cell.key()):
+				expected_hex_cells.append(cell)
+		var expected_hex_walls: Array = []
+		for wall in square.walls:
+			if not edge_keys.has(wall.key()):
+				expected_hex_walls.append(wall)
+		var hexagon = HexMapGenerator.generate_symmetric_hexagon(
+			radius,
+			wall_probability,
+			seed,
+			false,
+			protected
+		)
+		_assert_keys_eq(hexagon.cells, expected_hex_cells, "radius %d symmetric hexagon filters split 0 and 7 cells" % radius)
+		_assert_keys_eq(hexagon.walls, expected_hex_walls, "radius %d symmetric hexagon filters split 0 and 7 walls" % radius)
+
+
+func _test_minimum_radius_symmetric_generation_uses_unified_flow() -> void:
 	var protected = [HexVector.zero()]
 	for radius in [1, 2]:
 		var custom_distribution = ZeroDistribution.new()
@@ -658,9 +802,20 @@ func _test_minimum_radius_symmetric_generation_uses_direct_wall_probability() ->
 			protected,
 			custom_distribution
 		)
+		var custom_distribution_again = ZeroDistribution.new()
+		var walls_again = HexMapGenerator.generate_symmetric_toric_walls(
+			radius,
+			1.0,
+			909,
+			20,
+			protected,
+			custom_distribution_again
+		)
 
-		_assert_eq(custom_distribution.calls, 0, "radius %d symmetric generation does not require distribution references" % radius)
-		_assert_eq(walls.size(), square_cell_count - 1, "radius %d direct generation walls every unprotected square cell" % radius)
+		_assert_true(custom_distribution.calls > 0, "radius %d symmetric generation uses the same distribution flow as larger radii" % radius)
+		_assert_keys_eq(walls, walls_again, "radius %d minimum symmetric generation remains seeded" % radius)
+		_assert_true(walls.size() > 0, "radius %d unified symmetric generation creates walls" % radius)
+		_assert_true(walls.size() <= square_cell_count - 1, "radius %d unified symmetric generation does not exceed unprotected cells" % radius)
 		_assert_false(HexMapData.has_key(walls, HexVector.zero().key()), "radius %d protected cell remains floor" % radius)
 
 		var hexagon = HexMapGenerator.generate_symmetric_hexagon(
@@ -674,7 +829,7 @@ func _test_minimum_radius_symmetric_generation_uses_direct_wall_probability() ->
 			custom_distribution
 		)
 		_assert_eq(hexagon.cells.size(), hex_cell_count, "radius %d symmetric hexagon keeps the expected hex cell count" % radius)
-		_assert_eq(hexagon.walls.size(), hex_cell_count - 1, "radius %d symmetric hexagon walls every unprotected hex cell" % radius)
+		_assert_true(hexagon.walls.size() <= hex_cell_count - 1, "radius %d symmetric hexagon keeps walls inside unprotected hex cells" % radius)
 		_assert_true(HexMapGenerator.is_floor_connected(hexagon), "radius %d symmetric hexagon completes connectivity check" % radius)
 
 		var toric = HexMapGenerator.generate_symmetric_square(
@@ -690,7 +845,7 @@ func _test_minimum_radius_symmetric_generation_uses_direct_wall_probability() ->
 		)
 		_assert_eq(toric.cells.size(), square_cell_count, "radius %d symmetric toric square keeps the expected square cell count" % radius)
 		_assert_eq(toric.cyclic_size, size, "radius %d symmetric toric square stores cyclic size" % radius)
-		_assert_eq(toric.walls.size(), square_cell_count - 1, "radius %d symmetric toric square walls every unprotected cell" % radius)
+		_assert_true(toric.walls.size() <= square_cell_count - 1, "radius %d symmetric toric square keeps walls inside unprotected cells" % radius)
 		_assert_true(HexMapGenerator.is_floor_connected(toric), "radius %d symmetric toric square completes connectivity check" % radius)
 
 

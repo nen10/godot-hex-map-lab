@@ -41,6 +41,7 @@ const SYMMETRY_BORDER_COLOR := Color(0.96, 0.86, 0.24, 0.52)
 const SYMMETRY_BORDER_MOVED_COLOR := Color(0.18, 0.72, 0.76, 0.54)
 const SYMMETRY_INNER_ARC_COLOR := Color(0.20, 0.46, 0.88, 0.42)
 const SYMMETRY_CENTER_COLOR := Color(0.98, 0.96, 0.92, 0.78)
+const SYMMETRY_COMPLETION_COLOR := Color(0.50, 0.72, 0.98, 0.44)
 const SPLIT_COLORS := [
 	Color(0.92, 0.33, 0.28, 0.42),
 	Color(0.96, 0.58, 0.16, 0.42),
@@ -857,6 +858,8 @@ func _symmetry_color_for_tag(tag: Dictionary) -> Color:
 			return SYMMETRY_INNER_ARC_COLOR
 		HexToricMapSplitRule.SYMMETRY_KIND_CENTER:
 			return SYMMETRY_CENTER_COLOR
+		HexToricMapSplitRule.SYMMETRY_KIND_COMPLETION:
+			return SYMMETRY_COMPLETION_COLOR
 		_:
 			return Color(1.0, 1.0, 1.0, 0.0)
 

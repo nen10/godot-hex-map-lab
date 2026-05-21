@@ -220,7 +220,7 @@ func _run() -> void:
 				max_distance = maxi(max_distance, group[left].subtract(group[right]).l1_norm())
 		_assert_true(max_distance <= 4, "debug phase2 outer_mod tiling groups stay local")
 	var reference_tiling_groups = scene.get_unity_reference_tiling_groups()
-	_assert_eq(reference_tiling_groups.size(), 3, "debug phase2 exposes compact unity reference groups")
+	_assert_eq(reference_tiling_groups.size(), 1, "debug phase2 exposes compact unity reference groups")
 	for group in reference_tiling_groups:
 		var max_distance = 0
 		for left in range(group.size()):
@@ -245,6 +245,7 @@ func _run() -> void:
 		if tag["kind"] == HexToricMapSplitRule.SYMMETRY_KIND_CENTER:
 			has_symmetry_center = true
 	_assert_true(symmetry_tags.size() > 0, "debug torus symmetry overlay exposes region tags")
+	_assert_eq(symmetry_tags.size(), scene.get_toric_size() * scene.get_toric_size(), "debug torus symmetry overlay covers canvas")
 	_assert_true(has_symmetry_center, "debug torus symmetry overlay exposes center")
 
 	scene.configure_for_test(
@@ -267,6 +268,11 @@ func _run() -> void:
 	_assert_true(
 		symmetric_symmetry_tags.size() > 0,
 		"debug sym-gen symmetry overlay exposes region tags"
+	)
+	_assert_eq(
+		symmetric_symmetry_tags.size(),
+		scene.get_toric_size() * scene.get_toric_size(),
+		"debug sym-gen symmetry overlay covers canvas"
 	)
 	_assert_true(
 		has_symmetric_symmetry_center,

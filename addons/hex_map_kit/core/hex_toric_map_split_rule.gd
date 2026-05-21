@@ -12,6 +12,7 @@ const SYMMETRY_KIND_BORDER_INITIAL := "border_initial"
 const SYMMETRY_KIND_BORDER_EDGE := "border_edge"
 const SYMMETRY_KIND_INNER_ARC := "inner_arc"
 const SYMMETRY_KIND_CENTER := "center"
+const SYMMETRY_KIND_COMPLETION := "completion"
 const SYMMETRY_GROUP_PAIR := "pair"
 const SYMMETRY_GROUP_TRIPLE := "triple"
 
@@ -104,6 +105,7 @@ func _symmetry_generation_entries() -> Array:
 	var draw_node = _symmetry_draw_outer_area(tracker)
 	draw_node = _symmetry_draw_border(draw_node, tracker)
 	_symmetry_draw_inner_area(draw_node, tracker)
+	_symmetry_complete_canvas(tracker)
 	return tracker["entries"]
 
 
@@ -222,6 +224,8 @@ func _symmetry_draw_edge_area(
 	split_index: int
 ) -> Array:
 	var draw_node = _symmetry_draw_area_center(flat_left, origin, tracker, split_index)
+	if (map_unit_radius - 1) % 3 == 2:
+		return _symmetry_draw_phase2_outer_boundary(flat_left, origin, draw_node, tracker, split_index)
 	return _symmetry_draw_area_from_center(flat_left, origin, draw_node, tracker, split_index)
 
 
@@ -286,6 +290,46 @@ func _symmetry_phase2_outer_mod_points(flat_left: bool, origin) -> Array:
 	return result
 
 
+func _symmetry_draw_phase2_outer_boundary(
+	flat_left: bool,
+	origin,
+	draw_node: Array,
+	tracker: Dictionary,
+	split_index: int
+) -> Array:
+	var result = _symmetry_outer_boundary_nodes(flat_left, origin)
+	for side in range(result.size()):
+		_track_symmetry_point(
+			tracker,
+			result[side],
+			SYMMETRY_KIND_OUTER_PHASE2_BOUNDARY,
+			2,
+			split_index,
+			side,
+			1
+		)
+		if side < draw_node.size() and not draw_node[side].is_equal(result[side]):
+			_track_symmetry_point(
+				tracker,
+				draw_node[side],
+				SYMMETRY_KIND_OUTER_DUMMY,
+				2,
+				split_index,
+				side,
+				1
+			)
+	return result
+
+
+func _symmetry_outer_boundary_nodes(flat_left: bool, origin) -> Array:
+	var forward = _r_axis() if flat_left else _q_axis()
+	return [
+		origin,
+		origin.add(forward.scaled(map_unit_radius - 1)),
+		origin.add(_s_axis().negated().scaled(map_unit_radius - 1)),
+	]
+
+
 func _symmetry_draw_area_from_center(
 	flat_left: bool,
 	origin,
@@ -297,7 +341,6 @@ func _symmetry_draw_area_from_center(
 	var wave_directions: Array = []
 	var ref_directions: Array = []
 	var arc_size = (map_unit_radius - 1) % 3
-	var pen = HexVectorScript.zero()
 	var wave_count = 0
 
 	for side in range(3):
@@ -309,12 +352,12 @@ func _symmetry_draw_area_from_center(
 			wave_directions[side].negated().subtract(step_directions[side]),
 		])
 
-	while not pen.is_equal(origin):
+	for _wave_index in range(int(map_unit_radius / 3)):
 		wave_count += 1
 		arc_size += 3
 		for side in range(3):
 			draw_node[side] = draw_node[side].add(wave_directions[side])
-			pen = draw_node[side]
+			var pen = draw_node[side]
 			_track_symmetry_point(
 				tracker,
 				pen,
@@ -335,7 +378,7 @@ func _symmetry_draw_area_from_center(
 			)
 
 		for side in range(3):
-			pen = draw_node[side]
+			var pen = draw_node[side]
 			for index in range(1, arc_size - 1):
 				pen = pen.add(step_directions[side])
 				_track_symmetry_point(
@@ -349,7 +392,7 @@ func _symmetry_draw_area_from_center(
 				)
 
 		for side in range(3):
-			pen = draw_node[side].add(step_directions[side].scaled(arc_size - 1))
+			var pen = draw_node[side].add(step_directions[side].scaled(arc_size - 1))
 			_track_symmetry_point(
 				tracker,
 				pen,
@@ -435,6 +478,27 @@ func _symmetry_draw_inner_area(draw_node: Array, tracker: Dictionary) -> void:
 	)
 
 
+func _symmetry_complete_canvas(tracker: Dictionary) -> void:
+	var seen := {}
+	for entry in tracker["entries"]:
+		seen[entry["vector"].key()] = true
+
+	var phase = (map_unit_radius - 1) % 3
+	for cell in canvas_cells():
+		if seen.has(cell.key()):
+			continue
+		_track_symmetry_point(
+			tracker,
+			cell,
+			SYMMETRY_KIND_COMPLETION,
+			phase,
+			split_index_for(cell),
+			-1,
+			0
+		)
+		seen[cell.key()] = true
+
+
 func _track_symmetry_point(
 	tracker: Dictionary,
 	source,
@@ -443,9 +507,9 @@ func _track_symmetry_point(
 	source_split: int,
 	side: int,
 	wave: int,
-	use_reference: bool = false
+	_use_reference: bool = false
 ) -> void:
-	var vector = _reference_position(source) if use_reference else source
+	var vector = _reference_position(source)
 	assert(split_index_for(vector) >= 0)
 	tracker["entries"].append({
 		"source": source,
@@ -502,6 +566,8 @@ func _symmetry_kind_priority(kind: String) -> int:
 			return 60
 		SYMMETRY_KIND_INNER_ARC:
 			return 50
+		SYMMETRY_KIND_COMPLETION:
+			return 45
 		SYMMETRY_KIND_BORDER_INITIAL, SYMMETRY_KIND_BORDER_EDGE:
 			return 40
 		SYMMETRY_KIND_OUTER_MOD:

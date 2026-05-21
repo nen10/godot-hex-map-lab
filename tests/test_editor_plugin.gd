@@ -184,7 +184,8 @@ func _test_generation_dock_symmetric_hexagon_minimum_radii() -> void:
 		var data = dock._current_data
 		var hex_cell_count = 1 + 3 * radius * (radius + 1)
 		_assert_eq(data.cells.size(), hex_cell_count, "generation dock creates radius %d symmetric hexagon cells" % radius)
-		_assert_eq(data.walls.size(), hex_cell_count - 1, "generation dock radius %d symmetric hexagon uses wall probability" % radius)
+		_assert_true(data.walls.size() > 0, "generation dock radius %d symmetric hexagon creates walls" % radius)
+		_assert_true(data.walls.size() <= hex_cell_count - 1, "generation dock radius %d symmetric hexagon keeps protected floor" % radius)
 		_assert_true(HexMapGenerator.is_floor_connected(data), "generation dock radius %d symmetric hexagon completes connectivity" % radius)
 		_assert_true(dock._stats_label.text.contains("Hex-inward Markov mesh model"), "generation dock stats include generation mode")
 

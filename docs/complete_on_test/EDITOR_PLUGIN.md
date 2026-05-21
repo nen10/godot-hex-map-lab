@@ -75,7 +75,7 @@
 
 - [x] Simple Rectangle / Hexagon
 - [x] Symmetric Hexagon / Square / Torus
-- [x] `Generation Radius <= 2` は distribution 参照ではなく `Wall Prob` 直接生成として完了する
+- [x] `Generation Radius <= 2` も larger radius と同じ対称生成フローで完了する
 - [x] Seed 固定生成
 - [x] Restore Connectivity
 - [x] Stats 表示
