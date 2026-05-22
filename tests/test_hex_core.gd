@@ -32,6 +32,8 @@ func _run() -> void:
 	_test_toric_split_rule_symmetry_tags_cover_canvas()
 	_test_toric_split_rule_symmetry_regions_follow_unity_flow()
 	_test_toric_split_rule_unity_reference_groups()
+	_test_inner_area_distance_from_split8_center()
+	_test_inner_area_cell_count_per_step()
 
 	if _failures.is_empty():
 		print("test_hex_core.gd: all tests passed")
@@ -520,3 +522,91 @@ func _test_toric_split_rule_unity_reference_groups() -> void:
 		]:
 			var expected = expected_counts[radius].get(kind, 0)
 			_assert_eq(counts.get(kind, 0), expected, "unity reference group count radius %d kind %s" % [radius, kind])
+
+
+func _test_inner_area_distance_from_split8_center() -> void:
+	for radius in range(1, 10):
+		var rule = HexToricMapSplitRule.new(radius)
+		var entries = rule.symmetry_generation_entries()
+
+		var center_vec = null
+		for entry in entries:
+			if entry["kind"] == HexToricMapSplitRule.SYMMETRY_KIND_CENTER:
+				center_vec = entry["vector"]
+				break
+		_assert_true(center_vec != null, "radius %d has center entry" % radius)
+
+		var wave_cells := {}
+		for entry in entries:
+			if entry["kind"] != HexToricMapSplitRule.SYMMETRY_KIND_INNER_ARC:
+				continue
+			var w = entry["wave"]
+			if w not in wave_cells:
+				wave_cells[w] = {}
+			wave_cells[w][entry["vector"].key()] = entry["vector"]
+
+		var wave_list := wave_cells.keys()
+		wave_list.sort()
+
+		var prev_ring_dist := -1
+		for w in wave_list:
+			var cells = wave_cells[w]
+			var dists := {}
+			for key in cells:
+				var cell = cells[key]
+				var diff = cell.subtract(center_vec)
+				var dist = diff.l1_norm()
+				if dist not in dists:
+					dists[dist] = []
+				dists[dist].append(key)
+
+			if radius <= 3:
+				for c in cells.values():
+					var cd = c.subtract(center_vec).l1_norm()
+					_assert_eq(cd, radius - w, "radius %d wave %d cell %s distance %d == radius-wave %d" % [radius, w, c.key(), cd, radius - w])
+
+			_assert_true(
+				dists.size() == 1,
+				"radius %d wave %d: all inner_arc cells share same L1 center distance, got %d" % [radius, w, dists.size()]
+			)
+
+			var ring_dist: int = dists.keys()[0]
+			if prev_ring_dist != -1:
+				_assert_true(
+					ring_dist < prev_ring_dist,
+					"radius %d wave %d dist %d < previous wave dist %d" % [radius, w, ring_dist, prev_ring_dist]
+				)
+			prev_ring_dist = ring_dist
+
+		var expected_wave_count = max(radius - 1, 0)
+		_assert_eq(wave_list.size(), expected_wave_count, "radius %d inner_arc wave count" % radius)
+
+
+func _test_inner_area_cell_count_per_step() -> void:
+	for radius in range(1, 10):
+		var rule = HexToricMapSplitRule.new(radius)
+		var entries = rule.symmetry_generation_entries()
+
+		var wave_side_counts := {}
+		var total_inner := 0
+		for entry in entries:
+			if entry["kind"] != HexToricMapSplitRule.SYMMETRY_KIND_INNER_ARC:
+				continue
+			total_inner += 1
+			var w = entry["wave"]
+			if w not in wave_side_counts:
+				wave_side_counts[w] = {}
+			var s = entry["side"]
+			wave_side_counts[w][s] = wave_side_counts[w].get(s, 0) + 1
+
+		for w in wave_side_counts:
+			for s in wave_side_counts[w]:
+				var expected = rule.map_unit_radius - w
+				_assert_eq(
+					wave_side_counts[w][s],
+					expected,
+					"radius %d wave %d side %d: %d cells == radius-wave %d" % [radius, w, s, wave_side_counts[w][s], expected]
+				)
+
+		var expected_total = 3 * radius * (radius - 1)
+		_assert_eq(total_inner, expected_total, "radius %d inner_arc total cells" % radius)
