@@ -6,6 +6,8 @@ const HexMapData = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
 const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
 const HexMapDebug = preload("res://addons/hex_map_kit/core/hex_map_debug.gd")
 const HexToricMapSplitRule = preload("res://addons/hex_map_kit/core/hex_toric_map_split_rule.gd")
+const HexGrid = preload("res://addons/hex_map_kit/core/hex_grid.gd")
+const HexDisjointSet = preload("res://addons/hex_map_kit/core/hex_disjoint_set.gd")
 
 class ZeroDistribution:
 	var calls := 0
@@ -56,6 +58,8 @@ func _run() -> void:
 	_test_generate_hexagon_can_restore_connectivity()
 	_test_debug_ascii_renders_wall_layout()
 	_test_debug_summary_reports_counts()
+	_test_tiebreak_bfs_chooses_largest_component()
+	_test_restore_connectivity_uses_tiebreak()
 
 	if _failures.is_empty():
 		print("test_hex_map_generation.gd: all tests passed")
@@ -932,3 +936,69 @@ func _test_debug_summary_reports_counts() -> void:
 		"cells=4 walls=1 floors=3 cyclic_size=2",
 		"debug summary reports map counts"
 	)
+
+
+func _test_tiebreak_bfs_chooses_largest_component() -> void:
+	var start = HexVector.zero()
+	var small_goal = HexVector.q_axis().scaled(2)
+	var large_goal = HexVector.r_axis().scaled(2)
+
+	var cells: Array = []
+	for q in range(-5, 6):
+		for r in range(-5, 6):
+			var cell = HexVector.apply_basis(q, 0, r)
+			if cell.l1_norm() > 5:
+				continue
+			cells.append(cell)
+
+	var dsu = HexDisjointSet.new()
+	dsu.add_component([start])
+	dsu.add_component([small_goal])
+	dsu.add_component([large_goal, HexVector.r_axis().scaled(3)])
+
+	var small_size = dsu.comp_size_of(small_goal.key())
+	var large_size = dsu.comp_size_of(large_goal.key())
+	_assert_eq(small_size, 1, "small component has size 1")
+	_assert_eq(large_size, 2, "large component has size 2")
+
+	var path = HexGrid.shortest_path_with_tiebreak(
+		[start],
+		cells,
+		0,
+		dsu,
+		dsu.find(start.key())
+	)
+
+	_assert_true(not path.is_empty(), "tiebreak BFS returns non-empty path")
+	var reached = path[path.size() - 1]
+	_assert_true(
+		reached.is_equal(large_goal),
+		"tiebreak BFS connects to larger component"
+	)
+
+
+func _test_restore_connectivity_uses_tiebreak() -> void:
+	# Layout:  center [0] with two wall neighbors [q] and [r]
+	# Beyond q: component [2q, 3q] (size 2)
+	# Beyond r: component [2r, 3r, 4r] (size 3)
+	# Both goals at BFS distance 2 from center.
+	# Tiebreak picks r-path (larger comp, size 3) before q-path (size 2).
+	var cells: Array = [HexVector.zero()]
+	cells.append(HexVector.q_axis())
+	cells.append(HexVector.q_axis().scaled(2))
+	cells.append(HexVector.q_axis().scaled(3))
+	cells.append(HexVector.r_axis())
+	cells.append(HexVector.r_axis().scaled(2))
+	cells.append(HexVector.r_axis().scaled(3))
+	cells.append(HexVector.r_axis().scaled(4))
+
+	var q = HexVector.q_axis()
+	var r = HexVector.r_axis()
+	var data = HexMapData.from_cells(cells, [q, r])
+	_assert_eq(data.floor_cells().size(), 6, "six floor cells before restore")
+
+	var removed = HexMapGenerator.restore_connectivity(data)
+
+	_assert_eq(removed.size(), 2, "both blocking walls removed")
+	_assert_eq(data.walls.size(), 0, "no walls remain")
+	_assert_true(HexMapGenerator.is_floor_connected(data), "result is connected")

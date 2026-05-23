@@ -7,6 +7,7 @@ const HexRandomizerScript = preload("res://addons/hex_map_kit/core/hex_randomize
 const HexToricCoordinateScript = preload("res://addons/hex_map_kit/core/hex_toric_coordinate.gd")
 const HexToricMapSplitRuleScript = preload("res://addons/hex_map_kit/core/hex_toric_map_split_rule.gd")
 const HexVectorScript = preload("res://addons/hex_map_kit/core/hex_vector.gd")
+const HexDisjointSetScript = preload("res://addons/hex_map_kit/core/hex_disjoint_set.gd")
 
 
 static func generate_rectangle(
@@ -272,7 +273,8 @@ static func generate_symmetric_toric_walls_interruptible(
 	var rule = HexToricMapSplitRuleScript.new(radius)
 	var rng = RandomNumberGenerator.new()
 	rng.seed = seed
-	var total_steps = max(radius + 2, 1)
+	var total_cells = rule.canvas_cells().size()
+	var total_steps = max(total_cells, 1)
 	if _interrupt_update(interrupt_options, "symmetric_toric_start", 0, total_steps):
 		return _wall_generation_result([], true, 0, total_steps)
 
@@ -283,34 +285,34 @@ static func generate_symmetric_toric_walls_interruptible(
 		"visited": {},
 		"protected": HexMapDataScript.make_set(_wrapped_points(protected_floor, size)),
 		"distribution_id": distribution_id,
+		"_progress_total": total_steps,
+		"_last_reported_visited": 0,
 	}
 	if custom_distribution and custom_distribution.has_method("prob"):
 		state["custom_dist"] = custom_distribution
 	var outer = _draw_symmetric_outer_area(state, wall_probability)
-	if _interrupt_update(interrupt_options, "symmetric_toric_outer", 1, total_steps):
-		return _symmetric_wall_generation_result(state, size, true, 1, total_steps)
+	if _report_visited_progress(state, interrupt_options, "symmetric_toric_outer"):
+		return _symmetric_wall_generation_result(state, size, true, int(interrupt_options.get("steps", 0)), total_steps)
 	var border = _draw_symmetric_border(
 		state,
 		outer["edge_count"],
 		outer["draw_node"],
 		wall_probability
 	)
-	if _interrupt_update(interrupt_options, "symmetric_toric_border", 2, total_steps):
-		return _symmetric_wall_generation_result(state, size, true, 2, total_steps)
+	if _report_visited_progress(state, interrupt_options, "symmetric_toric_border"):
+		return _symmetric_wall_generation_result(state, size, true, int(interrupt_options.get("steps", 0)), total_steps)
 	if _draw_symmetric_inner_area(
 		state,
 		border["edge_count"],
 		border["draw_node"],
 		wall_probability,
-		interrupt_options,
-		2,
-		total_steps
+		interrupt_options
 	):
 		return _symmetric_wall_generation_result(
 			state,
 			size,
 			true,
-			int(interrupt_options.get("steps", 2)),
+			int(interrupt_options.get("steps", 0)),
 			total_steps
 		)
 
@@ -401,6 +403,20 @@ static func _interrupt_update(
 	return false
 
 
+static func _report_visited_progress(state: Dictionary, interrupt_options: Dictionary, phase: String = "symmetric_toric_inner") -> bool:
+	if interrupt_options.is_empty():
+		return false
+	var visited_count = state["visited"].size()
+	var total_steps = state["_progress_total"]
+	var debounce = max(1, int(float(total_steps) / 50.0))
+	var last_reported = state.get("_last_reported_visited", 0)
+	if visited_count - last_reported < debounce and visited_count < total_steps:
+		return false
+	state["_last_reported_visited"] = visited_count
+	var steps = min(visited_count, total_steps)
+	return _interrupt_update(interrupt_options, phase, steps, total_steps)
+
+
 static func is_floor_connected(data) -> bool:
 	var floors = data.floor_cells()
 	if floors.size() <= 1:
@@ -488,43 +504,75 @@ static func restore_connectivity(data) -> Array:
 		removed_walls.append(data.cells[0])
 		data.set_walls(HexMapDataScript.points_except(data.walls, [data.cells[0]]))
 
+	var dsu = HexDisjointSetScript.new()
+	var cells_set = HexMapDataScript.make_set(data.cells)
+	var wall_set = data.wall_set()
+	var floor_cells = data.floor_cells()
+
+	var visited = {}
+	for cell in floor_cells:
+		var key = cell.key()
+		if visited.has(key):
+			continue
+		var component = HexGridScript.connected_area(cell, floor_cells, data.cyclic_size)
+		dsu.add_component(component)
+		for c in component:
+			visited[c.key()] = true
+
+	if dsu.root_count() <= 1:
+		return removed_walls
+
 	var max_iterations = data.cells.size() + data.walls.size() + 1
 	var iterations = 0
-	while iterations < max_iterations:
+	while iterations < max_iterations and dsu.root_count() > 1:
 		iterations += 1
-		var components = connected_components(data)
-		if components.size() <= 1:
-			return removed_walls
 
-		var targets: Array = []
-		for index in range(1, components.size()):
-			for point in components[index]:
-				targets.append(point)
+		var root0 = dsu.find(floor_cells[0].key())
 
-		var path = HexGridScript.shortest_path_to_any(
-			components[0],
-			targets,
+		var starts: Array = []
+		for cell in data.cells:
+			var key = cell.key()
+			if wall_set.has(key):
+				continue
+			if not dsu.has(key):
+				continue
+			if dsu.find(key) == root0:
+				starts.append(cell)
+
+		var path = HexGridScript.shortest_path_with_tiebreak(
+			starts,
 			data.cells,
-			data.cyclic_size
+			data.cyclic_size,
+			dsu,
+			root0
 		)
 		if path.is_empty():
 			return removed_walls
 
-		var wall_set = data.wall_set()
-		var remove_keys = {}
 		var changed = false
 		for point in path:
 			var key = point.key()
-			if not wall_set.has(key):
-				continue
-			removed_walls.append(wall_set[key])
-			remove_keys[key] = true
-			changed = true
+			if wall_set.has(key):
+				removed_walls.append(wall_set[key])
+				wall_set.erase(key)
+				changed = true
+			dsu.make_set(point)
+			for neighbor in HexGridScript.neighbors(point, data.cyclic_size):
+				var nkey = neighbor.key()
+				if wall_set.has(nkey):
+					continue
+				if not cells_set.has(nkey):
+					continue
+				dsu.make_set(neighbor)
+				dsu.union(point, neighbor)
 
 		if not changed:
 			return removed_walls
 
-		data.set_walls(_points_without_keys(data.walls, remove_keys))
+		var new_walls: Array = []
+		for key in wall_set:
+			new_walls.append(wall_set[key])
+		data.set_walls(new_walls)
 
 	return removed_walls
 
@@ -754,12 +802,9 @@ static func _draw_symmetric_inner_area(
 					draw_node[side].add(step_directions[side].scaled(index)),
 					reference_directions[side]
 				)
-		if _interrupt_update(
-			interrupt_options,
-			"symmetric_toric_inner",
-			min(progress_start + wave, total_steps),
-			total_steps
-		):
+			if _report_visited_progress(state, interrupt_options):
+				return true
+		if _report_visited_progress(state, interrupt_options):
 			return true
 
 	var denominator = float(int((rule.map_unit_radius + 2) / 3) * 6) + 4.0
@@ -769,8 +814,11 @@ static func _draw_symmetric_inner_area(
 		draw_node[0].add(draw_node[1]).add(draw_node[2]).divided(3),
 		1.0 - density
 	)
-	_draw_symmetric_canvas_completion(state, wall_probability)
-	return _interrupt_update(interrupt_options, "symmetric_toric_complete", total_steps, total_steps)
+	if _report_visited_progress(state, interrupt_options):
+		return true
+	if _draw_symmetric_canvas_completion(state, wall_probability, interrupt_options):
+		return true
+	return _report_visited_progress(state, interrupt_options, "symmetric_toric_complete")
 
 
 static func _draw_arc_point(state: Dictionary, pen, reference_orders: Array) -> int:
@@ -863,13 +911,16 @@ static func _over_draw_from_prob(state: Dictionary, point, draw_probability: flo
 	return 0
 
 
-static func _draw_symmetric_canvas_completion(state: Dictionary, wall_probability: float) -> void:
+static func _draw_symmetric_canvas_completion(state: Dictionary, wall_probability: float, interrupt_options: Dictionary = {}) -> bool:
 	var rule = state["rule"]
 	var visited: Dictionary = state.get("visited", {})
 	for cell in rule.canvas_cells():
 		if visited.has(cell.key()):
 			continue
 		_draw_from_prob(state, cell, wall_probability)
+		if _report_visited_progress(state, interrupt_options, "symmetric_toric_completion"):
+			return true
+	return false
 
 
 static func _erase_wall(state: Dictionary, point) -> bool:

@@ -5,6 +5,7 @@ const HexPoint = preload("res://addons/hex_map_kit/core/hex_point.gd")
 const HexToricCoordinate = preload("res://addons/hex_map_kit/core/hex_toric_coordinate.gd")
 const HexToricMapSplitRule = preload("res://addons/hex_map_kit/core/hex_toric_map_split_rule.gd")
 const HexGrid = preload("res://addons/hex_map_kit/core/hex_grid.gd")
+const HexDisjointSet = preload("res://addons/hex_map_kit/core/hex_disjoint_set.gd")
 
 var _failures: Array[String] = []
 
@@ -34,6 +35,7 @@ func _run() -> void:
 	_test_toric_split_rule_unity_reference_groups()
 	_test_inner_area_distance_from_split8_center()
 	_test_inner_area_cell_count_per_step()
+	_test_disjoint_set_union_find()
 
 	if _failures.is_empty():
 		print("test_hex_core.gd: all tests passed")
@@ -47,6 +49,11 @@ func _run() -> void:
 
 func _assert_true(value: bool, message: String) -> void:
 	if not value:
+		_failures.append(message)
+
+
+func _assert_false(value: bool, message: String) -> void:
+	if value:
 		_failures.append(message)
 
 
@@ -610,3 +617,49 @@ func _test_inner_area_cell_count_per_step() -> void:
 
 		var expected_total = 3 * radius * (radius - 1)
 		_assert_eq(total_inner, expected_total, "radius %d inner_arc total cells" % radius)
+
+
+func _test_disjoint_set_union_find() -> void:
+	var dsu = HexDisjointSet.new()
+
+	var a = HexVector.q_axis()
+	var b = HexVector.q_axis().scaled(2)
+	var c = HexVector.r_axis()
+	var d = HexVector.r_axis().scaled(2)
+
+	dsu.add_component([a, b])
+	dsu.add_component([c, d])
+
+	_assert_eq(dsu.root_count(), 2, "two initial components")
+	_assert_eq(dsu.find(a.key()), dsu.find(b.key()), "a and b share root")
+	_assert_eq(dsu.find(c.key()), dsu.find(d.key()), "c and d share root")
+	_assert_true(dsu.find(a.key()) != dsu.find(c.key()), "separate components have different roots")
+
+	_assert_eq(dsu.comp_size_of(a.key()), 2, "component ab has size 2")
+	_assert_eq(dsu.comp_size_of(c.key()), 2, "component cd has size 2")
+
+	_assert_true(dsu.union(a, c), "union of separate components succeeds")
+	_assert_eq(dsu.root_count(), 1, "one component after union")
+	_assert_eq(dsu.find(a.key()), dsu.find(c.key()), "a and c share root after union")
+	_assert_eq(dsu.comp_size_of(a.key()), 4, "unioned component has size 4")
+	_assert_false(dsu.union(a, c), "redundant union returns false")
+	_assert_eq(dsu.root_count(), 1, "root count unchanged after redundant union")
+
+	dsu.make_set(HexVector.s_axis())
+	_assert_eq(dsu.root_count(), 2, "make_set adds new component")
+	var s_root = dsu.find(HexVector.s_axis().key())
+	_assert_eq(dsu.comp_size_of(s_root), 1, "new singleton has size 1")
+
+	_assert_true(dsu.has(a.key()), "dsu has cell a")
+	_assert_false(dsu.has("nonexistent,0,0"), "dsu does not have nonexistent key")
+
+	var roots = dsu.roots()
+	_assert_eq(roots.size(), 2, "roots returns correct count")
+
+	var rep = dsu.rep_of(a.key())
+	_assert_true(rep != null, "rep_of returns non-null for existing key")
+	_assert_true(rep.is_equal(a) or rep.is_equal(b) or rep.is_equal(c) or rep.is_equal(d), "rep is one of the component cells")
+
+	var cell = dsu.cell_by_key(a.key())
+	_assert_true(cell != null, "cell_by_key returns non-null")
+	_assert_eq(cell.key(), a.key(), "cell_by_key returns correct cell")

@@ -163,6 +163,52 @@ BFS の探索空間は `cells` 全体であり、floor だけではない。こ�
 
 `HexMapGenerator.restore_terminal_connectivity(data, terminals)` は、指定 terminal を先に floor 化し、最初の terminal から未接続 terminal への最短経路上の壁だけを削る。これは terminal 間の到達性を優先する処理であり、terminal と無関係な floor 成分までは接続しない。全 floor の連結性も必要な場合は、その後に `restore_connectivity(data)` を実行する。`generate_symmetric_square(..., ensure_connected=true, terminal_floor=...)` は terminal 回復を先に行い、その後に全体回復を行う。
 
+#### 連結性回復の計算量と性能分析
+
+`restore_connectivity` は large radius で顕著に遅延する。以下に原因と性質をまとめる。
+
+**メインループ構造**（`hex_map_generator.gd:508`）:
+
+```
+while iterations < max_iterations:
+    components = connected_components(data)    # BFS: O(N)
+    if components.size() <= 1: return
+    targets = flatten(components[1:])
+    path = shortest_path_to_any(components[0], targets, data.cells, ...)  # BFS: O(N)
+    remove walls on path
+```
+
+- N = cell 総数 = (2R+1)²
+- C = 連結成分数（最大 floor セル数 ≈ N/2）
+- 全体計算量: **O(N × C)**。各反復で floor 全体 BFS + cell 全体 BFS を再実行する
+
+**遅延の主要因**:
+
+1. **成分再スキャン** — 壁を削除して成分を統合した後も、`connected_components` は floor 全体を毎回 BFS で走査し直す。統合の影響は局所的だが、全セルを再探索する。
+
+2. **単一接続ずつの反復** — 各ループで 1 成分ずつしか接続しない。k 成分あれば k-1 反復必要。壁密度が中程度（~0.5）で floor が散在するケースでは成分数が増大し、反復数が跳ねる。
+
+3. **BFS 探索空間が cells 全体** — `shortest_path_to_any` は `data.cells`（壁を含む全セル）を探索空間とする（壁を削れば通路になるため正しい）。しかし壁の多いマップでは frontier が無駄に拡大する。
+
+4. **max_iterations による安全弁** — 上限は `cells.size() + walls.size() + 1`。実際の必要反復数がこれを超えると不完全なまま復帰する（部分的な連結性回復に留まる）。
+
+**速度の傾向**:
+
+| 条件 | 速度 | 理由 |
+|------|------|------|
+| wall_probability 高 (~0.8+) | 速い | floor が少数で成分も少ない |
+| wall_probability 低 (~0.2-) | 速い | ほぼ全域が floor で 1 成分 |
+| wall_probability 中程度 (~0.4-0.6) | **遅い** | 多くの小成分に分断され反復数増大 |
+| toric map | non-toric より速い | 境界越えの短絡経路で壁削除数が減少 |
+| symmetric 生成 | simple より遅い傾向 | distribution-based 確率がパターン的な壁配置を生み、成分分断が起きやすい |
+
+**改善方針（未実装）**:
+
+1. **Union-Find** — 壁削除時に Disjoint Set Union（DSU）で成分統合を O(α(N)) に抑え、毎回の全体 BFS を回避できる。
+2. **局所 BFS** — 壁削除の影響範囲（path 周辺）だけを再評価し、無関係な領域の再スキャンを省略する。
+3. **バッチ接続** — 複数の成分間経路を同時に発見し、壁削除を一括適用する。MST（最小全域木）アプローチで全成分を最小 wall 削除で接続する。
+4. **進捗報告** — `restore_connectivity` 内に interrupt/progress callback を追加し、UI が長時間固まるのを防ぐ。
+
 ### 5. デバッグ表示
 
 `HexMapDebug.render_ascii(data)` は、`HexMapData` を deterministic な文字列として表示する。

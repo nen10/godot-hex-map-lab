@@ -155,6 +155,73 @@ static func shortest_path_to_any(
 	return []
 
 
+static func shortest_path_with_tiebreak(
+	starts: Array,
+	enterable_points: Array,
+	cyclic_size: int,
+	dsu,
+	root0_key: String
+) -> Array:
+	var enterable := _make_wrapped_set(enterable_points, cyclic_size)
+	var closed := {}
+	var parent := {}
+	var queued := {}
+	var current_level: Array = []
+
+	for start in starts:
+		var normalized = _wrap_if_needed(start, cyclic_size)
+		var skey = normalized.key()
+		if not enterable.has(skey):
+			continue
+		if queued.has(skey):
+			continue
+		current_level.append(enterable[skey])
+		queued[skey] = true
+		parent[skey] = ""
+
+	var best_goal = null
+	var best_size = -1
+
+	while not current_level.is_empty():
+		var next_level: Array = []
+		for current in current_level:
+			var current_key = current.key()
+			if closed.has(current_key):
+				continue
+			if not enterable.has(current_key):
+				continue
+			closed[current_key] = enterable[current_key]
+
+			var component_root = dsu.find(current_key)
+			if component_root != "" and component_root != root0_key:
+				var size = dsu.comp_size_of(component_root)
+				if size > best_size:
+					best_goal = current
+					best_size = size
+				continue
+
+			for neighbor in neighbors(current, cyclic_size):
+				var nkey = neighbor.key()
+				if closed.has(nkey):
+					continue
+				if queued.has(nkey):
+					continue
+				if not enterable.has(nkey):
+					continue
+				parent[nkey] = current_key
+				queued[nkey] = true
+				next_level.append(enterable[nkey])
+
+		if best_goal:
+			return _rebuild_path(best_goal.key(), parent, closed)
+
+		current_level = next_level
+
+	if best_goal:
+		return _rebuild_path(best_goal.key(), parent, closed)
+	return []
+
+
 static func _wrap_if_needed(point, cyclic_size: int):
 	if cyclic_size <= 0:
 		return point
