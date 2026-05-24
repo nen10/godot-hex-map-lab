@@ -65,6 +65,11 @@ func _run() -> void:
 	_test_expansion_respects_terminals()
 	_test_flood_restores_connectivity()
 	_test_flood_preserves_unreachable_walls()
+	_test_dense_restores_line_with_single_wall()
+	_test_dense_uses_toric_shortcut()
+	_test_dense_matches_restore_count_on_y_shape()
+	_test_dense_removes_less_than_flood_for_remote_short_bridge()
+	_test_dense_restores_symmetric_toric_square()
 
 	if _failures.is_empty():
 		print("test_hex_map_generation.gd: all tests passed")
@@ -118,6 +123,10 @@ func _line_cells(length: int) -> Array:
 	for q in range(length):
 		result.append(HexVector.q_axis().scaled(q))
 	return result
+
+
+func _rect_cell(q: int, r: int):
+	return HexVector.apply_basis(q, 0, r)
 
 
 func _complete_interrupt_options() -> Dictionary:
@@ -1088,3 +1097,108 @@ func _test_flood_preserves_unreachable_walls() -> void:
 		"removed wall is q (not the dead-end 3q)"
 	)
 	_assert_true(data.has_wall(q3_cell), "dead-end wall 3q is preserved")
+
+
+func _test_dense_restores_line_with_single_wall() -> void:
+	var cells = _line_cells(3)
+	var bridge = HexVector.q_axis()
+	var data = HexMapData.from_cells(cells, [bridge])
+
+	var removed = HexMapGenerator.restore_connectivity_dense(data)
+
+	_assert_keys_eq(removed, [bridge], "dense recovery removes the single blocking wall")
+	_assert_eq(data.walls.size(), 0, "dense recovery carves the bridge wall")
+	_assert_true(HexMapGenerator.is_floor_connected(data), "dense recovery connects a split line")
+
+
+func _test_dense_uses_toric_shortcut() -> void:
+	var data = HexMapData.square(4, true)
+	var start = HexVector.zero()
+	var goal = HexVector.q_axis().scaled(2)
+	data.walls = HexMapData.points_except(data.cells, [start, goal])
+
+	var removed = HexMapGenerator.restore_connectivity_dense(data)
+
+	_assert_eq(removed.size(), 1, "dense recovery uses the one-wall toric shortcut")
+	_assert_true(HexMapGenerator.is_floor_connected(data), "dense recovery connects through toric wrapping")
+
+
+func _test_dense_matches_restore_count_on_y_shape() -> void:
+	var cells: Array = [HexVector.zero()]
+	cells.append(HexVector.q_axis())
+	cells.append(HexVector.q_axis().scaled(2))
+	cells.append(HexVector.q_axis().scaled(3))
+	cells.append(HexVector.r_axis())
+	cells.append(HexVector.r_axis().scaled(2))
+	cells.append(HexVector.r_axis().scaled(3))
+	cells.append(HexVector.r_axis().scaled(4))
+
+	var walls = [HexVector.q_axis(), HexVector.r_axis()]
+	var dense_data = HexMapData.from_cells(cells, walls)
+	var restore_data = HexMapData.from_cells(cells, walls)
+
+	var dense_removed = HexMapGenerator.restore_connectivity_dense(dense_data)
+	var restore_removed = HexMapGenerator.restore_connectivity(restore_data)
+
+	_assert_true(HexMapGenerator.is_floor_connected(dense_data), "dense recovery connects the y shape")
+	_assert_eq(
+		dense_removed.size(),
+		restore_removed.size(),
+		"dense recovery matches restore wall count on y shape"
+	)
+
+
+func _test_dense_removes_less_than_flood_for_remote_short_bridge() -> void:
+	var cells: Array = []
+	for q in range(0, 6):
+		cells.append(_rect_cell(q, 0))
+
+	var near_tunnel = [_rect_cell(0, 1), _rect_cell(0, 2), _rect_cell(0, 3)]
+	var far_bridge = _rect_cell(5, 1)
+	var remote_component = [
+		_rect_cell(0, 4),
+		_rect_cell(1, 4),
+		_rect_cell(2, 4),
+		_rect_cell(3, 4),
+		_rect_cell(4, 4),
+		_rect_cell(5, 4),
+		_rect_cell(5, 3),
+		_rect_cell(5, 2),
+	]
+	cells.append_array(near_tunnel)
+	cells.append(far_bridge)
+	cells.append_array(remote_component)
+
+	var walls = near_tunnel.duplicate()
+	walls.append(far_bridge)
+	var dense_data = HexMapData.from_cells(cells, walls)
+	var flood_data = HexMapData.from_cells(cells, walls)
+
+	var dense_removed = HexMapGenerator.restore_connectivity_dense(dense_data)
+	var flood_removed = HexMapGenerator.restore_connectivity_flood(flood_data)
+
+	_assert_true(HexMapGenerator.is_floor_connected(dense_data), "dense recovery connects remote short bridge fixture")
+	_assert_true(HexMapGenerator.is_floor_connected(flood_data), "flood recovery connects remote short bridge fixture")
+	_assert_keys_eq(dense_removed, [far_bridge], "dense recovery chooses the one-wall remote bridge")
+	_assert_true(
+		dense_removed.size() < flood_removed.size(),
+		"dense recovery removes fewer walls than flood on the remote short bridge fixture"
+	)
+
+
+func _test_dense_restores_symmetric_toric_square() -> void:
+	var data = HexMapGenerator.generate_symmetric_square(
+		3,
+		1.0,
+		888,
+		false,
+		[HexVector.zero()],
+		20,
+		[],
+		true
+	)
+
+	var removed = HexMapGenerator.restore_connectivity_dense(data)
+
+	_assert_false(data.has_wall(HexVector.zero()), "dense symmetric recovery keeps protected floor")
+	_assert_true(HexMapGenerator.is_floor_connected(data), "dense symmetric recovery connects toric square")

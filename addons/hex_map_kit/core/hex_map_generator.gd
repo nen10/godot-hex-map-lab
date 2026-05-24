@@ -98,7 +98,7 @@ static func generate_symmetric_square(
 	if not terminal_floor.is_empty():
 		restore_terminal_connectivity(data, terminal_floor)
 	if ensure_connected:
-		restore_connectivity_sparse(data)
+		restore_connectivity_dense(data)
 	_record_generation_result(interrupt_options, data, false)
 	return data
 
@@ -575,6 +575,255 @@ static func restore_connectivity(data) -> Array:
 		data.set_walls(new_walls)
 
 	return removed_walls
+
+static func restore_connectivity_dense(data) -> Array:
+	var removed_walls: Array = []
+	if data.cells.is_empty():
+		return removed_walls
+
+	var cells_set = HexMapDataScript.make_set(data.cells)
+	var wall_set = data.wall_set()
+	var floor_cells: Array = []
+	var floor_set := {}
+	for cell in data.cells:
+		var key = cell.key()
+		if wall_set.has(key):
+			continue
+		floor_cells.append(cell)
+		floor_set[key] = cell
+
+	if floor_cells.is_empty():
+		var first = data.cells[0]
+		var first_key = first.key()
+		if wall_set.has(first_key):
+			removed_walls.append(first)
+			wall_set.erase(first_key)
+			data.set_walls(_points_from_set(wall_set))
+		return removed_walls
+
+	var component_result = _dense_floor_components(floor_cells, floor_set, data.cyclic_size)
+	var owner: Dictionary = component_result["owner"]
+	var component_count: int = component_result["count"]
+	if component_count <= 1:
+		return removed_walls
+
+	var wall_cost := {}
+	var parent := {}
+	var search_buckets := {0: []}
+	for floor in floor_cells:
+		var key = floor.key()
+		wall_cost[key] = 0
+		parent[key] = ""
+		search_buckets[0].append(floor)
+
+	var current_cost := 0
+	var max_cost = data.walls.size()
+	while current_cost <= max_cost:
+		if not search_buckets.has(current_cost):
+			current_cost += 1
+			continue
+
+		var bucket: Array = search_buckets[current_cost]
+		var idx := 0
+		while idx < bucket.size():
+			var current = bucket[idx]
+			idx += 1
+			var current_key = current.key()
+			if int(wall_cost.get(current_key, -1)) != current_cost:
+				continue
+
+			for neighbor in HexGridScript.neighbors(current, data.cyclic_size):
+				var neighbor_key = neighbor.key()
+				if not cells_set.has(neighbor_key):
+					continue
+				if owner.has(neighbor_key):
+					continue
+
+				var next_cost = current_cost + (1 if wall_set.has(neighbor_key) else 0)
+				owner[neighbor_key] = owner[current_key]
+				wall_cost[neighbor_key] = next_cost
+				parent[neighbor_key] = current_key
+				if not search_buckets.has(next_cost):
+					search_buckets[next_cost] = []
+				search_buckets[next_cost].append(cells_set[neighbor_key])
+
+		current_cost += 1
+
+	var bridge_buckets := {}
+	var max_bridge_cost := -1
+	var seen_edges := {}
+	for cell in data.cells:
+		var key = cell.key()
+		if not owner.has(key):
+			continue
+		for neighbor in HexGridScript.neighbors(cell, data.cyclic_size):
+			var neighbor_key = neighbor.key()
+			if key == neighbor_key:
+				continue
+			if not cells_set.has(neighbor_key):
+				continue
+			if not owner.has(neighbor_key):
+				continue
+
+			var left_owner = int(owner[key])
+			var right_owner = int(owner[neighbor_key])
+			if left_owner == right_owner:
+				continue
+
+			var edge_key = _ordered_edge_key(key, neighbor_key)
+			if seen_edges.has(edge_key):
+				continue
+			seen_edges[edge_key] = true
+
+			var bridge_cost = int(wall_cost[key]) + int(wall_cost[neighbor_key])
+			if not bridge_buckets.has(bridge_cost):
+				bridge_buckets[bridge_cost] = []
+			bridge_buckets[bridge_cost].append({
+				"a": key,
+				"b": neighbor_key,
+				"owner_a": left_owner,
+				"owner_b": right_owner,
+			})
+			if bridge_cost > max_bridge_cost:
+				max_bridge_cost = bridge_cost
+
+	var component_parent := {}
+	var component_size := {}
+	for component_id in range(component_count):
+		component_parent[component_id] = component_id
+		component_size[component_id] = 1
+
+	var selected_bridges: Array = []
+	var selected_count := 0
+	for bridge_cost in range(max_bridge_cost + 1):
+		if not bridge_buckets.has(bridge_cost):
+			continue
+		for bridge in bridge_buckets[bridge_cost]:
+			if not _dense_component_union(
+				component_parent,
+				component_size,
+				int(bridge["owner_a"]),
+				int(bridge["owner_b"])
+			):
+				continue
+			selected_bridges.append(bridge)
+			selected_count += 1
+			if selected_count >= component_count - 1:
+				break
+		if selected_count >= component_count - 1:
+			break
+
+	var processed_paths := {}
+	for bridge in selected_bridges:
+		_dense_remove_parent_path(
+			bridge["a"],
+			parent,
+			wall_set,
+			processed_paths,
+			removed_walls
+		)
+		_dense_remove_parent_path(
+			bridge["b"],
+			parent,
+			wall_set,
+			processed_paths,
+			removed_walls
+		)
+
+	data.set_walls(_points_from_set(wall_set))
+	return removed_walls
+
+
+static func _dense_floor_components(floor_cells: Array, floor_set: Dictionary, cyclic_size: int) -> Dictionary:
+	var owner := {}
+	var component_id := 0
+	for floor in floor_cells:
+		var key = floor.key()
+		if owner.has(key):
+			continue
+
+		var open: Array = [floor]
+		var idx := 0
+		owner[key] = component_id
+		while idx < open.size():
+			var current = open[idx]
+			idx += 1
+			for neighbor in HexGridScript.neighbors(current, cyclic_size):
+				var neighbor_key = neighbor.key()
+				if not floor_set.has(neighbor_key):
+					continue
+				if owner.has(neighbor_key):
+					continue
+				owner[neighbor_key] = component_id
+				open.append(floor_set[neighbor_key])
+
+		component_id += 1
+
+	return {
+		"owner": owner,
+		"count": component_id,
+	}
+
+
+static func _dense_remove_parent_path(
+	start_key: String,
+	parent: Dictionary,
+	wall_set: Dictionary,
+	processed_paths: Dictionary,
+	removed_walls: Array
+) -> void:
+	var current_key = start_key
+	while current_key != "":
+		if processed_paths.has(current_key):
+			return
+		processed_paths[current_key] = true
+		if wall_set.has(current_key):
+			removed_walls.append(wall_set[current_key])
+			wall_set.erase(current_key)
+		current_key = parent.get(current_key, "")
+
+
+static func _dense_component_find(parent: Dictionary, component_id: int) -> int:
+	var current = component_id
+	while int(parent[current]) != current:
+		current = int(parent[current])
+
+	var root = current
+	current = component_id
+	while int(parent[current]) != current:
+		var next = int(parent[current])
+		parent[current] = root
+		current = next
+	return root
+
+
+static func _dense_component_union(parent: Dictionary, size: Dictionary, left: int, right: int) -> bool:
+	var left_root = _dense_component_find(parent, left)
+	var right_root = _dense_component_find(parent, right)
+	if left_root == right_root:
+		return false
+
+	if int(size[left_root]) < int(size[right_root]):
+		var tmp = left_root
+		left_root = right_root
+		right_root = tmp
+
+	parent[right_root] = left_root
+	size[left_root] = int(size[left_root]) + int(size[right_root])
+	return true
+
+
+static func _ordered_edge_key(left: String, right: String) -> String:
+	if left < right:
+		return "%s|%s" % [left, right]
+	return "%s|%s" % [right, left]
+
+
+static func _points_from_set(point_set: Dictionary) -> Array:
+	var result: Array = []
+	for key in point_set:
+		result.append(point_set[key])
+	return result
 
 
 static func restore_connectivity_expand(data, terminals: Array = []) -> Array:
