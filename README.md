@@ -1,6 +1,7 @@
 # godot-hex-map-lab
 
-Godot 4 向けの Hex map generation addon 実験リポジトリです。Unity C# 版の Hex 座標系・ランダム壁生成・連結性回復処理を GDScript へ移植し、EditorPlugin と実行時ノードから利用できる形に整理しています。
+Godot 4 向けの Hex map generation addon 実験リポジトリ
+Hex 座標系・ランダム壁生成・通路生成(連結性回復)処理を GDScriptとして実装、EditorPlugin と実行時ノードから利用できる形に整理しています。
 
 ## 主な機能
 
@@ -70,10 +71,6 @@ tests/       headless Godot test scripts
 tools/       test/debug 起動 script
 ```
 
-## Unity Source Reference
+## License
 
-移植元の参照先:
-
-```text
-/Users/nenten/Desktop/cosmos/_archive/ecologic-survivor/ecologic-survivor/Assets/Script/HexTileSystem
-```
+This repository and the `addons/hex_map_kit/` addon are distributed under the MIT License. See `LICENSE`.
