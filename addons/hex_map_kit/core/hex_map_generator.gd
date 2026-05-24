@@ -33,7 +33,7 @@ static func generate_rectangle(
 		_record_generation_result(interrupt_options, data, true)
 		return data
 	if ensure_connected:
-		restore_connectivity(data)
+		restore_connectivity_flood(data)
 	_record_generation_result(interrupt_options, data, false)
 	return data
 
@@ -59,7 +59,7 @@ static func generate_toric_square(
 		_record_generation_result(interrupt_options, data, true)
 		return data
 	if ensure_connected:
-		restore_connectivity(data)
+		restore_connectivity_flood(data)
 	_record_generation_result(interrupt_options, data, false)
 	return data
 
@@ -98,7 +98,7 @@ static func generate_symmetric_square(
 	if not terminal_floor.is_empty():
 		restore_terminal_connectivity(data, terminal_floor)
 	if ensure_connected:
-		restore_connectivity(data)
+		restore_connectivity_flood(data)
 	_record_generation_result(interrupt_options, data, false)
 	return data
 
@@ -124,7 +124,7 @@ static func generate_hexagon(
 		_record_generation_result(interrupt_options, data, true)
 		return data
 	if ensure_connected:
-		restore_connectivity(data)
+		restore_connectivity_flood(data)
 	_record_generation_result(interrupt_options, data, false)
 	return data
 
@@ -183,7 +183,7 @@ static func generate_symmetric_hexagon(
 	if not terminal_floor.is_empty():
 		restore_terminal_connectivity(data, terminal_floor)
 	if ensure_connected:
-		restore_connectivity(data)
+		restore_connectivity_flood(data)
 	_record_generation_result(interrupt_options, data, false)
 	return data
 
@@ -575,6 +575,374 @@ static func restore_connectivity(data) -> Array:
 		data.set_walls(new_walls)
 
 	return removed_walls
+
+
+static func restore_connectivity_expand(data, terminals: Array = []) -> Array:
+	var removed_walls: Array = []
+	if data.cells.is_empty():
+		return removed_walls
+
+	var wall_set = data.wall_set()
+	var cells_set = HexMapDataScript.make_set(data.cells)
+	var floor_cells = data.floor_cells()
+
+	if floor_cells.is_empty():
+		removed_walls.append(data.cells[0])
+		data.set_walls(HexMapDataScript.points_except(data.walls, [data.cells[0]]))
+		return removed_walls
+
+	var dist := {}
+
+	if terminals.is_empty():
+		terminals = [floor_cells[0]]
+
+	# Phase 1: terminal BFS through floors only
+	for t in terminals:
+		var tk = t.key()
+		if wall_set.has(tk): continue
+		if not cells_set.has(tk): continue
+		if dist.has(tk): continue
+		dist[tk] = 0
+
+	var frontier: Array = []
+	for key in dist:
+		frontier.append(cells_set[key])
+
+	var front_idx = 0
+	while front_idx < frontier.size():
+		var current = frontier[front_idx]
+		front_idx += 1
+		var d = dist[current.key()] + 1
+		for neighbor in HexGridScript.neighbors(current, data.cyclic_size):
+			var nk = neighbor.key()
+			if not cells_set.has(nk): continue
+			if wall_set.has(nk): continue
+			if dist.has(nk): continue
+			dist[nk] = d
+			frontier.append(cells_set[nk])
+
+	# Phase 2: iteratively connect unreachable floors via shortest paths
+	while true:
+		var unreachable: Array = []
+		for f in data.floor_cells():
+			if not dist.has(f.key()):
+				unreachable.append(f)
+
+		if unreachable.is_empty():
+			break
+
+		var path = _bfs_to_unreachable(dist, unreachable, cells_set, wall_set, data.cyclic_size)
+		if path.is_empty():
+			break
+
+		for point in path:
+			var pk = point.key()
+			if wall_set.has(pk):
+				removed_walls.append(wall_set[pk])
+				wall_set.erase(pk)
+
+		_expand_dist_from_path(dist, path, cells_set, wall_set, data.cyclic_size)
+
+	var new_walls: Array = []
+	for key in wall_set:
+		new_walls.append(wall_set[key])
+	data.set_walls(new_walls)
+
+	return removed_walls
+
+
+static func _bfs_to_unreachable(
+	dist: Dictionary,
+	unreachable: Array,
+	cells_set: Dictionary,
+	wall_set: Dictionary,
+	cyclic_size: int
+) -> Array:
+	var goal_set = HexMapDataScript.make_set(unreachable)
+	var current_level: Array = []
+	var closed := {}
+	var parent := {}
+	var queued := {}
+
+	# Starts: all reachable cells (dist keys)
+	for key in dist:
+		current_level.append(cells_set[key])
+		queued[key] = true
+		parent[key] = ""
+
+	var best_goal = null
+	var best_dist_score = -2
+
+	while not current_level.is_empty():
+		var next_level: Array = []
+		for current in current_level:
+			var ck = current.key()
+
+			if closed.has(ck): continue
+			closed[ck] = current
+
+			if goal_set.has(ck):
+				var neighbor_score = -1
+				for neighbor in HexGridScript.neighbors(current, cyclic_size):
+					var nk = neighbor.key()
+					if dist.has(nk):
+						if dist[nk] > neighbor_score:
+							neighbor_score = dist[nk]
+				if neighbor_score > best_dist_score:
+					best_goal = current
+					best_dist_score = neighbor_score
+				continue
+
+			for neighbor in HexGridScript.neighbors(current, cyclic_size):
+				var nk = neighbor.key()
+				if not cells_set.has(nk): continue
+				if closed.has(nk): continue
+				if queued.has(nk): continue
+				parent[nk] = ck
+				queued[nk] = true
+				next_level.append(cells_set[nk])
+
+		if best_goal:
+			return _rebuild_path_inline(best_goal.key(), parent, closed)
+
+		current_level = next_level
+
+	if best_goal:
+		return _rebuild_path_inline(best_goal.key(), parent, closed)
+	return []
+
+
+static func _expand_dist_from_path(
+	dist: Dictionary,
+	path: Array,
+	cells_set: Dictionary,
+	wall_set: Dictionary,
+	cyclic_size: int
+) -> void:
+	var new_seeds: Array = []
+	for point in path:
+		var pk = point.key()
+		if dist.has(pk): continue
+		if not cells_set.has(pk): continue
+		if wall_set.has(pk): continue
+
+		var min_d = -1
+		for neighbor in HexGridScript.neighbors(point, cyclic_size):
+			var nk = neighbor.key()
+			if dist.has(nk):
+				var d = dist[nk]
+				if min_d == -1 or d < min_d:
+					min_d = d
+
+		if min_d < 0: continue
+		dist[pk] = min_d + 1
+		new_seeds.append(point)
+
+	var idx = 0
+	while idx < new_seeds.size():
+		var current = new_seeds[idx]
+		idx += 1
+		var nd = dist[current.key()] + 1
+		for neighbor in HexGridScript.neighbors(current, cyclic_size):
+			var nk = neighbor.key()
+			if not cells_set.has(nk): continue
+			if wall_set.has(nk): continue
+			if dist.has(nk): continue
+			dist[nk] = nd
+			new_seeds.append(cells_set[nk])
+
+
+static func _rebuild_path_inline(goal_key: String, parent: Dictionary, closed: Dictionary) -> Array:
+	var keys: Array = []
+	var current_key = goal_key
+	while current_key != "":
+		keys.push_front(current_key)
+		current_key = parent[current_key]
+
+	var result: Array = []
+	for key in keys:
+		result.append(closed[key])
+	return result
+
+
+static func restore_connectivity_flood(data, terminals: Array = []) -> Array:
+	var removed_walls: Array = []
+	if data.cells.is_empty():
+		return removed_walls
+
+	var wall_set = data.wall_set()
+	var cells_set = HexMapDataScript.make_set(data.cells)
+	var floor_cells = data.floor_cells()
+
+	if floor_cells.is_empty():
+		removed_walls.append(data.cells[0])
+		data.set_walls(HexMapDataScript.points_except(data.walls, [data.cells[0]]))
+		return removed_walls
+
+	if terminals.is_empty():
+		terminals = [floor_cells[0]]
+
+	var dist := {}
+	for t in terminals:
+		var tk = t.key()
+		if wall_set.has(tk): continue
+		if not cells_set.has(tk): continue
+		if dist.has(tk): continue
+		dist[tk] = 0
+
+	var frontier: Array = []
+	for key in dist:
+		frontier.append(cells_set[key])
+
+	var fi = 0
+	while fi < frontier.size():
+		var cur = frontier[fi]; fi += 1
+		var d = dist[cur.key()] + 1
+		for n in HexGridScript.neighbors(cur, data.cyclic_size):
+			var nk = n.key()
+			if not cells_set.has(nk): continue
+			if wall_set.has(nk): continue
+			if dist.has(nk): continue
+			dist[nk] = d
+			frontier.append(cells_set[nk])
+
+	var wall_buckets := {}
+	var current_dist := 0
+	for key in dist:
+		var cell = cells_set[key]
+		var d = dist[key]
+		for n in HexGridScript.neighbors(cell, data.cyclic_size):
+			var nk = n.key()
+			if not cells_set.has(nk): continue
+			if not wall_set.has(nk): continue
+			if not wall_buckets.has(d):
+				wall_buckets[d] = {}
+			if wall_buckets[d].has(nk): continue
+			wall_buckets[d][nk] = wall_set[nk]
+			if d > current_dist:
+				current_dist = d
+
+	var dead_end := {}
+
+	while true:
+		while current_dist >= 0:
+			if wall_buckets.has(current_dist) and wall_buckets[current_dist].size() > 0:
+				break
+			current_dist -= 1
+		if current_dist < 0:
+			break
+
+		var bucket: Dictionary = wall_buckets[current_dist]
+		var wk = bucket.keys()[0]
+		var wall_cell = bucket[wk]
+		bucket.erase(wk)
+
+		if not wall_set.has(wk): continue
+		if dead_end.has(wk): continue
+
+		var result = _explore_behind_wall(wall_cell, current_dist, dist, wall_set, cells_set, dead_end, data.cyclic_size)
+		var new_floors: Array = result["floors"]
+		var explored_map: Dictionary = result["explored_map"]
+
+		if new_floors.is_empty():
+			for key in explored_map:
+				dead_end[key] = true
+			continue
+
+		# Backward BFS from new floors toward the entry wall (shorter explored_map distance)
+		var useful := {}
+		var useful_frontier: Array = []
+		for f in new_floors:
+			var fk = f.key()
+			if not useful.has(fk):
+				useful[fk] = true
+				useful_frontier.append(f)
+		var useful_idx = 0
+		while useful_idx < useful_frontier.size():
+			var cur = useful_frontier[useful_idx]; useful_idx += 1
+			var cur_dist = explored_map[cur.key()]
+			for n in HexGridScript.neighbors(cur, data.cyclic_size):
+				var nk = n.key()
+				if useful.has(nk): continue
+				if not explored_map.has(nk): continue
+				if explored_map[nk] >= cur_dist: continue
+				useful[nk] = true
+				useful_frontier.append(cells_set[nk])
+
+		for key in explored_map:
+			var cell = cells_set[key]
+			dead_end.erase(key)
+			if wall_set.has(key) and useful.has(key):
+				wall_set.erase(key)
+				removed_walls.append(cell)
+			if not dist.has(key):
+				dist[key] = current_dist + explored_map[key]
+				for n in HexGridScript.neighbors(cell, data.cyclic_size):
+					var nk = n.key()
+					if not cells_set.has(nk): continue
+					if dist.has(nk): continue
+					if dead_end.has(nk): continue
+					if wall_set.has(nk):
+						if not wall_buckets.has(dist[key]):
+							wall_buckets[dist[key]] = {}
+						if not wall_buckets[dist[key]].has(nk):
+							wall_buckets[dist[key]][nk] = wall_set[nk]
+							if dist[key] > current_dist:
+								current_dist = dist[key]
+
+	var new_walls: Array = []
+	for key in wall_set:
+		new_walls.append(wall_set[key])
+	data.set_walls(new_walls)
+
+	return removed_walls
+
+
+static func _explore_behind_wall(
+	wall_cell,
+	start_dist: int,
+	dist: Dictionary,
+	wall_set: Dictionary,
+	cells_set: Dictionary,
+	dead_end: Dictionary,
+	cyclic_size: int
+) -> Dictionary:
+	var frontier: Array = [{"cell": wall_cell, "term_dist": 1}]
+	var new_floors: Array = []
+	var explored_map := {}
+	var idx = 0
+
+	while idx < frontier.size():
+		var entry = frontier[idx]; idx += 1
+		var current = entry["cell"]
+		var td = entry["term_dist"]
+		var ck = current.key()
+
+		if dist.has(ck): continue
+		if dead_end.has(ck): continue
+		if not cells_set.has(ck): continue
+		if explored_map.has(ck): continue
+		explored_map[ck] = td
+
+		if wall_set.has(ck):
+			for n in HexGridScript.neighbors(current, cyclic_size):
+				var nk = n.key()
+				if not cells_set.has(nk): continue
+				if dist.has(nk): continue
+				if dead_end.has(nk): continue
+				if explored_map.has(nk): continue
+				frontier.append({"cell": cells_set[nk], "term_dist": td + 1})
+		else:
+			new_floors.append(current)
+			for n in HexGridScript.neighbors(current, cyclic_size):
+				var nk = n.key()
+				if not cells_set.has(nk): continue
+				if dist.has(nk): continue
+				if dead_end.has(nk): continue
+				if explored_map.has(nk): continue
+				frontier.append({"cell": cells_set[nk], "term_dist": td + 1})
+
+	return {"floors": new_floors, "explored_map": explored_map}
 
 
 static func _draw_symmetric_outer_area(state: Dictionary, wall_probability: float) -> Dictionary:

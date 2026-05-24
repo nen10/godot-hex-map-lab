@@ -60,6 +60,11 @@ func _run() -> void:
 	_test_debug_summary_reports_counts()
 	_test_tiebreak_bfs_chooses_largest_component()
 	_test_restore_connectivity_uses_tiebreak()
+	_test_expansion_restores_connectivity()
+	_test_expansion_handles_toric()
+	_test_expansion_respects_terminals()
+	_test_flood_restores_connectivity()
+	_test_flood_preserves_unreachable_walls()
 
 	if _failures.is_empty():
 		print("test_hex_map_generation.gd: all tests passed")
@@ -1002,3 +1007,84 @@ func _test_restore_connectivity_uses_tiebreak() -> void:
 	_assert_eq(removed.size(), 2, "both blocking walls removed")
 	_assert_eq(data.walls.size(), 0, "no walls remain")
 	_assert_true(HexMapGenerator.is_floor_connected(data), "result is connected")
+
+
+func _test_expansion_restores_connectivity() -> void:
+	# Same layout as the tiebreak restoration test: Y-shape from center
+	var cells: Array = [HexVector.zero()]
+	cells.append(HexVector.q_axis())
+	cells.append(HexVector.q_axis().scaled(2))
+	cells.append(HexVector.q_axis().scaled(3))
+	cells.append(HexVector.r_axis())
+	cells.append(HexVector.r_axis().scaled(2))
+	cells.append(HexVector.r_axis().scaled(3))
+	cells.append(HexVector.r_axis().scaled(4))
+
+	var data = HexMapData.from_cells(cells, [HexVector.q_axis(), HexVector.r_axis()])
+	var removed = HexMapGenerator.restore_connectivity_expand(data)
+
+	_assert_true(HexMapGenerator.is_floor_connected(data), "expansion restores full connectivity")
+	_assert_eq(removed.size(), 2, "expansion removes both blocking walls")
+
+
+func _test_expansion_handles_toric() -> void:
+	var data = HexMapData.square(5, true)
+	var start = HexVector.zero()
+	var goal = HexVector.q_axis().scaled(2)
+	data.walls = HexMapData.points_except(data.cells, [start, goal])
+
+	var removed = HexMapGenerator.restore_connectivity_expand(data, [start])
+
+	_assert_true(HexMapGenerator.is_floor_connected(data), "toric expansion restores connectivity")
+	_assert_true(removed.size() > 0, "toric expansion removes at least one wall")
+
+
+func _test_expansion_respects_terminals() -> void:
+	var cells = _line_cells(5)
+	var walls = [HexVector.q_axis(), HexVector.q_axis().scaled(3)]
+	var data = HexMapData.from_cells(cells, walls)
+
+	var removed = HexMapGenerator.restore_connectivity_expand(data, [HexVector.q_axis().scaled(4)])
+
+	_assert_true(HexMapGenerator.is_floor_connected(data), "expansion from far terminal restores connectivity")
+	_assert_eq(removed.size(), 2, "both walls removed to reach all cells from terminal")
+
+
+func _test_flood_restores_connectivity() -> void:
+	var cells: Array = [HexVector.zero()]
+	cells.append(HexVector.q_axis())
+	cells.append(HexVector.q_axis().scaled(2))
+	cells.append(HexVector.q_axis().scaled(3))
+	cells.append(HexVector.r_axis())
+	cells.append(HexVector.r_axis().scaled(2))
+	cells.append(HexVector.r_axis().scaled(3))
+	cells.append(HexVector.r_axis().scaled(4))
+
+	var data = HexMapData.from_cells(cells, [HexVector.q_axis(), HexVector.r_axis()])
+	var removed = HexMapGenerator.restore_connectivity_flood(data)
+
+	_assert_true(HexMapGenerator.is_floor_connected(data), "flood restores full connectivity")
+	_assert_eq(removed.size(), 2, "flood removes both blocking walls")
+
+
+func _test_flood_preserves_unreachable_walls() -> void:
+	# Line: [0:F] [q:W] [2q:F] [3q:W]
+	# 3q is a dead-end wall — its only non-wall neighbor is 2q (already reachable).
+	# Flood fill must remove q (to connect 0 → 2q) but preserve 3q.
+	var cells: Array = []
+	for qi in range(0, 4):
+		cells.append(HexVector.q_axis().scaled(qi))
+
+	var q_cell = HexVector.q_axis()
+	var q3_cell = HexVector.q_axis().scaled(3)
+	var data = HexMapData.from_cells(cells, [q_cell, q3_cell])
+
+	var removed = HexMapGenerator.restore_connectivity_flood(data)
+
+	_assert_true(HexMapGenerator.is_floor_connected(data), "flood restores connectivity")
+	_assert_eq(removed.size(), 1, "flood removes only the useful wall q")
+	_assert_true(
+		removed[0].is_equal(q_cell),
+		"removed wall is q (not the dead-end 3q)"
+	)
+	_assert_true(data.has_wall(q3_cell), "dead-end wall 3q is preserved")

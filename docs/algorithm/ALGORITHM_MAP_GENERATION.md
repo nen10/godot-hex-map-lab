@@ -204,10 +204,32 @@ while iterations < max_iterations:
 
 **改善方針（未実装）**:
 
-1. **Union-Find** — 壁削除時に Disjoint Set Union（DSU）で成分統合を O(α(N)) に抑え、毎回の全体 BFS を回避できる。
+1. **Union-Find** — 壁削除時に Disjoint Set Union（DSU）で成分統合を O(α(N)) に抑え、毎回の全体 BFS を回避できる。（→ 実装済: `restore_connectivity` は DSU + tiebreak BFS に移行済み。）
 2. **局所 BFS** — 壁削除の影響範囲（path 周辺）だけを再評価し、無関係な領域の再スキャンを省略する。
 3. **バッチ接続** — 複数の成分間経路を同時に発見し、壁削除を一括適用する。MST（最小全域木）アプローチで全成分を最小 wall 削除で接続する。
 4. **進捗報告** — `restore_connectivity` 内に interrupt/progress callback を追加し、UI が長時間固まるのを防ぐ。
+
+#### Terminal Expansion 方式 (`restore_connectivity_expand`)
+
+`hex_map_generator.gd:580`。DSU を用いず、terminal からの最短 step 数（`dist` 辞書）で
+到達性を管理する path-based expansion。
+
+処理:
+1. terminal から floor のみを通る BFS で初期 `dist` を計算
+2. 未到達 floor がなくなるまで反復:
+   a. 到達済み領域全体を start とし、全 cell を通る level-based BFS で未到達 floor への最短経路を探索（`_bfs_to_unreachable`）
+   b. 同距離の goal が複数ある場合、terminal distance 最大のものを tiebreak 選択
+   c. 経路上の壁のみ削除
+   d. `_expand_dist_from_path` で新規到達 cell の `dist` を局所 BFS で計算
+3. 全 floor 到達で完了
+
+`restore_connectivity`（DSU+tiebreak）との違い:
+- DSU 不要（`dist` で到達性を管理）
+- component 再スキャン不要
+- tiebreak: 最大成分サイズ → 最大 terminal distance
+- 計算量は同じ Θ(C × N) だが定数倍軽い
+
+設計詳細: `docs/plan/CONNECTIVITY_TERMINAL_EXPANSION.md`
 
 ### 5. デバッグ表示
 
