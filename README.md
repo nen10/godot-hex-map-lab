@@ -1,33 +1,76 @@
-
 # godot-hex-map-lab
 
-- Unity C#で実装したHex座標系によるRandom Map生成機能をGodot4用にGDScriptとして移植する
-  - `/Users/nenten/Desktop/cosmos/_archive/ecologic-survivor/ecologic-survivor/Assets/Script/HexTileSystem` を中心としたスクリプト群にによってUnity上での生成機能の実行確認済み
-- マップ管理のためのアドオンとして利用できるようにする。
-  - マップ表示ごとの選択要素
-    - Hex Tileの論理サイズ
-    - flat-top/pointy-top (元スクリプト実装はflat-topを想定)
-    - マップの形状選択機能
-      - toric (ループ表示)
-      - non-toric (四角形/六角形)
-  - 壁タイル配置箇所の生成ごとの選択要素
-    - 壁のランダム生成時の生成用パラメータ
-    - マップの連結性回復処理の有無
-  - マップ上に配置する項目・タイルセットの管理機能を追加したい(未実装)
-  - マップ生成機能アドオン化の際の利用形態
-    - 実行時ランダム生成
-    - シーンノード作成
+Godot 4 向けの Hex map generation addon 実験リポジトリ
+Hex 座標系・ランダム壁生成・通路生成(連結性回復)処理を GDScriptとして実装、EditorPlugin と実行時ノードから利用できる形に整理しています。
 
-## Core 開発マップ案
+## 主な機能
 
-1. Hex座標・距離・近傍列挙をGDScriptに移植
-2. ランダム壁生成をデータだけで実行
-3. 連結性判定・回復処理をデータだけで検証
-4. デバッグ表示
-5. TileMapLayer/TileSet対応
-6. EditorPlugin化
+- Hex 座標 Core
+  - `HexVector` / `HexPoint`
+  - 6 近傍、L1 ring/disc、toric wrap
+  - floor 連結性判定、連結性回復、最短経路
+- Map generation
+  - rectangle / hexagon / toric square
+  - seed 固定の壁生成
+  - protected floor と terminal 接続回復
+  - toric square の 9 split と外周から中心へ進む対称生成
+- Godot 連携
+  - `HexMapResource` による `.tres` 保存
+  - `HexMapTileAdapter` による `TileMapLayer` 反映
+  - `HexTileMapLayer` による実行時 helper
+  - EditorPlugin の生成 Dock、Distribution Editor、Resource Inspector
+- Debug scene
+  - flat-top / pointy-top の配置確認
+  - 生成 map、toric domain、9 split、対称生成 overlay の視覚確認
 
+## 使い方
 
-Unity source reference:
-`/Users/nenten/Desktop/cosmos/_archive/ecologic-survivor/ecologic-survivor/Assets/Script/HexTileSystem`
+セットアップと利用方法は以下を参照してください。
 
+- `docs/manual/MANUAL_SETUP.md`
+- `docs/manual/MANUAL_SCRIPTING.md`
+- `docs/manual/MANUAL_EDITOR_PLUGIN.md`
+
+アルゴリズム詳細:
+
+- `docs/algorithm/ALGORITHM_MAP_GENERATION.md`
+- `docs/algorithm/ALGORITHM_ADAPTER.md`
+
+## テスト
+
+```sh
+./tools/test.sh
+```
+
+Godot 実行ファイルを明示する場合:
+
+```sh
+GODOT_BIN=/path/to/Godot ./tools/test.sh
+```
+
+テスト対象と手動 debug 実行は `docs/TEST.md` を参照してください。
+
+## 開発計画
+
+実装計画とレビュー残件は `docs/plan/` 以下で管理します。
+
+- `docs/plan/EDITOR_PLUGIN.md`: EditorPlugin の実装計画
+- `docs/plan/TILEMAP_LAYER.md`: `HexTileMapLayer` 周辺の実行時拡張計画
+- `docs/plan/REMAINS_FROM_USER_REVIEW.md`: ユーザーレビュー由来の要望
+
+## リポジトリ構成
+
+```text
+addons/hex_map_kit/
+  core/      Hex 座標、map data、生成、経路、toric 9 split
+  adapter/   TileMapLayer / Resource / runtime layer 連携
+  editor/    EditorPlugin UI
+debug/       視覚確認用 scene
+docs/        manual、algorithm note、plan、test note
+tests/       headless Godot test scripts
+tools/       test/debug 起動 script
+```
+
+## License
+
+This repository and the `addons/hex_map_kit/` addon are distributed under the MIT License. See `LICENSE`.
