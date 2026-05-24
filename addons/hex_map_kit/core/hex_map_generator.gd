@@ -33,7 +33,7 @@ static func generate_rectangle(
 		_record_generation_result(interrupt_options, data, true)
 		return data
 	if ensure_connected:
-		restore_connectivity_flood(data)
+		restore_connectivity(data)
 	_record_generation_result(interrupt_options, data, false)
 	return data
 
@@ -124,7 +124,7 @@ static func generate_hexagon(
 		_record_generation_result(interrupt_options, data, true)
 		return data
 	if ensure_connected:
-		restore_connectivity_flood(data)
+		restore_connectivity(data)
 	_record_generation_result(interrupt_options, data, false)
 	return data
 
@@ -183,7 +183,7 @@ static func generate_symmetric_hexagon(
 	if not terminal_floor.is_empty():
 		restore_terminal_connectivity(data, terminal_floor)
 	if ensure_connected:
-		restore_connectivity_flood(data)
+		restore_connectivity(data)
 	_record_generation_result(interrupt_options, data, false)
 	return data
 
@@ -764,6 +764,8 @@ static func _rebuild_path_inline(goal_key: String, parent: Dictionary, closed: D
 		result.append(closed[key])
 	return result
 
+static func restore_connectivity_sparse(data, terminals: Array = []) -> Array:
+	return restore_connectivity_flood(data, terminals)
 
 static func restore_connectivity_flood(data, terminals: Array = []) -> Array:
 	var removed_walls: Array = []
@@ -832,63 +834,105 @@ static func restore_connectivity_flood(data, terminals: Array = []) -> Array:
 		if current_dist < 0:
 			break
 
-		var bucket: Dictionary = wall_buckets[current_dist]
-		var wk = bucket.keys()[0]
-		var wall_cell = bucket[wk]
-		bucket.erase(wk)
+		# Explore behind ALL walls at current_dist.
+		# Pick the one with the shortest path to a new floor.
+		var best_wall_cell = null
+		var best_useful: Dictionary
+		var best_explored_map: Dictionary
+		var best_path_len = -1
+		var stale_keys: Array = []
 
-		if not wall_set.has(wk): continue
-		if dead_end.has(wk): continue
+		for wk in wall_buckets[current_dist]:
+			if not wall_set.has(wk):
+				stale_keys.append(wk)
+				continue
+			if dead_end.has(wk): continue
 
-		var result = _explore_behind_wall(wall_cell, current_dist, dist, wall_set, cells_set, dead_end, data.cyclic_size)
-		var new_floors: Array = result["floors"]
-		var explored_map: Dictionary = result["explored_map"]
+			var wall_cell = wall_buckets[current_dist][wk]
+			var result = _explore_behind_wall(wall_cell, current_dist, dist, wall_set, cells_set, dead_end, data.cyclic_size)
+			var new_floors: Array = result["floors"]
+			var explored_map: Dictionary = result["explored_map"]
+			var parent: Dictionary = result["parent"]
 
-		if new_floors.is_empty():
-			for key in explored_map:
-				dead_end[key] = true
+			if new_floors.is_empty():
+				for key in explored_map:
+					dead_end[key] = true
+				continue
+
+			# Find nearest floor and trace parent path
+			var best_floor = new_floors[0]
+			var best_dist = explored_map[best_floor.key()]
+			for i in range(1, new_floors.size()):
+				var fd = explored_map[new_floors[i].key()]
+				if fd < best_dist:
+					best_floor = new_floors[i]
+					best_dist = fd
+
+			# Count walls on this path
+			var path_walls = 0
+			var pk = parent.get(best_floor.key(), "")
+			while pk != "":
+				if wall_set.has(pk):
+					path_walls += 1
+				pk = parent.get(pk, "")
+
+			if best_path_len < 0 or path_walls < best_path_len:
+				best_wall_cell = wall_cell
+				best_path_len = path_walls
+				best_explored_map = explored_map
+				# Build useful set for this path
+				var useful := {wk: true}
+				useful[best_floor.key()] = true
+				var trace_key = parent.get(best_floor.key(), "")
+				while trace_key != "":
+					if useful.has(trace_key): break
+					useful[trace_key] = true
+					trace_key = parent.get(trace_key, "")
+				best_useful = useful
+
+		for wk in stale_keys:
+			wall_buckets[current_dist].erase(wk)
+
+		if best_wall_cell == null:
+			current_dist -= 1
 			continue
 
-		# Backward BFS from new floors toward the entry wall (shorter explored_map distance)
-		var useful := {}
-		var useful_frontier: Array = []
-		for f in new_floors:
-			var fk = f.key()
-			if not useful.has(fk):
-				useful[fk] = true
-				useful_frontier.append(f)
-		var useful_idx = 0
-		while useful_idx < useful_frontier.size():
-			var cur = useful_frontier[useful_idx]; useful_idx += 1
-			var cur_dist = explored_map[cur.key()]
-			for n in HexGridScript.neighbors(cur, data.cyclic_size):
-				var nk = n.key()
-				if useful.has(nk): continue
-				if not explored_map.has(nk): continue
-				if explored_map[nk] >= cur_dist: continue
-				useful[nk] = true
-				useful_frontier.append(cells_set[nk])
-
-		for key in explored_map:
+		# Remove walls on the best path only
+		for key in best_explored_map:
 			var cell = cells_set[key]
 			dead_end.erase(key)
-			if wall_set.has(key) and useful.has(key):
+			if wall_set.has(key) and best_useful.has(key):
 				wall_set.erase(key)
 				removed_walls.append(cell)
-			if not dist.has(key):
-				dist[key] = current_dist + explored_map[key]
-				for n in HexGridScript.neighbors(cell, data.cyclic_size):
-					var nk = n.key()
-					if not cells_set.has(nk): continue
-					if dist.has(nk): continue
-					if dead_end.has(nk): continue
-					if wall_set.has(nk):
-						if not wall_buckets.has(dist[key]):
-							wall_buckets[dist[key]] = {}
-						if not wall_buckets[dist[key]].has(nk):
-							wall_buckets[dist[key]][nk] = wall_set[nk]
-							if dist[key] > current_dist:
-								current_dist = dist[key]
+
+		# Expand dist from the entry wall through floors and newly-removed walls only.
+		var expand_frontier: Array = [{"cell": best_wall_cell, "term_dist": current_dist + 1}]
+		var expand_idx = 0
+		while expand_idx < expand_frontier.size():
+			var entry = expand_frontier[expand_idx]; expand_idx += 1
+			var cur = entry["cell"]
+			var td = entry["term_dist"]
+			var cur_key = cur.key()
+
+			if dist.has(cur_key): continue
+			if not cells_set.has(cur_key): continue
+			if wall_set.has(cur_key): continue
+			if not best_explored_map.has(cur_key): continue
+
+			dist[cur_key] = td
+			for n in HexGridScript.neighbors(cur, data.cyclic_size):
+				var nk = n.key()
+				if not cells_set.has(nk): continue
+				if dist.has(nk): continue
+				if wall_set.has(nk):
+					if not wall_buckets.has(td):
+						wall_buckets[td] = {}
+					if not wall_buckets[td].has(nk):
+						wall_buckets[td][nk] = wall_set[nk]
+						if td > current_dist:
+							current_dist = td
+					continue
+				expand_frontier.append({"cell": cells_set[nk], "term_dist": td + 1})
 
 	var new_walls: Array = []
 	for key in wall_set:
@@ -910,6 +954,7 @@ static func _explore_behind_wall(
 	var frontier: Array = [{"cell": wall_cell, "term_dist": 1}]
 	var new_floors: Array = []
 	var explored_map := {}
+	var parent := {}
 	var idx = 0
 
 	while idx < frontier.size():
@@ -931,6 +976,7 @@ static func _explore_behind_wall(
 				if dist.has(nk): continue
 				if dead_end.has(nk): continue
 				if explored_map.has(nk): continue
+				parent[nk] = ck
 				frontier.append({"cell": cells_set[nk], "term_dist": td + 1})
 		else:
 			new_floors.append(current)
@@ -940,9 +986,10 @@ static func _explore_behind_wall(
 				if dist.has(nk): continue
 				if dead_end.has(nk): continue
 				if explored_map.has(nk): continue
+				parent[nk] = ck
 				frontier.append({"cell": cells_set[nk], "term_dist": td + 1})
 
-	return {"floors": new_floors, "explored_map": explored_map}
+	return {"floors": new_floors, "explored_map": explored_map, "parent": parent}
 
 
 static func _draw_symmetric_outer_area(state: Dictionary, wall_probability: float) -> Dictionary:
