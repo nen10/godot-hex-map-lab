@@ -137,7 +137,14 @@ progressbar / cancel 用に、Core は interruptible 版の壁生成 API を持�
 
 callback には `phase` / `steps` / `total_steps` / `progress` を持つ `Dictionary` を渡す。`cancel_callback` が `true` を返した場合、その時点までの wall set を返して中断する。
 
-`generate_rectangle()`、`generate_toric_square()`、`generate_hexagon()`、`generate_symmetric_square()`、`generate_symmetric_hexagon()` は末尾の `interrupt_options` を受け取り、指定された場合だけ interruptible 版の壁生成に分岐する。cancel 時は connectivity restoration を実行せず、partial wall map を返す。
+`generate_rectangle()`、`generate_toric_square()`、`generate_hexagon()`、`generate_symmetric_square()`、`generate_symmetric_hexagon()` は末尾の `interrupt_options` を受け取り、指定された場合だけ interruptible 版の壁生成と連結性回復で progress / cancel 分岐を実行する。
+
+progress 範囲は connect method で変わる。
+
+- `CONNECT_NONE`: 壁生成が `0.0 -> 1.0`
+- `CONNECT_DENSE` / `CONNECT_SPARSE`: 壁生成が `0.0 -> 0.35`、連結性回復が `0.35 -> 1.0`
+
+cancel 時は partial wall map を返す。Editor Dock はこの partial data を current map へ反映せず、最後に完了した map を保持する。
 
 ### 3. 連結性を判定する
 
@@ -156,6 +163,8 @@ Core の通常方式は `CONNECT_DENSE` / `CONNECT_SPARSE` / `CONNECT_NONE` の 
 - `CONNECT_NONE`: 連結性回復を実行しない raw 生成。
 
 `HexMapGenerator.restore_connectivity()` は scripting 互換用に残し、Dense 方式へ委譲する。`terminal_floor` は connect method ではなく、symmetric 生成時に `restore_terminal_connectivity()` で事前接続する。
+
+`restore_connectivity_dense()` / `restore_connectivity_sparse()` / `restore_connectivity_by()` は末尾に optional な `interrupt_options` を受け取れる。standalone restore 呼び出しでは、連結性回復単体が `0.0 -> 1.0` の progress を報告する。`chunk_size` は何個の処理単位ごとに callback を呼ぶかを表し、未指定時は `1`。
 
 ### 5. デバッグ表示
 

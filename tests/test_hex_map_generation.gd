@@ -18,11 +18,14 @@ class ZeroDistribution:
 class InterruptRecorder:
 	var progress_events: Array = []
 	var cancel_at_step := -1
+	var cancel_phase_prefix := ""
 
 	func progress(status: Dictionary) -> void:
 		progress_events.append(status.duplicate())
 
 	func cancel(status: Dictionary) -> bool:
+		if cancel_phase_prefix != "" and str(status["phase"]).begins_with(cancel_phase_prefix):
+			return true
 		return cancel_at_step >= 0 and int(status["steps"]) >= cancel_at_step
 
 var _failures: Array[String] = []
@@ -45,6 +48,11 @@ func _run() -> void:
 	_test_restore_connectivity_by_dense_restores_line()
 	_test_restore_connectivity_by_sparse_restores_line()
 	_test_restore_connectivity_by_none_preserves_walls()
+	_test_dense_restore_reports_progress_and_cancel()
+	_test_sparse_restore_reports_progress_and_cancel()
+	_test_generation_connectivity_restore_reports_progress_range()
+	_test_generation_connectivity_restore_can_cancel()
+	_test_generation_none_progress_uses_full_wall_range()
 	_test_generate_rectangle_can_restore_connectivity()
 	_test_generate_toric_square_can_restore_connectivity()
 	_test_interruptible_shape_generation_matches_regular_shapes()
@@ -165,6 +173,17 @@ func _cancel_interrupt_options(cancel_at_step: int) -> Dictionary:
 	}
 
 
+func _phase_cancel_interrupt_options(phase_prefix: String) -> Dictionary:
+	var recorder = InterruptRecorder.new()
+	recorder.cancel_phase_prefix = phase_prefix
+	return {
+		"chunk_size": 1,
+		"progress_callback": Callable(recorder, "progress"),
+		"cancel_callback": Callable(recorder, "cancel"),
+		"_recorder": recorder,
+	}
+
+
 func _assert_interruptible_matches_regular(message: String, expected, actual, options: Dictionary) -> void:
 	_assert_eq(actual.cyclic_size, expected.cyclic_size, "%s interruptible cyclic size matches regular generation" % message)
 	_assert_keys_eq(actual.cells, expected.cells, "%s interruptible cells match regular generation" % message)
@@ -188,6 +207,20 @@ func _assert_progress_events_monotonic(events: Array, message: String) -> void:
 		var progress = float(event["progress"])
 		_assert_true(progress >= previous, "%s progress is monotonic" % message)
 		previous = progress
+
+
+func _has_progress_phase(events: Array, phase_prefix: String) -> bool:
+	for event in events:
+		if str(event["phase"]).begins_with(phase_prefix):
+			return true
+	return false
+
+
+func _has_progress_at_or_above(events: Array, threshold: float) -> bool:
+	for event in events:
+		if float(event["progress"]) >= threshold:
+			return true
+	return false
 
 
 func _symmetric_draw_state(radius: int, seed: int, protected_floor: Array = []) -> Dictionary:
@@ -443,6 +476,115 @@ func _test_restore_connectivity_by_none_preserves_walls() -> void:
 	_assert_eq(removed.size(), 0, "none method removes no walls")
 	_assert_true(data.has_wall(bridge), "none method leaves bridge wall intact")
 	_assert_false(HexMapGenerator.is_floor_connected(data), "none method does not restore connectivity")
+
+
+func _test_dense_restore_reports_progress_and_cancel() -> void:
+	var bridge = HexVector.q_axis()
+	var complete_data = HexMapData.from_cells(_line_cells(3), [bridge])
+	var complete_options = _complete_interrupt_options()
+	var complete_removed = HexMapGenerator.restore_connectivity_dense(complete_data, 0, complete_options)
+
+	_assert_keys_eq(complete_removed, [bridge], "dense restore removes bridge with progress options")
+	_assert_true(HexMapGenerator.is_floor_connected(complete_data), "dense restore completes with progress options")
+	_assert_eq(complete_options.get("progress", -1.0), 1.0, "dense restore progress finishes at full progress")
+	_assert_true(
+		_has_progress_phase(complete_options["_recorder"].progress_events, "restore_dense_"),
+		"dense restore emits restore progress phase"
+	)
+	_assert_progress_events_monotonic(complete_options["_recorder"].progress_events, "dense restore progress")
+
+	var cancel_data = HexMapData.from_cells(_line_cells(3), [bridge])
+	var cancel_options = _phase_cancel_interrupt_options("restore_dense_")
+	HexMapGenerator.restore_connectivity_dense(cancel_data, 0, cancel_options)
+
+	_assert_true(cancel_options.get("cancelled", false), "dense restore can cancel from restore progress")
+	_assert_true(cancel_data.has_wall(bridge), "dense restore cancel keeps partial wall data")
+
+
+func _test_sparse_restore_reports_progress_and_cancel() -> void:
+	var bridge = HexVector.q_axis()
+	var complete_data = HexMapData.from_cells(_line_cells(3), [bridge])
+	var complete_options = _complete_interrupt_options()
+	var complete_removed = HexMapGenerator.restore_connectivity_sparse(complete_data, [], 0, complete_options)
+
+	_assert_keys_eq(complete_removed, [bridge], "sparse restore removes bridge with progress options")
+	_assert_true(HexMapGenerator.is_floor_connected(complete_data), "sparse restore completes with progress options")
+	_assert_eq(complete_options.get("progress", -1.0), 1.0, "sparse restore progress finishes at full progress")
+	_assert_true(
+		_has_progress_phase(complete_options["_recorder"].progress_events, "restore_sparse_"),
+		"sparse restore emits restore progress phase"
+	)
+	_assert_progress_events_monotonic(complete_options["_recorder"].progress_events, "sparse restore progress")
+
+	var cancel_data = HexMapData.from_cells(_line_cells(3), [bridge])
+	var cancel_options = _phase_cancel_interrupt_options("restore_sparse_")
+	HexMapGenerator.restore_connectivity_sparse(cancel_data, [], 0, cancel_options)
+
+	_assert_true(cancel_options.get("cancelled", false), "sparse restore can cancel from restore progress")
+	_assert_true(cancel_data.has_wall(bridge), "sparse restore cancel keeps partial wall data")
+
+
+func _test_generation_connectivity_restore_reports_progress_range() -> void:
+	var protected = [HexVector.zero(), HexVector.q_axis().scaled(2)]
+
+	for method in [HexMapGenerator.CONNECT_DENSE, HexMapGenerator.CONNECT_SPARSE]:
+		var options = _complete_interrupt_options()
+		var data = HexMapGenerator.generate_rectangle(
+			3,
+			1,
+			1.0,
+			912,
+			method,
+			false,
+			protected,
+			options
+		)
+
+		_assert_true(HexMapGenerator.is_floor_connected(data), "connectivity generation method %d connects protected endpoints" % method)
+		_assert_eq(options.get("progress", -1.0), 1.0, "connectivity generation method %d finishes at full progress" % method)
+		_assert_true(
+			_has_progress_at_or_above(options["_recorder"].progress_events, 0.35),
+			"connectivity generation method %d reports restore progress range" % method
+		)
+		_assert_progress_events_monotonic(options["_recorder"].progress_events, "connectivity generation method %d progress" % method)
+
+
+func _test_generation_connectivity_restore_can_cancel() -> void:
+	var bridge = HexVector.q_axis()
+	var options = _phase_cancel_interrupt_options("restore_dense_")
+	var data = HexMapGenerator.generate_rectangle(
+		3,
+		1,
+		1.0,
+		913,
+		HexMapGenerator.CONNECT_DENSE,
+		false,
+		[HexVector.zero(), HexVector.q_axis().scaled(2)],
+		options
+	)
+
+	_assert_true(options.get("cancelled", false), "generation can cancel during connectivity restore")
+	_assert_eq(options.get("data", null), data, "generation cancel stores partial data")
+	_assert_true(data.has_wall(bridge), "generation restore cancel keeps partial bridge wall")
+	_assert_false(HexMapGenerator.is_floor_connected(data), "generation restore cancel returns disconnected partial data")
+
+
+func _test_generation_none_progress_uses_full_wall_range() -> void:
+	var options = _complete_interrupt_options()
+	var data = HexMapGenerator.generate_rectangle(
+		3,
+		1,
+		1.0,
+		914,
+		HexMapGenerator.CONNECT_NONE,
+		false,
+		[HexVector.zero(), HexVector.q_axis().scaled(2)],
+		options
+	)
+
+	_assert_eq(options.get("progress", -1.0), 1.0, "none generation wall progress reaches full progress")
+	_assert_true(not _has_progress_phase(options["_recorder"].progress_events, "restore_"), "none generation emits no restore progress")
+	_assert_false(HexMapGenerator.is_floor_connected(data), "none generation does not restore connectivity")
 
 
 func _test_generate_rectangle_can_restore_connectivity() -> void:

@@ -12,6 +12,9 @@ const HexVectorScript = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const CONNECT_NONE := 0
 const CONNECT_DENSE := 1
 const CONNECT_SPARSE := 2
+const _CONNECTIVITY_PROGRESS_START := 0.35
+const _INTERRUPT_PROGRESS_START_KEY := "_progress_range_start"
+const _INTERRUPT_PROGRESS_END_KEY := "_progress_range_end"
 
 static func generate_rectangle(
 	width: int,
@@ -24,6 +27,7 @@ static func generate_rectangle(
 	interrupt_options: Dictionary = {}
 ):
 	var data = HexMapDataScript.rectangle(width, height, toric)
+	_prepare_wall_generation_progress(interrupt_options, connect_method)
 	var wall_result = generate_random_walls_interruptible(
 		data.cells,
 		wall_probability,
@@ -33,9 +37,15 @@ static func generate_rectangle(
 	)
 	data.set_walls(wall_result["walls"])
 	if wall_result["cancelled"]:
+		_interrupt_clear_progress_range(interrupt_options)
 		_record_generation_result(interrupt_options, data, true)
 		return data
-	restore_connectivity_by(connect_method, data, [], seed)
+	_restore_generated_connectivity(connect_method, data, [], seed, interrupt_options)
+	if bool(interrupt_options.get("cancelled", false)):
+		_interrupt_clear_progress_range(interrupt_options)
+		_record_generation_result(interrupt_options, data, true)
+		return data
+	_interrupt_clear_progress_range(interrupt_options)
 	_record_generation_result(interrupt_options, data, false)
 	return data
 
@@ -49,6 +59,7 @@ static func generate_toric_square(
 	interrupt_options: Dictionary = {}
 ):
 	var data = HexMapDataScript.square(size, true)
+	_prepare_wall_generation_progress(interrupt_options, connect_method)
 	var wall_result = generate_random_walls_interruptible(
 		data.cells,
 		wall_probability,
@@ -58,9 +69,15 @@ static func generate_toric_square(
 	)
 	data.set_walls(wall_result["walls"])
 	if wall_result["cancelled"]:
+		_interrupt_clear_progress_range(interrupt_options)
 		_record_generation_result(interrupt_options, data, true)
 		return data
-	restore_connectivity_by(connect_method, data, [], seed)
+	_restore_generated_connectivity(connect_method, data, [], seed, interrupt_options)
+	if bool(interrupt_options.get("cancelled", false)):
+		_interrupt_clear_progress_range(interrupt_options)
+		_record_generation_result(interrupt_options, data, true)
+		return data
+	_interrupt_clear_progress_range(interrupt_options)
 	_record_generation_result(interrupt_options, data, false)
 	return data
 
@@ -80,6 +97,7 @@ static func generate_symmetric_square(
 	assert(radius > 0)
 	var size: int = radius * 2 + 1 
 	var data = HexMapDataScript.square(size, connect_toric)
+	_prepare_wall_generation_progress(interrupt_options, connect_method)
 	var forced_floor = protected_floor.duplicate()
 	for terminal in terminal_floor:
 		forced_floor.append(terminal)
@@ -94,11 +112,17 @@ static func generate_symmetric_square(
 	)
 	data.set_walls(wall_result["walls"])
 	if wall_result["cancelled"]:
+		_interrupt_clear_progress_range(interrupt_options)
 		_record_generation_result(interrupt_options, data, true)
 		return data
 	if not terminal_floor.is_empty():
 		restore_terminal_connectivity(data, terminal_floor, _connectivity_direction_seed(seed, 101))
-	restore_connectivity_by(connect_method, data, [], seed)
+	_restore_generated_connectivity(connect_method, data, [], seed, interrupt_options)
+	if bool(interrupt_options.get("cancelled", false)):
+		_interrupt_clear_progress_range(interrupt_options)
+		_record_generation_result(interrupt_options, data, true)
+		return data
+	_interrupt_clear_progress_range(interrupt_options)
 	_record_generation_result(interrupt_options, data, false)
 	return data
 
@@ -112,6 +136,7 @@ static func generate_hexagon(
 	interrupt_options: Dictionary = {}
 ):
 	var data = HexMapDataScript.hexagon(radius)
+	_prepare_wall_generation_progress(interrupt_options, connect_method)
 	var wall_result = generate_random_walls_interruptible(
 		data.cells,
 		wall_probability,
@@ -121,9 +146,15 @@ static func generate_hexagon(
 	)
 	data.set_walls(wall_result["walls"])
 	if wall_result["cancelled"]:
+		_interrupt_clear_progress_range(interrupt_options)
 		_record_generation_result(interrupt_options, data, true)
 		return data
-	restore_connectivity_by(connect_method, data, [], seed)
+	_restore_generated_connectivity(connect_method, data, [], seed, interrupt_options)
+	if bool(interrupt_options.get("cancelled", false)):
+		_interrupt_clear_progress_range(interrupt_options)
+		_record_generation_result(interrupt_options, data, true)
+		return data
+	_interrupt_clear_progress_range(interrupt_options)
 	_record_generation_result(interrupt_options, data, false)
 	return data
 
@@ -142,6 +173,7 @@ static func generate_symmetric_hexagon(
 	assert(radius > 0)
 	var size: int = radius * 2 + 1
 
+	_prepare_wall_generation_progress(interrupt_options, connect_method)
 	var forced_floor = protected_floor.duplicate()
 	for terminal in terminal_floor:
 		forced_floor.append(terminal)
@@ -177,11 +209,17 @@ static func generate_symmetric_hexagon(
 
 	var data = HexMapDataScript.from_cells(hex_cells, hex_walls, 0)
 	if wall_result["cancelled"]:
+		_interrupt_clear_progress_range(interrupt_options)
 		_record_generation_result(interrupt_options, data, true)
 		return data
 	if not terminal_floor.is_empty():
 		restore_terminal_connectivity(data, terminal_floor, _connectivity_direction_seed(seed, 101))
-	restore_connectivity_by(connect_method, data, [], seed)
+	_restore_generated_connectivity(connect_method, data, [], seed, interrupt_options)
+	if bool(interrupt_options.get("cancelled", false)):
+		_interrupt_clear_progress_range(interrupt_options)
+		_record_generation_result(interrupt_options, data, true)
+		return data
+	_interrupt_clear_progress_range(interrupt_options)
 	_record_generation_result(interrupt_options, data, false)
 	return data
 
@@ -377,7 +415,8 @@ static func _interrupt_update(
 	if interrupt_options.is_empty():
 		return false
 
-	var progress = 1.0 if total_steps <= 0 else clampf(float(steps) / float(total_steps), 0.0, 1.0)
+	var raw_progress = 1.0 if total_steps <= 0 else clampf(float(steps) / float(total_steps), 0.0, 1.0)
+	var progress = _interrupt_mapped_progress(interrupt_options, raw_progress)
 	var status := {
 		"phase": phase,
 		"steps": steps,
@@ -399,6 +438,85 @@ static func _interrupt_update(
 		interrupt_options["cancelled"] = true
 		return true
 	return false
+
+
+static func _interrupt_mapped_progress(interrupt_options: Dictionary, raw_progress: float) -> float:
+	if not interrupt_options.has(_INTERRUPT_PROGRESS_START_KEY):
+		return raw_progress
+	var start = float(interrupt_options.get(_INTERRUPT_PROGRESS_START_KEY, 0.0))
+	var end = float(interrupt_options.get(_INTERRUPT_PROGRESS_END_KEY, 1.0))
+	return clampf(start + (end - start) * raw_progress, 0.0, 1.0)
+
+
+static func _interrupt_set_progress_range(interrupt_options: Dictionary, start: float, end: float) -> void:
+	if interrupt_options.is_empty():
+		return
+	interrupt_options[_INTERRUPT_PROGRESS_START_KEY] = clampf(start, 0.0, 1.0)
+	interrupt_options[_INTERRUPT_PROGRESS_END_KEY] = clampf(end, 0.0, 1.0)
+
+
+static func _interrupt_clear_progress_range(interrupt_options: Dictionary) -> void:
+	if interrupt_options.is_empty():
+		return
+	interrupt_options.erase(_INTERRUPT_PROGRESS_START_KEY)
+	interrupt_options.erase(_INTERRUPT_PROGRESS_END_KEY)
+
+
+static func _connectivity_restore_uses_progress(connect_method: int) -> bool:
+	return connect_method == CONNECT_DENSE or connect_method == CONNECT_SPARSE
+
+
+static func _prepare_wall_generation_progress(interrupt_options: Dictionary, connect_method: int) -> void:
+	if _connectivity_restore_uses_progress(connect_method):
+		_interrupt_set_progress_range(interrupt_options, 0.0, _CONNECTIVITY_PROGRESS_START)
+	else:
+		_interrupt_clear_progress_range(interrupt_options)
+
+
+static func _restore_generated_connectivity(
+	connect_method: int,
+	data,
+	terminals: Array,
+	seed: int,
+	interrupt_options: Dictionary
+) -> Array:
+	if _connectivity_restore_uses_progress(connect_method):
+		_interrupt_set_progress_range(interrupt_options, _CONNECTIVITY_PROGRESS_START, 1.0)
+		return restore_connectivity_by(connect_method, data, terminals, seed, interrupt_options)
+	return restore_connectivity_by(connect_method, data, terminals, seed)
+
+
+static func _restore_progress_state(interrupt_options: Dictionary, total_steps: int) -> Dictionary:
+	return {
+		"active": not interrupt_options.is_empty(),
+		"chunk_size": _interrupt_chunk_size(interrupt_options),
+		"interrupt_options": interrupt_options,
+		"steps": 0,
+		"total_steps": max(1, total_steps),
+	}
+
+
+static func _restore_progress_step(
+	state: Dictionary,
+	phase: String,
+	step_count: int = 1,
+	force: bool = false
+) -> bool:
+	if not bool(state["active"]):
+		return false
+	state["steps"] = min(int(state["total_steps"]), int(state["steps"]) + max(0, step_count))
+	var steps = int(state["steps"])
+	var chunk_size = int(state["chunk_size"])
+	if not force and steps < int(state["total_steps"]) and steps % chunk_size != 0:
+		return false
+	return _interrupt_update(state["interrupt_options"], phase, steps, int(state["total_steps"]))
+
+
+static func _restore_progress_finish(state: Dictionary, phase: String) -> bool:
+	if not bool(state["active"]):
+		return false
+	state["steps"] = int(state["total_steps"])
+	return _interrupt_update(state["interrupt_options"], phase, int(state["steps"]), int(state["total_steps"]))
 
 
 static func _report_visited_progress(state: Dictionary, interrupt_options: Dictionary, phase: String = "symmetric_toric_inner") -> bool:
@@ -485,12 +603,18 @@ static func are_terminals_connected(data, terminals: Array) -> bool:
 	return true
 
 
-static func restore_connectivity_by(method_type, data, terminals: Array = [], seed: int = 0) -> Array:
+static func restore_connectivity_by(
+	method_type,
+	data,
+	terminals: Array = [],
+	seed: int = 0,
+	interrupt_options: Dictionary = {}
+) -> Array:
 	match method_type:
 		CONNECT_DENSE:
-			return restore_connectivity_dense(data, _connectivity_direction_seed(seed, 101))
+			return restore_connectivity_dense(data, _connectivity_direction_seed(seed, 101), interrupt_options)
 		CONNECT_SPARSE:
-			return restore_connectivity_sparse(data, terminals, _connectivity_direction_seed(seed, 101))
+			return restore_connectivity_sparse(data, terminals, _connectivity_direction_seed(seed, 101), interrupt_options)
 		CONNECT_NONE, _:
 			return []
 
@@ -537,13 +661,19 @@ static func restore_terminal_connectivity(data, terminals: Array, direction_seed
 	return removed_walls
 
 
-static func restore_connectivity(data, direction_seed: int = 0) -> Array:
-	return restore_connectivity_dense(data, direction_seed)
+static func restore_connectivity(data, direction_seed: int = 0, interrupt_options: Dictionary = {}) -> Array:
+	return restore_connectivity_dense(data, direction_seed, interrupt_options)
 
 
-static func restore_connectivity_dense(data, direction_seed: int = 0) -> Array:
+static func restore_connectivity_dense(data, direction_seed: int = 0, interrupt_options: Dictionary = {}) -> Array:
 	var removed_walls: Array = []
+	var progress_state = _restore_progress_state(
+		interrupt_options,
+		data.cells.size() * 10 + data.walls.size() * 2 + 1
+	)
+	var progress_active = bool(progress_state["active"])
 	if data.cells.is_empty():
+		_restore_progress_finish(progress_state, "restore_dense_carve")
 		return removed_walls
 
 	var direction_order = _connectivity_directions(direction_seed)
@@ -554,9 +684,13 @@ static func restore_connectivity_dense(data, direction_seed: int = 0) -> Array:
 	for cell in data.cells:
 		var key = cell.key()
 		if wall_set.has(key):
-			continue
-		floor_cells.append(cell)
-		floor_set[key] = cell
+			pass
+		else:
+			floor_cells.append(cell)
+			floor_set[key] = cell
+		if progress_active and _restore_progress_step(progress_state, "restore_dense_components"):
+			data.set_walls(_points_from_set(wall_set))
+			return removed_walls
 
 	if floor_cells.is_empty():
 		var first = data.cells[0]
@@ -565,12 +699,24 @@ static func restore_connectivity_dense(data, direction_seed: int = 0) -> Array:
 			removed_walls.append(first)
 			wall_set.erase(first_key)
 			data.set_walls(_points_from_set(wall_set))
+		_restore_progress_finish(progress_state, "restore_dense_carve")
 		return removed_walls
 
-	var component_result = _dense_floor_components(floor_cells, floor_set, data.cyclic_size, direction_order)
+	var component_result = _dense_floor_components(
+		floor_cells,
+		floor_set,
+		data.cyclic_size,
+		direction_order,
+		progress_state,
+		progress_active
+	)
+	if bool(component_result.get("cancelled", false)):
+		data.set_walls(_points_from_set(wall_set))
+		return removed_walls
 	var owner: Dictionary = component_result["owner"]
 	var component_count: int = component_result["count"]
 	if component_count <= 1:
+		_restore_progress_finish(progress_state, "restore_dense_carve")
 		return removed_walls
 
 	var wall_cost := {}
@@ -613,6 +759,10 @@ static func restore_connectivity_dense(data, direction_seed: int = 0) -> Array:
 					search_buckets[next_cost] = []
 				search_buckets[next_cost].append(cells_set[neighbor_key])
 
+			if progress_active and _restore_progress_step(progress_state, "restore_dense_search"):
+				data.set_walls(_points_from_set(wall_set))
+				return removed_walls
+
 		current_cost += 1
 
 	var bridge_buckets := {}
@@ -653,6 +803,10 @@ static func restore_connectivity_dense(data, direction_seed: int = 0) -> Array:
 			if bridge_cost > max_bridge_cost:
 				max_bridge_cost = bridge_cost
 
+		if progress_active and _restore_progress_step(progress_state, "restore_dense_bridges"):
+			data.set_walls(_points_from_set(wall_set))
+			return removed_walls
+
 	var component_parent := {}
 	var component_size := {}
 	for component_id in range(component_count):
@@ -676,27 +830,39 @@ static func restore_connectivity_dense(data, direction_seed: int = 0) -> Array:
 			selected_count += 1
 			if selected_count >= component_count - 1:
 				break
+			if progress_active and _restore_progress_step(progress_state, "restore_dense_bridges"):
+				data.set_walls(_points_from_set(wall_set))
+				return removed_walls
 		if selected_count >= component_count - 1:
 			break
 
 	var processed_paths := {}
 	for bridge in selected_bridges:
-		_dense_remove_parent_path(
+		if _dense_remove_parent_path(
 			bridge["a"],
 			parent,
 			wall_set,
 			processed_paths,
-			removed_walls
-		)
-		_dense_remove_parent_path(
+			removed_walls,
+			progress_state,
+			progress_active
+		):
+			data.set_walls(_points_from_set(wall_set))
+			return removed_walls
+		if _dense_remove_parent_path(
 			bridge["b"],
 			parent,
 			wall_set,
 			processed_paths,
-			removed_walls
-		)
+			removed_walls,
+			progress_state,
+			progress_active
+		):
+			data.set_walls(_points_from_set(wall_set))
+			return removed_walls
 
 	data.set_walls(_points_from_set(wall_set))
+	_restore_progress_finish(progress_state, "restore_dense_carve")
 	return removed_walls
 
 
@@ -704,7 +870,9 @@ static func _dense_floor_components(
 	floor_cells: Array,
 	floor_set: Dictionary,
 	cyclic_size: int,
-	direction_order: Array
+	direction_order: Array,
+	progress_state: Dictionary,
+	progress_active: bool
 ) -> Dictionary:
 	var owner := {}
 	var component_id := 0
@@ -719,6 +887,12 @@ static func _dense_floor_components(
 		while idx < open.size():
 			var current = open[idx]
 			idx += 1
+			if progress_active and _restore_progress_step(progress_state, "restore_dense_components"):
+				return {
+					"owner": owner,
+					"count": component_id,
+					"cancelled": true,
+				}
 			for neighbor in HexGridScript.neighbors_in_directions(current, direction_order, cyclic_size):
 				var neighbor_key = neighbor.key()
 				if not floor_set.has(neighbor_key):
@@ -733,6 +907,7 @@ static func _dense_floor_components(
 	return {
 		"owner": owner,
 		"count": component_id,
+		"cancelled": false,
 	}
 
 
@@ -741,17 +916,22 @@ static func _dense_remove_parent_path(
 	parent: Dictionary,
 	wall_set: Dictionary,
 	processed_paths: Dictionary,
-	removed_walls: Array
-) -> void:
+	removed_walls: Array,
+	progress_state: Dictionary,
+	progress_active: bool
+) -> bool:
 	var current_key = start_key
 	while current_key != "":
 		if processed_paths.has(current_key):
-			return
+			return false
 		processed_paths[current_key] = true
 		if wall_set.has(current_key):
 			removed_walls.append(wall_set[current_key])
 			wall_set.erase(current_key)
+		if progress_active and _restore_progress_step(progress_state, "restore_dense_carve"):
+			return true
 		current_key = parent.get(current_key, "")
+	return false
 
 
 static func _dense_component_find(parent: Dictionary, component_id: int) -> int:
@@ -797,19 +977,34 @@ static func _points_from_set(point_set: Dictionary) -> Array:
 	return result
 
 
-static func restore_connectivity_sparse(data, terminals: Array = [], direction_seed: int = 0) -> Array:
+static func restore_connectivity_sparse(
+	data,
+	terminals: Array = [],
+	direction_seed: int = 0,
+	interrupt_options: Dictionary = {}
+) -> Array:
 	var removed_walls: Array = []
+	var progress_state = _restore_progress_state(
+		interrupt_options,
+		data.cells.size() * 12 + data.walls.size() * 4 + 1
+	)
+	var progress_active = bool(progress_state["active"])
 	if data.cells.is_empty():
+		_restore_progress_finish(progress_state, "restore_sparse_expand")
 		return removed_walls
 
 	var direction_order = _connectivity_directions(direction_seed)
 	var wall_set = data.wall_set()
 	var cells_set = HexMapDataScript.make_set(data.cells)
 	var floor_cells = data.floor_cells()
+	if progress_active and _restore_progress_step(progress_state, "restore_sparse_floor", data.cells.size(), true):
+		data.set_walls(_points_from_set(wall_set))
+		return removed_walls
 
 	if floor_cells.is_empty():
 		removed_walls.append(data.cells[0])
 		data.set_walls(HexMapDataScript.points_except(data.walls, [data.cells[0]]))
+		_restore_progress_finish(progress_state, "restore_sparse_expand")
 		return removed_walls
 
 	if terminals.is_empty():
@@ -839,6 +1034,9 @@ static func restore_connectivity_sparse(data, terminals: Array = [], direction_s
 			if dist.has(nk): continue
 			dist[nk] = d
 			frontier.append(cells_set[nk])
+		if progress_active and _restore_progress_step(progress_state, "restore_sparse_floor"):
+			data.set_walls(_points_from_set(wall_set))
+			return removed_walls
 
 	# Phase 2: build wall buckets by terminal distance
 	var wall_buckets := {}
@@ -856,6 +1054,9 @@ static func restore_connectivity_sparse(data, terminals: Array = [], direction_s
 			wall_buckets[d][nk] = wall_set[nk]
 			if d > current_dist:
 				current_dist = d
+		if progress_active and _restore_progress_step(progress_state, "restore_sparse_buckets"):
+			data.set_walls(_points_from_set(wall_set))
+			return removed_walls
 
 	var dead_end := {}
 
@@ -878,6 +1079,9 @@ static func restore_connectivity_sparse(data, terminals: Array = [], direction_s
 				continue
 			if dead_end.has(wk): continue
 			entry_keys.append(wk)
+			if progress_active and _restore_progress_step(progress_state, "restore_sparse_search"):
+				data.set_walls(_points_from_set(wall_set))
+				return removed_walls
 		for wk in stale_keys:
 			wall_buckets[current_dist].erase(wk)
 
@@ -886,7 +1090,20 @@ static func restore_connectivity_sparse(data, terminals: Array = [], direction_s
 			continue
 
 		# Single combined BFS from all entry walls at this distance
-		var result = _flood_bfs(entry_keys, dist, wall_set, cells_set, dead_end, data.cyclic_size, direction_order)
+		var result = _flood_bfs(
+			entry_keys,
+			dist,
+			wall_set,
+			cells_set,
+			dead_end,
+			data.cyclic_size,
+			direction_order,
+			progress_state,
+			progress_active
+		)
+		if bool(result.get("cancelled", false)):
+			data.set_walls(_points_from_set(wall_set))
+			return removed_walls
 		var best_goal = result["goal"]
 		var explored_map: Dictionary = result["explored_map"]
 		var bfs_parent: Dictionary = result["parent"]
@@ -920,6 +1137,9 @@ static func restore_connectivity_sparse(data, terminals: Array = [], direction_s
 			if wall_set.has(key) and useful.has(key):
 				wall_set.erase(key)
 				removed_walls.append(cell)
+			if progress_active and _restore_progress_step(progress_state, "restore_sparse_search"):
+				data.set_walls(_points_from_set(wall_set))
+				return removed_walls
 
 		# Expand dist from entry wall through floors and newly-removed walls
 		var expand_frontier: Array = [entry_wall]
@@ -957,11 +1177,15 @@ static func restore_connectivity_sparse(data, terminals: Array = [], direction_s
 							current_dist = nd
 					continue
 				expand_frontier.append(cells_set[nk])
+			if progress_active and _restore_progress_step(progress_state, "restore_sparse_expand"):
+				data.set_walls(_points_from_set(wall_set))
+				return removed_walls
 
 	var new_walls: Array = []
 	for key in wall_set:
 		new_walls.append(wall_set[key])
 	data.set_walls(new_walls)
+	_restore_progress_finish(progress_state, "restore_sparse_expand")
 
 	return removed_walls
 
@@ -972,7 +1196,9 @@ static func _flood_bfs(
 	cells_set: Dictionary,
 	dead_end: Dictionary,
 	cyclic_size: int,
-	direction_order: Array
+	direction_order: Array,
+	progress_state: Dictionary,
+	progress_active: bool
 ) -> Dictionary:
 	var current_level: Array = []
 	var queued := {}
@@ -997,6 +1223,13 @@ static func _flood_bfs(
 			if not cells_set.has(ck): continue
 			if explored_map.has(ck): continue
 			explored_map[ck] = true
+			if progress_active and _restore_progress_step(progress_state, "restore_sparse_search"):
+				return {
+					"goal": null,
+					"explored_map": explored_map,
+					"parent": parent,
+					"cancelled": true,
+				}
 
 			# Floor cell (not wall) → unreachable floor = goal
 			if not wall_set.has(ck):
@@ -1023,11 +1256,21 @@ static func _flood_bfs(
 				next_level.append(cells_set[nk])
 
 		if best_goal:
-			return {"goal": best_goal, "explored_map": explored_map, "parent": parent}
+			return {
+				"goal": best_goal,
+				"explored_map": explored_map,
+				"parent": parent,
+				"cancelled": false,
+			}
 
 		current_level = next_level
 
-	return {"goal": null, "explored_map": explored_map, "parent": parent}
+	return {
+		"goal": null,
+		"explored_map": explored_map,
+		"parent": parent,
+		"cancelled": false,
+	}
 
 
 static func _draw_symmetric_outer_area(state: Dictionary, wall_probability: float) -> Dictionary:
