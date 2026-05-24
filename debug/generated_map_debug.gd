@@ -64,10 +64,13 @@ const SHAPE_RECTANGLE := ShapeMode.RECTANGLE
 const SHAPE_HEXAGON := ShapeMode.HEXAGON
 const SHAPE_TORUS := ShapeMode.TORUS
 
+const CONNECT_METHOD_NAMES := ["None", "Dense", "Sparse", "Simple", "Expand", "Flood"]
+const CONNECT_METHOD_VALUES := [0, 1, 2, 4, 5, 6]
+
 var _shape_mode := ShapeMode.RECTANGLE
 var _seed := 1201
 var _wall_probability := 0.45
-var _ensure_connected := true
+var _connect_method := 1
 var _flat_top := true
 var _show_path := true
 var _show_split := true
@@ -83,7 +86,7 @@ var _shape_buttons: Array[Button] = []
 var _summary_label: Label
 var _orientation_option: OptionButton
 var _probability_option: OptionButton
-var _connected_check: CheckButton
+var _connect_method_option: OptionButton
 var _path_check: CheckButton
 var _split_check: CheckButton
 var _symmetry_check: CheckButton
@@ -102,8 +105,8 @@ func configure_for_test(
 	shape_mode: int,
 	seed: int,
 	wall_probability: float,
-	ensure_connected: bool,
-	flat_top: bool,
+	connect_method: int = 1,
+	flat_top: bool = true,
 	toric_size_index: int = -1,
 	unfold_toric_domain: bool = false,
 	show_symmetry_regions: bool = false,
@@ -113,7 +116,7 @@ func configure_for_test(
 	_shape_mode = shape_mode
 	_seed = seed
 	_wall_probability = wall_probability
-	_ensure_connected = ensure_connected
+	_connect_method = connect_method
 	_flat_top = flat_top
 	if toric_size_index >= 0:
 		_toric_size_index = clampi(toric_size_index, 0, TORIC_SIZE_PATTERNS.size() - 1)
@@ -197,7 +200,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		KEY_TAB:
 			_set_shape_mode((_shape_mode + 1) % SHAPE_NAMES.size())
 		KEY_R:
-			_set_connected(not _ensure_connected)
+			_set_connect_method((_connect_method + 1) % CONNECT_METHOD_NAMES.size())
 		KEY_O:
 			_set_orientation(1 if _flat_top else 0)
 		KEY_P:
@@ -234,13 +237,14 @@ func _build_controls() -> void:
 	_orientation_option.item_selected.connect(_set_orientation)
 	add_child(_orientation_option)
 
-	_connected_check = CheckButton.new()
-	_connected_check.text = "Connected"
-	_connected_check.position = Vector2(436.0, 18.0)
-	_connected_check.size = Vector2(132.0, 36.0)
-	_connected_check.button_pressed = _ensure_connected
-	_connected_check.toggled.connect(_set_connected)
-	add_child(_connected_check)
+	_connect_method_option = OptionButton.new()
+	_connect_method_option.position = Vector2(436.0, 20.0)
+	_connect_method_option.size = Vector2(132.0, 36.0)
+	for method_name in CONNECT_METHOD_NAMES:
+		_connect_method_option.add_item(method_name)
+	_connect_method_option.select(_connect_method)
+	_connect_method_option.item_selected.connect(_set_connect_method)
+	add_child(_connect_method_option)
 
 	_path_check = CheckButton.new()
 	_path_check.text = "Path"
@@ -346,8 +350,8 @@ func _set_orientation(index: int) -> void:
 	queue_redraw()
 
 
-func _set_connected(value: bool) -> void:
-	_ensure_connected = value
+func _set_connect_method(value: int) -> void:
+	_connect_method = value
 	_sync_controls()
 	_generate_map()
 
@@ -414,8 +418,8 @@ func _sync_controls() -> void:
 		_shape_buttons[index].button_pressed = index == _shape_mode
 	if _orientation_option != null:
 		_orientation_option.select(0 if _flat_top else 1)
-	if _connected_check != null:
-		_connected_check.button_pressed = _ensure_connected
+	if _connect_method_option != null:
+		_connect_method_option.select(_connect_method)
 	if _path_check != null:
 		_path_check.button_pressed = _show_path
 	if _split_check != null:
@@ -455,7 +459,7 @@ func _generate_map() -> void:
 				HEXAGON_RADIUS,
 				_wall_probability,
 				_seed,
-				_ensure_connected,
+				CONNECT_METHOD_VALUES[_connect_method],
 				protected_floor
 			)
 		ShapeMode.TORUS:
@@ -465,7 +469,7 @@ func _generate_map() -> void:
 					(_toric_size() - 1) / 2,
 					_wall_probability,
 					_seed,
-					_ensure_connected,
+					CONNECT_METHOD_VALUES[_connect_method],
 					protected_floor,
 					20,
 					[],
@@ -476,7 +480,7 @@ func _generate_map() -> void:
 					_toric_size(),
 					_wall_probability,
 					_seed,
-					_ensure_connected,
+					CONNECT_METHOD_VALUES[_connect_method],
 					protected_floor
 				)
 		_:
@@ -485,7 +489,7 @@ func _generate_map() -> void:
 				RECTANGLE_HEIGHT,
 				_wall_probability,
 				_seed,
-				_ensure_connected,
+				CONNECT_METHOD_VALUES[_connect_method],
 				false,
 				protected_floor
 			)
@@ -498,11 +502,11 @@ func _update_summary() -> void:
 	if _summary_label == null or _map_data == null:
 		return
 	var connected = HexMapGenerator.is_floor_connected(_map_data)
-	_summary_label.text = "%s  seed=%d  wall_prob=%.2f  restore=%s  connected=%s  %s" % [
+	_summary_label.text = "%s  seed=%d  wall_prob=%.2f  method=%s  connected=%s  %s" % [
 		SHAPE_NAMES[_shape_mode],
 		_seed,
 		_wall_probability,
-		str(_ensure_connected),
+		CONNECT_METHOD_NAMES[_connect_method],
 		str(connected),
 		HexMapDebug.render_summary(_map_data),
 	]
@@ -541,7 +545,7 @@ func _draw_header() -> void:
 	draw_string(
 		font,
 		Vector2(24.0, 122.0),
-		"Space: new seed   Tab: shape   R: restore   O: orientation   P: path   S: 9-split   Y: sym-region   D: centered   U: unfold   N: size   G: sym-gen",
+		"Space: new seed   Tab: shape   R: method   O: orientation   P: path   S: 9-split   Y: sym-region   D: centered   U: unfold   N: size   G: sym-gen",
 		HORIZONTAL_ALIGNMENT_LEFT,
 		-1.0,
 		16,

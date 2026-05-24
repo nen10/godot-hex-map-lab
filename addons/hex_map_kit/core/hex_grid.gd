@@ -10,8 +10,12 @@ static func directions() -> Array:
 
 
 static func neighbors(position, cyclic_size: int = 0) -> Array:
+	return neighbors_in_directions(position, directions(), cyclic_size)
+
+
+static func neighbors_in_directions(position, direction_order: Array, cyclic_size: int = 0) -> Array:
 	var result: Array = []
-	for direction in directions():
+	for direction in direction_order:
 		var neighbor = position.add(direction)
 		if cyclic_size > 0:
 			neighbor = HexToricCoordinateScript.wrap_vector(neighbor, cyclic_size)
@@ -55,8 +59,10 @@ static func make_set(points: Array) -> Dictionary:
 static func connected_area(
 	start,
 	enterable_points: Array,
-	cyclic_size: int = 0
+	cyclic_size: int = 0,
+	direction_order: Array = []
 ) -> Array:
+	var directions_ordered = directions() if direction_order.is_empty() else direction_order
 	var normalized_start = start
 	if cyclic_size > 0:
 		normalized_start = HexToricCoordinateScript.wrap_vector(start, cyclic_size)
@@ -81,7 +87,7 @@ static func connected_area(
 		closed[current_key] = true
 		result.append(current)
 
-		for neighbor in neighbors(current, cyclic_size):
+		for neighbor in neighbors_in_directions(current, directions_ordered, cyclic_size):
 			var neighbor_key = neighbor.key()
 			if closed.has(neighbor_key):
 				continue
@@ -99,17 +105,20 @@ static func shortest_path(
 	start,
 	goals: Array,
 	enterable_points: Array,
-	cyclic_size: int = 0
+	cyclic_size: int = 0,
+	direction_order: Array = []
 ) -> Array:
-	return shortest_path_to_any([start], goals, enterable_points, cyclic_size)
+	return shortest_path_to_any([start], goals, enterable_points, cyclic_size, direction_order)
 
 
 static func shortest_path_to_any(
 	starts: Array,
 	goals: Array,
 	enterable_points: Array,
-	cyclic_size: int = 0
+	cyclic_size: int = 0,
+	direction_order: Array = []
 ) -> Array:
+	var directions_ordered = directions() if direction_order.is_empty() else direction_order
 	var enterable := _make_wrapped_set(enterable_points, cyclic_size)
 	var goal_set := _make_wrapped_set(goals, cyclic_size)
 	var open: Array = []
@@ -140,7 +149,7 @@ static func shortest_path_to_any(
 		if goal_set.has(current_key):
 			return _rebuild_path(current_key, parent, closed)
 
-		for neighbor in neighbors(current, cyclic_size):
+		for neighbor in neighbors_in_directions(current, directions_ordered, cyclic_size):
 			var neighbor_key = neighbor.key()
 			if closed.has(neighbor_key):
 				continue
@@ -160,8 +169,10 @@ static func shortest_path_with_tiebreak(
 	enterable_points: Array,
 	cyclic_size: int,
 	dsu,
-	root0_key: String
+	root0_key: String,
+	direction_order: Array = []
 ) -> Array:
+	var directions_ordered = directions() if direction_order.is_empty() else direction_order
 	var enterable := _make_wrapped_set(enterable_points, cyclic_size)
 	var closed := {}
 	var parent := {}
@@ -200,7 +211,7 @@ static func shortest_path_with_tiebreak(
 					best_size = size
 				continue
 
-			for neighbor in neighbors(current, cyclic_size):
+			for neighbor in neighbors_in_directions(current, directions_ordered, cyclic_size):
 				var nkey = neighbor.key()
 				if closed.has(nkey):
 					continue

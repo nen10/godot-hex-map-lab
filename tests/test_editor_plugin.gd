@@ -38,6 +38,8 @@ func _run() -> void:
 	await _test_distribution_editor_close_button_uses_cancel_flow()
 	await _test_distribution_editor_manages_recent_custom_and_duplicate_preset()
 	await _test_generation_dock_symmetric_hexagon_minimum_radii()
+	await _test_generation_dock_torus_connectivity_controls()
+	await _test_generation_dock_torus_connectivity_generation()
 	await _test_generation_dock_tracks_generation_progress_state()
 	await _test_generation_dock_only_generates_from_generate_button()
 	await _test_generation_dock_wires_core_progress_and_cancel()
@@ -175,7 +177,7 @@ func _test_generation_dock_symmetric_hexagon_minimum_radii() -> void:
 	dock._generate_option.select(HexMapGenDock.GENERATE_SYMMETRIC)
 	dock._shape_option_symmetric.select(HexMapGenDock.SHAPE_HEXAGON)
 	dock._wall_prob_slider.set_value_no_signal(1.0)
-	dock._connectivity_check.set_pressed_no_signal(true)
+	dock._connect_method_option.select(1)
 	dock._refresh_controls()
 	for radius in [1, 2]:
 		dock._gen_radius_spin.set_value_no_signal(radius)
@@ -188,6 +190,67 @@ func _test_generation_dock_symmetric_hexagon_minimum_radii() -> void:
 		_assert_true(data.walls.size() <= hex_cell_count - 1, "generation dock radius %d symmetric hexagon keeps protected floor" % radius)
 		_assert_true(HexMapGenerator.is_floor_connected(data), "generation dock radius %d symmetric hexagon completes connectivity" % radius)
 		_assert_true(dock._stats_label.text.contains("Hex-inward Markov mesh model"), "generation dock stats include generation mode")
+
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_torus_connectivity_controls() -> void:
+	var dock = await _new_ready_dock()
+
+	_assert_eq(dock._generate_option.selected, HexMapGenDock.GENERATE_SYMMETRIC, "generation dock defaults to symmetric generator")
+	_assert_true(dock._torus_connectivity_check.visible, "toric connection is visible for symmetric generation")
+	_assert_true(not dock._torus_connectivity_check.disabled, "toric connection is enabled for symmetric generation")
+
+	dock._generate_option.select(HexMapGenDock.GENERATE_SIMPLE)
+	dock._on_generate_changed(HexMapGenDock.GENERATE_SIMPLE)
+	await process_frame
+	_assert_true(not dock._torus_connectivity_check.visible, "toric connection is hidden for simple generation")
+	_assert_true(dock._torus_connectivity_check.disabled, "toric connection is disabled for simple generation")
+
+	dock._generate_option.select(HexMapGenDock.GENERATE_SYMMETRIC)
+	dock._on_generate_changed(HexMapGenDock.GENERATE_SYMMETRIC)
+	dock._shape_option_symmetric.select(HexMapGenDock.SHAPE_HEXAGON)
+	dock._on_symmetric_shape_changed(HexMapGenDock.SHAPE_HEXAGON)
+	dock._torus_connectivity_check.set_pressed_no_signal(true)
+	dock._on_torus_connectivity_toggled(true)
+	await process_frame
+	_assert_eq(dock._shape_option_symmetric.selected, HexMapGenDock.SHAPE_RECTANGLE, "toric connection selects symmetric square")
+	_assert_true(dock._torus_connectivity_check.button_pressed, "toric connection remains on after selecting square")
+
+	dock._shape_option_symmetric.select(HexMapGenDock.SHAPE_HEXAGON)
+	dock._on_symmetric_shape_changed(HexMapGenDock.SHAPE_HEXAGON)
+	await process_frame
+	_assert_true(not dock._torus_connectivity_check.button_pressed, "symmetric hexagon turns toric connection off")
+
+	_begin_manual_generation(dock, false)
+	_assert_true(dock._torus_connectivity_check.disabled, "toric connection is disabled while generation is running")
+	dock._finish_generation(true)
+
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_torus_connectivity_generation() -> void:
+	var dock = await _new_ready_dock()
+
+	dock._generate_option.select(HexMapGenDock.GENERATE_SYMMETRIC)
+	dock._on_generate_changed(HexMapGenDock.GENERATE_SYMMETRIC)
+	dock._shape_option_symmetric.select(HexMapGenDock.SHAPE_RECTANGLE)
+	dock._on_symmetric_shape_changed(HexMapGenDock.SHAPE_RECTANGLE)
+	dock._gen_radius_spin.set_value_no_signal(2)
+	dock._wall_prob_slider.set_value_no_signal(0.0)
+	dock._connect_method_option.select(_connect_method_index(HexMapGenerator.CONNECT_NONE))
+	dock._torus_connectivity_check.set_pressed_no_signal(false)
+	dock._refresh_controls()
+
+	_assert_true(await dock._generate_map(), "generation dock completes non-toric symmetric square generation")
+	_assert_eq(dock._current_data.cyclic_size, 0, "symmetric square without toric connection is non-toric")
+
+	dock._torus_connectivity_check.set_pressed_no_signal(true)
+	dock._on_torus_connectivity_toggled(true)
+	_assert_true(await dock._generate_map(), "generation dock completes toric symmetric square generation")
+	_assert_eq(dock._current_data.cyclic_size, 5, "symmetric square with toric connection uses toric size")
 
 	dock.queue_free()
 	await process_frame
@@ -260,7 +323,7 @@ func _test_generation_dock_only_generates_from_generate_button() -> void:
 	dock._shape_option_simple.select(HexMapGenDock.SHAPE_RECTANGLE)
 	dock._rect_height_spin.set_value_no_signal(1)
 	dock._wall_prob_slider.set_value_no_signal(0.0)
-	dock._connectivity_check.set_pressed_no_signal(false)
+	dock._connect_method_option.select(0)
 	dock._refresh_controls()
 
 	var generation_id = dock._generation_id
@@ -315,7 +378,7 @@ func _test_generation_dock_wires_core_progress_and_cancel() -> void:
 	dock._rect_width_spin.set_value_no_signal(2)
 	dock._rect_height_spin.set_value_no_signal(1)
 	dock._wall_prob_slider.set_value_no_signal(0.0)
-	dock._connectivity_check.set_pressed_no_signal(false)
+	dock._connect_method_option.select(0)
 	dock._refresh_controls()
 	await dock._generate_map()
 	var completed_data = dock._current_data
@@ -323,7 +386,7 @@ func _test_generation_dock_wires_core_progress_and_cancel() -> void:
 	dock._rect_width_spin.set_value_no_signal(20)
 	dock._rect_height_spin.set_value_no_signal(20)
 	dock._wall_prob_slider.set_value_no_signal(1.0)
-	dock._connectivity_check.set_pressed_no_signal(false)
+	dock._connect_method_option.select(0)
 	dock._generation_chunk_size = 1
 	dock._generation_progress_delay_usec = 5000
 	dock._refresh_controls()
@@ -598,6 +661,14 @@ func _spin_values(spins: Array) -> Array:
 	for spin in spins:
 		result.append(float(spin.value))
 	return result
+
+
+func _connect_method_index(method: int) -> int:
+	for index in range(HexMapGenDock.CONNECT_METHOD_VALUES.size()):
+		if HexMapGenDock.CONNECT_METHOD_VALUES[index] == method:
+			return index
+	_failures.append("connect method %d is not listed in dock" % method)
+	return 0
 
 
 func _new_ready_dock():

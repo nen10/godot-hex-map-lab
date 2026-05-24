@@ -10,12 +10,20 @@ const HexVectorScript = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const HexDisjointSetScript = preload("res://addons/hex_map_kit/core/hex_disjoint_set.gd")
 
 
+const CONNECT_NONE := 0
+const CONNECT_DENSE := 1
+const CONNECT_SPARSE := 2
+const CONNECT_TERMINAL := 3
+const CONNECT_SIMPLE := 4
+const CONNECT_EXPAND := 5
+const CONNECT_FLOOD := 6
+
 static func generate_rectangle(
 	width: int,
 	height: int,
 	wall_probability: float,
 	seed: int = 0,
-	ensure_connected: bool = false,
+	connect_method: int = 0,
 	toric: bool = false,
 	protected_floor: Array = [],
 	interrupt_options: Dictionary = {}
@@ -32,8 +40,7 @@ static func generate_rectangle(
 	if wall_result["cancelled"]:
 		_record_generation_result(interrupt_options, data, true)
 		return data
-	if ensure_connected:
-		restore_connectivity(data)
+	restore_connectivity_by(connect_method, data, [], seed)
 	_record_generation_result(interrupt_options, data, false)
 	return data
 
@@ -42,7 +49,7 @@ static func generate_toric_square(
 	size: int,
 	wall_probability: float,
 	seed: int = 0,
-	ensure_connected: bool = false,
+	connect_method: int = 0,
 	protected_floor: Array = [],
 	interrupt_options: Dictionary = {}
 ):
@@ -58,8 +65,7 @@ static func generate_toric_square(
 	if wall_result["cancelled"]:
 		_record_generation_result(interrupt_options, data, true)
 		return data
-	if ensure_connected:
-		restore_connectivity_flood(data)
+	restore_connectivity_by(connect_method, data, [], seed)
 	_record_generation_result(interrupt_options, data, false)
 	return data
 
@@ -68,7 +74,7 @@ static func generate_symmetric_square(
 	radius: int,
 	wall_probability: float,
 	seed: int = 0,
-	ensure_connected: bool = false,
+	connect_method: int = 0,
 	protected_floor: Array = [],
 	distribution_id: int = 20,
 	terminal_floor: Array = [],
@@ -96,9 +102,8 @@ static func generate_symmetric_square(
 		_record_generation_result(interrupt_options, data, true)
 		return data
 	if not terminal_floor.is_empty():
-		restore_terminal_connectivity(data, terminal_floor)
-	if ensure_connected:
-		restore_connectivity_dense(data)
+		restore_connectivity_by(CONNECT_TERMINAL, data, terminal_floor, seed)
+	restore_connectivity_by(connect_method, data, [], seed)
 	_record_generation_result(interrupt_options, data, false)
 	return data
 
@@ -107,7 +112,7 @@ static func generate_hexagon(
 	radius: int,
 	wall_probability: float,
 	seed: int = 0,
-	ensure_connected: bool = false,
+	connect_method: int = 0,
 	protected_floor: Array = [],
 	interrupt_options: Dictionary = {}
 ):
@@ -123,8 +128,7 @@ static func generate_hexagon(
 	if wall_result["cancelled"]:
 		_record_generation_result(interrupt_options, data, true)
 		return data
-	if ensure_connected:
-		restore_connectivity(data)
+	restore_connectivity_by(connect_method, data, [], seed)
 	_record_generation_result(interrupt_options, data, false)
 	return data
 
@@ -133,7 +137,7 @@ static func generate_symmetric_hexagon(
 	radius: int,
 	wall_probability: float,
 	seed: int = 0,
-	ensure_connected: bool = false,
+	connect_method: int = 0,
 	protected_floor: Array = [],
 	distribution_id: int = 20,
 	terminal_floor: Array = [],
@@ -181,9 +185,8 @@ static func generate_symmetric_hexagon(
 		_record_generation_result(interrupt_options, data, true)
 		return data
 	if not terminal_floor.is_empty():
-		restore_terminal_connectivity(data, terminal_floor)
-	if ensure_connected:
-		restore_connectivity(data)
+		restore_connectivity_by(CONNECT_TERMINAL, data, terminal_floor, seed)
+	restore_connectivity_by(connect_method, data, [], seed)
 	_record_generation_result(interrupt_options, data, false)
 	return data
 
@@ -441,6 +444,38 @@ static func connected_components(data) -> Array:
 	return components
 
 
+static func _connectivity_direction_seed(seed: int, salt: int) -> int:
+	var result = int(seed) + salt
+	if result < 0:
+		result = -result
+	if result == 0:
+		return salt
+	return result
+
+
+static func _connectivity_directions(direction_seed: int = 0) -> Array:
+	var result = HexGridScript.directions()
+	if direction_seed == 0:
+		return result
+
+	var seed_value = direction_seed
+	if seed_value < 0:
+		seed_value = -seed_value
+	if seed_value == 0:
+		return result
+
+	var rng = RandomNumberGenerator.new()
+	rng.seed = seed_value
+	for i in range(result.size() - 1, 0, -1):
+		var j = rng.randi_range(0, i)
+		if i == j:
+			continue
+		var tmp = result[i]
+		result[i] = result[j]
+		result[j] = tmp
+	return result
+
+
 static func are_terminals_connected(data, terminals: Array) -> bool:
 	var terminal_points = _normalized_terminals(data, terminals)
 	if terminal_points.size() <= 1:
@@ -454,13 +489,31 @@ static func are_terminals_connected(data, terminals: Array) -> bool:
 			return false
 	return true
 
+static func restore_connectivity_by(method_type, data, terminals: Array = [], seed: int = 0) -> Array:
+	match method_type:
+		CONNECT_DENSE:
+			return restore_connectivity_dense(data, _connectivity_direction_seed(seed, 101))
+		CONNECT_SPARSE:
+			return restore_connectivity_sparse(data, terminals, _connectivity_direction_seed(seed, 101))
+		CONNECT_TERMINAL:
+			return restore_terminal_connectivity(data, terminals, _connectivity_direction_seed(seed, 101))
+		CONNECT_SIMPLE:
+			return restore_connectivity(data, _connectivity_direction_seed(seed, 101))
+		CONNECT_EXPAND:
+			return restore_connectivity_expand(data, terminals, _connectivity_direction_seed(seed, 101))
+		CONNECT_FLOOD:
+			return restore_connectivity_flood(data, terminals, _connectivity_direction_seed(seed, 101))
+		CONNECT_NONE, _:
+			return []
 
-static func restore_terminal_connectivity(data, terminals: Array) -> Array:
+
+static func restore_terminal_connectivity(data, terminals: Array, direction_seed: int = 0) -> Array:
 	var terminal_points = _normalized_terminals(data, terminals)
 	var removed_walls: Array = []
 	if terminal_points.is_empty():
 		return removed_walls
 
+	var direction_order = _connectivity_directions(direction_seed)
 	_remove_walls_at_points(data, terminal_points, removed_walls)
 
 	var max_iterations = data.cells.size() + data.walls.size() + terminal_points.size() + 1
@@ -468,7 +521,7 @@ static func restore_terminal_connectivity(data, terminals: Array) -> Array:
 	while iterations < max_iterations:
 		iterations += 1
 		var floors = data.floor_cells()
-		var connected = HexGridScript.connected_area(terminal_points[0], floors, data.cyclic_size)
+		var connected = HexGridScript.connected_area(terminal_points[0], floors, data.cyclic_size, direction_order)
 		var connected_set = HexMapDataScript.make_set(connected)
 		var targets: Array = []
 		for terminal in terminal_points:
@@ -483,7 +536,8 @@ static func restore_terminal_connectivity(data, terminals: Array) -> Array:
 			connected,
 			targets,
 			data.cells,
-			data.cyclic_size
+			data.cyclic_size,
+			direction_order
 		)
 		if path.is_empty():
 			return removed_walls
@@ -495,7 +549,7 @@ static func restore_terminal_connectivity(data, terminals: Array) -> Array:
 	return removed_walls
 
 
-static func restore_connectivity(data) -> Array:
+static func restore_connectivity(data, direction_seed: int = 0) -> Array:
 	var removed_walls: Array = []
 	if data.cells.is_empty():
 		return removed_walls
@@ -508,13 +562,14 @@ static func restore_connectivity(data) -> Array:
 	var cells_set = HexMapDataScript.make_set(data.cells)
 	var wall_set = data.wall_set()
 	var floor_cells = data.floor_cells()
+	var direction_order = _connectivity_directions(direction_seed)
 
 	var visited = {}
 	for cell in floor_cells:
 		var key = cell.key()
 		if visited.has(key):
 			continue
-		var component = HexGridScript.connected_area(cell, floor_cells, data.cyclic_size)
+		var component = HexGridScript.connected_area(cell, floor_cells, data.cyclic_size, direction_order)
 		dsu.add_component(component)
 		for c in component:
 			visited[c.key()] = true
@@ -544,7 +599,8 @@ static func restore_connectivity(data) -> Array:
 			data.cells,
 			data.cyclic_size,
 			dsu,
-			root0
+			root0,
+			direction_order
 		)
 		if path.is_empty():
 			return removed_walls
@@ -557,7 +613,7 @@ static func restore_connectivity(data) -> Array:
 				wall_set.erase(key)
 				changed = true
 			dsu.make_set(point)
-			for neighbor in HexGridScript.neighbors(point, data.cyclic_size):
+			for neighbor in HexGridScript.neighbors_in_directions(point, direction_order, data.cyclic_size):
 				var nkey = neighbor.key()
 				if wall_set.has(nkey):
 					continue
@@ -576,11 +632,12 @@ static func restore_connectivity(data) -> Array:
 
 	return removed_walls
 
-static func restore_connectivity_dense(data) -> Array:
+static func restore_connectivity_dense(data, direction_seed: int = 0) -> Array:
 	var removed_walls: Array = []
 	if data.cells.is_empty():
 		return removed_walls
 
+	var direction_order = _connectivity_directions(direction_seed)
 	var cells_set = HexMapDataScript.make_set(data.cells)
 	var wall_set = data.wall_set()
 	var floor_cells: Array = []
@@ -601,7 +658,7 @@ static func restore_connectivity_dense(data) -> Array:
 			data.set_walls(_points_from_set(wall_set))
 		return removed_walls
 
-	var component_result = _dense_floor_components(floor_cells, floor_set, data.cyclic_size)
+	var component_result = _dense_floor_components(floor_cells, floor_set, data.cyclic_size, direction_order)
 	var owner: Dictionary = component_result["owner"]
 	var component_count: int = component_result["count"]
 	if component_count <= 1:
@@ -632,7 +689,7 @@ static func restore_connectivity_dense(data) -> Array:
 			if int(wall_cost.get(current_key, -1)) != current_cost:
 				continue
 
-			for neighbor in HexGridScript.neighbors(current, data.cyclic_size):
+			for neighbor in HexGridScript.neighbors_in_directions(current, direction_order, data.cyclic_size):
 				var neighbor_key = neighbor.key()
 				if not cells_set.has(neighbor_key):
 					continue
@@ -656,7 +713,7 @@ static func restore_connectivity_dense(data) -> Array:
 		var key = cell.key()
 		if not owner.has(key):
 			continue
-		for neighbor in HexGridScript.neighbors(cell, data.cyclic_size):
+		for neighbor in HexGridScript.neighbors_in_directions(cell, direction_order, data.cyclic_size):
 			var neighbor_key = neighbor.key()
 			if key == neighbor_key:
 				continue
@@ -734,7 +791,12 @@ static func restore_connectivity_dense(data) -> Array:
 	return removed_walls
 
 
-static func _dense_floor_components(floor_cells: Array, floor_set: Dictionary, cyclic_size: int) -> Dictionary:
+static func _dense_floor_components(
+	floor_cells: Array,
+	floor_set: Dictionary,
+	cyclic_size: int,
+	direction_order: Array
+) -> Dictionary:
 	var owner := {}
 	var component_id := 0
 	for floor in floor_cells:
@@ -748,7 +810,7 @@ static func _dense_floor_components(floor_cells: Array, floor_set: Dictionary, c
 		while idx < open.size():
 			var current = open[idx]
 			idx += 1
-			for neighbor in HexGridScript.neighbors(current, cyclic_size):
+			for neighbor in HexGridScript.neighbors_in_directions(current, direction_order, cyclic_size):
 				var neighbor_key = neighbor.key()
 				if not floor_set.has(neighbor_key):
 					continue
@@ -826,11 +888,12 @@ static func _points_from_set(point_set: Dictionary) -> Array:
 	return result
 
 
-static func restore_connectivity_expand(data, terminals: Array = []) -> Array:
+static func restore_connectivity_expand(data, terminals: Array = [], direction_seed: int = 0) -> Array:
 	var removed_walls: Array = []
 	if data.cells.is_empty():
 		return removed_walls
 
+	var direction_order = _connectivity_directions(direction_seed)
 	var wall_set = data.wall_set()
 	var cells_set = HexMapDataScript.make_set(data.cells)
 	var floor_cells = data.floor_cells()
@@ -862,7 +925,7 @@ static func restore_connectivity_expand(data, terminals: Array = []) -> Array:
 		var current = frontier[front_idx]
 		front_idx += 1
 		var d = dist[current.key()] + 1
-		for neighbor in HexGridScript.neighbors(current, data.cyclic_size):
+		for neighbor in HexGridScript.neighbors_in_directions(current, direction_order, data.cyclic_size):
 			var nk = neighbor.key()
 			if not cells_set.has(nk): continue
 			if wall_set.has(nk): continue
@@ -880,7 +943,7 @@ static func restore_connectivity_expand(data, terminals: Array = []) -> Array:
 		if unreachable.is_empty():
 			break
 
-		var path = _bfs_to_unreachable(dist, unreachable, cells_set, wall_set, data.cyclic_size)
+		var path = _bfs_to_unreachable(dist, unreachable, cells_set, wall_set, data.cyclic_size, direction_order)
 		if path.is_empty():
 			break
 
@@ -890,7 +953,7 @@ static func restore_connectivity_expand(data, terminals: Array = []) -> Array:
 				removed_walls.append(wall_set[pk])
 				wall_set.erase(pk)
 
-		_expand_dist_from_path(dist, path, cells_set, wall_set, data.cyclic_size)
+		_expand_dist_from_path(dist, path, cells_set, wall_set, data.cyclic_size, direction_order)
 
 	var new_walls: Array = []
 	for key in wall_set:
@@ -905,7 +968,8 @@ static func _bfs_to_unreachable(
 	unreachable: Array,
 	cells_set: Dictionary,
 	wall_set: Dictionary,
-	cyclic_size: int
+	cyclic_size: int,
+	direction_order: Array
 ) -> Array:
 	var goal_set = HexMapDataScript.make_set(unreachable)
 	var current_level: Array = []
@@ -932,7 +996,7 @@ static func _bfs_to_unreachable(
 
 			if goal_set.has(ck):
 				var neighbor_score = -1
-				for neighbor in HexGridScript.neighbors(current, cyclic_size):
+				for neighbor in HexGridScript.neighbors_in_directions(current, direction_order, cyclic_size):
 					var nk = neighbor.key()
 					if dist.has(nk):
 						if dist[nk] > neighbor_score:
@@ -942,7 +1006,7 @@ static func _bfs_to_unreachable(
 					best_dist_score = neighbor_score
 				continue
 
-			for neighbor in HexGridScript.neighbors(current, cyclic_size):
+			for neighbor in HexGridScript.neighbors_in_directions(current, direction_order, cyclic_size):
 				var nk = neighbor.key()
 				if not cells_set.has(nk): continue
 				if closed.has(nk): continue
@@ -966,7 +1030,8 @@ static func _expand_dist_from_path(
 	path: Array,
 	cells_set: Dictionary,
 	wall_set: Dictionary,
-	cyclic_size: int
+	cyclic_size: int,
+	direction_order: Array
 ) -> void:
 	var new_seeds: Array = []
 	for point in path:
@@ -976,7 +1041,7 @@ static func _expand_dist_from_path(
 		if wall_set.has(pk): continue
 
 		var min_d = -1
-		for neighbor in HexGridScript.neighbors(point, cyclic_size):
+		for neighbor in HexGridScript.neighbors_in_directions(point, direction_order, cyclic_size):
 			var nk = neighbor.key()
 			if dist.has(nk):
 				var d = dist[nk]
@@ -992,7 +1057,7 @@ static func _expand_dist_from_path(
 		var current = new_seeds[idx]
 		idx += 1
 		var nd = dist[current.key()] + 1
-		for neighbor in HexGridScript.neighbors(current, cyclic_size):
+		for neighbor in HexGridScript.neighbors_in_directions(current, direction_order, cyclic_size):
 			var nk = neighbor.key()
 			if not cells_set.has(nk): continue
 			if wall_set.has(nk): continue
@@ -1013,11 +1078,12 @@ static func _rebuild_path_inline(goal_key: String, parent: Dictionary, closed: D
 		result.append(closed[key])
 	return result
 
-static func restore_connectivity_sparse(data, terminals: Array = []) -> Array:
+static func restore_connectivity_sparse(data, terminals: Array = [], direction_seed: int = 0) -> Array:
 	var removed_walls: Array = []
 	if data.cells.is_empty():
 		return removed_walls
 
+	var direction_order = _connectivity_directions(direction_seed)
 	var wall_set = data.wall_set()
 	var cells_set = HexMapDataScript.make_set(data.cells)
 	var floor_cells = data.floor_cells()
@@ -1047,7 +1113,7 @@ static func restore_connectivity_sparse(data, terminals: Array = []) -> Array:
 	while fi < frontier.size():
 		var cur = frontier[fi]; fi += 1
 		var d = dist[cur.key()] + 1
-		for n in HexGridScript.neighbors(cur, data.cyclic_size):
+		for n in HexGridScript.neighbors_in_directions(cur, direction_order, data.cyclic_size):
 			var nk = n.key()
 			if not cells_set.has(nk): continue
 			if wall_set.has(nk): continue
@@ -1061,7 +1127,7 @@ static func restore_connectivity_sparse(data, terminals: Array = []) -> Array:
 	for key in dist:
 		var cell = cells_set[key]
 		var d = dist[key]
-		for n in HexGridScript.neighbors(cell, data.cyclic_size):
+		for n in HexGridScript.neighbors_in_directions(cell, direction_order, data.cyclic_size):
 			var nk = n.key()
 			if not cells_set.has(nk): continue
 			if not wall_set.has(nk): continue
@@ -1101,7 +1167,7 @@ static func restore_connectivity_sparse(data, terminals: Array = []) -> Array:
 			continue
 
 		# Single combined BFS from all entry walls at this distance
-		var result = _flood_bfs(entry_keys, dist, wall_set, cells_set, dead_end, data.cyclic_size)
+		var result = _flood_bfs(entry_keys, dist, wall_set, cells_set, dead_end, data.cyclic_size, direction_order)
 		var best_goal = result["goal"]
 		var explored_map: Dictionary = result["explored_map"]
 		var bfs_parent: Dictionary = result["parent"]
@@ -1149,7 +1215,7 @@ static func restore_connectivity_sparse(data, terminals: Array = []) -> Array:
 			if not explored_map.has(cur_key): continue
 
 			var min_d = -1
-			for n in HexGridScript.neighbors(cur, data.cyclic_size):
+			for n in HexGridScript.neighbors_in_directions(cur, direction_order, data.cyclic_size):
 				var nk = n.key()
 				if dist.has(nk):
 					var d = dist[nk]
@@ -1158,7 +1224,7 @@ static func restore_connectivity_sparse(data, terminals: Array = []) -> Array:
 			if min_d < 0: continue
 			dist[cur_key] = min_d + 1
 
-			for n in HexGridScript.neighbors(cur, data.cyclic_size):
+			for n in HexGridScript.neighbors_in_directions(cur, direction_order, data.cyclic_size):
 				var nk = n.key()
 				if not cells_set.has(nk): continue
 				if dist.has(nk): continue
@@ -1180,11 +1246,12 @@ static func restore_connectivity_sparse(data, terminals: Array = []) -> Array:
 
 	return removed_walls
 
-static func restore_connectivity_flood(data, terminals: Array = []) -> Array:
+static func restore_connectivity_flood(data, terminals: Array = [], direction_seed: int = 0) -> Array:
 	var removed_walls: Array = []
 	if data.cells.is_empty():
 		return removed_walls
 
+	var direction_order = _connectivity_directions(direction_seed)
 	var wall_set = data.wall_set()
 	var cells_set = HexMapDataScript.make_set(data.cells)
 	var floor_cells = data.floor_cells()
@@ -1214,7 +1281,7 @@ static func restore_connectivity_flood(data, terminals: Array = []) -> Array:
 	while fi < frontier.size():
 		var cur = frontier[fi]; fi += 1
 		var d = dist[cur.key()] + 1
-		for n in HexGridScript.neighbors(cur, data.cyclic_size):
+		for n in HexGridScript.neighbors_in_directions(cur, direction_order, data.cyclic_size):
 			var nk = n.key()
 			if not cells_set.has(nk): continue
 			if wall_set.has(nk): continue
@@ -1228,7 +1295,7 @@ static func restore_connectivity_flood(data, terminals: Array = []) -> Array:
 	for key in dist:
 		var cell = cells_set[key]
 		var d = dist[key]
-		for n in HexGridScript.neighbors(cell, data.cyclic_size):
+		for n in HexGridScript.neighbors_in_directions(cell, direction_order, data.cyclic_size):
 			var nk = n.key()
 			if not cells_set.has(nk): continue
 			if not wall_set.has(nk): continue
@@ -1268,7 +1335,7 @@ static func restore_connectivity_flood(data, terminals: Array = []) -> Array:
 			continue
 
 		# Single combined BFS from all entry walls at this distance
-		var result = _flood_bfs(entry_keys, dist, wall_set, cells_set, dead_end, data.cyclic_size)
+		var result = _flood_bfs(entry_keys, dist, wall_set, cells_set, dead_end, data.cyclic_size, direction_order)
 		var best_goal = result["goal"]
 		var explored_map: Dictionary = result["explored_map"]
 		var bfs_parent: Dictionary = result["parent"]
@@ -1316,7 +1383,7 @@ static func restore_connectivity_flood(data, terminals: Array = []) -> Array:
 			if not explored_map.has(cur_key): continue
 
 			var min_d = -1
-			for n in HexGridScript.neighbors(cur, data.cyclic_size):
+			for n in HexGridScript.neighbors_in_directions(cur, direction_order, data.cyclic_size):
 				var nk = n.key()
 				if dist.has(nk):
 					var d = dist[nk]
@@ -1325,7 +1392,7 @@ static func restore_connectivity_flood(data, terminals: Array = []) -> Array:
 			if min_d < 0: continue
 			dist[cur_key] = min_d + 1
 
-			for n in HexGridScript.neighbors(cur, data.cyclic_size):
+			for n in HexGridScript.neighbors_in_directions(cur, direction_order, data.cyclic_size):
 				var nk = n.key()
 				if not cells_set.has(nk): continue
 				if dist.has(nk): continue
@@ -1356,7 +1423,8 @@ static func _flood_bfs(
 	wall_set: Dictionary,
 	cells_set: Dictionary,
 	dead_end: Dictionary,
-	cyclic_size: int
+	cyclic_size: int,
+	direction_order: Array
 ) -> Dictionary:
 	var current_level: Array = []
 	var queued := {}
@@ -1385,7 +1453,7 @@ static func _flood_bfs(
 			# Floor cell (not wall) → unreachable floor = goal
 			if not wall_set.has(ck):
 				var neighbor_dist = -1
-				for n in HexGridScript.neighbors(current, cyclic_size):
+				for n in HexGridScript.neighbors_in_directions(current, direction_order, cyclic_size):
 					var nk = n.key()
 					if dist.has(nk):
 						if dist[nk] > neighbor_dist:
@@ -1396,7 +1464,7 @@ static func _flood_bfs(
 				continue
 
 			# Wall cell → expand
-			for n in HexGridScript.neighbors(current, cyclic_size):
+			for n in HexGridScript.neighbors_in_directions(current, direction_order, cyclic_size):
 				var nk = n.key()
 				if not cells_set.has(nk): continue
 				if dist.has(nk): continue

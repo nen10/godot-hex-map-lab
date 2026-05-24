@@ -18,10 +18,17 @@ const SHAPE_HEXAGON := 0
 const SHAPE_RECTANGLE := 1
 const SHAPE_TORUS := 2
 
-const GENERATE_NAMES := ["Simple", "Hex-inward Markov mesh model"]
-const SHAPE_NAMES_SIMPLE := ["Hexagon", "Rectangle"]
-const SHAPE_NAMES_SYMMETRIC := ["Hexagon", "Square", "Torus"]
+const GENERATE_NAMES := ["Simple", "Markov mesh"]
+const SHAPE_NAMES_SIMPLE := ["Hexagon", "Rect"]
+const SHAPE_NAMES_SYMMETRIC := ["Hexagon", "Square"]
 const TORIC_SIZE_OPTIONS := [7, 9, 11, 13]
+
+const CONNECT_METHOD_NAMES := ["Sparse", "Dense", "None"]
+const CONNECT_METHOD_VALUES := [
+	HexMapGenerator.CONNECT_SPARSE,
+	HexMapGenerator.CONNECT_DENSE,
+	HexMapGenerator.CONNECT_NONE,
+]
 const GENERATION_PROGRESS_START := 0.1
 const GENERATION_PROGRESS_SCALE := 0.8
 const GENERATION_PROGRESS_UPDATE := 0.95
@@ -32,7 +39,7 @@ var _shape_simple_row: HBoxContainer
 var _shape_option_simple: OptionButton
 var _shape_symmetric_row: HBoxContainer
 var _shape_option_symmetric: OptionButton
-var _size_container: VBoxContainer
+var _size_container: HBoxContainer
 
 var _rect_row: HBoxContainer
 var _rect_width_spin: SpinBox
@@ -49,7 +56,8 @@ var _wall_prob_label: Label
 var _seed_spin: SpinBox
 var _seed_random_button: Button
 
-var _connectivity_check: CheckButton
+var _connect_method_option: OptionButton
+var _torus_connectivity_check: CheckButton
 
 var _sym_options_container: VBoxContainer
 var _dist_option: OptionButton
@@ -135,47 +143,53 @@ func _build_ui() -> void:
 
 	root.add_child(_build_section_label("Hex Map Kit"))
 
-	_generate_option = OptionButton.new()
-	for name in GENERATE_NAMES:
-		_generate_option.add_item(name)
-	_generate_option.item_selected.connect(_on_generate_changed)
-	root.add_child(_wrap_labeled("Generator", _generate_option))
+	_size_container = HBoxContainer.new()
+	root.add_child(_size_container)
 
 	_shape_option_simple = OptionButton.new()
 	for name in SHAPE_NAMES_SIMPLE:
 		_shape_option_simple.add_item(name)
 	_shape_option_simple.item_selected.connect(_on_shape_changed)
+	_shape_option_simple.select(1)
 	_shape_simple_row = HBoxContainer.new()
 	_shape_simple_row.visible = false
-	root.add_child(_shape_simple_row)
+	_size_container.add_child(_shape_simple_row)
 	_shape_simple_row.add_child(_wrap_labeled("Shape", _shape_option_simple))
 
 	_shape_option_symmetric = OptionButton.new()
 	for name in SHAPE_NAMES_SYMMETRIC:
 		_shape_option_symmetric.add_item(name)
-	_shape_option_symmetric.item_selected.connect(_on_option_changed)
+	_shape_option_symmetric.item_selected.connect(_on_symmetric_shape_changed)
+	_shape_option_symmetric.select(1)
 	_shape_symmetric_row = HBoxContainer.new()
 	_shape_symmetric_row.visible = false
-	root.add_child(_shape_symmetric_row)
+	_size_container.add_child(_shape_symmetric_row)
 	_shape_symmetric_row.add_child(_wrap_labeled("Shape", _shape_option_symmetric))
 
-	root.add_child(_build_separator())
-	_size_container = VBoxContainer.new()
-	root.add_child(_size_container)
+
 	_build_rectangle_size_controls()
 	_build_hexagon_size_controls()
 	_build_gen_radius_controls()
 
-	root.add_child(_build_separator())
-	root.add_child(_build_wall_probability_controls())
-	root.add_child(_build_seed_controls())
+	_torus_connectivity_check = CheckButton.new()
+	_torus_connectivity_check.text = "Toric Connection"
+	_torus_connectivity_check.button_pressed = false
+	_torus_connectivity_check.toggled.connect(_on_torus_connectivity_toggled)
+	_size_container.add_child(_torus_connectivity_check)
 
-	root.add_child(_build_separator())
-	_connectivity_check = CheckButton.new()
-	_connectivity_check.text = "Restore Connectivity"
-	_connectivity_check.button_pressed = true
-	_connectivity_check.toggled.connect(_on_option_changed)
-	root.add_child(_connectivity_check)
+	_connect_method_option = OptionButton.new()
+	for name in CONNECT_METHOD_NAMES:
+		_connect_method_option.add_item(name)
+	_connect_method_option.select(0)
+	_connect_method_option.item_selected.connect(_on_option_changed)
+	root.add_child(_wrap_labeled("Passage Generator", _connect_method_option))
+
+	_generate_option = OptionButton.new()
+	for name in GENERATE_NAMES:
+		_generate_option.add_item(name)
+	_generate_option.item_selected.connect(_on_generate_changed)
+	_generate_option.select(1)
+	root.add_child(_wrap_labeled("Wall Generator", _generate_option))
 
 	_sym_options_container = VBoxContainer.new()
 	_sym_options_container.visible = false
@@ -183,7 +197,7 @@ func _build_ui() -> void:
 
 	var dist_row = HBoxContainer.new()
 	var dist_label = Label.new()
-	dist_label.text = "  Dist"
+	dist_label.text = "  Wall Prob Ruleset"
 	dist_row.add_child(dist_label)
 	_dist_option = OptionButton.new()
 	_refill_dist_options()
@@ -198,29 +212,22 @@ func _build_ui() -> void:
 	dist_row.add_child(_dist_edit_button)
 	_sym_options_container.add_child(dist_row)
 
-	root.add_child(_build_separator())
-	root.add_child(_build_tile_layer_controls())
+	root.add_child(_build_wall_probability_controls())
+	root.add_child(_build_seed_controls())
 
 	root.add_child(_build_separator())
-	_stats_label = Label.new()
-	_stats_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_stats_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
-	root.add_child(_stats_label)
-
 	root.add_child(_build_generation_progress_controls())
-
-	root.add_child(_build_separator())
 	var button_row = HBoxContainer.new()
+
+	_generate_button = Button.new()
+	_generate_button.text = "Generate Walls"
+	_generate_button.pressed.connect(_on_generate_pressed)
+	button_row.add_child(_generate_button)
 
 	_apply_layer_button = Button.new()
 	_apply_layer_button.text = "Apply Layer"
 	_apply_layer_button.pressed.connect(_on_apply_layer_pressed)
 	button_row.add_child(_apply_layer_button)
-
-	_generate_button = Button.new()
-	_generate_button.text = "Generate"
-	_generate_button.pressed.connect(_on_generate_pressed)
-	button_row.add_child(_generate_button)
 
 	_save_button = Button.new()
 	_save_button.text = "Save .tres"
@@ -228,6 +235,14 @@ func _build_ui() -> void:
 	button_row.add_child(_save_button)
 
 	root.add_child(button_row)
+
+	_stats_label = Label.new()
+	_stats_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_stats_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+	root.add_child(_stats_label)
+
+	root.add_child(_build_separator())
+	root.add_child(_build_tile_layer_controls())
 
 
 func _build_rectangle_size_controls() -> void:
@@ -237,8 +252,8 @@ func _build_rectangle_size_controls() -> void:
 	_rect_row.add_child(wl)
 	_rect_width_spin = SpinBox.new()
 	_rect_width_spin.min_value = 1
-	_rect_width_spin.max_value = 20
-	_rect_width_spin.value = 8
+	_rect_width_spin.max_value = 512
+	_rect_width_spin.value = 32
 	_rect_width_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_rect_width_spin.value_changed.connect(_on_option_changed)
 	_rect_row.add_child(_rect_width_spin)
@@ -247,8 +262,8 @@ func _build_rectangle_size_controls() -> void:
 	_rect_row.add_child(hl)
 	_rect_height_spin = SpinBox.new()
 	_rect_height_spin.min_value = 1
-	_rect_height_spin.max_value = 20
-	_rect_height_spin.value = 6
+	_rect_height_spin.max_value = 512
+	_rect_height_spin.value = 24
 	_rect_height_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_rect_height_spin.value_changed.connect(_on_option_changed)
 	_rect_row.add_child(_rect_height_spin)
@@ -262,8 +277,8 @@ func _build_hexagon_size_controls() -> void:
 	_hex_row.add_child(label)
 	_hex_radius_spin = SpinBox.new()
 	_hex_radius_spin.min_value = 1
-	_hex_radius_spin.max_value = 15
-	_hex_radius_spin.value = 3
+	_hex_radius_spin.max_value = 255
+	_hex_radius_spin.value = 15
 	_hex_radius_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_hex_radius_spin.value_changed.connect(_on_option_changed)
 	_hex_row.add_child(_hex_radius_spin)
@@ -274,12 +289,12 @@ func _build_hexagon_size_controls() -> void:
 func _build_gen_radius_controls() -> void:
 	_radius_row = HBoxContainer.new()
 	var label = Label.new()
-	label.text = "Generation Radius"
+	label.text = "Radius"
 	_radius_row.add_child(label)
 	_gen_radius_spin = SpinBox.new()
 	_gen_radius_spin.min_value = 1
-	_gen_radius_spin.max_value = 15
-	_gen_radius_spin.value = 3
+	_gen_radius_spin.max_value = 255
+	_gen_radius_spin.value = 15
 	_gen_radius_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_gen_radius_spin.value_changed.connect(_on_option_changed)
 	_radius_row.add_child(_gen_radius_spin)
@@ -290,7 +305,7 @@ func _build_gen_radius_controls() -> void:
 func _build_wall_probability_controls() -> Control:
 	var row = HBoxContainer.new()
 	var label = Label.new()
-	label.text = "Wall Prob"
+	label.text = "  Wall Prob"
 	row.add_child(label)
 
 	_wall_prob_slider = HSlider.new()
@@ -476,6 +491,18 @@ func _on_generate_changed(_index: int) -> void:
 
 
 func _on_shape_changed(_index: int) -> void:
+	_refresh_controls()
+
+
+func _on_symmetric_shape_changed(index: int) -> void:
+	if index == SHAPE_HEXAGON and _torus_connectivity_check != null:
+		_torus_connectivity_check.set_pressed_no_signal(false)
+	_refresh_controls()
+
+
+func _on_torus_connectivity_toggled(enabled: bool) -> void:
+	if enabled and _shape_option_symmetric != null:
+		_shape_option_symmetric.select(SHAPE_RECTANGLE)
 	_refresh_controls()
 
 
@@ -809,6 +836,7 @@ func _tile_layer_display_name(node: Node) -> String:
 
 
 func _refresh_controls() -> void:
+	var symmetric = _uses_symmetric_generation()
 	match _generate_option.selected:
 		GENERATE_SYMMETRIC:
 			_shape_symmetric_row.visible = true
@@ -824,6 +852,9 @@ func _refresh_controls() -> void:
 			_hex_row.visible = (_shape_option_simple.selected == SHAPE_HEXAGON)
 			_radius_row.visible = false
 			_sym_options_container.visible = false
+	if _torus_connectivity_check != null:
+		_torus_connectivity_check.visible = symmetric
+		_torus_connectivity_check.disabled = not symmetric or _generation_running
 
 
 func _uses_symmetric_generation() -> bool:
@@ -870,6 +901,9 @@ func _generate_map(show_progress: bool = false) -> bool:
 func _create_generation_snapshot() -> Dictionary:
 	var symmetric = _uses_symmetric_generation()
 	var shape = _shape_option_symmetric.selected if symmetric else _shape_option_simple.selected
+	var connect_toric = symmetric \
+		and shape == SHAPE_RECTANGLE \
+		and _torus_connectivity_check.button_pressed
 	var dist_id = 0
 	if _dist_option.selected >= 0 and _dist_option.selected < _dist_option.item_count:
 		dist_id = HexRandomizer.get_preset_id(_dist_option.get_item_text(_dist_option.selected))
@@ -880,7 +914,8 @@ func _create_generation_snapshot() -> Dictionary:
 		"symmetric": symmetric,
 		"wall_probability": float(_wall_prob_slider.value),
 		"seed": int(_seed_spin.value),
-		"ensure_connected": _connectivity_check.button_pressed,
+		"connect_method": CONNECT_METHOD_VALUES[_connect_method_option.selected],
+		"connect_toric": connect_toric,
 		"protected_floor": [HexVector.zero()],
 		"distribution_id": dist_id,
 		"custom_distribution": _current_distribution,
@@ -915,7 +950,8 @@ func _generate_data_from_snapshot(snapshot: Dictionary, interrupt_options: Dicti
 	var symmetric = bool(snapshot["symmetric"])
 	var wall_prob = float(snapshot["wall_probability"])
 	var seed = int(snapshot["seed"])
-	var connected = bool(snapshot["ensure_connected"])
+	var connect_method = int(snapshot["connect_method"])
+	var connect_toric = bool(snapshot.get("connect_toric", false))
 	var protected = snapshot["protected_floor"]
 	var dist_id = int(snapshot["distribution_id"])
 	var custom_distribution = snapshot["custom_distribution"]
@@ -927,7 +963,7 @@ func _generate_data_from_snapshot(snapshot: Dictionary, interrupt_options: Dicti
 					int(snapshot["generation_radius"]),
 					wall_prob,
 					seed,
-					connected,
+					connect_method,
 					protected,
 					dist_id,
 					[],
@@ -939,7 +975,7 @@ func _generate_data_from_snapshot(snapshot: Dictionary, interrupt_options: Dicti
 					int(snapshot["hex_radius"]),
 					wall_prob,
 					seed,
-					connected,
+					connect_method,
 					protected,
 					interrupt_options
 				)
@@ -949,11 +985,11 @@ func _generate_data_from_snapshot(snapshot: Dictionary, interrupt_options: Dicti
 					int(snapshot["generation_radius"]),
 					wall_prob,
 					seed,
-					connected,
+					connect_method,
 					protected,
 					dist_id,
 					[],
-					false,
+					connect_toric,
 					custom_distribution,
 					interrupt_options
 				)
@@ -963,21 +999,22 @@ func _generate_data_from_snapshot(snapshot: Dictionary, interrupt_options: Dicti
 					int(snapshot["rect_height"]),
 					wall_prob,
 					seed,
-					connected,
+					connect_method,
 					false,
 					protected,
 					interrupt_options
 				)
 		SHAPE_TORUS, _:
+			var fallback_connect_toric = true if shape == SHAPE_TORUS else connect_toric
 			return HexMapGenerator.generate_symmetric_square(
 				int(snapshot["generation_radius"]),
 				wall_prob,
 				seed,
-				connected,
+				connect_method,
 				protected,
 				dist_id,
 				[],
-				true,
+				fallback_connect_toric,
 				custom_distribution,
 				interrupt_options
 			)
@@ -1165,12 +1202,15 @@ func _set_generation_controls_disabled(disabled: bool) -> void:
 		_wall_prob_slider,
 		_seed_spin,
 		_seed_random_button,
-		_connectivity_check,
+		_connect_method_option,
+		_torus_connectivity_check,
 		_dist_option,
 		_dist_edit_button,
 		_generate_button,
 	]:
 		_set_control_disabled(control, disabled)
+	if _torus_connectivity_check != null:
+		_torus_connectivity_check.disabled = disabled or not _uses_symmetric_generation()
 
 
 func _set_control_disabled(control: Control, disabled: bool) -> void:
@@ -1206,6 +1246,10 @@ func _shape_string() -> String:
 		GENERATE_SIMPLE:
 			return SHAPE_NAMES_SIMPLE[_shape_option_simple.selected]
 		GENERATE_SYMMETRIC:
+			if _shape_option_symmetric.selected == SHAPE_RECTANGLE \
+				and _torus_connectivity_check != null \
+				and _torus_connectivity_check.button_pressed:
+				return "Torus"
 			return SHAPE_NAMES_SYMMETRIC[_shape_option_symmetric.selected]
 		_:
 			return ""

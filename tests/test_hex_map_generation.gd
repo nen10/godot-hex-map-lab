@@ -70,6 +70,8 @@ func _run() -> void:
 	_test_dense_matches_restore_count_on_y_shape()
 	_test_dense_removes_less_than_flood_for_remote_short_bridge()
 	_test_dense_restores_symmetric_toric_square()
+	_test_restore_direction_seed_changes_bridge_choice()
+	_test_restore_direction_seed_is_accepted_by_all_modes()
 
 	if _failures.is_empty():
 		print("test_hex_map_generation.gd: all tests passed")
@@ -127,6 +129,25 @@ func _line_cells(length: int) -> Array:
 
 func _rect_cell(q: int, r: int):
 	return HexVector.apply_basis(q, 0, r)
+
+
+func _ring_bridge_tie_data():
+	var cells: Array = [HexVector.zero()]
+	cells.append_array(HexGrid.l1_ring(1))
+	cells.append_array(HexGrid.l1_ring(2))
+	return HexMapData.from_cells(
+		cells,
+		HexGrid.l1_ring(1)
+	)
+
+
+func _seed_for_first_direction(direction_key: String) -> int:
+	for seed in range(1, 200):
+		var directions = HexMapGenerator._connectivity_directions(seed)
+		if directions[0].key() == direction_key:
+			return seed
+	_failures.append("no connectivity seed found for first direction %s" % direction_key)
+	return 0
 
 
 func _complete_interrupt_options() -> Dictionary:
@@ -1202,3 +1223,61 @@ func _test_dense_restores_symmetric_toric_square() -> void:
 
 	_assert_false(data.has_wall(HexVector.zero()), "dense symmetric recovery keeps protected floor")
 	_assert_true(HexMapGenerator.is_floor_connected(data), "dense symmetric recovery connects toric square")
+
+
+func _test_restore_direction_seed_changes_bridge_choice() -> void:
+	var directions = HexGrid.directions()
+	var seed_a = _seed_for_first_direction(directions[0].key())
+	var seed_b = _seed_for_first_direction(directions[3].key())
+	var data_a = _ring_bridge_tie_data()
+	var data_b = _ring_bridge_tie_data()
+
+	var removed_a = HexMapGenerator.restore_connectivity(data_a, seed_a)
+	var removed_b = HexMapGenerator.restore_connectivity(data_b, seed_b)
+
+	_assert_eq(removed_a.size(), 1, "direction seed fixture removes one wall for seed A")
+	_assert_eq(removed_b.size(), 1, "direction seed fixture removes one wall for seed B")
+	_assert_true(HexMapGenerator.is_floor_connected(data_a), "seed A restore connects ring fixture")
+	_assert_true(HexMapGenerator.is_floor_connected(data_b), "seed B restore connects ring fixture")
+	if removed_a.size() == 1 and removed_b.size() == 1:
+		_assert_true(
+			removed_a[0].key() != removed_b[0].key(),
+			"direction seed changes the selected bridge wall"
+		)
+
+
+func _test_restore_direction_seed_is_accepted_by_all_modes() -> void:
+	var seed = _seed_for_first_direction(HexGrid.directions()[2].key())
+	var terminal_goal = HexGrid.l1_ring(2)[0]
+
+	var restore_data = _ring_bridge_tie_data()
+	var dense_data = _ring_bridge_tie_data()
+	var expand_data = _ring_bridge_tie_data()
+	var sparse_data = _ring_bridge_tie_data()
+	var flood_data = _ring_bridge_tie_data()
+	var terminal_data = _ring_bridge_tie_data()
+
+	var restore_removed = HexMapGenerator.restore_connectivity(restore_data, seed)
+	var dense_removed = HexMapGenerator.restore_connectivity_dense(dense_data, seed)
+	var expand_removed = HexMapGenerator.restore_connectivity_expand(expand_data, [HexVector.zero()], seed)
+	var sparse_removed = HexMapGenerator.restore_connectivity_sparse(sparse_data, [HexVector.zero()], seed)
+	var flood_removed = HexMapGenerator.restore_connectivity_flood(flood_data, [HexVector.zero()], seed)
+	var terminal_removed = HexMapGenerator.restore_terminal_connectivity(
+		terminal_data,
+		[HexVector.zero(), terminal_goal],
+		seed
+	)
+
+	_assert_eq(restore_removed.size(), 1, "seeded restore removes one bridge wall")
+	_assert_eq(dense_removed.size(), 1, "seeded dense restore removes one bridge wall")
+	_assert_eq(expand_removed.size(), 1, "seeded expand restore removes one bridge wall")
+	_assert_eq(sparse_removed.size(), 1, "seeded sparse restore removes one bridge wall")
+	_assert_eq(flood_removed.size(), 1, "seeded flood restore removes one bridge wall")
+	_assert_eq(terminal_removed.size(), 1, "seeded terminal restore removes one bridge wall")
+
+	_assert_true(HexMapGenerator.is_floor_connected(restore_data), "seeded restore connects ring fixture")
+	_assert_true(HexMapGenerator.is_floor_connected(dense_data), "seeded dense restore connects ring fixture")
+	_assert_true(HexMapGenerator.is_floor_connected(expand_data), "seeded expand restore connects ring fixture")
+	_assert_true(HexMapGenerator.is_floor_connected(sparse_data), "seeded sparse restore connects ring fixture")
+	_assert_true(HexMapGenerator.is_floor_connected(flood_data), "seeded flood restore connects ring fixture")
+	_assert_true(HexMapGenerator.is_floor_connected(terminal_data), "seeded terminal restore connects ring fixture")
