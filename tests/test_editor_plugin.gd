@@ -189,7 +189,10 @@ func _test_generation_dock_symmetric_hexagon_minimum_radii() -> void:
 		_assert_true(data.walls.size() > 0, "generation dock radius %d symmetric hexagon creates walls" % radius)
 		_assert_true(data.walls.size() <= hex_cell_count - 1, "generation dock radius %d symmetric hexagon keeps protected floor" % radius)
 		_assert_true(HexMapGenerator.is_floor_connected(data), "generation dock radius %d symmetric hexagon completes connectivity" % radius)
-		_assert_true(dock._stats_label.text.contains("Hex-inward Markov mesh model"), "generation dock stats include generation mode")
+		_assert_true(
+			dock._stats_label.text.contains(HexMapGenDock.GENERATE_NAMES[HexMapGenDock.GENERATE_SYMMETRIC]),
+			"generation dock stats include generation mode"
+		)
 
 	dock.queue_free()
 	await process_frame
@@ -364,7 +367,10 @@ func _test_generation_dock_only_generates_from_generate_button() -> void:
 	await _wait_for_progress_controls(dock, "explicit Generate button generation")
 	await _wait_for_generation(dock, "explicit Generate button generation")
 	_assert_eq(dock._generation_id, generation_id + 1, "generation dock regenerates immediately from Generate")
-	_assert_true(dock._stats_label.text.contains("Hex-inward Markov mesh model"), "Generate button updates generator mode")
+	_assert_true(
+		dock._stats_label.text.contains(HexMapGenDock.GENERATE_NAMES[HexMapGenDock.GENERATE_SYMMETRIC]),
+		"Generate button updates generator mode"
+	)
 
 	dock.queue_free()
 	await process_frame

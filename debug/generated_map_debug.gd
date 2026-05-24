@@ -64,8 +64,12 @@ const SHAPE_RECTANGLE := ShapeMode.RECTANGLE
 const SHAPE_HEXAGON := ShapeMode.HEXAGON
 const SHAPE_TORUS := ShapeMode.TORUS
 
-const CONNECT_METHOD_NAMES := ["None", "Dense", "Sparse", "Simple", "Expand", "Flood"]
-const CONNECT_METHOD_VALUES := [0, 1, 2, 4, 5, 6]
+const CONNECT_METHOD_NAMES := ["None", "Dense", "Sparse"]
+const CONNECT_METHOD_VALUES := [
+	HexMapGenerator.CONNECT_NONE,
+	HexMapGenerator.CONNECT_DENSE,
+	HexMapGenerator.CONNECT_SPARSE,
+]
 
 var _shape_mode := ShapeMode.RECTANGLE
 var _seed := 1201
@@ -105,7 +109,7 @@ func configure_for_test(
 	shape_mode: int,
 	seed: int,
 	wall_probability: float,
-	connect_method: int = 1,
+	connect_method: int = HexMapGenerator.CONNECT_DENSE,
 	flat_top: bool = true,
 	toric_size_index: int = -1,
 	unfold_toric_domain: bool = false,

@@ -7,7 +7,6 @@ const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator
 const HexMapDebug = preload("res://addons/hex_map_kit/core/hex_map_debug.gd")
 const HexToricMapSplitRule = preload("res://addons/hex_map_kit/core/hex_toric_map_split_rule.gd")
 const HexGrid = preload("res://addons/hex_map_kit/core/hex_grid.gd")
-const HexDisjointSet = preload("res://addons/hex_map_kit/core/hex_disjoint_set.gd")
 
 class ZeroDistribution:
 	var calls := 0
@@ -43,6 +42,9 @@ func _run() -> void:
 	_test_restore_connectivity_removes_blocking_walls()
 	_test_toric_connection_detection_wraps_edges()
 	_test_restore_connectivity_uses_toric_shortcut()
+	_test_restore_connectivity_by_dense_restores_line()
+	_test_restore_connectivity_by_sparse_restores_line()
+	_test_restore_connectivity_by_none_preserves_walls()
 	_test_generate_rectangle_can_restore_connectivity()
 	_test_generate_toric_square_can_restore_connectivity()
 	_test_interruptible_shape_generation_matches_regular_shapes()
@@ -58,20 +60,13 @@ func _run() -> void:
 	_test_generate_hexagon_can_restore_connectivity()
 	_test_debug_ascii_renders_wall_layout()
 	_test_debug_summary_reports_counts()
-	_test_tiebreak_bfs_chooses_largest_component()
-	_test_restore_connectivity_uses_tiebreak()
-	_test_expansion_restores_connectivity()
-	_test_expansion_handles_toric()
-	_test_expansion_respects_terminals()
-	_test_flood_restores_connectivity()
-	_test_flood_preserves_unreachable_walls()
 	_test_dense_restores_line_with_single_wall()
 	_test_dense_uses_toric_shortcut()
 	_test_dense_matches_restore_count_on_y_shape()
-	_test_dense_removes_less_than_flood_for_remote_short_bridge()
+	_test_dense_chooses_remote_short_bridge()
 	_test_dense_restores_symmetric_toric_square()
-	_test_restore_direction_seed_changes_bridge_choice()
-	_test_restore_direction_seed_is_accepted_by_all_modes()
+	_test_sparse_direction_seed_changes_bridge_choice()
+	_test_restore_direction_seed_is_accepted_by_supported_modes()
 
 	if _failures.is_empty():
 		print("test_hex_map_generation.gd: all tests passed")
@@ -416,15 +411,63 @@ func _test_restore_connectivity_uses_toric_shortcut() -> void:
 	_assert_true(HexMapGenerator.is_floor_connected(data), "toric shortcut restores floor connectivity")
 
 
+func _test_restore_connectivity_by_dense_restores_line() -> void:
+	var cells = _line_cells(3)
+	var bridge = HexVector.q_axis()
+	var data = HexMapData.from_cells(cells, [bridge])
+
+	var removed = HexMapGenerator.restore_connectivity_by(HexMapGenerator.CONNECT_DENSE, data)
+
+	_assert_keys_eq(removed, [bridge], "dense method removes the single bridge wall")
+	_assert_true(HexMapGenerator.is_floor_connected(data), "dense method restores line connectivity")
+
+
+func _test_restore_connectivity_by_sparse_restores_line() -> void:
+	var cells = _line_cells(3)
+	var bridge = HexVector.q_axis()
+	var data = HexMapData.from_cells(cells, [bridge])
+
+	var removed = HexMapGenerator.restore_connectivity_by(HexMapGenerator.CONNECT_SPARSE, data)
+
+	_assert_keys_eq(removed, [bridge], "sparse method removes the single bridge wall")
+	_assert_true(HexMapGenerator.is_floor_connected(data), "sparse method restores line connectivity")
+
+
+func _test_restore_connectivity_by_none_preserves_walls() -> void:
+	var cells = _line_cells(3)
+	var bridge = HexVector.q_axis()
+	var data = HexMapData.from_cells(cells, [bridge])
+
+	var removed = HexMapGenerator.restore_connectivity_by(HexMapGenerator.CONNECT_NONE, data)
+
+	_assert_eq(removed.size(), 0, "none method removes no walls")
+	_assert_true(data.has_wall(bridge), "none method leaves bridge wall intact")
+	_assert_false(HexMapGenerator.is_floor_connected(data), "none method does not restore connectivity")
+
+
 func _test_generate_rectangle_can_restore_connectivity() -> void:
-	var data = HexMapGenerator.generate_rectangle(6, 6, 0.45, 321, true, false, [HexVector.zero()])
+	var data = HexMapGenerator.generate_rectangle(
+		6,
+		6,
+		0.45,
+		321,
+		HexMapGenerator.CONNECT_DENSE,
+		false,
+		[HexVector.zero()]
+	)
 
 	_assert_false(HexMapData.has_key(data.walls, HexVector.zero().key()), "protected cell remains floor")
 	_assert_true(HexMapGenerator.is_floor_connected(data), "generated rectangle can be connectivity-restored")
 
 
 func _test_generate_toric_square_can_restore_connectivity() -> void:
-	var data = HexMapGenerator.generate_toric_square(6, 0.45, 987, true, [HexVector.zero()])
+	var data = HexMapGenerator.generate_toric_square(
+		6,
+		0.45,
+		987,
+		HexMapGenerator.CONNECT_DENSE,
+		[HexVector.zero()]
+	)
 
 	_assert_eq(data.cyclic_size, 6, "generated toric square stores cyclic size")
 	_assert_false(HexMapData.has_key(data.walls, HexVector.zero().key()), "protected toric cell remains floor")
@@ -435,13 +478,21 @@ func _test_interruptible_shape_generation_matches_regular_shapes() -> void:
 	var rectangle_options = _complete_interrupt_options()
 	_assert_interruptible_matches_regular(
 		"rectangle",
-		HexMapGenerator.generate_rectangle(5, 4, 0.45, 111, true, false, [HexVector.zero()]),
 		HexMapGenerator.generate_rectangle(
 			5,
 			4,
 			0.45,
 			111,
-			true,
+			HexMapGenerator.CONNECT_DENSE,
+			false,
+			[HexVector.zero()]
+		),
+		HexMapGenerator.generate_rectangle(
+			5,
+			4,
+			0.45,
+			111,
+			HexMapGenerator.CONNECT_DENSE,
 			false,
 			[HexVector.zero()],
 			rectangle_options
@@ -451,12 +502,18 @@ func _test_interruptible_shape_generation_matches_regular_shapes() -> void:
 	var toric_options = _complete_interrupt_options()
 	_assert_interruptible_matches_regular(
 		"toric square",
-		HexMapGenerator.generate_toric_square(5, 0.45, 112, true, [HexVector.zero()]),
 		HexMapGenerator.generate_toric_square(
 			5,
 			0.45,
 			112,
-			true,
+			HexMapGenerator.CONNECT_DENSE,
+			[HexVector.zero()]
+		),
+		HexMapGenerator.generate_toric_square(
+			5,
+			0.45,
+			112,
+			HexMapGenerator.CONNECT_DENSE,
 			[HexVector.zero()],
 			toric_options
 		),
@@ -465,12 +522,18 @@ func _test_interruptible_shape_generation_matches_regular_shapes() -> void:
 	var hexagon_options = _complete_interrupt_options()
 	_assert_interruptible_matches_regular(
 		"hexagon",
-		HexMapGenerator.generate_hexagon(3, 0.45, 113, true, [HexVector.zero()]),
 		HexMapGenerator.generate_hexagon(
 			3,
 			0.45,
 			113,
-			true,
+			HexMapGenerator.CONNECT_DENSE,
+			[HexVector.zero()]
+		),
+		HexMapGenerator.generate_hexagon(
+			3,
+			0.45,
+			113,
+			HexMapGenerator.CONNECT_DENSE,
 			[HexVector.zero()],
 			hexagon_options
 		),
@@ -479,12 +542,18 @@ func _test_interruptible_shape_generation_matches_regular_shapes() -> void:
 	var symmetric_square_options = _complete_interrupt_options()
 	_assert_interruptible_matches_regular(
 		"symmetric square",
-		HexMapGenerator.generate_symmetric_square(3, 0.45, 114, true, [HexVector.zero()]),
 		HexMapGenerator.generate_symmetric_square(
 			3,
 			0.45,
 			114,
-			true,
+			HexMapGenerator.CONNECT_DENSE,
+			[HexVector.zero()]
+		),
+		HexMapGenerator.generate_symmetric_square(
+			3,
+			0.45,
+			114,
+			HexMapGenerator.CONNECT_DENSE,
 			[HexVector.zero()],
 			20,
 			[],
@@ -497,12 +566,21 @@ func _test_interruptible_shape_generation_matches_regular_shapes() -> void:
 	var symmetric_toric_options = _complete_interrupt_options()
 	_assert_interruptible_matches_regular(
 		"symmetric toric square",
-		HexMapGenerator.generate_symmetric_square(3, 0.45, 115, true, [HexVector.zero()], 20, [], true),
 		HexMapGenerator.generate_symmetric_square(
 			3,
 			0.45,
 			115,
-			true,
+			HexMapGenerator.CONNECT_DENSE,
+			[HexVector.zero()],
+			20,
+			[],
+			true
+		),
+		HexMapGenerator.generate_symmetric_square(
+			3,
+			0.45,
+			115,
+			HexMapGenerator.CONNECT_DENSE,
 			[HexVector.zero()],
 			20,
 			[],
@@ -515,12 +593,18 @@ func _test_interruptible_shape_generation_matches_regular_shapes() -> void:
 	var symmetric_hex_options = _complete_interrupt_options()
 	_assert_interruptible_matches_regular(
 		"symmetric hexagon",
-		HexMapGenerator.generate_symmetric_hexagon(3, 0.45, 116, true, [HexVector.zero()]),
 		HexMapGenerator.generate_symmetric_hexagon(
 			3,
 			0.45,
 			116,
-			true,
+			HexMapGenerator.CONNECT_DENSE,
+			[HexVector.zero()]
+		),
+		HexMapGenerator.generate_symmetric_hexagon(
+			3,
+			0.45,
+			116,
+			HexMapGenerator.CONNECT_DENSE,
 			[HexVector.zero()],
 			20,
 			[],
@@ -540,7 +624,7 @@ func _test_interruptible_shape_generation_cancels_each_shape() -> void:
 			4,
 			1.0,
 			211,
-			true,
+			HexMapGenerator.CONNECT_DENSE,
 			false,
 			[HexVector.zero()],
 			rectangle_options
@@ -555,7 +639,7 @@ func _test_interruptible_shape_generation_cancels_each_shape() -> void:
 			5,
 			1.0,
 			212,
-			true,
+			HexMapGenerator.CONNECT_DENSE,
 			[HexVector.zero()],
 			toric_options
 		),
@@ -569,7 +653,7 @@ func _test_interruptible_shape_generation_cancels_each_shape() -> void:
 			3,
 			1.0,
 			213,
-			true,
+			HexMapGenerator.CONNECT_DENSE,
 			[HexVector.zero()],
 			hexagon_options
 		),
@@ -583,7 +667,7 @@ func _test_interruptible_shape_generation_cancels_each_shape() -> void:
 			3,
 			1.0,
 			214,
-			true,
+			HexMapGenerator.CONNECT_DENSE,
 			[HexVector.zero()],
 			20,
 			[],
@@ -601,7 +685,7 @@ func _test_interruptible_shape_generation_cancels_each_shape() -> void:
 			3,
 			1.0,
 			215,
-			true,
+			HexMapGenerator.CONNECT_DENSE,
 			[HexVector.zero()],
 			20,
 			[],
@@ -619,7 +703,7 @@ func _test_interruptible_shape_generation_cancels_each_shape() -> void:
 			3,
 			1.0,
 			216,
-			true,
+			HexMapGenerator.CONNECT_DENSE,
 			[HexVector.zero()],
 			20,
 			[],
@@ -683,7 +767,7 @@ func _test_symmetric_toric_generation_handles_radius_multiple_of_three() -> void
 			radius,
 			0.52,
 			seed,
-			true,
+			HexMapGenerator.CONNECT_DENSE,
 			protected,
 			20,
 			[],
@@ -781,7 +865,7 @@ func _test_symmetric_square_torus_and_hex_shape_outputs_share_source_walls() -> 
 			radius,
 			wall_probability,
 			seed,
-			false,
+			HexMapGenerator.CONNECT_NONE,
 			protected,
 			20,
 			[],
@@ -791,7 +875,7 @@ func _test_symmetric_square_torus_and_hex_shape_outputs_share_source_walls() -> 
 			radius,
 			wall_probability,
 			seed,
-			false,
+			HexMapGenerator.CONNECT_NONE,
 			protected,
 			20,
 			[],
@@ -819,7 +903,7 @@ func _test_symmetric_square_torus_and_hex_shape_outputs_share_source_walls() -> 
 			radius,
 			wall_probability,
 			seed,
-			false,
+			HexMapGenerator.CONNECT_NONE,
 			protected
 		)
 		_assert_keys_eq(hexagon.cells, expected_hex_cells, "radius %d symmetric hexagon filters split 0 and 7 cells" % radius)
@@ -861,7 +945,7 @@ func _test_minimum_radius_symmetric_generation_uses_unified_flow() -> void:
 			radius,
 			1.0,
 			909,
-			true,
+			HexMapGenerator.CONNECT_DENSE,
 			protected,
 			20,
 			[],
@@ -875,7 +959,7 @@ func _test_minimum_radius_symmetric_generation_uses_unified_flow() -> void:
 			radius,
 			1.0,
 			909,
-			true,
+			HexMapGenerator.CONNECT_DENSE,
 			protected,
 			20,
 			[],
@@ -919,7 +1003,7 @@ func _test_generate_symmetric_toric_square_can_restore_terminal_connectivity() -
 		radius,
 		0.45,
 		2468,
-		true,
+		HexMapGenerator.CONNECT_DENSE,
 		[HexVector.zero()],
 		20,
 		terminals,
@@ -941,7 +1025,13 @@ func _test_generate_symmetric_toric_square_can_restore_terminal_connectivity() -
 
 
 func _test_generate_hexagon_can_restore_connectivity() -> void:
-	var data = HexMapGenerator.generate_hexagon(3, 0.45, 246, true, [HexVector.zero()])
+	var data = HexMapGenerator.generate_hexagon(
+		3,
+		0.45,
+		246,
+		HexMapGenerator.CONNECT_DENSE,
+		[HexVector.zero()]
+	)
 
 	_assert_eq(data.cells.size(), 37, "generated radius 3 hexagon has expected cell count")
 	_assert_false(HexMapData.has_key(data.walls, HexVector.zero().key()), "protected hex cell remains floor")
@@ -971,153 +1061,6 @@ func _test_debug_summary_reports_counts() -> void:
 		"cells=4 walls=1 floors=3 cyclic_size=2",
 		"debug summary reports map counts"
 	)
-
-
-func _test_tiebreak_bfs_chooses_largest_component() -> void:
-	var start = HexVector.zero()
-	var small_goal = HexVector.q_axis().scaled(2)
-	var large_goal = HexVector.r_axis().scaled(2)
-
-	var cells: Array = []
-	for q in range(-5, 6):
-		for r in range(-5, 6):
-			var cell = HexVector.apply_basis(q, 0, r)
-			if cell.l1_norm() > 5:
-				continue
-			cells.append(cell)
-
-	var dsu = HexDisjointSet.new()
-	dsu.add_component([start])
-	dsu.add_component([small_goal])
-	dsu.add_component([large_goal, HexVector.r_axis().scaled(3)])
-
-	var small_size = dsu.comp_size_of(small_goal.key())
-	var large_size = dsu.comp_size_of(large_goal.key())
-	_assert_eq(small_size, 1, "small component has size 1")
-	_assert_eq(large_size, 2, "large component has size 2")
-
-	var path = HexGrid.shortest_path_with_tiebreak(
-		[start],
-		cells,
-		0,
-		dsu,
-		dsu.find(start.key())
-	)
-
-	_assert_true(not path.is_empty(), "tiebreak BFS returns non-empty path")
-	var reached = path[path.size() - 1]
-	_assert_true(
-		reached.is_equal(large_goal),
-		"tiebreak BFS connects to larger component"
-	)
-
-
-func _test_restore_connectivity_uses_tiebreak() -> void:
-	# Layout:  center [0] with two wall neighbors [q] and [r]
-	# Beyond q: component [2q, 3q] (size 2)
-	# Beyond r: component [2r, 3r, 4r] (size 3)
-	# Both goals at BFS distance 2 from center.
-	# Tiebreak picks r-path (larger comp, size 3) before q-path (size 2).
-	var cells: Array = [HexVector.zero()]
-	cells.append(HexVector.q_axis())
-	cells.append(HexVector.q_axis().scaled(2))
-	cells.append(HexVector.q_axis().scaled(3))
-	cells.append(HexVector.r_axis())
-	cells.append(HexVector.r_axis().scaled(2))
-	cells.append(HexVector.r_axis().scaled(3))
-	cells.append(HexVector.r_axis().scaled(4))
-
-	var q = HexVector.q_axis()
-	var r = HexVector.r_axis()
-	var data = HexMapData.from_cells(cells, [q, r])
-	_assert_eq(data.floor_cells().size(), 6, "six floor cells before restore")
-
-	var removed = HexMapGenerator.restore_connectivity(data)
-
-	_assert_eq(removed.size(), 2, "both blocking walls removed")
-	_assert_eq(data.walls.size(), 0, "no walls remain")
-	_assert_true(HexMapGenerator.is_floor_connected(data), "result is connected")
-
-
-func _test_expansion_restores_connectivity() -> void:
-	# Same layout as the tiebreak restoration test: Y-shape from center
-	var cells: Array = [HexVector.zero()]
-	cells.append(HexVector.q_axis())
-	cells.append(HexVector.q_axis().scaled(2))
-	cells.append(HexVector.q_axis().scaled(3))
-	cells.append(HexVector.r_axis())
-	cells.append(HexVector.r_axis().scaled(2))
-	cells.append(HexVector.r_axis().scaled(3))
-	cells.append(HexVector.r_axis().scaled(4))
-
-	var data = HexMapData.from_cells(cells, [HexVector.q_axis(), HexVector.r_axis()])
-	var removed = HexMapGenerator.restore_connectivity_expand(data)
-
-	_assert_true(HexMapGenerator.is_floor_connected(data), "expansion restores full connectivity")
-	_assert_eq(removed.size(), 2, "expansion removes both blocking walls")
-
-
-func _test_expansion_handles_toric() -> void:
-	var data = HexMapData.square(5, true)
-	var start = HexVector.zero()
-	var goal = HexVector.q_axis().scaled(2)
-	data.walls = HexMapData.points_except(data.cells, [start, goal])
-
-	var removed = HexMapGenerator.restore_connectivity_expand(data, [start])
-
-	_assert_true(HexMapGenerator.is_floor_connected(data), "toric expansion restores connectivity")
-	_assert_true(removed.size() > 0, "toric expansion removes at least one wall")
-
-
-func _test_expansion_respects_terminals() -> void:
-	var cells = _line_cells(5)
-	var walls = [HexVector.q_axis(), HexVector.q_axis().scaled(3)]
-	var data = HexMapData.from_cells(cells, walls)
-
-	var removed = HexMapGenerator.restore_connectivity_expand(data, [HexVector.q_axis().scaled(4)])
-
-	_assert_true(HexMapGenerator.is_floor_connected(data), "expansion from far terminal restores connectivity")
-	_assert_eq(removed.size(), 2, "both walls removed to reach all cells from terminal")
-
-
-func _test_flood_restores_connectivity() -> void:
-	var cells: Array = [HexVector.zero()]
-	cells.append(HexVector.q_axis())
-	cells.append(HexVector.q_axis().scaled(2))
-	cells.append(HexVector.q_axis().scaled(3))
-	cells.append(HexVector.r_axis())
-	cells.append(HexVector.r_axis().scaled(2))
-	cells.append(HexVector.r_axis().scaled(3))
-	cells.append(HexVector.r_axis().scaled(4))
-
-	var data = HexMapData.from_cells(cells, [HexVector.q_axis(), HexVector.r_axis()])
-	var removed = HexMapGenerator.restore_connectivity_flood(data)
-
-	_assert_true(HexMapGenerator.is_floor_connected(data), "flood restores full connectivity")
-	_assert_eq(removed.size(), 2, "flood removes both blocking walls")
-
-
-func _test_flood_preserves_unreachable_walls() -> void:
-	# Line: [0:F] [q:W] [2q:F] [3q:W]
-	# 3q is a dead-end wall — its only non-wall neighbor is 2q (already reachable).
-	# Flood fill must remove q (to connect 0 → 2q) but preserve 3q.
-	var cells: Array = []
-	for qi in range(0, 4):
-		cells.append(HexVector.q_axis().scaled(qi))
-
-	var q_cell = HexVector.q_axis()
-	var q3_cell = HexVector.q_axis().scaled(3)
-	var data = HexMapData.from_cells(cells, [q_cell, q3_cell])
-
-	var removed = HexMapGenerator.restore_connectivity_flood(data)
-
-	_assert_true(HexMapGenerator.is_floor_connected(data), "flood restores connectivity")
-	_assert_eq(removed.size(), 1, "flood removes only the useful wall q")
-	_assert_true(
-		removed[0].is_equal(q_cell),
-		"removed wall is q (not the dead-end 3q)"
-	)
-	_assert_true(data.has_wall(q3_cell), "dead-end wall 3q is preserved")
 
 
 func _test_dense_restores_line_with_single_wall() -> void:
@@ -1169,7 +1112,7 @@ func _test_dense_matches_restore_count_on_y_shape() -> void:
 	)
 
 
-func _test_dense_removes_less_than_flood_for_remote_short_bridge() -> void:
+func _test_dense_chooses_remote_short_bridge() -> void:
 	var cells: Array = []
 	for q in range(0, 6):
 		cells.append(_rect_cell(q, 0))
@@ -1193,18 +1136,11 @@ func _test_dense_removes_less_than_flood_for_remote_short_bridge() -> void:
 	var walls = near_tunnel.duplicate()
 	walls.append(far_bridge)
 	var dense_data = HexMapData.from_cells(cells, walls)
-	var flood_data = HexMapData.from_cells(cells, walls)
 
 	var dense_removed = HexMapGenerator.restore_connectivity_dense(dense_data)
-	var flood_removed = HexMapGenerator.restore_connectivity_flood(flood_data)
 
 	_assert_true(HexMapGenerator.is_floor_connected(dense_data), "dense recovery connects remote short bridge fixture")
-	_assert_true(HexMapGenerator.is_floor_connected(flood_data), "flood recovery connects remote short bridge fixture")
 	_assert_keys_eq(dense_removed, [far_bridge], "dense recovery chooses the one-wall remote bridge")
-	_assert_true(
-		dense_removed.size() < flood_removed.size(),
-		"dense recovery removes fewer walls than flood on the remote short bridge fixture"
-	)
 
 
 func _test_dense_restores_symmetric_toric_square() -> void:
@@ -1212,7 +1148,7 @@ func _test_dense_restores_symmetric_toric_square() -> void:
 		3,
 		1.0,
 		888,
-		false,
+		HexMapGenerator.CONNECT_NONE,
 		[HexVector.zero()],
 		20,
 		[],
@@ -1225,20 +1161,20 @@ func _test_dense_restores_symmetric_toric_square() -> void:
 	_assert_true(HexMapGenerator.is_floor_connected(data), "dense symmetric recovery connects toric square")
 
 
-func _test_restore_direction_seed_changes_bridge_choice() -> void:
+func _test_sparse_direction_seed_changes_bridge_choice() -> void:
 	var directions = HexGrid.directions()
 	var seed_a = _seed_for_first_direction(directions[0].key())
 	var seed_b = _seed_for_first_direction(directions[3].key())
 	var data_a = _ring_bridge_tie_data()
 	var data_b = _ring_bridge_tie_data()
 
-	var removed_a = HexMapGenerator.restore_connectivity(data_a, seed_a)
-	var removed_b = HexMapGenerator.restore_connectivity(data_b, seed_b)
+	var removed_a = HexMapGenerator.restore_connectivity_sparse(data_a, [HexVector.zero()], seed_a)
+	var removed_b = HexMapGenerator.restore_connectivity_sparse(data_b, [HexVector.zero()], seed_b)
 
 	_assert_eq(removed_a.size(), 1, "direction seed fixture removes one wall for seed A")
 	_assert_eq(removed_b.size(), 1, "direction seed fixture removes one wall for seed B")
-	_assert_true(HexMapGenerator.is_floor_connected(data_a), "seed A restore connects ring fixture")
-	_assert_true(HexMapGenerator.is_floor_connected(data_b), "seed B restore connects ring fixture")
+	_assert_true(HexMapGenerator.is_floor_connected(data_a), "seed A sparse restore connects ring fixture")
+	_assert_true(HexMapGenerator.is_floor_connected(data_b), "seed B sparse restore connects ring fixture")
 	if removed_a.size() == 1 and removed_b.size() == 1:
 		_assert_true(
 			removed_a[0].key() != removed_b[0].key(),
@@ -1246,22 +1182,18 @@ func _test_restore_direction_seed_changes_bridge_choice() -> void:
 		)
 
 
-func _test_restore_direction_seed_is_accepted_by_all_modes() -> void:
+func _test_restore_direction_seed_is_accepted_by_supported_modes() -> void:
 	var seed = _seed_for_first_direction(HexGrid.directions()[2].key())
 	var terminal_goal = HexGrid.l1_ring(2)[0]
 
 	var restore_data = _ring_bridge_tie_data()
 	var dense_data = _ring_bridge_tie_data()
-	var expand_data = _ring_bridge_tie_data()
 	var sparse_data = _ring_bridge_tie_data()
-	var flood_data = _ring_bridge_tie_data()
 	var terminal_data = _ring_bridge_tie_data()
 
 	var restore_removed = HexMapGenerator.restore_connectivity(restore_data, seed)
 	var dense_removed = HexMapGenerator.restore_connectivity_dense(dense_data, seed)
-	var expand_removed = HexMapGenerator.restore_connectivity_expand(expand_data, [HexVector.zero()], seed)
 	var sparse_removed = HexMapGenerator.restore_connectivity_sparse(sparse_data, [HexVector.zero()], seed)
-	var flood_removed = HexMapGenerator.restore_connectivity_flood(flood_data, [HexVector.zero()], seed)
 	var terminal_removed = HexMapGenerator.restore_terminal_connectivity(
 		terminal_data,
 		[HexVector.zero(), terminal_goal],
@@ -1270,14 +1202,10 @@ func _test_restore_direction_seed_is_accepted_by_all_modes() -> void:
 
 	_assert_eq(restore_removed.size(), 1, "seeded restore removes one bridge wall")
 	_assert_eq(dense_removed.size(), 1, "seeded dense restore removes one bridge wall")
-	_assert_eq(expand_removed.size(), 1, "seeded expand restore removes one bridge wall")
 	_assert_eq(sparse_removed.size(), 1, "seeded sparse restore removes one bridge wall")
-	_assert_eq(flood_removed.size(), 1, "seeded flood restore removes one bridge wall")
 	_assert_eq(terminal_removed.size(), 1, "seeded terminal restore removes one bridge wall")
 
 	_assert_true(HexMapGenerator.is_floor_connected(restore_data), "seeded restore connects ring fixture")
 	_assert_true(HexMapGenerator.is_floor_connected(dense_data), "seeded dense restore connects ring fixture")
-	_assert_true(HexMapGenerator.is_floor_connected(expand_data), "seeded expand restore connects ring fixture")
 	_assert_true(HexMapGenerator.is_floor_connected(sparse_data), "seeded sparse restore connects ring fixture")
-	_assert_true(HexMapGenerator.is_floor_connected(flood_data), "seeded flood restore connects ring fixture")
 	_assert_true(HexMapGenerator.is_floor_connected(terminal_data), "seeded terminal restore connects ring fixture")

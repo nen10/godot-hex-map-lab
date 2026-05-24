@@ -75,7 +75,7 @@ phase 2 の `outer_mod` は split 0 / split 7 にそれぞれ 6 個、合計 12 
 
 ### 対称 toric 正方形の壁生成
 
-`HexMapGenerator.generate_symmetric_square(size, wall_probability, seed, ensure_connected, protected_floor, distribution_id, terminal_floor, connect_toric)` は Unity 版 `HexToricMap.DrawThreadsOnToricMap()` の描画順を Core の壁生成として使う。
+`HexMapGenerator.generate_symmetric_square(size, wall_probability, seed, connect_method, protected_floor, distribution_id, terminal_floor, connect_toric)` は Unity 版 `HexToricMap.DrawThreadsOnToricMap()` の描画順を Core の壁生成として使う。
 
 - `size` は `2 * map_unit_radius + 1` の odd N のみ
 - `distribution_id` は `HexRandomizer.prob_from_distribution()` の 2x2x2 テーブルを使う
@@ -92,7 +92,7 @@ Unity source 順序だけでは phase 2 の radius `3` / `6` / `9` で未訪問 
 
 `seed=888`、`wall_probability=1.0`、`protected_floor=[HexVector.zero()]` で radius `3` / `6` / `9` を headless 確認した。これらはすべて `(radius - 1) % 3 == 2` の phase 2 で、`symmetry_phase2_outer_mod_groups()` は 5 groups を返す。
 
-`ensure_connected=false` の raw 生成では square と torus は同じ wall set になる。`ensure_connected=true` では torus の方が cyclic 経路を使えるため、non-toric square / hex と floor corridor の削られ方が変わる。
+`connect_method=CONNECT_NONE` の raw 生成では square と torus は同じ wall set になる。`connect_method=CONNECT_DENSE` / `CONNECT_SPARSE` では torus の方が cyclic 経路を使えるため、non-toric square / hex と floor corridor の削られ方が変わる。
 
 原因候補は次の通り。
 
@@ -149,9 +149,13 @@ callback には `phase` / `steps` / `total_steps` / `progress` を持つ `Dictio
 
 ### 4. 連結性を回復する
 
-実行速度O(N)で、連結後のwall dencityの違いがある二つの方式を用意。
-`HexMapGenerator.restore_connectivity_sparse()`, `HexMapGenerator.restore_connectivity_dence()`
-この他の方式を実行すると速度面で圧倒的に悪い。置き換え・削除を検討してよい。
+Core の通常方式は `CONNECT_DENSE` / `CONNECT_SPARSE` / `CONNECT_NONE` の 3 つに絞る。
+
+- `CONNECT_DENSE`: `HexMapGenerator.restore_connectivity_dense()` を使う。壁削除数を抑えつつ全 floor 成分を接続する標準方式。
+- `CONNECT_SPARSE`: `HexMapGenerator.restore_connectivity_sparse()` を使う。Dense より壁削除が増えやすいが、通路感を強めたい場合の代替方式。
+- `CONNECT_NONE`: 連結性回復を実行しない raw 生成。
+
+`HexMapGenerator.restore_connectivity()` は scripting 互換用に残し、Dense 方式へ委譲する。`terminal_floor` は connect method ではなく、symmetric 生成時に `restore_terminal_connectivity()` で事前接続する。
 
 ### 5. デバッグ表示
 
