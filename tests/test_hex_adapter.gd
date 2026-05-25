@@ -3,8 +3,12 @@ extends SceneTree
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const HexPoint = preload("res://addons/hex_map_kit/core/hex_point.gd")
 const HexMapData = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
+const HexOverlayData = preload("res://addons/hex_map_kit/core/hex_overlay_data.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
+const HexOverlayResource = preload("res://addons/hex_map_kit/adapter/hex_overlay_resource.gd")
+const HexOverlayTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_overlay_tile_adapter.gd")
+const HexAdjacencyRuleSet = preload("res://addons/hex_map_kit/adapter/hex_adjacency_rule_set.gd")
 
 var _failures: Array[String] = []
 
@@ -33,6 +37,11 @@ func _run() -> void:
 	_test_configure_sample_tile_set_creates_atlas_source()
 	_test_map_resource_stores_map_data()
 	_test_map_resource_roundtrips_to_map_data()
+	_test_overlay_resource_roundtrips_to_overlay_data()
+	_test_adjacency_rule_set_parses_probability_rules()
+	_test_overlay_data_apply_policy_merge_replace_skip()
+	_test_overlay_tile_adapter_applies_user_item_tiles()
+	_test_overlay_tile_adapter_can_preserve_existing_layer_cells()
 
 	if _failures.is_empty():
 		print("test_hex_adapter.gd: all tests passed")
@@ -344,6 +353,110 @@ func _test_map_resource_roundtrips_to_map_data() -> void:
 	_assert_eq(resource.orientation, HexMapResource.ORIENTATION_POINTY_TOP, "resource stores pointy-top orientation")
 	resource.set_from_map_data(data, 99)
 	_assert_eq(resource.orientation, HexMapResource.ORIENTATION_FLAT_TOP, "resource normalizes unknown orientation to flat-top")
+
+
+func _test_overlay_resource_roundtrips_to_overlay_data() -> void:
+	var cells = HexMapData.rectangle(3, 1).cells
+	var data = HexOverlayData.from_cells(cells, {
+		"Treasure": [cells[0], cells[2]],
+		"Shop": [cells[1]],
+	}, 3)
+	var resource = HexOverlayResource.from_overlay_data(data, HexMapResource.ORIENTATION_POINTY_TOP)
+	var roundtrip = resource.to_overlay_data()
+
+	_assert_eq(resource.orientation, HexMapResource.ORIENTATION_POINTY_TOP, "overlay resource stores orientation")
+	_assert_eq(resource.cyclic_size, 3, "overlay resource stores cyclic size")
+	_assert_keys_eq(roundtrip.cells, data.cells, "overlay resource roundtrip preserves cells")
+	_assert_keys_eq(roundtrip.item_cells("Treasure"), data.item_cells("Treasure"), "overlay resource roundtrip preserves Treasure cells")
+	_assert_keys_eq(roundtrip.item_cells("Shop"), data.item_cells("Shop"), "overlay resource roundtrip preserves Shop cells")
+
+
+func _test_adjacency_rule_set_parses_probability_rules() -> void:
+	var rules = HexAdjacencyRuleSet.parse_rules_text("default=0.2;1=0.8;2,1=0.4;bad=x", 0.1)
+	_assert_eq(rules["default"], 0.2, "adjacency rule set parses default probability")
+	_assert_eq(rules[1], 0.8, "adjacency rule set parses neighbor count probability")
+	_assert_eq(rules["2,1"], 0.4, "adjacency rule set parses count/component probability key")
+
+	var fallback = HexAdjacencyRuleSet.parse_rules_text("bad", 0.35)
+	_assert_eq(fallback["default"], 0.35, "adjacency rule set uses fallback probability")
+
+	var resource = HexAdjacencyRuleSet.new()
+	resource.rules_text = "default=1.4;0=-0.2"
+	var clamped = resource.to_probability_rules()
+	_assert_eq(clamped["default"], 1.0, "adjacency rule set clamps high probability")
+	_assert_eq(clamped[0], 0.0, "adjacency rule set clamps low probability")
+
+
+func _test_overlay_data_apply_policy_merge_replace_skip() -> void:
+	var cells = HexMapData.rectangle(3, 1).cells
+	var base = HexOverlayData.from_cells(cells, {
+		"Treasure": [cells[0]],
+	})
+	var incoming = HexOverlayData.from_cells(cells, {
+		"Shop": [cells[0], cells[1]],
+	})
+
+	var merged = base.duplicate_data()
+	merged.apply_overlay(incoming, HexOverlayData.APPLY_ADD_ITEM, HexOverlayData.EXISTING_MERGE)
+	_assert_eq(merged.items_at(cells[0]), ["Shop", "Treasure"], "merge existing keeps both item keys at a cell")
+	_assert_keys_eq(merged.item_cells("Shop"), [cells[0], cells[1]], "merge existing adds incoming item cells")
+
+	var replaced = base.duplicate_data()
+	replaced.apply_overlay(incoming, HexOverlayData.APPLY_ADD_ITEM, HexOverlayData.EXISTING_REPLACE)
+	_assert_eq(replaced.items_at(cells[0]), ["Shop"], "replace existing removes previous item keys at incoming cells")
+	_assert_eq(replaced.items_at(cells[1]), ["Shop"], "replace existing writes incoming item")
+
+	var skipped = base.duplicate_data()
+	skipped.apply_overlay(incoming, HexOverlayData.APPLY_ADD_ITEM, HexOverlayData.EXISTING_SKIP)
+	_assert_eq(skipped.items_at(cells[0]), ["Treasure"], "skip existing leaves occupied cell unchanged")
+	_assert_eq(skipped.items_at(cells[1]), ["Shop"], "skip existing writes empty cell")
+
+	var cleared = base.duplicate_data()
+	cleared.apply_overlay(incoming, HexOverlayData.APPLY_CLEAR_AND_WRITE, HexOverlayData.EXISTING_MERGE)
+	_assert_eq(cleared.item_cells("Treasure"), [], "clear and write removes previous item keys")
+	_assert_keys_eq(cleared.item_cells("Shop"), [cells[0], cells[1]], "clear and write stores incoming item cells")
+
+
+func _test_overlay_tile_adapter_applies_user_item_tiles() -> void:
+	var cells = HexMapData.rectangle(3, 1).cells
+	var data = HexOverlayData.from_cells(cells, {
+		"Treasure": [cells[0]],
+		"Shop": [cells[1]],
+		"Unmapped": [cells[2]],
+	})
+	var item_tiles = {
+		"Treasure": HexOverlayTileAdapter.tile_config(4, Vector2i(2, 3)),
+		"Shop": HexOverlayTileAdapter.tile_config(5, Vector2i(6, 7), 2),
+	}
+	var layer = TileMapLayer.new()
+
+	HexOverlayTileAdapter.apply_to_tile_map_layer(layer, data, item_tiles)
+	_assert_eq(layer.get_used_cells().size(), 2, "overlay tile adapter applies only mapped item keys")
+	_assert_eq(layer.get_cell_source_id(Vector2i.ZERO), 4, "overlay tile adapter applies Treasure source")
+	_assert_eq(layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(2, 3), "overlay tile adapter applies Treasure atlas")
+	_assert_eq(layer.get_cell_source_id(Vector2i(1, 0)), 5, "overlay tile adapter applies Shop source")
+	_assert_eq(layer.get_cell_atlas_coords(Vector2i(1, 0)), Vector2i(6, 7), "overlay tile adapter applies Shop atlas")
+	_assert_eq(layer.get_cell_alternative_tile(Vector2i(1, 0)), 2, "overlay tile adapter applies alternative tile")
+
+	layer.free()
+
+
+func _test_overlay_tile_adapter_can_preserve_existing_layer_cells() -> void:
+	var cells = HexMapData.rectangle(1, 1).cells
+	var data = HexOverlayData.from_cells(cells, {
+		"Treasure": [cells[0]],
+	})
+	var item_tiles = {
+		"Treasure": HexOverlayTileAdapter.tile_config(4, Vector2i(2, 3)),
+	}
+	var layer = TileMapLayer.new()
+	layer.set_cell(Vector2i(9, 9), 8, Vector2i(1, 1))
+
+	HexOverlayTileAdapter.apply_to_tile_map_layer(layer, data, item_tiles, false)
+	_assert_eq(layer.get_cell_source_id(Vector2i(9, 9)), 8, "overlay tile adapter preserves existing layer cell when not clearing")
+	_assert_eq(layer.get_cell_source_id(Vector2i.ZERO), 4, "overlay tile adapter writes generated overlay cell when not clearing")
+
+	layer.free()
 
 
 func _assert_neighbor_offset_deltas(center, expected: Array, message: String) -> void:

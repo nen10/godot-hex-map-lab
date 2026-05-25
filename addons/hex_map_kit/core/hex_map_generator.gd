@@ -3,6 +3,7 @@ extends RefCounted
 
 const HexGridScript = preload("res://addons/hex_map_kit/core/hex_grid.gd")
 const HexMapDataScript = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
+const HexOverlayDataScript = preload("res://addons/hex_map_kit/core/hex_overlay_data.gd")
 const HexRandomizerScript = preload("res://addons/hex_map_kit/core/hex_randomizer.gd")
 const HexToricCoordinateScript = preload("res://addons/hex_map_kit/core/hex_toric_coordinate.gd")
 const HexToricMapSplitRuleScript = preload("res://addons/hex_map_kit/core/hex_toric_map_split_rule.gd")
@@ -270,6 +271,450 @@ static func generate_random_walls_interruptible(
 				return _wall_generation_result(result, true, steps, total)
 	_interrupt_update(interrupt_options, "random_walls", total, total)
 	return _wall_generation_result(result, false, total, total)
+
+
+static func generate_random_items(
+	cells: Array,
+	placement_probability: float,
+	item_pool: Array,
+	seed: int = 0,
+	blocked_cells: Array = []
+):
+	return generate_random_items_interruptible(
+		cells,
+		placement_probability,
+		item_pool,
+		seed,
+		blocked_cells
+	)["data"]
+
+
+static func generate_random_items_interruptible(
+	cells: Array,
+	placement_probability: float,
+	item_pool: Array,
+	seed: int = 0,
+	blocked_cells: Array = [],
+	interrupt_options: Dictionary = {}
+) -> Dictionary:
+	assert(placement_probability >= 0.0)
+	assert(placement_probability <= 1.0)
+
+	var candidates = _item_generation_candidates(cells, blocked_cells)
+	var normalized_pool = _normalize_weight_item_pool(item_pool)
+	var data = HexOverlayDataScript.from_cells(candidates)
+	var total = candidates.size()
+	var chunk_size = _interrupt_chunk_size(interrupt_options)
+	if _interrupt_update(interrupt_options, "random_items", 0, total):
+		return _item_generation_result(data, true, 0, total)
+	if normalized_pool.is_empty():
+		_interrupt_update(interrupt_options, "random_items", total, total)
+		return _item_generation_result(data, false, total, total)
+
+	var rng = RandomNumberGenerator.new()
+	rng.seed = seed
+	var weight_total = _item_pool_weight_total(normalized_pool, "weight")
+
+	for index in range(candidates.size()):
+		var cell = candidates[index]
+		if rng.randf() < placement_probability:
+			var item_key = _choose_weighted_item(normalized_pool, weight_total, rng, "weight")
+			if item_key != "":
+				data.add_item_cell(item_key, cell)
+		var steps = index + 1
+		if steps % chunk_size == 0 or steps == total:
+			if _interrupt_update(interrupt_options, "random_items", steps, total):
+				return _item_generation_result(data, true, steps, total)
+	_interrupt_update(interrupt_options, "random_items", total, total)
+	return _item_generation_result(data, false, total, total)
+
+
+static func generate_limited_items(
+	cells: Array,
+	item_pool: Array,
+	seed: int = 0,
+	blocked_cells: Array = []
+):
+	return generate_limited_items_interruptible(
+		cells,
+		item_pool,
+		seed,
+		blocked_cells
+	)["data"]
+
+
+static func generate_limited_items_interruptible(
+	cells: Array,
+	item_pool: Array,
+	seed: int = 0,
+	blocked_cells: Array = [],
+	interrupt_options: Dictionary = {}
+) -> Dictionary:
+	var candidates = _item_generation_candidates(cells, blocked_cells)
+	var normalized_pool = _normalize_limit_item_pool(item_pool)
+	var data = HexOverlayDataScript.from_cells(candidates)
+	var total = candidates.size()
+	var chunk_size = _interrupt_chunk_size(interrupt_options)
+	if _interrupt_update(interrupt_options, "limited_items", 0, total):
+		return _item_generation_result(data, true, 0, total)
+	if normalized_pool.is_empty():
+		_interrupt_update(interrupt_options, "limited_items", total, total)
+		return _item_generation_result(data, false, total, total)
+
+	var rng = RandomNumberGenerator.new()
+	rng.seed = seed
+	var remaining_total = _item_pool_weight_total(normalized_pool, "remaining")
+
+	for index in range(candidates.size()):
+		var cell = candidates[index]
+		var remaining_cells = candidates.size() - index
+		var placement_probability = 0.0 if remaining_cells <= 0 else float(remaining_total) / float(remaining_cells)
+		if remaining_total > 0 and rng.randf() < clampf(placement_probability, 0.0, 1.0):
+			var item_key = _choose_weighted_item(normalized_pool, float(remaining_total), rng, "remaining")
+			if item_key != "":
+				data.add_item_cell(item_key, cell)
+				for entry in normalized_pool:
+					if String(entry["name"]) == item_key:
+						entry["remaining"] = max(0, int(entry["remaining"]) - 1)
+						break
+				remaining_total = max(0, remaining_total - 1)
+		var steps = index + 1
+		if steps % chunk_size == 0 or steps == total:
+			if _interrupt_update(interrupt_options, "limited_items", steps, total):
+				return _item_generation_result(data, true, steps, total)
+	_interrupt_update(interrupt_options, "limited_items", total, total)
+	return _item_generation_result(data, false, total, total)
+
+
+static func generate_toric_adjacency_items(
+	cells: Array,
+	item_name: String,
+	reference_cells: Array,
+	probability_rules: Dictionary = {},
+	seed: int = 0,
+	blocked_cells: Array = [],
+	cyclic_size: int = 0,
+	neighbor_radius: int = 1
+):
+	return generate_toric_adjacency_items_interruptible(
+		cells,
+		item_name,
+		reference_cells,
+		probability_rules,
+		seed,
+		blocked_cells,
+		cyclic_size,
+		neighbor_radius
+	)["data"]
+
+
+static func generate_toric_adjacency_items_interruptible(
+	cells: Array,
+	item_name: String,
+	reference_cells: Array,
+	probability_rules: Dictionary = {},
+	seed: int = 0,
+	blocked_cells: Array = [],
+	cyclic_size: int = 0,
+	neighbor_radius: int = 1,
+	interrupt_options: Dictionary = {}
+) -> Dictionary:
+	assert(neighbor_radius >= 1)
+	var candidates = _item_generation_candidates(cells, blocked_cells, cyclic_size)
+	var normalized_reference_cells = _normalize_generation_points(reference_cells, cyclic_size)
+	var reference_set = HexMapDataScript.make_set(normalized_reference_cells)
+	var data = HexOverlayDataScript.from_cells(candidates, {}, cyclic_size)
+	var total = candidates.size()
+	var chunk_size = _interrupt_chunk_size(interrupt_options)
+	if _interrupt_update(interrupt_options, "toric_adjacency_items", 0, total):
+		return _item_generation_result(data, true, 0, total)
+
+	var rng = RandomNumberGenerator.new()
+	rng.seed = seed
+	for index in range(candidates.size()):
+		var cell = candidates[index]
+		var stats = _adjacency_reference_stats(cell, reference_set, cyclic_size, neighbor_radius)
+		var probability = _adjacency_rule_probability(
+			probability_rules,
+			int(stats["count"]),
+			int(stats["components"])
+		)
+		if rng.randf() < probability:
+			data.add_item_cell(item_name, cell)
+		var steps = index + 1
+		if steps % chunk_size == 0 or steps == total:
+			if _interrupt_update(interrupt_options, "toric_adjacency_items", steps, total):
+				return _item_generation_result(data, true, steps, total)
+	_interrupt_update(interrupt_options, "toric_adjacency_items", total, total)
+	return _item_generation_result(data, false, total, total)
+
+
+static func generate_symmetric_toric_items(
+	radius: int,
+	item_name: String,
+	target_cells: Array,
+	wall_probability: float,
+	seed: int = 0,
+	distribution_id: int = 20,
+	blocked_cells: Array = [],
+	custom_distribution = null,
+	interrupt_options: Dictionary = {}
+):
+	return generate_symmetric_toric_items_interruptible(
+		radius,
+		item_name,
+		target_cells,
+		wall_probability,
+		seed,
+		distribution_id,
+		blocked_cells,
+		custom_distribution,
+		interrupt_options
+	)["data"]
+
+
+static func generate_symmetric_toric_items_interruptible(
+	radius: int,
+	item_name: String,
+	target_cells: Array,
+	wall_probability: float,
+	seed: int = 0,
+	distribution_id: int = 20,
+	blocked_cells: Array = [],
+	custom_distribution = null,
+	interrupt_options: Dictionary = {}
+) -> Dictionary:
+	assert(radius > 0)
+	var size = radius * 2 + 1
+	var candidates = _item_generation_candidates(target_cells, blocked_cells, size)
+	var all_cells = HexMapDataScript.square(size, true).cells
+	var protected = HexMapDataScript.points_except(all_cells, candidates)
+	var wall_result = generate_symmetric_toric_walls_interruptible(
+		radius,
+		wall_probability,
+		seed,
+		distribution_id,
+		protected,
+		custom_distribution,
+		interrupt_options
+	)
+	var data = HexOverlayDataScript.from_item_cells(
+		candidates,
+		item_name,
+		wall_result["walls"],
+		size
+	)
+	return _item_generation_result(
+		data,
+		bool(wall_result.get("cancelled", false)),
+		int(wall_result.get("steps", candidates.size())),
+		int(wall_result.get("total_steps", max(1, candidates.size())))
+	)
+
+
+static func deduct_items_for_connectivity(
+	data,
+	item_key: String,
+	floor_cells: Array,
+	connect_method: int = CONNECT_NONE,
+	seed: int = 0,
+	interrupt_options: Dictionary = {}
+) -> Array:
+	if data == null or connect_method == CONNECT_NONE:
+		return []
+	var map_data = HexMapDataScript.from_cells(
+		floor_cells,
+		data.item_cells(item_key),
+		int(data.cyclic_size)
+	)
+	var removed_items = restore_connectivity_by(
+		connect_method,
+		map_data,
+		[],
+		seed,
+		interrupt_options
+	)
+	if not removed_items.is_empty():
+		data.set_item_cells(
+			item_key,
+			HexMapDataScript.points_except(data.item_cells(item_key), removed_items)
+		)
+	return removed_items
+
+
+static func _item_generation_candidates(cells: Array, blocked_cells: Array, cyclic_size: int = 0) -> Array:
+	var blocked_set = HexMapDataScript.make_set(_normalize_generation_points(blocked_cells, cyclic_size))
+	var result: Array = []
+	for cell in _normalize_generation_points(cells, cyclic_size):
+		if blocked_set.has(cell.key()):
+			continue
+		result.append(cell)
+	return result
+
+
+static func _normalize_generation_points(points: Array, cyclic_size: int = 0) -> Array:
+	if cyclic_size <= 0:
+		return HexMapDataScript.unique_points(points)
+	var result: Array = []
+	for point in points:
+		result.append(HexToricCoordinateScript.wrap_vector(point, cyclic_size))
+	return HexMapDataScript.unique_points(result)
+
+
+static func _normalize_weight_item_pool(item_pool: Array) -> Array:
+	var result: Array = []
+	for item in item_pool:
+		var item_name = _item_pool_entry_name(item)
+		var weight = _item_pool_entry_float(item, "weight", 1.0)
+		assert(weight >= 0.0)
+		if weight <= 0.0:
+			continue
+		result.append({
+			"name": item_name,
+			"weight": weight,
+		})
+	return result
+
+
+static func _normalize_limit_item_pool(item_pool: Array) -> Array:
+	var result: Array = []
+	for item in item_pool:
+		var item_name = _item_pool_entry_name(item)
+		var limit = _item_pool_entry_int(item, "limit", 0)
+		assert(limit >= 0)
+		if limit <= 0:
+			continue
+		result.append({
+			"name": item_name,
+			"remaining": limit,
+		})
+	return result
+
+
+static func _item_pool_entry_name(item) -> String:
+	if item is Dictionary:
+		return String(item.get("name", ""))
+	return String(item)
+
+
+static func _item_pool_entry_float(item, key: String, default_value: float) -> float:
+	if item is Dictionary:
+		return float(item.get(key, default_value))
+	return default_value
+
+
+static func _item_pool_entry_int(item, key: String, default_value: int) -> int:
+	if item is Dictionary:
+		return int(item.get(key, default_value))
+	return default_value
+
+
+static func _item_pool_weight_total(item_pool: Array, weight_key: String) -> float:
+	var result := 0.0
+	for entry in item_pool:
+		result += float(entry[weight_key])
+	return result
+
+
+static func _choose_weighted_item(
+	item_pool: Array,
+	weight_total: float,
+	rng: RandomNumberGenerator,
+	weight_key: String
+) -> String:
+	if weight_total <= 0.0:
+		return ""
+	var value = rng.randf() * weight_total
+	var cursor := 0.0
+	for entry in item_pool:
+		cursor += float(entry[weight_key])
+		if value < cursor:
+			return String(entry["name"])
+	return String(item_pool[item_pool.size() - 1]["name"])
+
+
+static func _adjacency_reference_stats(
+	cell,
+	reference_set: Dictionary,
+	cyclic_size: int,
+	neighbor_radius: int
+) -> Dictionary:
+	var reference_neighbors: Array = []
+	for neighbor in _adjacency_scope_cells(cell, neighbor_radius, cyclic_size):
+		if reference_set.has(neighbor.key()):
+			reference_neighbors.append(reference_set[neighbor.key()])
+	return {
+		"count": reference_neighbors.size(),
+		"components": _adjacency_component_count(reference_neighbors, cyclic_size),
+	}
+
+
+static func _adjacency_scope_cells(cell, neighbor_radius: int, cyclic_size: int) -> Array:
+	var center = cell
+	if cyclic_size > 0:
+		center = HexToricCoordinateScript.wrap_vector(cell, cyclic_size)
+
+	var result: Array = []
+	var seen := {}
+	for point in HexGridScript.l1_disc(neighbor_radius, center):
+		var candidate = point
+		if cyclic_size > 0:
+			candidate = HexToricCoordinateScript.wrap_vector(candidate, cyclic_size)
+		if candidate.key() == center.key():
+			continue
+		if seen.has(candidate.key()):
+			continue
+		seen[candidate.key()] = true
+		result.append(candidate)
+	return result
+
+
+static func _adjacency_component_count(points: Array, cyclic_size: int) -> int:
+	var remaining = HexMapDataScript.make_set(points)
+	var count := 0
+	for point in points:
+		if not remaining.has(point.key()):
+			continue
+		var component = HexGridScript.connected_area(point, points, cyclic_size)
+		count += 1
+		for component_point in component:
+			remaining.erase(component_point.key())
+	return count
+
+
+static func _adjacency_rule_probability(
+	probability_rules: Dictionary,
+	neighbor_count: int,
+	component_count: int
+) -> float:
+	var value = 0.0
+	if probability_rules.has(Vector2i(neighbor_count, component_count)):
+		value = float(probability_rules[Vector2i(neighbor_count, component_count)])
+	elif probability_rules.has("%d,%d" % [neighbor_count, component_count]):
+		value = float(probability_rules["%d,%d" % [neighbor_count, component_count]])
+	elif probability_rules.has(neighbor_count):
+		value = float(probability_rules[neighbor_count])
+	elif probability_rules.has(str(neighbor_count)):
+		value = float(probability_rules[str(neighbor_count)])
+	elif probability_rules.has("default"):
+		value = float(probability_rules["default"])
+	return clampf(value, 0.0, 1.0)
+
+
+static func _item_generation_result(
+	data,
+	cancelled: bool,
+	steps: int,
+	total_steps: int
+) -> Dictionary:
+	var progress = 1.0 if total_steps <= 0 else float(steps) / float(total_steps)
+	return {
+		"data": data,
+		"cancelled": cancelled,
+		"progress": clampf(progress, 0.0, 1.0),
+		"steps": steps,
+		"total_steps": total_steps,
+	}
 
 
 static func generate_symmetric_toric_walls(

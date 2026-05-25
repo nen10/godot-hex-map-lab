@@ -4,6 +4,10 @@ extends RefCounted
 const HexVectorScript = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const HexGridScript = preload("res://addons/hex_map_kit/core/hex_grid.gd")
 
+const ITEM_ANY := "Any"
+const ITEM_FLOOR := "Floor"
+const ITEM_WALL := "Wall"
+
 var cells: Array = []
 var walls: Array = []
 var cyclic_size: int = 0
@@ -68,6 +72,26 @@ func has_wall(point) -> bool:
 
 func set_walls(p_walls: Array) -> void:
 	walls = filter_points(p_walls, cell_set())
+
+
+func item_keys() -> Array:
+	return [ITEM_ANY, ITEM_FLOOR, ITEM_WALL]
+
+
+func item_cells(item_key: String) -> Array:
+	match item_key:
+		ITEM_ANY:
+			return cells.duplicate()
+		ITEM_FLOOR:
+			return floor_cells()
+		ITEM_WALL:
+			return walls.duplicate()
+		_:
+			return []
+
+
+func item_set(item_key: String) -> Dictionary:
+	return make_set(item_cells(item_key))
 
 
 static func make_set(points: Array) -> Dictionary:

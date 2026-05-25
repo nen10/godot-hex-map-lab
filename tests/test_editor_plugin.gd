@@ -6,9 +6,12 @@ const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator
 const HexRandomizer = preload("res://addons/hex_map_kit/core/hex_randomizer.gd")
 const HexDistribution = preload("res://addons/hex_map_kit/adapter/hex_distribution.gd")
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
+const HexOverlayData = preload("res://addons/hex_map_kit/core/hex_overlay_data.gd")
+const HexOverlayResource = preload("res://addons/hex_map_kit/adapter/hex_overlay_resource.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexMapGenDock = preload("res://addons/hex_map_kit/editor/hex_map_gen_dock.gd")
 const HexDistEditor = preload("res://addons/hex_map_kit/editor/hex_dist_editor.gd")
+const HexAdjacencyRuleEditor = preload("res://addons/hex_map_kit/editor/hex_adjacency_rule_editor.gd")
 
 class FakeTileLayer:
 	var cleared := false
@@ -37,6 +40,7 @@ func _run() -> void:
 	await _test_distribution_editor_loads_resource_values_and_colors_cells()
 	await _test_distribution_editor_close_button_uses_cancel_flow()
 	await _test_distribution_editor_manages_recent_custom_and_duplicate_preset()
+	await _test_adjacency_rule_editor_applies_rule_text()
 	await _test_generation_dock_symmetric_hexagon_minimum_radii()
 	await _test_generation_dock_torus_connectivity_controls()
 	await _test_generation_dock_torus_connectivity_generation()
@@ -55,6 +59,11 @@ func _run() -> void:
 	await _test_generation_dock_sets_up_sample_tiles()
 	await _test_generation_dock_selects_atlas_image()
 	await _test_generation_dock_generate_auto_applies_current_map()
+	await _test_generation_dock_overlay_uniform_generation_and_apply()
+	await _test_generation_dock_overlay_limit_and_apply_policy()
+	await _test_generation_dock_overlay_placement_mask_filters_candidates()
+	await _test_generation_dock_overlay_adjacency_reference_generation()
+	await _test_generation_dock_overlay_item_pool_tile_mapping()
 
 	if _failures.is_empty():
 		print("test_editor_plugin.gd: all tests passed")
@@ -172,6 +181,25 @@ func _test_distribution_editor_manages_recent_custom_and_duplicate_preset() -> v
 
 	recent_editor.queue_free()
 	await process_frame
+
+
+func _test_adjacency_rule_editor_applies_rule_text() -> void:
+	var state := {"rules": "", "count": 0}
+	var editor = HexAdjacencyRuleEditor.new(
+		"default=0.2",
+		Callable(self, "_capture_rules").bind(state),
+		Callable(self, "_count_cancel").bind(state)
+	)
+	root.add_child(editor)
+	await process_frame
+
+	_assert_eq(editor._rules_edit.text, "default=0.2", "adjacency rule editor loads initial rule text")
+	editor._rules_edit.text = "1=0.8;default=0.1"
+	editor._on_apply_pressed()
+	await process_frame
+
+	_assert_eq(state["rules"], "1=0.8;default=0.1", "adjacency rule editor apply returns rule text")
+	_assert_eq(state["count"], 0, "adjacency rule editor apply does not call cancel")
 
 
 func _test_generation_dock_symmetric_hexagon_minimum_radii() -> void:
@@ -760,6 +788,169 @@ func _test_generation_dock_generate_auto_applies_current_map() -> void:
 	await process_frame
 
 
+func _test_generation_dock_overlay_uniform_generation_and_apply() -> void:
+	var dock = await _new_ready_dock()
+
+	_assert_eq(dock._generate_button.text, "Primary Generation", "generation dock starts in primary generation mode")
+	dock._overlay_mode_check.set_pressed_no_signal(true)
+	dock._refresh_controls()
+	_assert_eq(dock._generate_button.text, "Overlay Generation", "overlay mode relabels Generate button")
+	_assert_true(dock._overlay_controls_container.visible, "overlay mode shows overlay controls")
+	_assert_true(dock._wall_prob_row.visible, "overlay uniform mode keeps placement probability visible")
+
+	dock._generate_option.select(HexMapGenDock.GENERATE_SIMPLE)
+	dock._shape_option_simple.select(HexMapGenDock.SHAPE_RECTANGLE)
+	dock._wall_prob_slider.set_value_no_signal(1.0)
+	dock._overlay_item_pool_rows[0]["name"].text = "Tree"
+	dock._overlay_item_pool_rows[0]["amount"].value = 1.0
+	dock._on_overlay_add_item_pressed()
+	dock._overlay_item_pool_rows[1]["name"].text = "Rock"
+	dock._overlay_item_pool_rows[1]["amount"].value = 0.0
+	dock._refresh_controls()
+
+	var data = HexMapData.rectangle(2, 2)
+	data.set_walls([HexVector.q_axis()])
+	dock._current_data = data
+
+	var scene_root = Node2D.new()
+	scene_root.name = "SceneRoot"
+	root.add_child(scene_root)
+	var layer = TileMapLayer.new()
+	layer.name = "OverlayLayer"
+	scene_root.add_child(layer)
+	await process_frame
+
+	dock.refresh_tile_layer_options(scene_root)
+	dock._tile_layer_option.select(1)
+	_assert_true(dock.setup_sample_tiles_on_tile_map_layer(layer), "overlay apply test configures sample tiles")
+
+	_assert_true(await dock._generate_map(), "generation dock generates overlay data")
+	_assert_true(dock._current_data == data, "overlay generation keeps current primary data")
+	_assert_true(dock._current_overlay_data != null, "overlay generation stores current overlay data")
+	_assert_eq(dock._current_overlay_data.item_cells("Tree").size(), data.floor_cells().size(), "overlay uniform generation uses primary floor cells as candidates")
+	_assert_eq(dock._current_overlay_data.item_cells("Rock").size(), 0, "overlay uniform generation honors item weights")
+	_assert_eq(layer.get_used_cells().size(), data.floor_cells().size(), "overlay generation auto applies overlay cells to Target")
+	_assert_eq(layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(1, 0), "overlay apply uses Wall atlas controls as item tile")
+	_assert_true(dock.current_resource() is HexOverlayResource, "overlay mode saves current overlay resource")
+
+	scene_root.queue_free()
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_overlay_limit_and_apply_policy() -> void:
+	var dock = await _new_ready_dock()
+
+	dock._overlay_mode_check.set_pressed_no_signal(true)
+	dock._generate_option.select(HexMapGenDock.GENERATE_SIMPLE)
+	dock._shape_option_simple.select(HexMapGenDock.SHAPE_RECTANGLE)
+	dock._overlay_item_pool_rows[0]["name"].text = "Coin"
+	dock._overlay_item_limit_check.set_pressed_no_signal(true)
+	dock._overlay_item_pool_rows[0]["amount"].value = 2
+	dock._on_overlay_add_item_pressed()
+	dock._overlay_item_pool_rows[1]["name"].text = "Gem"
+	dock._overlay_item_pool_rows[1]["amount"].value = 1
+	dock._current_data = HexMapData.rectangle(4, 1)
+	dock._refresh_controls()
+
+	_assert_eq(dock._overlay_item_pool_rows[0]["amount_label"].text, "Limit", "overlay limited uniform mode shows item limits")
+	_assert_true(not dock._wall_prob_row.visible, "overlay limited uniform mode hides placement probability")
+	_assert_true(await dock._generate_map(), "generation dock generates limited overlay data")
+	_assert_eq(dock._current_overlay_data.item_cells("Coin").size(), 2, "overlay limited generation places requested item count")
+	_assert_eq(dock._current_overlay_data.item_cells("Gem").size(), 1, "overlay limited generation supports multiple item limits")
+
+	dock._overlay_item_pool_rows[0]["name"].text = "Key"
+	dock._overlay_item_pool_rows[0]["amount"].value = 1
+	dock._overlay_item_pool_rows[1]["amount"].value = 0
+	dock._overlay_write_policy_option.select(1)
+	_assert_true(await dock._generate_map(), "generation dock merges overlay data with Add Item policy")
+	_assert_eq(dock._current_overlay_data.item_cells("Coin").size(), 2, "overlay Add Item policy preserves existing item data")
+	_assert_eq(dock._current_overlay_data.item_cells("Gem").size(), 1, "overlay Add Item policy preserves existing second item data")
+	_assert_eq(dock._current_overlay_data.item_cells("Key").size(), 1, "overlay Add Item policy adds generated item data")
+
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_overlay_placement_mask_filters_candidates() -> void:
+	var dock = await _new_ready_dock()
+
+	dock._overlay_mode_check.set_pressed_no_signal(true)
+	dock._generate_option.select(HexMapGenDock.GENERATE_SIMPLE)
+	dock._shape_option_simple.select(HexMapGenDock.SHAPE_RECTANGLE)
+	dock._wall_prob_slider.set_value_no_signal(1.0)
+	dock._overlay_item_pool_rows[0]["name"].text = "Moss"
+	dock._overlay_item_pool_rows[0]["amount"].value = 1.0
+	dock._overlay_mask_primary_items_edit.text = "Wall"
+	var data = HexMapData.rectangle(3, 1)
+	data.set_walls([HexVector.q_axis()])
+	dock._current_data = data
+	dock._refresh_controls()
+
+	_assert_true(await dock._generate_map(), "generation dock generates overlay from placement mask")
+	_assert_eq(dock._current_overlay_data.item_cells("Moss").size(), 1, "placement mask restricts overlay candidates to selected primary item")
+	_assert_eq(dock._current_overlay_data.item_cells("Moss")[0].key(), HexVector.q_axis().key(), "placement mask item is generated on the selected wall cell")
+
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_overlay_adjacency_reference_generation() -> void:
+	var dock = await _new_ready_dock()
+
+	dock._overlay_mode_check.set_pressed_no_signal(true)
+	dock._overlay_adjacency_check.set_pressed_no_signal(true)
+	dock._on_overlay_adjacency_toggled(true)
+	dock._overlay_item_name_edit.text = "NearWall"
+	dock._overlay_mask_primary_items_edit.text = "Floor"
+	dock._overlay_reference_primary_items_edit.text = "Wall"
+	dock._overlay_neighbor_radius_spin.value = 1
+	dock._overlay_adjacency_rules_edit.text = "1=1.0;default=0.0"
+	var data = HexMapData.hexagon(1)
+	data.set_walls([HexVector.q_axis()])
+	dock._current_data = data
+	dock._refresh_controls()
+
+	_assert_eq(dock._generate_option.selected, HexMapGenDock.GENERATE_SYMMETRIC, "adjacency reference switches overlay generation to Markov Mesh")
+	_assert_true(dock._overlay_reference_container.visible, "adjacency reference shows reference controls")
+	_assert_true(await dock._generate_map(), "generation dock generates adjacency overlay")
+	_assert_true(dock._current_overlay_data.has_item(HexVector.zero(), "NearWall"), "adjacency reference generates item next to reference cell")
+	_assert_true(not dock._current_overlay_data.has_item(HexVector.apply_basis(-1, 1, 0), "NearWall"), "adjacency reference leaves cells without matching neighbor rule empty")
+
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_overlay_item_pool_tile_mapping() -> void:
+	var dock = await _new_ready_dock()
+
+	dock._overlay_mode_check.set_pressed_no_signal(true)
+	dock._overlay_item_pool_rows[0]["name"].text = "Tree"
+	dock._overlay_item_pool_rows[0]["tile_atlas_x"].value = 0
+	dock._overlay_item_pool_rows[0]["tile_atlas_y"].value = 0
+	dock._on_overlay_add_item_pressed()
+	dock._overlay_item_pool_rows[1]["name"].text = "Rock"
+	dock._overlay_item_pool_rows[1]["tile_atlas_x"].value = 1
+	dock._overlay_item_pool_rows[1]["tile_atlas_y"].value = 0
+	dock._current_overlay_data = HexOverlayData.from_cells(
+		[HexVector.zero(), HexVector.q_axis()],
+		{
+			"Tree": [HexVector.zero()],
+			"Rock": [HexVector.q_axis()],
+		}
+	)
+
+	var layer = TileMapLayer.new()
+	_assert_true(dock.setup_sample_tiles_on_tile_map_layer(layer), "overlay tile mapping test configures sample tiles")
+	_assert_true(dock.apply_current_overlay_data_to_tile_map_layer(layer), "overlay tile mapping applies current overlay data")
+	_assert_eq(layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(0, 0), "overlay item pool maps Tree to its configured tile")
+	_assert_eq(layer.get_cell_atlas_coords(Vector2i(1, 0)), Vector2i(1, 0), "overlay item pool maps Rock to its configured tile")
+
+	layer.free()
+	dock.queue_free()
+	await process_frame
+
+
 func _save_distribution(path: String, distribution: HexDistribution) -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://.godot_user"))
 	var error = ResourceSaver.save(distribution, path)
@@ -768,6 +959,10 @@ func _save_distribution(path: String, distribution: HexDistribution) -> void:
 
 func _count_cancel(state: Dictionary) -> void:
 	state["count"] += 1
+
+
+func _capture_rules(rules_text: String, state: Dictionary) -> void:
+	state["rules"] = rules_text
 
 
 func _spin_values(spins: Array) -> Array:

@@ -3,6 +3,32 @@
 複数のレイヤー、複数の生成データを活用してマップ生成機能を強化する。
 実装のための詳細な計画は日時名付きで別ドキュメントを作成し、本ドキュメントの編集は参照を追加する形にとどめる。
 
+## 参照
+
+- `docs/complete_on_test/MULTI_LAYER_2026-05-26_CORE_OVERLAY_UNIFORM.md`
+  - Primary Item Key
+  - Overlay Data
+  - Uniform Distribution overlay item generation
+- `docs/complete_on_test/MULTI_LAYER_2026-05-26_MASK_REFERENCE_ADJACENCY.md`
+  - Placement Mask / Reference item selector query
+  - Adjacency Reference overlay item generation
+- `docs/complete_on_test/MULTI_LAYER_2026-05-26_SYMMETRIC_TORIC_ITEMS.md`
+  - Markov Mesh overlay item generation without adjacency reference
+- `docs/complete_on_test/MULTI_LAYER_2026-05-26_OVERLAY_RESOURCE_ADAPTER_POLICY.md`
+  - Overlay Resource / TileMapLayer adapter / Apply Policy
+- `docs/complete_on_test/MULTI_LAYER_2026-05-26_EDITOR_OVERLAY_BASIC.md`
+  - Editor Dock basic Overlay generation / apply / save flow
+- `docs/complete_on_test/MULTI_LAYER_2026-05-26_EDITOR_OVERLAY_ITEM_POOL.md`
+  - Editor Dock Uniform Overlay item pool weights / limits
+- `docs/complete_on_test/MULTI_LAYER_2026-05-26_EDITOR_MASK_ADJACENCY.md`
+  - Editor Dock Placement Mask / Adjacency Reference UI
+- `docs/complete_on_test/MULTI_LAYER_2026-05-26_EDITOR_ITEM_TILE_MAPPING.md`
+  - Editor Dock Overlay item key tile mapping
+- `docs/complete_on_test/MULTI_LAYER_2026-05-26_ADJACENCY_RULE_SET_EDITOR.md`
+  - Adjacency Rule Set resource / editor
+- `docs/complete_on_test/MULTI_LAYER_2026-05-26_OVERLAY_DEDUCTOR_CONNECTIVITY.md`
+  - Overlay Deductor connectivity restore
+
 ## Editor Plugin / Adopter / Core 機能追加
 
 
@@ -80,5 +106,3 @@
     - [Clear And Write, Add Item]
     - [Merge Existing, Replace Existing, Skip Existing]
     - 生成後、TargetレイヤーにOverlayデータを適用する。
-
-

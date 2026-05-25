@@ -57,6 +57,30 @@ Preset は `HexRandomizer.get_preset_names()` の順に表示されます。pres
 - `Restore Connectivity`: floor 全体の連結性回復
 
 `Restore Connectivity` が有効な場合、生成後に `HexMapGenerator.restore_connectivity()` が実行されます。`HexVector.zero()` は protected floor として扱われます。
+Overlay mode の Markov Mesh では同じ選択肢を Overlay Deductor として使い、生成itemを通行阻害itemとして必要分だけ削除して、Placement Mask のfloor集合の連結性を回復します。
+
+### Overlay Generation
+
+`Overlay` を有効にすると、`Generate` ボタンは `Overlay Generation` になり、ユーザー定義 item key を持つ `HexOverlayData` を生成します。`Overlay` が無効な場合は `Primary Generation` として従来の床・壁 `HexMapData` を生成します。
+
+Overlay generation は現在の Primary Data の floor cells を placement candidates として使います。
+
+- `Uniform Distribution`: Item Pool の各 row を使って item を配置する
+- `Add Item`: Item Pool row を追加する
+- `Item Num Limit`: Off の場合は各 row の数値を `Weight` として扱い、`Placement Probability` に従って配置する
+- `Item Num Limit`: On の場合は各 row の数値を `Limit` として扱い、`Placement Probability` を非表示にする
+- Item Pool row の `Tile` は、その item key を `TileMapLayer` に表示するときの source / atlas coords
+- `Target Item`: `Markov Mesh` で生成する item key。`Wall` など既存名も入力できる
+- `Markov Mesh`: `Target Item` に対して対称 toric item generation を使う
+- `Placement Mask`: Primary / current Overlay の item keys から生成候補cellを作る
+- `Enable Adjacency Reference`: On にすると `Markov Mesh` に切り替え、Reference Items と Adjacency Rules を使う
+- `Reference Items`: Primary / current Overlay の item keys から参照cellを作る
+- `Neighbor Radius`: Adjacency Reference の参照範囲
+- `Adjacency Rules`: `default=0.2;1=0.8;2,1=0.4` のように、参照item近傍数または `近傍数,連結成分数` ごとの確率を指定する。`Edit` で専用editorを開く
+- `Apply Write`: `Clear And Write` または `Add Item`
+- `Existing Item`: `Merge Existing` / `Replace Existing` / `Skip Existing`
+
+Overlay mode で Generate 後の自動 apply または `Apply Layer` を実行すると、current overlay を Target `TileMapLayer` に表示します。Item Pool にある item key は row の `Tile` source / atlas coords を使い、Item Pool にない item key は Dock の `Wall` source / atlas coords を fallback として使います。`Save .tres` は Overlay mode では `HexOverlayResource` を保存対象にします。
 
 ### Stats
 
@@ -127,10 +151,10 @@ Godot 側の対応 API は公式ドキュメントの `TileMapLayer`、`TileSet`
 
 ### Buttons
 
-- `Generate`: 現在の設定で再生成し、対象 `TileMapLayer` があれば自動 apply
+- `Generate`: 現在の設定で Primary または Overlay を再生成し、対象 `TileMapLayer` があれば自動 apply
 - `Cancel`: 生成中の Dock 内 progress から実行中 generation に cancel request を記録
-- `Save .tres`: `HexMapResource` として保存
-- `Apply Layer`: Target の `TileMapLayer`、または Auto 解決先に現在の map を手動再反映
+- `Save .tres`: Primary mode では `HexMapResource`、Overlay mode では `HexOverlayResource` として保存
+- `Apply Layer`: Target の `TileMapLayer`、または Auto 解決先に現在の Primary / Overlay を手動再反映
 - `Select Atlas Image`: 画像 resource を `TileSetAtlasSource` として Scene Tree 選択中 `TileMapLayer` に設定
 - `Use Sample Tiles`: addon 同梱 sample atlas を Scene Tree 選択中 `TileMapLayer` に設定
 

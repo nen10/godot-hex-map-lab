@@ -8,6 +8,11 @@ const HexMapData = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
 const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
+const HexOverlayData = preload("res://addons/hex_map_kit/core/hex_overlay_data.gd")
+const HexOverlayResource = preload("res://addons/hex_map_kit/adapter/hex_overlay_resource.gd")
+const HexOverlayTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_overlay_tile_adapter.gd")
+const HexAdjacencyRuleSet = preload("res://addons/hex_map_kit/adapter/hex_adjacency_rule_set.gd")
+const HexAdjacencyRuleEditor = preload("res://addons/hex_map_kit/editor/hex_adjacency_rule_editor.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const HexRandomizer = preload("res://addons/hex_map_kit/core/hex_randomizer.gd")
 
@@ -38,6 +43,33 @@ const TILE_TARGET_LAYER_INDEX_OFFSET := 1
 const TILE_TARGET_AUTO_LABEL := "Auto: Selected / first scene layer"
 const TILE_TARGET_ADD_LAYER_LABEL := "Add new layer..."
 const NEW_TILE_LAYER_BASE_NAME := "HexMapLayer"
+const OVERLAY_DEFAULT_ITEM_NAME := "OverlayItem"
+const OVERLAY_WRITE_POLICIES := [
+	HexOverlayData.APPLY_CLEAR_AND_WRITE,
+	HexOverlayData.APPLY_ADD_ITEM,
+]
+const OVERLAY_WRITE_POLICY_NAMES := [
+	"Clear And Write",
+	"Add Item",
+]
+const OVERLAY_EXISTING_POLICIES := [
+	HexOverlayData.EXISTING_MERGE,
+	HexOverlayData.EXISTING_REPLACE,
+	HexOverlayData.EXISTING_SKIP,
+]
+const OVERLAY_EXISTING_POLICY_NAMES := [
+	"Merge Existing",
+	"Replace Existing",
+	"Skip Existing",
+]
+const OVERLAY_QUERY_OPERATIONS := [
+	HexOverlayData.ITEM_QUERY_OR,
+	HexOverlayData.ITEM_QUERY_AND,
+]
+const OVERLAY_QUERY_OPERATION_NAMES := [
+	"Any Item",
+	"All Items",
+]
 
 var _generate_option: OptionButton
 var _shape_simple_row: HBoxContainer
@@ -58,6 +90,7 @@ var _gen_radius_spin: SpinBox
 
 var _wall_prob_slider: HSlider
 var _wall_prob_label: Label
+var _wall_prob_row: Control
 var _seed_spin: SpinBox
 var _seed_random_button: Button
 
@@ -88,6 +121,33 @@ var _atlas_image_button: Button
 var _sample_tiles_button: Button
 var _current_atlas_image_path := ""
 
+var _overlay_mode_check: CheckButton
+var _overlay_controls_container: VBoxContainer
+var _overlay_item_name_edit: LineEdit
+var _overlay_item_limit_check: CheckButton
+var _overlay_item_limit_spin: SpinBox
+var _overlay_item_pool_container: VBoxContainer
+var _overlay_add_item_button: Button
+var _overlay_item_pool_rows: Array[Dictionary] = []
+var _overlay_mask_container: VBoxContainer
+var _overlay_mask_primary_check: CheckButton
+var _overlay_mask_primary_items_edit: LineEdit
+var _overlay_mask_overlay_check: CheckButton
+var _overlay_mask_overlay_items_edit: LineEdit
+var _overlay_mask_operation_option: OptionButton
+var _overlay_adjacency_check: CheckButton
+var _overlay_reference_container: VBoxContainer
+var _overlay_reference_primary_check: CheckButton
+var _overlay_reference_primary_items_edit: LineEdit
+var _overlay_reference_overlay_check: CheckButton
+var _overlay_reference_overlay_items_edit: LineEdit
+var _overlay_reference_operation_option: OptionButton
+var _overlay_neighbor_radius_spin: SpinBox
+var _overlay_adjacency_rules_edit: LineEdit
+var _overlay_adjacency_rules_edit_button: Button
+var _overlay_write_policy_option: OptionButton
+var _overlay_existing_policy_option: OptionButton
+
 var _generate_button: Button
 var _save_button: Button
 var _apply_layer_button: Button
@@ -117,6 +177,7 @@ var _generation_progress_scheduled_hide_token := 0
 var _generation_progress_visible_started_msec := 0
 var _generation_progress_hide_after_msec := 0
 var _suppress_tile_settings_apply := false
+var _current_overlay_data = null
 
 
 func _ready() -> void:
@@ -197,6 +258,7 @@ func _build_ui() -> void:
 	_generate_option.item_selected.connect(_on_generate_changed)
 	_generate_option.select(1)
 	root.add_child(_wrap_labeled("Wall Generator / Overlay Generator", _generate_option))
+	root.add_child(_build_overlay_controls())
 
 	_sym_options_container = VBoxContainer.new()
 	_sym_options_container.visible = false
@@ -219,7 +281,8 @@ func _build_ui() -> void:
 	dist_row.add_child(_dist_edit_button)
 	_sym_options_container.add_child(dist_row)
 
-	root.add_child(_build_wall_probability_controls())
+	_wall_prob_row = _build_wall_probability_controls()
+	root.add_child(_wall_prob_row)
 	root.add_child(_build_seed_controls())
 
 	root.add_child(_build_separator())
@@ -227,7 +290,7 @@ func _build_ui() -> void:
 	var button_row = HBoxContainer.new()
 
 	_generate_button = Button.new()
-	_generate_button.text = "Generate Walls"
+	_generate_button.text = "Primary Generation"
 	_generate_button.pressed.connect(_on_generate_pressed)
 	button_row.add_child(_generate_button)
 
@@ -250,6 +313,176 @@ func _build_ui() -> void:
 
 	root.add_child(_build_separator())
 	root.add_child(_build_tile_layer_controls())
+
+
+func _build_overlay_controls() -> Control:
+	var box = VBoxContainer.new()
+
+	_overlay_mode_check = CheckButton.new()
+	_overlay_mode_check.text = "Overlay"
+	_overlay_mode_check.button_pressed = false
+	_overlay_mode_check.toggled.connect(_on_overlay_mode_toggled)
+	box.add_child(_overlay_mode_check)
+
+	_overlay_controls_container = VBoxContainer.new()
+	_overlay_controls_container.visible = false
+	box.add_child(_overlay_controls_container)
+
+	var item_row = HBoxContainer.new()
+	item_row.add_child(_build_small_label("Target Item"))
+	_overlay_item_name_edit = LineEdit.new()
+	_overlay_item_name_edit.text = OVERLAY_DEFAULT_ITEM_NAME
+	_overlay_item_name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_overlay_item_name_edit.text_changed.connect(_on_option_changed)
+	item_row.add_child(_overlay_item_name_edit)
+	_overlay_controls_container.add_child(item_row)
+
+	var limit_row = HBoxContainer.new()
+	_overlay_item_limit_check = CheckButton.new()
+	_overlay_item_limit_check.text = "Item Num Limit"
+	_overlay_item_limit_check.toggled.connect(_on_overlay_item_limit_toggled)
+	limit_row.add_child(_overlay_item_limit_check)
+	_overlay_item_limit_spin = _new_int_spin(1, 0, 1048576)
+	_overlay_item_limit_spin.value_changed.connect(_on_option_changed)
+	_overlay_item_limit_spin.visible = false
+	limit_row.add_child(_overlay_item_limit_spin)
+	_overlay_controls_container.add_child(limit_row)
+
+	_overlay_item_pool_container = VBoxContainer.new()
+	_overlay_controls_container.add_child(_overlay_item_pool_container)
+	_add_overlay_item_pool_row(OVERLAY_DEFAULT_ITEM_NAME, 1.0)
+
+	_overlay_add_item_button = Button.new()
+	_overlay_add_item_button.text = "Add Item"
+	_overlay_add_item_button.pressed.connect(_on_overlay_add_item_pressed)
+	_overlay_controls_container.add_child(_overlay_add_item_button)
+
+	_overlay_controls_container.add_child(_build_overlay_mask_controls())
+	_overlay_controls_container.add_child(_build_overlay_adjacency_controls())
+
+	_overlay_write_policy_option = OptionButton.new()
+	for policy_name in OVERLAY_WRITE_POLICY_NAMES:
+		_overlay_write_policy_option.add_item(policy_name)
+	_overlay_write_policy_option.select(0)
+	_overlay_write_policy_option.item_selected.connect(_on_option_changed)
+	_overlay_controls_container.add_child(_wrap_labeled("Apply Write", _overlay_write_policy_option))
+
+	_overlay_existing_policy_option = OptionButton.new()
+	for policy_name in OVERLAY_EXISTING_POLICY_NAMES:
+		_overlay_existing_policy_option.add_item(policy_name)
+	_overlay_existing_policy_option.select(0)
+	_overlay_existing_policy_option.item_selected.connect(_on_option_changed)
+	_overlay_controls_container.add_child(_wrap_labeled("Existing Item", _overlay_existing_policy_option))
+
+	return box
+
+
+func _build_overlay_mask_controls() -> Control:
+	_overlay_mask_container = VBoxContainer.new()
+	_overlay_mask_container.add_child(_build_small_label("Placement Mask"))
+
+	var primary_row = HBoxContainer.new()
+	_overlay_mask_primary_check = CheckButton.new()
+	_overlay_mask_primary_check.text = "Primary"
+	_overlay_mask_primary_check.button_pressed = true
+	_overlay_mask_primary_check.toggled.connect(_on_option_changed)
+	primary_row.add_child(_overlay_mask_primary_check)
+	_overlay_mask_primary_items_edit = LineEdit.new()
+	_overlay_mask_primary_items_edit.text = "Floor"
+	_overlay_mask_primary_items_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_overlay_mask_primary_items_edit.text_changed.connect(_on_option_changed)
+	primary_row.add_child(_overlay_mask_primary_items_edit)
+	_overlay_mask_container.add_child(primary_row)
+
+	var overlay_row = HBoxContainer.new()
+	_overlay_mask_overlay_check = CheckButton.new()
+	_overlay_mask_overlay_check.text = "Overlay"
+	_overlay_mask_overlay_check.button_pressed = false
+	_overlay_mask_overlay_check.toggled.connect(_on_option_changed)
+	overlay_row.add_child(_overlay_mask_overlay_check)
+	_overlay_mask_overlay_items_edit = LineEdit.new()
+	_overlay_mask_overlay_items_edit.text = ""
+	_overlay_mask_overlay_items_edit.placeholder_text = "ItemA, ItemB"
+	_overlay_mask_overlay_items_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_overlay_mask_overlay_items_edit.text_changed.connect(_on_option_changed)
+	overlay_row.add_child(_overlay_mask_overlay_items_edit)
+	_overlay_mask_container.add_child(overlay_row)
+
+	_overlay_mask_operation_option = _new_query_operation_option()
+	_overlay_mask_container.add_child(_wrap_labeled("Mask Set", _overlay_mask_operation_option))
+	return _overlay_mask_container
+
+
+func _build_overlay_adjacency_controls() -> Control:
+	var box = VBoxContainer.new()
+	_overlay_adjacency_check = CheckButton.new()
+	_overlay_adjacency_check.text = "Enable Adjacency Reference"
+	_overlay_adjacency_check.button_pressed = false
+	_overlay_adjacency_check.toggled.connect(_on_overlay_adjacency_toggled)
+	box.add_child(_overlay_adjacency_check)
+
+	_overlay_reference_container = VBoxContainer.new()
+	_overlay_reference_container.visible = false
+	box.add_child(_overlay_reference_container)
+	_overlay_reference_container.add_child(_build_small_label("Reference Items"))
+
+	var primary_row = HBoxContainer.new()
+	_overlay_reference_primary_check = CheckButton.new()
+	_overlay_reference_primary_check.text = "Primary"
+	_overlay_reference_primary_check.button_pressed = true
+	_overlay_reference_primary_check.toggled.connect(_on_option_changed)
+	primary_row.add_child(_overlay_reference_primary_check)
+	_overlay_reference_primary_items_edit = LineEdit.new()
+	_overlay_reference_primary_items_edit.text = "Wall"
+	_overlay_reference_primary_items_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_overlay_reference_primary_items_edit.text_changed.connect(_on_option_changed)
+	primary_row.add_child(_overlay_reference_primary_items_edit)
+	_overlay_reference_container.add_child(primary_row)
+
+	var overlay_row = HBoxContainer.new()
+	_overlay_reference_overlay_check = CheckButton.new()
+	_overlay_reference_overlay_check.text = "Overlay"
+	_overlay_reference_overlay_check.button_pressed = false
+	_overlay_reference_overlay_check.toggled.connect(_on_option_changed)
+	overlay_row.add_child(_overlay_reference_overlay_check)
+	_overlay_reference_overlay_items_edit = LineEdit.new()
+	_overlay_reference_overlay_items_edit.text = ""
+	_overlay_reference_overlay_items_edit.placeholder_text = "ItemA, ItemB"
+	_overlay_reference_overlay_items_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_overlay_reference_overlay_items_edit.text_changed.connect(_on_option_changed)
+	overlay_row.add_child(_overlay_reference_overlay_items_edit)
+	_overlay_reference_container.add_child(overlay_row)
+
+	_overlay_reference_operation_option = _new_query_operation_option()
+	_overlay_reference_container.add_child(_wrap_labeled("Reference Set", _overlay_reference_operation_option))
+
+	_overlay_neighbor_radius_spin = _new_int_spin(1, 1, 16)
+	_overlay_neighbor_radius_spin.value_changed.connect(_on_option_changed)
+	_overlay_reference_container.add_child(_wrap_labeled("Neighbor Radius", _overlay_neighbor_radius_spin))
+
+	_overlay_adjacency_rules_edit = LineEdit.new()
+	_overlay_adjacency_rules_edit.text = "default=0.0"
+	_overlay_adjacency_rules_edit.placeholder_text = "default=0.2;1=0.8;2,1=0.4"
+	_overlay_adjacency_rules_edit.text_changed.connect(_on_option_changed)
+	var rules_row = HBoxContainer.new()
+	rules_row.add_child(_build_small_label("Adjacency Rules"))
+	_overlay_adjacency_rules_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rules_row.add_child(_overlay_adjacency_rules_edit)
+	_overlay_adjacency_rules_edit_button = Button.new()
+	_overlay_adjacency_rules_edit_button.text = "Edit"
+	_overlay_adjacency_rules_edit_button.pressed.connect(_on_adjacency_rules_edit_pressed)
+	rules_row.add_child(_overlay_adjacency_rules_edit_button)
+	_overlay_reference_container.add_child(rules_row)
+	return box
+
+
+func _new_query_operation_option() -> OptionButton:
+	var option = OptionButton.new()
+	for operation_name in OVERLAY_QUERY_OPERATION_NAMES:
+		option.add_item(operation_name)
+	option.select(0)
+	option.item_selected.connect(_on_option_changed)
+	return option
 
 
 func _build_rectangle_size_controls() -> void:
@@ -463,6 +696,16 @@ func _new_int_spin(value: int, min_value: int, max_value: int) -> SpinBox:
 	return spin
 
 
+func _new_float_spin(value: float, min_value: float, max_value: float, step: float = 0.1) -> SpinBox:
+	var spin = SpinBox.new()
+	spin.min_value = min_value
+	spin.max_value = max_value
+	spin.step = step
+	spin.value = value
+	spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	return spin
+
+
 func _build_small_label(text: String) -> Label:
 	var label = Label.new()
 	label.text = text
@@ -494,7 +737,94 @@ func _build_separator() -> HSeparator:
 	return sep
 
 
+func _add_overlay_item_pool_row(item_name: String = "", amount: float = 1.0) -> void:
+	if _overlay_item_pool_container == null:
+		return
+
+	var row = HBoxContainer.new()
+	var name_edit = LineEdit.new()
+	name_edit.text = item_name if item_name != "" else "Item%d" % (_overlay_item_pool_rows.size() + 1)
+	name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_edit.text_changed.connect(_on_option_changed)
+	row.add_child(name_edit)
+
+	var amount_label = Label.new()
+	amount_label.text = "Weight"
+	row.add_child(amount_label)
+
+	var amount_spin = _new_float_spin(amount, 0.0, 1048576.0, 0.1)
+	amount_spin.value_changed.connect(_on_option_changed)
+	row.add_child(amount_spin)
+
+	var tile_label = Label.new()
+	tile_label.text = "Tile"
+	row.add_child(tile_label)
+	var tile_source_spin = _new_int_spin(0, 0, 1024)
+	tile_source_spin.value_changed.connect(_on_option_changed)
+	row.add_child(tile_source_spin)
+	var tile_atlas_x_spin = _new_int_spin(1, 0, 4096)
+	tile_atlas_x_spin.value_changed.connect(_on_option_changed)
+	row.add_child(tile_atlas_x_spin)
+	var tile_atlas_y_spin = _new_int_spin(0, 0, 4096)
+	tile_atlas_y_spin.value_changed.connect(_on_option_changed)
+	row.add_child(tile_atlas_y_spin)
+
+	var remove_button = Button.new()
+	remove_button.text = "-"
+	remove_button.pressed.connect(_on_overlay_remove_item_pressed.bind(row))
+	row.add_child(remove_button)
+
+	_overlay_item_pool_container.add_child(row)
+	_overlay_item_pool_rows.append({
+		"row": row,
+		"name": name_edit,
+		"amount_label": amount_label,
+		"amount": amount_spin,
+		"tile_source": tile_source_spin,
+		"tile_atlas_x": tile_atlas_x_spin,
+		"tile_atlas_y": tile_atlas_y_spin,
+		"remove": remove_button,
+	})
+	_refresh_overlay_item_pool_rows()
+
+
+func _remove_overlay_item_pool_row(row: HBoxContainer) -> void:
+	if _overlay_item_pool_rows.size() <= 1:
+		return
+	for index in range(_overlay_item_pool_rows.size()):
+		if _overlay_item_pool_rows[index]["row"] == row:
+			_overlay_item_pool_rows.remove_at(index)
+			row.queue_free()
+			break
+	_refresh_overlay_item_pool_rows()
+
+
+func _refresh_overlay_item_pool_rows() -> void:
+	var limited = _overlay_item_limit_enabled()
+	for item_row in _overlay_item_pool_rows:
+		var amount_label: Label = item_row["amount_label"]
+		amount_label.text = "Limit" if limited else "Weight"
+		var amount_spin: SpinBox = item_row["amount"]
+		amount_spin.step = 1.0 if limited else 0.1
+		if limited:
+			amount_spin.value = int(amount_spin.value)
+		var remove_button: Button = item_row["remove"]
+		remove_button.disabled = _overlay_item_pool_rows.size() <= 1 or _generation_running
+
+
+func _on_overlay_add_item_pressed() -> void:
+	_add_overlay_item_pool_row("", 1.0)
+
+
+func _on_overlay_remove_item_pressed(row: HBoxContainer) -> void:
+	_remove_overlay_item_pool_row(row)
+
+
 func _on_generate_changed(_index: int) -> void:
+	if _generate_option.selected == GENERATE_SIMPLE \
+		and _overlay_adjacency_check != null \
+		and _overlay_adjacency_check.button_pressed:
+		_overlay_adjacency_check.set_pressed_no_signal(false)
 	_refresh_controls()
 
 
@@ -516,6 +846,41 @@ func _on_torus_connectivity_toggled(enabled: bool) -> void:
 
 func _on_wall_prob_changed(value: float) -> void:
 	_wall_prob_label.text = "%.2f" % value
+
+
+func _on_overlay_mode_toggled(_enabled: bool) -> void:
+	_refresh_controls()
+
+
+func _on_overlay_item_limit_toggled(_enabled: bool) -> void:
+	_refresh_controls()
+
+
+func _on_overlay_adjacency_toggled(enabled: bool) -> void:
+	if enabled and _generate_option != null:
+		_generate_option.select(GENERATE_SYMMETRIC)
+	_refresh_controls()
+
+
+func _on_adjacency_rules_edit_pressed() -> void:
+	var editor = HexAdjacencyRuleEditor.new(
+		_overlay_adjacency_rules_edit.text,
+		Callable(self, "_on_adjacency_rule_editor_apply"),
+		Callable(self, "_on_adjacency_rule_editor_cancel")
+	)
+	if Engine.is_editor_hint():
+		EditorInterface.get_base_control().add_child(editor)
+	else:
+		add_child(editor)
+	editor.popup_centered_ratio(0.4)
+
+
+func _on_adjacency_rule_editor_apply(rules_text: String) -> void:
+	_overlay_adjacency_rules_edit.text = rules_text
+
+
+func _on_adjacency_rule_editor_cancel() -> void:
+	pass
 
 
 func _on_option_changed(_v = null) -> void:
@@ -596,10 +961,10 @@ func _on_atlas_image_selected(path: String, layer) -> void:
 
 
 func _on_save_pressed() -> void:
-	if _current_data == null:
+	var resource = current_resource()
+	if resource == null:
 		return
 
-	var resource = current_resource()
 	var dialog = EditorFileDialog.new()
 	dialog.file_mode = EditorFileDialog.FILE_MODE_SAVE_FILE
 	dialog.access = EditorFileDialog.ACCESS_RESOURCES
@@ -610,7 +975,7 @@ func _on_save_pressed() -> void:
 	dialog.popup_centered_ratio(0.5)
 
 
-func _on_save_file_selected(path: String, resource: HexMapResource) -> void:
+func _on_save_file_selected(path: String, resource: Resource) -> void:
 	var error = ResourceSaver.save(resource, path)
 	if error == OK:
 		EditorInterface.get_resource_filesystem().scan()
@@ -620,16 +985,98 @@ func _on_save_file_selected(path: String, resource: HexMapResource) -> void:
 
 
 func _on_apply_layer_pressed() -> void:
-	if _current_data == null:
-		return
+	if _overlay_mode_enabled():
+		if _current_overlay_data == null:
+			return
+	else:
+		if _current_data == null:
+			return
 
 	var layer = _find_target_tile_map_layer()
 	if layer == null:
 		push_error("No TileMapLayer found in the scene. Add one first.")
 		return
 
-	apply_current_data_to_tile_map_layer(layer)
+	if _overlay_mode_enabled():
+		apply_current_overlay_data_to_tile_map_layer(layer)
+	else:
+		apply_current_data_to_tile_map_layer(layer)
 	print("Applied hex map to TileMapLayer: %s" % layer.name)
+
+
+func _apply_tile_settings_to_current_layer() -> bool:
+	if _overlay_mode_enabled() and _current_overlay_data == null:
+		return false
+	if not _overlay_mode_enabled() and _current_data == null:
+		return false
+	var layer = _find_editor_selected_tile_map_layer()
+	if layer == null:
+		return false
+	if _overlay_mode_enabled():
+		return apply_current_overlay_data_to_tile_map_layer(layer)
+	return apply_current_data_to_tile_map_layer(layer)
+
+
+func apply_current_overlay_data_to_tile_map_layer(layer) -> bool:
+	if _current_overlay_data == null or layer == null:
+		return false
+
+	_current_orientation = _tile_settings_orientation()
+	var flat_top := _tile_settings_flat_top()
+	if layer is TileMapLayer:
+		_ensure_unique_tile_set_for_layer(layer)
+		HexMapTileAdapter.configure_hex_tile_set(
+			layer.tile_set,
+			flat_top,
+			_tile_settings_tile_size()
+		)
+
+	HexOverlayTileAdapter.apply_to_tile_map_layer(
+		layer,
+		_current_overlay_data,
+		_overlay_item_tile_configs(),
+		true,
+		flat_top,
+		_current_overlay_data.item_keys()
+	)
+	return true
+
+
+func _overlay_item_tile_configs() -> Dictionary:
+	var result := {}
+	if _current_overlay_data == null:
+		return result
+	var fallback_config = HexOverlayTileAdapter.tile_config(
+		int(_wall_source_spin.value),
+		Vector2i(int(_wall_atlas_x_spin.value), int(_wall_atlas_y_spin.value))
+	)
+	for index in range(_overlay_item_pool_rows.size()):
+		var item_row = _overlay_item_pool_rows[index]
+		var tile_source_spin: SpinBox = item_row["tile_source"]
+		var tile_atlas_x_spin: SpinBox = item_row["tile_atlas_x"]
+		var tile_atlas_y_spin: SpinBox = item_row["tile_atlas_y"]
+		result[_overlay_item_pool_row_name(item_row, index)] = HexOverlayTileAdapter.tile_config(
+			int(tile_source_spin.value),
+			Vector2i(
+				int(tile_atlas_x_spin.value),
+				int(tile_atlas_y_spin.value)
+			)
+		)
+	for item_key in _current_overlay_data.item_keys():
+		if not result.has(item_key):
+			result[item_key] = fallback_config
+	return result
+
+
+func _find_target_tile_map_layer_and_apply_current() -> bool:
+	var layer = _find_target_tile_map_layer()
+	if layer == null:
+		return false
+	if _overlay_mode_enabled() and _current_overlay_data != null:
+		return apply_current_overlay_data_to_tile_map_layer(layer)
+	if _current_data != null:
+		return apply_current_data_to_tile_map_layer(layer)
+	return false
 
 
 func refresh_tile_layer_options(root_node: Node = null) -> void:
@@ -690,15 +1137,6 @@ func request_generation_cancel() -> void:
 	_set_generation_cancel_requested(true)
 	_set_generation_progress(_generation_progress, "Cancel requested")
 	_set_generation_progress_cancel_enabled(false)
-
-
-func _apply_tile_settings_to_current_layer() -> bool:
-	if _current_data == null:
-		return false
-	var layer = _find_editor_selected_tile_map_layer()
-	if layer == null:
-		return false
-	return apply_current_data_to_tile_map_layer(layer)
 
 
 func apply_current_data_to_tile_map_layer(layer) -> bool:
@@ -780,11 +1218,17 @@ func setup_atlas_tiles_on_tile_map_layer(
 	return true
 
 
-func current_resource() -> HexMapResource:
+func current_resource() -> Resource:
+	_current_orientation = _tile_settings_orientation()
+	if _overlay_mode_enabled() and _current_overlay_data != null:
+		return HexOverlayResource.from_overlay_data(_current_overlay_data, _current_orientation)
 	if _current_data == null:
 		return null
-	_current_orientation = _tile_settings_orientation()
 	return HexMapResource.from_map_data(_current_data, _current_orientation)
+
+
+func _overlay_mode_enabled() -> bool:
+	return _overlay_mode_check != null and _overlay_mode_check.button_pressed
 
 
 func _tile_settings_orientation() -> int:
@@ -988,6 +1432,7 @@ func _tile_set_is_used_by_another_layer_recursive(node: Node, layer: TileMapLaye
 
 func _refresh_controls() -> void:
 	var symmetric = _uses_symmetric_generation()
+	var overlay = _overlay_mode_enabled()
 	match _generate_option.selected:
 		GENERATE_SYMMETRIC:
 			_shape_symmetric_row.visible = true
@@ -1006,6 +1451,35 @@ func _refresh_controls() -> void:
 	if _torus_connectivity_check != null:
 		_torus_connectivity_check.visible = symmetric
 		_torus_connectivity_check.disabled = not symmetric or _generation_running
+	if _overlay_controls_container != null:
+		_overlay_controls_container.visible = overlay
+	if _generate_button != null:
+		_generate_button.text = "Overlay Generation" if overlay else "Primary Generation"
+	if _overlay_item_limit_check != null:
+		_overlay_item_limit_check.visible = overlay and not symmetric
+	if _overlay_item_limit_spin != null:
+		_overlay_item_limit_spin.visible = false
+	if _overlay_item_name_edit != null:
+		var item_name_row = _overlay_item_name_edit.get_parent()
+		if item_name_row is Control:
+			item_name_row.visible = overlay and symmetric
+	if _overlay_item_pool_container != null:
+		_overlay_item_pool_container.visible = overlay and not symmetric
+	if _overlay_add_item_button != null:
+		_overlay_add_item_button.visible = overlay and not symmetric
+	if _overlay_mask_container != null:
+		_overlay_mask_container.visible = overlay
+	if _overlay_adjacency_check != null:
+		_overlay_adjacency_check.visible = overlay
+		_overlay_adjacency_check.disabled = not overlay or _generation_running
+	if _overlay_reference_container != null:
+		_overlay_reference_container.visible = overlay \
+			and symmetric \
+			and _overlay_adjacency_check != null \
+			and _overlay_adjacency_check.button_pressed
+	if _wall_prob_row != null:
+		_wall_prob_row.visible = not _overlay_item_limit_enabled()
+	_refresh_overlay_item_pool_rows()
 
 
 func _uses_symmetric_generation() -> bool:
@@ -1043,9 +1517,7 @@ func _generate_map(show_progress: bool = false) -> bool:
 	if _last_generation_cancelled:
 		return false
 
-	var layer = _find_target_tile_map_layer()
-	if layer != null:
-		apply_current_data_to_tile_map_layer(layer)
+	_find_target_tile_map_layer_and_apply_current()
 	return true
 
 
@@ -1058,8 +1530,9 @@ func _create_generation_snapshot() -> Dictionary:
 	var dist_id = 0
 	if _dist_option.selected >= 0 and _dist_option.selected < _dist_option.item_count:
 		dist_id = HexRandomizer.get_preset_id(_dist_option.get_item_text(_dist_option.selected))
+	var overlay_limit_enabled = _overlay_item_limit_enabled()
 	_generation_id += 1
-	return {
+	var snapshot := {
 		"generation_id": _generation_id,
 		"shape": shape,
 		"symmetric": symmetric,
@@ -1076,7 +1549,22 @@ func _create_generation_snapshot() -> Dictionary:
 		"generation_radius": int(_gen_radius_spin.value),
 		"chunk_size": _generation_chunk_size,
 		"progress_delay_usec": _generation_progress_delay_usec,
+		"overlay_mode": _overlay_mode_enabled(),
+		"overlay_item_name": _overlay_item_name(),
+		"overlay_item_limit_enabled": overlay_limit_enabled,
+		"overlay_item_limit": int(_overlay_item_limit_spin.value),
+		"overlay_item_pool": _overlay_item_pool(overlay_limit_enabled),
+		"overlay_write_policy": _overlay_write_policy(),
+		"overlay_existing_policy": _overlay_existing_policy(),
+		"overlay_adjacency_enabled": _overlay_adjacency_enabled(),
+		"overlay_neighbor_radius": _overlay_neighbor_radius(),
+		"overlay_adjacency_rules": _overlay_adjacency_rules(),
 	}
+	if bool(snapshot["overlay_mode"]):
+		snapshot["overlay_candidate_cells"] = _overlay_mask_cells_for_snapshot(snapshot)
+		snapshot["overlay_reference_cells"] = _overlay_reference_cells_for_snapshot()
+		snapshot["overlay_cyclic_size"] = _overlay_cyclic_size_for_snapshot()
+	return snapshot
 
 
 func _generation_thread_main(snapshot: Dictionary) -> Dictionary:
@@ -1091,12 +1579,275 @@ func _generation_thread_main(snapshot: Dictionary) -> Dictionary:
 		"generation_id": generation_id,
 		"data": data,
 		"cancelled": bool(interrupt_options.get("cancelled", false)),
+		"overlay_mode": bool(snapshot.get("overlay_mode", false)),
+		"overlay_write_policy": String(snapshot.get(
+			"overlay_write_policy",
+			HexOverlayData.APPLY_CLEAR_AND_WRITE
+		)),
+		"overlay_existing_policy": String(snapshot.get(
+			"overlay_existing_policy",
+			HexOverlayData.EXISTING_MERGE
+		)),
 	}
 	call_deferred("_complete_generation_from_thread", generation_id)
 	return result
 
 
+func _overlay_item_name() -> String:
+	if _overlay_item_name_edit == null:
+		return OVERLAY_DEFAULT_ITEM_NAME
+	var item_name = _overlay_item_name_edit.text.strip_edges()
+	if item_name == "":
+		return OVERLAY_DEFAULT_ITEM_NAME
+	return item_name
+
+
+func _overlay_item_limit_enabled() -> bool:
+	return _overlay_mode_enabled() \
+		and _generate_option != null \
+		and _generate_option.selected == GENERATE_SIMPLE \
+		and _overlay_item_limit_check != null \
+		and _overlay_item_limit_check.button_pressed
+
+
+func _overlay_item_pool(limit_enabled: bool) -> Array:
+	var result: Array = []
+	for index in range(_overlay_item_pool_rows.size()):
+		var item_row = _overlay_item_pool_rows[index]
+		var item_name = _overlay_item_pool_row_name(item_row, index)
+		var amount_spin: SpinBox = item_row["amount"]
+		if limit_enabled:
+			result.append({
+				"name": item_name,
+				"limit": int(amount_spin.value),
+			})
+		else:
+			result.append({
+				"name": item_name,
+				"weight": float(amount_spin.value),
+			})
+	if result.is_empty():
+		if limit_enabled:
+			result.append({
+				"name": _overlay_item_name(),
+				"limit": int(_overlay_item_limit_spin.value),
+			})
+		else:
+			result.append({
+				"name": _overlay_item_name(),
+				"weight": 1.0,
+			})
+	return result
+
+
+func _overlay_item_pool_row_name(item_row: Dictionary, index: int) -> String:
+	var name_edit: LineEdit = item_row["name"]
+	var item_name = name_edit.text.strip_edges()
+	if item_name == "":
+		return "Item%d" % (index + 1)
+	return item_name
+
+
+func _parse_item_key_list(text: String, default_keys: Array = []) -> Array:
+	var result: Array = []
+	for raw_key in text.split(",", false):
+		var key = String(raw_key).strip_edges()
+		if key != "":
+			result.append(key)
+	if result.is_empty():
+		for key in default_keys:
+			result.append(String(key))
+	return result
+
+
+func _overlay_query_operation(option: OptionButton) -> String:
+	if option == null:
+		return HexOverlayData.ITEM_QUERY_OR
+	var index = clampi(option.selected, 0, OVERLAY_QUERY_OPERATIONS.size() - 1)
+	return OVERLAY_QUERY_OPERATIONS[index]
+
+
+func _overlay_query_cells(
+	primary_enabled: bool,
+	primary_items_text: String,
+	primary_default_items: Array,
+	overlay_enabled: bool,
+	overlay_items_text: String,
+	operation: String
+) -> Array:
+	var selectors: Array = []
+	if primary_enabled and _current_data != null:
+		for item_key in _parse_item_key_list(primary_items_text, primary_default_items):
+			selectors.append(HexOverlayData.item_selector(_current_data, item_key))
+	if overlay_enabled and _current_overlay_data != null:
+		for item_key in _parse_item_key_list(overlay_items_text, _current_overlay_data.item_keys()):
+			selectors.append(HexOverlayData.item_selector(_current_overlay_data, item_key))
+	if selectors.is_empty():
+		return []
+	return HexOverlayData.query_item_cells(selectors, operation)
+
+
+func _overlay_mask_cells_for_snapshot(snapshot: Dictionary) -> Array:
+	var query_cells = _overlay_query_cells(
+		_overlay_mask_primary_check == null or _overlay_mask_primary_check.button_pressed,
+		"Floor" if _overlay_mask_primary_items_edit == null else _overlay_mask_primary_items_edit.text,
+		["Floor"],
+		_overlay_mask_overlay_check != null and _overlay_mask_overlay_check.button_pressed,
+		"" if _overlay_mask_overlay_items_edit == null else _overlay_mask_overlay_items_edit.text,
+		_overlay_query_operation(_overlay_mask_operation_option)
+	)
+	if not query_cells.is_empty():
+		return query_cells
+	return _overlay_candidate_cells_for_snapshot(snapshot)
+
+
+func _overlay_reference_cells_for_snapshot() -> Array:
+	return _overlay_query_cells(
+		_overlay_reference_primary_check == null or _overlay_reference_primary_check.button_pressed,
+		"Wall" if _overlay_reference_primary_items_edit == null else _overlay_reference_primary_items_edit.text,
+		["Wall"],
+		_overlay_reference_overlay_check != null and _overlay_reference_overlay_check.button_pressed,
+		"" if _overlay_reference_overlay_items_edit == null else _overlay_reference_overlay_items_edit.text,
+		_overlay_query_operation(_overlay_reference_operation_option)
+	)
+
+
+func _overlay_adjacency_enabled() -> bool:
+	return _overlay_mode_enabled() \
+		and _generate_option != null \
+		and _generate_option.selected == GENERATE_SYMMETRIC \
+		and _overlay_adjacency_check != null \
+		and _overlay_adjacency_check.button_pressed
+
+
+func _overlay_neighbor_radius() -> int:
+	if _overlay_neighbor_radius_spin == null:
+		return 1
+	return max(1, int(_overlay_neighbor_radius_spin.value))
+
+
+func _overlay_adjacency_rules() -> Dictionary:
+	var text = ""
+	if _overlay_adjacency_rules_edit != null:
+		text = _overlay_adjacency_rules_edit.text
+	return HexAdjacencyRuleSet.parse_rules_text(text, float(_wall_prob_slider.value))
+
+
+func _overlay_write_policy() -> String:
+	if _overlay_write_policy_option == null:
+		return HexOverlayData.APPLY_CLEAR_AND_WRITE
+	var index = clampi(_overlay_write_policy_option.selected, 0, OVERLAY_WRITE_POLICIES.size() - 1)
+	return OVERLAY_WRITE_POLICIES[index]
+
+
+func _overlay_existing_policy() -> String:
+	if _overlay_existing_policy_option == null:
+		return HexOverlayData.EXISTING_MERGE
+	var index = clampi(_overlay_existing_policy_option.selected, 0, OVERLAY_EXISTING_POLICIES.size() - 1)
+	return OVERLAY_EXISTING_POLICIES[index]
+
+
+func _overlay_cyclic_size_for_snapshot() -> int:
+	if _current_data != null:
+		return int(_current_data.cyclic_size)
+	return 0
+
+
+func _overlay_candidate_cells_for_snapshot(snapshot: Dictionary) -> Array:
+	if _current_data != null:
+		var floor_cells = _current_data.floor_cells()
+		if not floor_cells.is_empty():
+			return floor_cells
+
+	var shape = int(snapshot["shape"])
+	if bool(snapshot["symmetric"]):
+		var radius = int(snapshot["generation_radius"])
+		if shape == SHAPE_HEXAGON:
+			return HexMapData.hexagon(radius).cells
+		return HexMapData.square(radius * 2 + 1, bool(snapshot.get("connect_toric", false))).cells
+
+	match shape:
+		SHAPE_HEXAGON:
+			return HexMapData.hexagon(int(snapshot["hex_radius"])).cells
+		SHAPE_RECTANGLE:
+			return HexMapData.rectangle(
+				int(snapshot["rect_width"]),
+				int(snapshot["rect_height"])
+			).cells
+		SHAPE_TORUS, _:
+			var radius = int(snapshot["generation_radius"])
+			return HexMapData.square(radius * 2 + 1, true).cells
+
+
+func _generate_overlay_data_from_snapshot(snapshot: Dictionary, interrupt_options: Dictionary):
+	var item_name = String(snapshot.get("overlay_item_name", OVERLAY_DEFAULT_ITEM_NAME))
+	var candidates: Array = snapshot.get("overlay_candidate_cells", [])
+	var seed = int(snapshot["seed"])
+	var item_pool: Array = snapshot.get("overlay_item_pool", [{"name": item_name, "weight": 1.0}])
+	var data = null
+
+	if bool(snapshot.get("overlay_item_limit_enabled", false)):
+		data = HexMapGenerator.generate_limited_items_interruptible(
+			candidates,
+			item_pool,
+			seed,
+			[],
+			interrupt_options
+		)["data"]
+	elif bool(snapshot.get("overlay_adjacency_enabled", false)):
+		data = HexMapGenerator.generate_toric_adjacency_items_interruptible(
+			candidates,
+			item_name,
+			snapshot.get("overlay_reference_cells", []),
+			snapshot.get("overlay_adjacency_rules", {}),
+			seed,
+			[],
+			int(snapshot.get("overlay_cyclic_size", 0)),
+			int(snapshot.get("overlay_neighbor_radius", 1)),
+			interrupt_options
+		)["data"]
+	elif bool(snapshot["symmetric"]):
+		data = HexMapGenerator.generate_symmetric_toric_items_interruptible(
+			int(snapshot["generation_radius"]),
+			item_name,
+			candidates,
+			float(snapshot["wall_probability"]),
+			seed,
+			int(snapshot["distribution_id"]),
+			[],
+			snapshot["custom_distribution"],
+			interrupt_options
+		)["data"]
+	else:
+		data = HexMapGenerator.generate_random_items_interruptible(
+			candidates,
+			float(snapshot["wall_probability"]),
+			item_pool,
+			seed,
+			[],
+			interrupt_options
+		)["data"]
+
+	if data != null \
+		and bool(snapshot["symmetric"]) \
+		and not bool(snapshot.get("overlay_adjacency_enabled", false)):
+		HexMapGenerator.deduct_items_for_connectivity(
+			data,
+			item_name,
+			candidates,
+			int(snapshot["connect_method"]),
+			seed,
+			interrupt_options
+		)
+	if data != null and int(data.cyclic_size) == 0:
+		data.cyclic_size = int(snapshot.get("overlay_cyclic_size", 0))
+	return data
+
+
 func _generate_data_from_snapshot(snapshot: Dictionary, interrupt_options: Dictionary):
+	if bool(snapshot.get("overlay_mode", false)):
+		return _generate_overlay_data_from_snapshot(snapshot, interrupt_options)
+
 	var shape = int(snapshot["shape"])
 	var symmetric = bool(snapshot["symmetric"])
 	var wall_prob = float(snapshot["wall_probability"])
@@ -1219,7 +1970,21 @@ func _complete_generation_from_thread(generation_id: int) -> void:
 
 	if not cancelled and data != null:
 		_set_generation_progress(GENERATION_PROGRESS_UPDATE, "Updating")
-		_current_data = data
+		if bool(result.get("overlay_mode", false)):
+			var write_policy = String(result.get(
+				"overlay_write_policy",
+				HexOverlayData.APPLY_CLEAR_AND_WRITE
+			))
+			var existing_policy = String(result.get(
+				"overlay_existing_policy",
+				HexOverlayData.EXISTING_MERGE
+			))
+			if _current_overlay_data != null and write_policy == HexOverlayData.APPLY_ADD_ITEM:
+				_current_overlay_data.apply_overlay(data, write_policy, existing_policy)
+			else:
+				_current_overlay_data = data
+		else:
+			_current_data = data
 		_update_stats()
 	_finish_generation(cancelled)
 
@@ -1357,11 +2122,40 @@ func _set_generation_controls_disabled(disabled: bool) -> void:
 		_torus_connectivity_check,
 		_dist_option,
 		_dist_edit_button,
+		_overlay_mode_check,
+		_overlay_item_name_edit,
+		_overlay_item_limit_check,
+		_overlay_item_limit_spin,
+		_overlay_add_item_button,
+		_overlay_mask_primary_check,
+		_overlay_mask_primary_items_edit,
+		_overlay_mask_overlay_check,
+		_overlay_mask_overlay_items_edit,
+		_overlay_mask_operation_option,
+		_overlay_adjacency_check,
+		_overlay_reference_primary_check,
+		_overlay_reference_primary_items_edit,
+		_overlay_reference_overlay_check,
+		_overlay_reference_overlay_items_edit,
+		_overlay_reference_operation_option,
+		_overlay_neighbor_radius_spin,
+		_overlay_adjacency_rules_edit,
+		_overlay_adjacency_rules_edit_button,
+		_overlay_write_policy_option,
+		_overlay_existing_policy_option,
 		_generate_button,
 	]:
 		_set_control_disabled(control, disabled)
+	for item_row in _overlay_item_pool_rows:
+		_set_control_disabled(item_row["name"], disabled)
+		_set_control_disabled(item_row["amount"], disabled)
+		_set_control_disabled(item_row["tile_source"], disabled)
+		_set_control_disabled(item_row["tile_atlas_x"], disabled)
+		_set_control_disabled(item_row["tile_atlas_y"], disabled)
+		_set_control_disabled(item_row["remove"], disabled)
 	if _torus_connectivity_check != null:
 		_torus_connectivity_check.disabled = disabled or not _uses_symmetric_generation()
+	_refresh_overlay_item_pool_rows()
 
 
 func _set_control_disabled(control: Control, disabled: bool) -> void:
@@ -1371,11 +2165,25 @@ func _set_control_disabled(control: Control, disabled: bool) -> void:
 		control.disabled = disabled
 	elif control is SpinBox:
 		control.editable = not disabled
+	elif control is LineEdit:
+		control.editable = not disabled
 	elif control is Slider:
 		control.editable = not disabled
 
 
 func _update_stats() -> void:
+	if _overlay_mode_enabled() and _current_overlay_data != null:
+		var item_parts: Array = []
+		for item_key in _current_overlay_data.item_keys():
+			item_parts.append("%s=%d" % [item_key, _current_overlay_data.item_cells(item_key).size()])
+		_stats_label.text = "%s  seed=%d  cells=%d  occupied=%d  %s" % [
+			_shape_string(),
+			int(_seed_spin.value),
+			_current_overlay_data.cells.size(),
+			_current_overlay_data.occupied_cells().size(),
+			", ".join(item_parts),
+		]
+		return
 	if _current_data == null:
 		_stats_label.text = "No map data"
 		return
