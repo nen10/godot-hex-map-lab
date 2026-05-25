@@ -85,7 +85,7 @@ Generate 後の自動 apply と `Apply Layer` で使う TileMapLayer 設定を D
 
 | 設定 | 内容 |
 |---|---|
-| `Target` | apply 先の `TileMapLayer` |
+| `Target` | Generate 後の自動 apply / `Apply Layer` の apply 先 |
 | `Orientation` | `flat-top / Vertical Offset` または `pointy-top / Horizontal Offset` |
 | `Tile Size` | `TileSet.tile_size` に設定する width / height |
 | `Floor` | floor tile の `source_id`, `atlas_x`, `atlas_y` |
@@ -94,9 +94,11 @@ Generate 後の自動 apply と `Apply Layer` で使う TileMapLayer 設定を D
 `Orientation` は `HexMapResource` に保存されます。Generate 後の自動 apply と `Apply Layer` はこの orientation を正として、対象 `TileMapLayer.tile_set` と `set_cell()` 用の cell 座標を同時に設定します。
 `Orientation` を切り替えると、flat-top / pointy-top で横長・縦長が入れ替わる前提に合わせて `Tile Size` の width / height も入れ替えます。
 
-`Target` は scene root 以下の `TileMapLayer` を一覧化します。`Refresh` は scene 内の `TileMapLayer` を再取得します。Target が未指定の場合、Editor の選択中 `TileMapLayer`、または scene 内の最初の `TileMapLayer` を使います。
+`Target` は常に `Auto: Selected / first scene layer`、scene root 以下の `TileMapLayer`、`Add new layer...` を表示します。通常は Scene Tree と同じ短い node 名で表示し、同名レイヤーが複数ある場合だけ root からの短い相対 path で区別します。`Refresh` は scene 内の `TileMapLayer` を再取得し、Auto 項目を保持します。Target が `Auto` の場合、Generate 後の自動 apply / `Apply Layer` は Editor の選択中 `TileMapLayer`、または scene 内の最初の `TileMapLayer` を使います。
 
-`Tile Size` / `Floor` / `Wall` の SpinBox を変更すると、現在の map data を Target の `TileMapLayer` に即時 apply します。生成が完了した場合も、Target があれば自動 apply します。atlas coords を変更しながら、TileMapLayer 上の見た目を確認するための flow です。
+`Add new layer...` を選ぶと、編集中 scene root 直下に新しい `TileMapLayer` を追加し、そのレイヤーを Target と Scene Tree 選択にします。
+
+`Tile Size` / `Floor` / `Wall` の SpinBox と `Orientation` を変更すると、現在の map data を Scene Tree で選択中の `TileMapLayer` に即時 apply します。この即時 apply は Target とは独立です。生成が完了した場合は Target が指すレイヤーへ自動 apply します。atlas coords を変更しながら、選択中 TileMapLayer 上の見た目を確認するための flow です。
 
 TileSet は以下に設定されます。
 
@@ -108,6 +110,7 @@ tile_offset_axis = TILE_OFFSET_AXIS_HORIZONTAL  # pointy-top
 ```
 
 TileSet が未設定の `TileMapLayer` へ適用した場合は、新しい `TileSet` を作成してから設定します。
+同じ `TileSet` resource を複数 `TileMapLayer` が共有している場合、Dock は設定変更前に選択中レイヤー側の `TileSet` を複製して、他レイヤーへ Tile Size / Orientation / atlas 設定が伝播しないようにします。
 Apply 後に TileMapLayer Inspector 側だけで `Horizontal Offset` / `Vertical Offset` を手動変更する経路は管理対象外です。
 
 Godot 側の対応 API は公式ドキュメントの `TileMapLayer`、`TileSet`、`TileSetAtlasSource` を参照します。
@@ -118,18 +121,18 @@ Godot 側の対応 API は公式ドキュメントの `TileMapLayer`、`TileSet`
 
 ### Atlas Image
 
-`Select Atlas Image` は resource path の画像を読み込み、対象 `TileMapLayer.tile_set` に `TileSetAtlasSource` を作成します。source id は Dock の `Floor` source を使い、floor / wall の atlas coords と `Tile Size` を TileSetAtlasSource に反映します。設定後は `Wall` source も同じ source id に同期されます。
+`Select Atlas Image` は resource path の画像を読み込み、Scene Tree で選択中の `TileMapLayer.tile_set` に `TileSetAtlasSource` を作成します。source id は Dock の `Floor` source を使い、floor / wall の atlas coords と `Tile Size` を TileSetAtlasSource に反映します。設定後は `Wall` source も同じ source id に同期されます。
 
-`Use Sample Tiles` は addon 同梱の `addons/hex_map_kit/assets/sample_hex_tiles.png` を使うショートカットです。sample は `source_id=0`、floor `Vector2i(0, 0)`、wall `Vector2i(1, 0)`、tile size `64 x 57` に設定します。
+`Use Sample Tiles` は addon 同梱の `addons/hex_map_kit/assets/sample_hex_tiles.png` を使うショートカットです。Scene Tree で選択中の `TileMapLayer` に対して、sample は `source_id=0`、floor `Vector2i(0, 0)`、wall `Vector2i(1, 0)`、tile size `64 x 57` に設定します。
 
 ### Buttons
 
 - `Generate`: 現在の設定で再生成し、対象 `TileMapLayer` があれば自動 apply
 - `Cancel`: 生成中の Dock 内 progress から実行中 generation に cancel request を記録
 - `Save .tres`: `HexMapResource` として保存
-- `Apply Layer`: 選択中の `TileMapLayer`、または編集中 scene の最初の `TileMapLayer` に現在の map を手動再反映
-- `Select Atlas Image`: 画像 resource を `TileSetAtlasSource` として対象 `TileMapLayer` に設定
-- `Use Sample Tiles`: addon 同梱 sample atlas を対象 `TileMapLayer` に設定
+- `Apply Layer`: Target の `TileMapLayer`、または Auto 解決先に現在の map を手動再反映
+- `Select Atlas Image`: 画像 resource を `TileSetAtlasSource` として Scene Tree 選択中 `TileMapLayer` に設定
+- `Use Sample Tiles`: addon 同梱 sample atlas を Scene Tree 選択中 `TileMapLayer` に設定
 
 Generate 後の自動 apply と `Apply Layer` は `HexMapTileAdapter.apply_to_tile_map_layer()` を使います。表示するには、対象 `TileMapLayer` の `TileSet` 側に、Dock で指定した floor / wall の source と atlas coords に対応する tile を用意します。
 

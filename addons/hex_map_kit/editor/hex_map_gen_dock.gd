@@ -18,7 +18,7 @@ const SHAPE_HEXAGON := 0
 const SHAPE_RECTANGLE := 1
 const SHAPE_TORUS := 2
 
-const GENERATE_NAMES := ["Simple", "Markov mesh"]
+const GENERATE_NAMES := ["Uniform Distribution", "Markov Mesh"]
 const SHAPE_NAMES_SIMPLE := ["Hexagon", "Rect"]
 const SHAPE_NAMES_SYMMETRIC := ["Hexagon", "Square"]
 const TORIC_SIZE_OPTIONS := [7, 9, 11, 13]
@@ -33,6 +33,11 @@ const GENERATION_PROGRESS_START := 0.1
 const GENERATION_PROGRESS_SCALE := 0.8
 const GENERATION_PROGRESS_UPDATE := 0.95
 const GENERATION_PROGRESS_MIN_VISIBLE_SEC := 0.8
+const TILE_TARGET_AUTO_INDEX := 0
+const TILE_TARGET_LAYER_INDEX_OFFSET := 1
+const TILE_TARGET_AUTO_LABEL := "Auto: Selected / first scene layer"
+const TILE_TARGET_ADD_LAYER_LABEL := "Add new layer..."
+const NEW_TILE_LAYER_BASE_NAME := "HexMapLayer"
 
 var _generate_option: OptionButton
 var _shape_simple_row: HBoxContainer
@@ -68,6 +73,8 @@ var _current_distribution = null
 var _tile_layer_option: OptionButton
 var _tile_layer_refresh_button: Button
 var _tile_layer_nodes: Array[Node] = []
+var _tile_layer_scan_root: Node = null
+var _test_selected_tile_map_layer: Node = null
 var _tile_orientation_option: OptionButton
 var _tile_width_spin: SpinBox
 var _tile_height_spin: SpinBox
@@ -252,7 +259,7 @@ func _build_rectangle_size_controls() -> void:
 	_rect_row.add_child(wl)
 	_rect_width_spin = SpinBox.new()
 	_rect_width_spin.min_value = 1
-	_rect_width_spin.max_value = 512
+	_rect_width_spin.max_value = 511
 	_rect_width_spin.value = 32
 	_rect_width_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_rect_width_spin.value_changed.connect(_on_option_changed)
@@ -262,7 +269,7 @@ func _build_rectangle_size_controls() -> void:
 	_rect_row.add_child(hl)
 	_rect_height_spin = SpinBox.new()
 	_rect_height_spin.min_value = 1
-	_rect_height_spin.max_value = 512
+	_rect_height_spin.max_value = 511
 	_rect_height_spin.value = 24
 	_rect_height_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_rect_height_spin.value_changed.connect(_on_option_changed)
@@ -353,6 +360,7 @@ func _build_tile_layer_controls() -> Control:
 	target_row.add_child(_build_small_label("Target"))
 	_tile_layer_option = OptionButton.new()
 	_tile_layer_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_tile_layer_option.item_selected.connect(_on_tile_layer_target_selected)
 	target_row.add_child(_tile_layer_option)
 	_tile_layer_refresh_button = Button.new()
 	_tile_layer_refresh_button.text = "Refresh"
@@ -522,6 +530,13 @@ func _on_tile_layer_refresh_pressed() -> void:
 	refresh_tile_layer_options()
 
 
+func _on_tile_layer_target_selected(index: int) -> void:
+	if index == _add_tile_layer_option_index():
+		var layer = add_new_tile_map_layer()
+		if layer == null:
+			refresh_tile_layer_options(_tile_layer_scan_root)
+
+
 func _on_tile_orientation_changed(_index: int) -> void:
 	var previous_orientation = _current_orientation
 	_current_orientation = _tile_settings_orientation()
@@ -545,18 +560,18 @@ func _on_cancel_generation_pressed() -> void:
 
 
 func _on_sample_tiles_pressed() -> void:
-	var layer = _find_tile_map_layer()
+	var layer = _find_editor_selected_tile_map_layer()
 	if layer == null:
-		push_error("No TileMapLayer found in the scene. Add one first.")
+		push_error("No selected TileMapLayer found in the scene. Select one first.")
 		return
 	if setup_sample_tiles_on_tile_map_layer(layer):
 		print("Configured sample hex tiles on TileMapLayer: %s" % layer.name)
 
 
 func _on_atlas_image_pressed() -> void:
-	var layer = _find_tile_map_layer()
+	var layer = _find_editor_selected_tile_map_layer()
 	if layer == null:
-		push_error("No TileMapLayer found in the scene. Add one first.")
+		push_error("No selected TileMapLayer found in the scene. Select one first.")
 		return
 
 	var dialog = EditorFileDialog.new()
@@ -608,7 +623,7 @@ func _on_apply_layer_pressed() -> void:
 	if _current_data == null:
 		return
 
-	var layer = _find_tile_map_layer()
+	var layer = _find_target_tile_map_layer()
 	if layer == null:
 		push_error("No TileMapLayer found in the scene. Add one first.")
 		return
@@ -621,32 +636,42 @@ func refresh_tile_layer_options(root_node: Node = null) -> void:
 	if _tile_layer_option == null:
 		return
 
+	var previous_node = selected_tile_map_layer()
 	var scan_root = root_node
-	if scan_root == null and Engine.is_editor_hint():
+	if scan_root != null:
+		_tile_layer_scan_root = scan_root
+	elif _tile_layer_scan_root != null and is_instance_valid(_tile_layer_scan_root):
+		scan_root = _tile_layer_scan_root
+	elif Engine.is_editor_hint():
 		scan_root = EditorInterface.get_edited_scene_root()
+		_tile_layer_scan_root = scan_root
 
 	_tile_layer_nodes.clear()
 	_tile_layer_option.clear()
+	_tile_layer_option.add_item(TILE_TARGET_AUTO_LABEL)
 	if scan_root != null:
 		_collect_tile_map_layers_recursive(scan_root, _tile_layer_nodes)
 
-	if _tile_layer_nodes.is_empty():
-		_tile_layer_option.add_item("Auto: selected / first scene layer")
-		_tile_layer_option.select(0)
-		return
-
+	var name_counts = _tile_layer_name_counts()
 	for node in _tile_layer_nodes:
-		_tile_layer_option.add_item(_tile_layer_display_name(node))
-	_tile_layer_option.select(0)
+		_tile_layer_option.add_item(_tile_layer_display_name(node, scan_root, name_counts))
+	_tile_layer_option.add_item(TILE_TARGET_ADD_LAYER_LABEL)
+
+	var selected_index = TILE_TARGET_AUTO_INDEX
+	if previous_node != null and is_instance_valid(previous_node):
+		var node_index = _tile_layer_nodes.find(previous_node)
+		if node_index >= 0:
+			selected_index = node_index + TILE_TARGET_LAYER_INDEX_OFFSET
+	_tile_layer_option.select(selected_index)
 
 
 func selected_tile_map_layer():
 	if _tile_layer_option == null:
 		return null
-	var index = _tile_layer_option.selected
-	if index < 0 or index >= _tile_layer_nodes.size():
+	var node_index = _tile_layer_option.selected - TILE_TARGET_LAYER_INDEX_OFFSET
+	if node_index < 0 or node_index >= _tile_layer_nodes.size():
 		return null
-	var node = _tile_layer_nodes[index]
+	var node = _tile_layer_nodes[node_index]
 	return node if is_instance_valid(node) else null
 
 
@@ -670,7 +695,7 @@ func request_generation_cancel() -> void:
 func _apply_tile_settings_to_current_layer() -> bool:
 	if _current_data == null:
 		return false
-	var layer = _find_tile_map_layer()
+	var layer = _find_editor_selected_tile_map_layer()
 	if layer == null:
 		return false
 	return apply_current_data_to_tile_map_layer(layer)
@@ -683,8 +708,7 @@ func apply_current_data_to_tile_map_layer(layer) -> bool:
 	_current_orientation = _tile_settings_orientation()
 	var flat_top := _tile_settings_flat_top()
 	if layer is TileMapLayer:
-		if layer.tile_set == null:
-			layer.tile_set = TileSet.new()
+		_ensure_unique_tile_set_for_layer(layer)
 		HexMapTileAdapter.configure_hex_tile_set(
 			layer.tile_set,
 			flat_top,
@@ -728,8 +752,7 @@ func setup_atlas_tiles_on_tile_map_layer(
 		return false
 
 	_current_orientation = _tile_settings_orientation()
-	if layer.tile_set == null:
-		layer.tile_set = TileSet.new()
+	_ensure_unique_tile_set_for_layer(layer)
 
 	var texture := HexMapTileAdapter.load_tile_texture(atlas_path)
 	var ok = HexMapTileAdapter.configure_atlas_tile_set(
@@ -790,11 +813,26 @@ func _swap_tile_size_controls() -> void:
 	_suppress_tile_settings_apply = false
 
 
-func _find_tile_map_layer():
+func _find_target_tile_map_layer():
 	var selected_layer = selected_tile_map_layer()
 	if selected_layer != null:
 		return selected_layer
 
+	var editor_selected_layer = _find_editor_selected_tile_map_layer()
+	if editor_selected_layer != null:
+		return editor_selected_layer
+
+	var root = _tile_layer_scan_root
+	if (root == null or not is_instance_valid(root)) and Engine.is_editor_hint():
+		root = EditorInterface.get_edited_scene_root()
+	if root == null:
+		return null
+	return _find_tile_map_layer_recursive(root)
+
+
+func _find_editor_selected_tile_map_layer():
+	if _test_selected_tile_map_layer != null and is_instance_valid(_test_selected_tile_map_layer):
+		return _test_selected_tile_map_layer
 	if not Engine.is_editor_hint():
 		return null
 
@@ -803,11 +841,75 @@ func _find_tile_map_layer():
 	for node in selected:
 		if node is TileMapLayer:
 			return node
+	return null
 
-	var root = EditorInterface.get_edited_scene_root()
+
+func _set_editor_selected_tile_map_layer_for_test(layer: Node) -> void:
+	_test_selected_tile_map_layer = layer
+
+
+func add_new_tile_map_layer(root_node: Node = null):
+	var root = root_node
 	if root == null:
+		root = _tile_layer_scan_root
+	if (root == null or not is_instance_valid(root)) and Engine.is_editor_hint():
+		root = EditorInterface.get_edited_scene_root()
+	if root == null:
+		push_error("No edited scene root found. Open a scene first.")
 		return null
-	return _find_tile_map_layer_recursive(root)
+
+	var layer = TileMapLayer.new()
+	layer.name = _unique_tile_layer_name(root, NEW_TILE_LAYER_BASE_NAME)
+	if Engine.is_editor_hint():
+		var undo_redo = EditorInterface.get_editor_undo_redo()
+		undo_redo.create_action("Add HexMapLayer")
+		undo_redo.add_do_method(root, "add_child", layer)
+		undo_redo.add_do_method(layer, "set_owner", root)
+		undo_redo.add_do_reference(layer)
+		undo_redo.add_undo_method(root, "remove_child", layer)
+		undo_redo.commit_action()
+	else:
+		root.add_child(layer)
+		layer.owner = root
+
+	_tile_layer_scan_root = root
+	refresh_tile_layer_options(root)
+	_select_tile_layer_target(layer)
+	_select_editor_node(layer)
+	return layer
+
+
+func _select_editor_node(node: Node) -> void:
+	if node == null or not is_instance_valid(node):
+		return
+	if Engine.is_editor_hint():
+		var selection = EditorInterface.get_selection()
+		selection.clear()
+		selection.add_node(node)
+	else:
+		_test_selected_tile_map_layer = node
+
+
+func _select_tile_layer_target(layer: Node) -> void:
+	var node_index = _tile_layer_nodes.find(layer)
+	if node_index >= 0:
+		_tile_layer_option.select(node_index + TILE_TARGET_LAYER_INDEX_OFFSET)
+
+
+func _add_tile_layer_option_index() -> int:
+	return _tile_layer_nodes.size() + TILE_TARGET_LAYER_INDEX_OFFSET
+
+
+func _unique_tile_layer_name(root: Node, base_name: String) -> String:
+	var names := {}
+	for child in root.get_children():
+		names[String(child.name)] = true
+	if not names.has(base_name):
+		return base_name
+	var suffix := 2
+	while names.has("%s%d" % [base_name, suffix]):
+		suffix += 1
+	return "%s%d" % [base_name, suffix]
 
 
 func _find_tile_map_layer_recursive(node: Node):
@@ -827,12 +929,61 @@ func _collect_tile_map_layers_recursive(node: Node, result: Array[Node]) -> void
 		_collect_tile_map_layers_recursive(child, result)
 
 
-func _tile_layer_display_name(node: Node) -> String:
+func _tile_layer_name_counts() -> Dictionary:
+	var counts := {}
+	for node in _tile_layer_nodes:
+		var key = String(node.name)
+		counts[key] = int(counts.get(key, 0)) + 1
+	return counts
+
+
+func _tile_layer_display_name(node: Node, root_node: Node, name_counts: Dictionary) -> String:
 	if node == null:
 		return ""
-	if node.is_inside_tree():
-		return str(node.get_path())
+	var node_name = String(node.name)
+	if int(name_counts.get(node_name, 0)) <= 1:
+		return node_name
+	if root_node != null and is_instance_valid(root_node) and _is_ancestor_of(root_node, node):
+		return String(root_node.get_path_to(node))
 	return node.name
+
+
+func _is_ancestor_of(ancestor: Node, node: Node) -> bool:
+	var current = node
+	while current != null:
+		if current == ancestor:
+			return true
+		current = current.get_parent()
+	return false
+
+
+func _ensure_unique_tile_set_for_layer(layer: TileMapLayer) -> void:
+	if layer.tile_set == null:
+		layer.tile_set = TileSet.new()
+		return
+	if _tile_set_is_used_by_another_layer(layer):
+		layer.tile_set = layer.tile_set.duplicate(true)
+
+
+func _tile_set_is_used_by_another_layer(layer: TileMapLayer) -> bool:
+	var root = _tile_layer_scan_root
+	if root == null or not is_instance_valid(root) or not _is_ancestor_of(root, layer):
+		if Engine.is_editor_hint():
+			root = EditorInterface.get_edited_scene_root()
+	if root == null or not is_instance_valid(root) or not _is_ancestor_of(root, layer):
+		root = layer.get_parent()
+	if root == null:
+		return false
+	return _tile_set_is_used_by_another_layer_recursive(root, layer, layer.tile_set)
+
+
+func _tile_set_is_used_by_another_layer_recursive(node: Node, layer: TileMapLayer, tile_set: TileSet) -> bool:
+	if node is TileMapLayer and node != layer and node.tile_set == tile_set:
+		return true
+	for child in node.get_children():
+		if _tile_set_is_used_by_another_layer_recursive(child, layer, tile_set):
+			return true
+	return false
 
 
 func _refresh_controls() -> void:
@@ -892,7 +1043,7 @@ func _generate_map(show_progress: bool = false) -> bool:
 	if _last_generation_cancelled:
 		return false
 
-	var layer = _find_tile_map_layer()
+	var layer = _find_target_tile_map_layer()
 	if layer != null:
 		apply_current_data_to_tile_map_layer(layer)
 	return true

@@ -146,9 +146,13 @@
 - [x] Dock の source id / atlas coords を `TileMapLayer.set_cell()` に渡す
 - [x] orientation 切り替え時に Tile Size width / height を入れ替える
 - [x] 複数 `TileMapLayer` を Target OptionButton で選択する
-- [x] Tile Size / Floor / Wall の SpinBox 変更時に選択中 `TileMapLayer` へ即時 apply する
+- [x] Target OptionButton は Auto、短い `TileMapLayer` 名、`Add new layer...` を表示する
+- [x] Target の `Refresh` 後も Auto 項目を保持する
+- [x] Tile Size / Floor / Wall の SpinBox 変更時に Scene Tree で選択中の `TileMapLayer` へ即時 apply する
+- [x] 共有 `TileSet` の設定変更前に、選択中レイヤー側の `TileSet` を複製する
 - [x] `Select Atlas Image` で画像 resource path から `TileSetAtlasSource` を作成する
 - [x] `Use Sample Tiles` で sample atlas を設定する
+- [x] `Add new layer...` で scene root 直下に `TileMapLayer` を作成する
 - [x] atlas 画像に関する Godot 公式ドキュメントへのリンクと Dock 項目との関係を `docs/manual/MANUAL_EDITOR_PLUGIN.md` に記録する
 
 テスト:
@@ -156,8 +160,9 @@
 - `tests/test_hex_adapter.gd`
 - `tests/test_editor_plugin.gd`
   - Tile Size swap
-  - 複数 `TileMapLayer` の一覧化
-  - 選択中 `TileMapLayer` への SpinBox 即時 apply
+  - Target の Auto / 短い layer 名 / `Add new layer...` 一覧化
+  - Scene Tree 選択中 `TileMapLayer` への SpinBox 即時 apply
+  - 共有 `TileSet` の選択中レイヤー側複製
 
 ## 3. Distribution Editor
 
@@ -251,9 +256,12 @@ orientation は `HexMapResource` に保存し、Dock / Resource 側を表示レ�
 - [x] 選択中の `TileMapLayer` を優先
 - [x] scene 内の最初の `TileMapLayer` を fallback
 - [x] scene 内の複数 `TileMapLayer` を Target OptionButton で選択
+- [x] Target OptionButton の Auto 項目を常に保持
+- [x] Target OptionButton から scene root 直下に新規 `TileMapLayer` を追加
 - [x] TileSet 設定 helper
 - [x] floor/wall source / atlas 設定
-- [x] floor/wall source / atlas 設定変更時の即時 apply
+- [x] floor/wall source / atlas 設定変更時は Scene Tree 選択中レイヤーだけへ即時 apply
+- [x] 共有 `TileSet` の変更漏れを避けるため、対象レイヤー側で `TileSet` を複製
 - [x] flat-top / pointy-top と TileOffsetAxis の対応
 - [x] flat-top / pointy-top 切り替え時の Tile Size swap
 - [x] `HexMapResource` への orientation 保存
@@ -274,7 +282,10 @@ orientation は `HexMapResource` に保存し、Dock / Resource 側を表示レ�
   - Dock の orientation が resource と apply に反映される
   - Dock の orientation 変更時に Tile Size が入れ替わる
   - Dock の Target 選択が apply 先を切り替える
-  - Dock の SpinBox 変更が選択中 `TileMapLayer` に即時反映される
+  - Dock の SpinBox 変更が Scene Tree 選択中 `TileMapLayer` に即時反映される
+  - Dock の Target は Auto / 短い layer 名 / `Add new layer...` を表示し、Refresh 後も Auto を保持する
+  - Dock が scene root 直下に新規 `TileMapLayer` を追加できる
+  - Dock が共有 `TileSet` を選択中レイヤー側へ複製してから変更する
   - Dock が `TileMapLayer` の `TileSet` を作成・設定する
   - Generate 後に現在の control 値で再生成した map が選択中 `TileMapLayer` へ自動 apply される
   - Dock に `Apply Layer` button が残り、`Generate & Apply` button が存在しない
@@ -289,7 +300,7 @@ orientation は `HexMapResource` に保存し、Dock / Resource 側を表示レ�
   - region size: `64 x 57`
   - floor tile: atlas `Vector2i(0, 0)`
   - wall tile: atlas `Vector2i(1, 0)`
-- 対象 `TileMapLayer`
+- Scene Tree で選択中の対象 `TileMapLayer`
 - Dock の orientation
 - 任意 atlas image resource path
 - source id / floor atlas coords / wall atlas coords
@@ -307,8 +318,8 @@ orientation は `HexMapResource` に保存し、Dock / Resource 側を表示レ�
 - [x] sample atlas 生成用 tool を `tools/create_sample_hex_tiles.gd` に作成
 - [x] `HexMapTileAdapter.configure_atlas_tile_set()` で任意 texture から atlas source を作成
 - [x] `HexMapTileAdapter.configure_sample_tile_set()` で sample atlas source を作成
-- [x] Dock の `Select Atlas Image` で画像 resource path を `TileSetAtlasSource` として設定
-- [x] Dock の `Use Sample Tiles` で選択中 `TileMapLayer` に sample TileSet を設定
+- [x] Dock の `Select Atlas Image` で画像 resource path を Scene Tree 選択中レイヤーの `TileSetAtlasSource` として設定
+- [x] Dock の `Use Sample Tiles` で Scene Tree 選択中 `TileMapLayer` に sample TileSet を設定
 - [x] sample setup 後に Dock の Tile Size / Floor / Wall control を sample 値へ同期
 - [x] atlas setup 後に Dock の Tile Size / Floor / Wall control を atlas 値へ同期
 
@@ -320,7 +331,7 @@ orientation は `HexMapResource` に保存し、Dock / Resource 側を表示レ�
   - floor / wall atlas tile が作成される
 - `tests/test_editor_plugin.gd`
   - Dock から atlas image path / source id / atlas coords を `TileMapLayer` に設定できる
-  - Dock から sample TileSet を `TileMapLayer` に設定できる
+  - Dock から sample TileSet を Scene Tree 選択中 `TileMapLayer` に設定できる
   - Dock の orientation が sample TileSet の TileOffsetAxis に反映される
   - Dock の Tile Size / Floor / Wall control が sample 値へ同期される
 

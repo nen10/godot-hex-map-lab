@@ -49,6 +49,9 @@ func _run() -> void:
 	await _test_generation_dock_configures_tile_map_layer_tileset()
 	await _test_generation_dock_swaps_tile_size_on_orientation_change()
 	await _test_generation_dock_lists_and_auto_applies_selected_tile_layer()
+	await _test_generation_dock_disambiguates_duplicate_target_names()
+	await _test_generation_dock_adds_new_target_layer()
+	await _test_generation_dock_duplicates_shared_tileset_for_selected_layer()
 	await _test_generation_dock_sets_up_sample_tiles()
 	await _test_generation_dock_selects_atlas_image()
 	await _test_generation_dock_generate_auto_applies_current_map()
@@ -538,17 +541,122 @@ func _test_generation_dock_lists_and_auto_applies_selected_tile_layer() -> void:
 	data.set_walls([HexVector.q_axis()])
 	dock._current_data = data
 	dock.refresh_tile_layer_options(scene_root)
-	_assert_eq(dock._tile_layer_option.item_count, 2, "generation dock lists every TileMapLayer under scene root")
-	dock._tile_layer_option.select(1)
+	_assert_eq(dock._tile_layer_option.item_count, 4, "generation dock lists Auto, TileMapLayers, and add new layer")
+	_assert_eq(dock._tile_layer_option.get_item_text(0), "Auto: Selected / first scene layer", "generation dock keeps Auto target")
+	_assert_eq(dock._tile_layer_option.get_item_text(1), "FirstLayer", "generation dock shows short first TileMapLayer name")
+	_assert_eq(dock._tile_layer_option.get_item_text(2), "SecondLayer", "generation dock shows short second TileMapLayer name")
+	_assert_eq(dock._tile_layer_option.get_item_text(3), "Add new layer...", "generation dock exposes add new layer target")
+	dock._tile_layer_option.select(2)
 	_assert_eq(dock.selected_tile_map_layer(), second_layer, "generation dock returns selected TileMapLayer")
+	dock.refresh_tile_layer_options(scene_root)
+	_assert_eq(dock._tile_layer_option.get_item_text(0), "Auto: Selected / first scene layer", "generation dock keeps Auto after refresh")
+	_assert_eq(dock.selected_tile_map_layer(), second_layer, "generation dock preserves selected TileMapLayer after refresh")
 
-	_assert_true(dock.setup_sample_tiles_on_tile_map_layer(second_layer), "auto apply test configures sample tiles")
+	dock._tile_layer_option.select(1)
+	dock._set_editor_selected_tile_map_layer_for_test(second_layer)
+	dock._on_sample_tiles_pressed()
+	_assert_eq(first_layer.tile_set, null, "sample tile setup ignores Target and does not touch unselected TileMapLayer")
+	_assert_true(second_layer.tile_set != null, "sample tile setup uses editor-selected TileMapLayer")
 	dock._floor_atlas_x_spin.value = 1
 	dock._wall_atlas_x_spin.value = 0
 
-	_assert_eq(first_layer.get_used_cells().size(), 0, "auto apply does not touch unselected TileMapLayer")
-	_assert_eq(second_layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(1, 0), "floor SpinBox change reapplies selected TileMapLayer")
-	_assert_eq(second_layer.get_cell_atlas_coords(Vector2i(1, 0)), Vector2i(0, 0), "wall SpinBox change reapplies selected TileMapLayer")
+	_assert_eq(first_layer.get_used_cells().size(), 0, "tile setting auto apply ignores Target and does not touch unselected TileMapLayer")
+	_assert_eq(second_layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(1, 0), "floor SpinBox change reapplies editor-selected TileMapLayer")
+	_assert_eq(second_layer.get_cell_atlas_coords(Vector2i(1, 0)), Vector2i(0, 0), "wall SpinBox change reapplies editor-selected TileMapLayer")
+
+	scene_root.queue_free()
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_disambiguates_duplicate_target_names() -> void:
+	var dock = await _new_ready_dock()
+
+	var scene_root = Node2D.new()
+	scene_root.name = "SceneRoot"
+	root.add_child(scene_root)
+	var group_a = Node2D.new()
+	group_a.name = "Terrain"
+	scene_root.add_child(group_a)
+	var group_b = Node2D.new()
+	group_b.name = "Overlay"
+	scene_root.add_child(group_b)
+	var terrain_layer = TileMapLayer.new()
+	terrain_layer.name = "Layer"
+	group_a.add_child(terrain_layer)
+	var overlay_layer = TileMapLayer.new()
+	overlay_layer.name = "Layer"
+	group_b.add_child(overlay_layer)
+	await process_frame
+
+	dock.refresh_tile_layer_options(scene_root)
+	_assert_eq(dock._tile_layer_option.get_item_text(1), "Terrain/Layer", "duplicate Target names show short scene tree path")
+	_assert_eq(dock._tile_layer_option.get_item_text(2), "Overlay/Layer", "duplicate Target names include parent path")
+
+	scene_root.queue_free()
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_adds_new_target_layer() -> void:
+	var dock = await _new_ready_dock()
+
+	var scene_root = Node2D.new()
+	scene_root.name = "SceneRoot"
+	root.add_child(scene_root)
+	await process_frame
+
+	dock.refresh_tile_layer_options(scene_root)
+	_assert_eq(dock._tile_layer_option.item_count, 2, "empty Target list still shows Auto and add new layer")
+	_assert_eq(dock._tile_layer_option.get_item_text(0), "Auto: Selected / first scene layer", "empty Target list keeps Auto")
+	_assert_eq(dock._tile_layer_option.get_item_text(1), "Add new layer...", "empty Target list keeps add new layer")
+
+	var add_index = dock._add_tile_layer_option_index()
+	dock._tile_layer_option.select(add_index)
+	dock._on_tile_layer_target_selected(add_index)
+	await process_frame
+
+	var added_layer = dock.selected_tile_map_layer()
+	_assert_true(added_layer is TileMapLayer, "add new layer creates a TileMapLayer")
+	_assert_eq(added_layer.get_parent(), scene_root, "add new layer places TileMapLayer under scene root")
+	_assert_true(String(added_layer.name).begins_with("HexMapLayer"), "add new layer uses HexMapLayer base name")
+	_assert_eq(dock._tile_layer_option.selected, 1, "add new layer selects the created Target")
+	_assert_eq(dock._find_editor_selected_tile_map_layer(), added_layer, "add new layer selects the created TileMapLayer")
+
+	scene_root.queue_free()
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_duplicates_shared_tileset_for_selected_layer() -> void:
+	var dock = await _new_ready_dock()
+
+	var scene_root = Node2D.new()
+	scene_root.name = "SceneRoot"
+	root.add_child(scene_root)
+	var first_layer = TileMapLayer.new()
+	first_layer.name = "FirstLayer"
+	scene_root.add_child(first_layer)
+	var second_layer = TileMapLayer.new()
+	second_layer.name = "SecondLayer"
+	scene_root.add_child(second_layer)
+	await process_frame
+
+	var shared_tile_set = TileSet.new()
+	first_layer.tile_set = shared_tile_set
+	second_layer.tile_set = shared_tile_set
+	dock.refresh_tile_layer_options(scene_root)
+	dock._tile_layer_option.select(1)
+	dock._set_editor_selected_tile_map_layer_for_test(second_layer)
+	dock._current_data = HexMapData.rectangle(1, 1)
+	dock._tile_width_spin.value = 96
+	await process_frame
+
+	_assert_eq(first_layer.tile_set, shared_tile_set, "tile setting auto apply leaves unselected shared TileSet owner untouched")
+	_assert_true(second_layer.tile_set != shared_tile_set, "tile setting auto apply duplicates shared TileSet for selected layer")
+	_assert_eq(second_layer.tile_set.tile_size, Vector2i(96, 57), "selected layer receives updated TileSet size")
+	_assert_true(first_layer.get_used_cells().is_empty(), "shared TileSet isolation does not apply cells to unselected layer")
+	_assert_eq(second_layer.get_used_cells().size(), 1, "shared TileSet isolation still applies cells to selected layer")
 
 	scene_root.queue_free()
 	dock.queue_free()
@@ -634,8 +742,8 @@ func _test_generation_dock_generate_auto_applies_current_map() -> void:
 	await process_frame
 
 	dock.refresh_tile_layer_options(scene_root)
-	_assert_eq(dock._tile_layer_option.item_count, 1, "generation dock lists auto apply target")
-	dock._tile_layer_option.select(0)
+	_assert_eq(dock._tile_layer_option.item_count, 3, "generation dock lists Auto, auto apply target, and add new layer")
+	dock._tile_layer_option.select(1)
 	_assert_true(dock.setup_sample_tiles_on_tile_map_layer(layer), "auto apply test configures sample tiles")
 
 	var generation_id = dock._generation_id
