@@ -189,14 +189,14 @@ func _build_ui() -> void:
 		_connect_method_option.add_item(name)
 	_connect_method_option.select(0)
 	_connect_method_option.item_selected.connect(_on_option_changed)
-	root.add_child(_wrap_labeled("Passage Generator", _connect_method_option))
+	root.add_child(_wrap_labeled("Passage Generator / Overlay Deductor", _connect_method_option))
 
 	_generate_option = OptionButton.new()
 	for name in GENERATE_NAMES:
 		_generate_option.add_item(name)
 	_generate_option.item_selected.connect(_on_generate_changed)
 	_generate_option.select(1)
-	root.add_child(_wrap_labeled("Wall Generator", _generate_option))
+	root.add_child(_wrap_labeled("Wall Generator / Overlay Generator", _generate_option))
 
 	_sym_options_container = VBoxContainer.new()
 	_sym_options_container.visible = false
@@ -204,7 +204,7 @@ func _build_ui() -> void:
 
 	var dist_row = HBoxContainer.new()
 	var dist_label = Label.new()
-	dist_label.text = "  Wall Prob Ruleset"
+	dist_label.text = "  Markov Mesh Rule Set"
 	dist_row.add_child(dist_label)
 	_dist_option = OptionButton.new()
 	_refill_dist_options()
@@ -312,7 +312,7 @@ func _build_gen_radius_controls() -> void:
 func _build_wall_probability_controls() -> Control:
 	var row = HBoxContainer.new()
 	var label = Label.new()
-	label.text = "  Wall Prob"
+	label.text = "  Placement Probability (Non-Ref.)"
 	row.add_child(label)
 
 	_wall_prob_slider = HSlider.new()
@@ -357,7 +357,7 @@ func _build_tile_layer_controls() -> Control:
 	box.add_child(_build_section_label("TileMapLayer"))
 
 	var target_row = HBoxContainer.new()
-	target_row.add_child(_build_small_label("Target"))
+	target_row.add_child(_build_small_label("Output Target"))
 	_tile_layer_option = OptionButton.new()
 	_tile_layer_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_tile_layer_option.item_selected.connect(_on_tile_layer_target_selected)
