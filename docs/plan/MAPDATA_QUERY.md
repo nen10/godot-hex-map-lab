@@ -1,5 +1,14 @@
 ## MAPDATA_QUERY.md
 
+## 参照
+
+- `docs/complete_on_test/MAPDATA_QUERY_2026-05-29.md`
+  - Source Registry
+  - Query Row
+  - Mask Crop
+  - Crop Off source stack
+  - Generate History
+
 保存済みの生成マップデータを Editor Dock 内の名前付き query source として保持し、Overlay generation の Placement Mask / Reference source として再利用できるようにする。
 
 主な対象データは以下。

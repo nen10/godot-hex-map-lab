@@ -64,6 +64,11 @@ func _run() -> void:
 	await _test_generation_dock_overlay_placement_mask_filters_candidates()
 	await _test_generation_dock_overlay_adjacency_reference_generation()
 	await _test_generation_dock_overlay_item_pool_tile_mapping()
+	await _test_generation_dock_mapdata_source_registry_load_reload_clear()
+	await _test_generation_dock_mapdata_query_rows_evaluate_offset_and_toric()
+	await _test_generation_dock_mapdata_crop_result_and_reset_rules()
+	await _test_generation_dock_mapdata_crop_off_stacks_overlay_sources()
+	await _test_generation_dock_generate_history_saves_overlay_delta_source()
 
 	if _failures.is_empty():
 		print("test_editor_plugin.gd: all tests passed")
@@ -951,10 +956,253 @@ func _test_generation_dock_overlay_item_pool_tile_mapping() -> void:
 	await process_frame
 
 
+func _test_generation_dock_mapdata_source_registry_load_reload_clear() -> void:
+	var dock = await _new_ready_dock()
+	var path = "res://.godot_user/test_mapdata_source_overlay.tres"
+	var overlay = HexOverlayData.from_cells(
+		[HexVector.zero()],
+		{"Tree": [HexVector.zero()]}
+	)
+	_save_resource(path, HexOverlayResource.from_overlay_data(overlay))
+
+	var source_id = dock.load_mapdata_source(path)
+	_assert_true(source_id > 0, "source registry loads HexOverlayResource")
+	_assert_eq(dock._mapdata_sources.size(), 1, "source registry stores loaded source")
+	_assert_eq(dock._mapdata_sources[0]["resource_type"], HexMapGenDock.MAPDATA_SOURCE_OVERLAY, "source registry records overlay type")
+	_assert_eq(dock._mapdata_sources[0]["item_keys"], ["Tree"], "source registry exposes overlay item keys")
+
+	var reloaded = HexOverlayData.from_cells(
+		[HexVector.zero()],
+		{"Rock": [HexVector.zero()]}
+	)
+	_save_resource(path, HexOverlayResource.from_overlay_data(reloaded))
+	var reloaded_id = dock.load_mapdata_source(path)
+	_assert_eq(reloaded_id, source_id, "same source path reloads existing entry")
+	_assert_eq(dock._mapdata_sources.size(), 1, "same source path does not add duplicate")
+	_assert_eq(dock._mapdata_sources[0]["item_keys"], ["Rock"], "reload updates item keys")
+
+	dock._add_query_row(true, source_id, "Rock")
+	_assert_eq(dock._overlay_mask_query_rows.size(), 1, "query row references loaded source")
+	dock.clear_mapdata_source(source_id)
+	_assert_eq(dock._mapdata_sources.size(), 0, "clear removes source")
+	_assert_eq(dock._overlay_mask_query_rows.size(), 0, "clear removes query rows using source")
+
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_mapdata_query_rows_evaluate_offset_and_toric() -> void:
+	var dock = await _new_ready_dock()
+	var map_data = HexMapData.rectangle(3, 1)
+	map_data.set_walls([HexVector.q_axis()])
+	var map_id = dock.register_mapdata_source(HexMapResource.from_map_data(map_data), "res://map_query.tres")
+
+	dock._add_query_row(true, map_id, "Floor")
+	var wall_row = dock._add_query_row(true, map_id, "Wall")
+	wall_row["operation"].select(1)
+	_assert_keys_eq(
+		dock._evaluate_query_rows(true, false),
+		map_data.cells,
+		"query rows OR selected item cells"
+	)
+
+	wall_row["operation"].select(0)
+	wall_row["match"].select(1)
+	_assert_keys_eq(
+		dock._evaluate_query_rows(true, false),
+		map_data.floor_cells(),
+		"query rows apply Exclude as universe complement with AND"
+	)
+
+	var overlay = HexOverlayData.from_cells(
+		[HexVector.zero(), HexVector.q_axis()],
+		{"Gem": [HexVector.zero()]}
+	)
+	var overlay_id = dock.register_mapdata_source(HexOverlayResource.from_overlay_data(overlay), "res://offset_query.tres")
+	dock._overlay_reference_query_rows.clear()
+	var offset_row = dock._add_query_row(false, overlay_id, "Gem")
+	dock._on_query_row_direction_pressed(0, offset_row, false)
+	_assert_keys_eq(
+		dock._evaluate_query_rows(false, false),
+		[HexVector.q_axis()],
+		"query rows offset item cells"
+	)
+
+	var toric_data = HexOverlayData.from_cells(
+		HexMapData.square(3, true).cells,
+		{"Wrap": [HexVector.apply_basis(2, 0, 0)]},
+		3
+	)
+	var toric_id = dock.register_mapdata_source(HexOverlayResource.from_overlay_data(toric_data), "res://toric_query.tres")
+	dock._overlay_reference_query_rows.clear()
+	var toric_row = dock._add_query_row(false, toric_id, "Wrap")
+	dock._on_query_row_direction_pressed(0, toric_row, false)
+	_assert_keys_eq(
+		dock._evaluate_query_rows(false, false),
+		[HexVector.zero()],
+		"query rows wrap offset cells for toric source"
+	)
+
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_mapdata_crop_result_and_reset_rules() -> void:
+	var dock = await _new_ready_dock()
+	dock._overlay_mode_check.set_pressed_no_signal(true)
+	dock._generate_option.select(HexMapGenDock.GENERATE_SIMPLE)
+	dock._shape_option_simple.select(HexMapGenDock.SHAPE_RECTANGLE)
+	dock._rect_width_spin.value = 1
+	dock._rect_height_spin.value = 1
+	dock._refresh_controls()
+
+	var overlay = HexOverlayData.from_cells(
+		[HexVector.zero(), HexVector.q_axis()],
+		{
+			"Tree": [HexVector.zero()],
+			"Rock": [HexVector.q_axis()],
+		}
+	)
+	var source_id = dock.register_mapdata_source(HexOverlayResource.from_overlay_data(overlay), "res://crop_query.tres")
+	dock._add_query_row(true, source_id, "Tree")
+	var exclude_row = dock._add_query_row(true, source_id, "Rock")
+	exclude_row["operation"].select(1)
+	exclude_row["match"].select(1)
+	dock._overlay_mask_crop_check.set_pressed_no_signal(true)
+	dock._refresh_mask_crop_count()
+
+	var crop = dock._overlay_crop_result_data()
+	_assert_keys_eq(crop.cells, [HexVector.zero()], "crop result uses current shape universe")
+	_assert_keys_eq(crop.item_cells("Any"), [HexVector.zero()], "crop result stores Any universe")
+	_assert_keys_eq(crop.item_cells("crop_query.tres / Tree"), [HexVector.zero()], "crop result stores prefixed contain item")
+	_assert_eq(crop.item_cells("crop_query.tres / Rock").size(), 0, "crop result excludes Exclude item output")
+	_assert_eq(dock._overlay_mask_count_label.text, "Cells: 1", "crop count ignores Any and duplicate cells")
+
+	dock._on_query_row_direction_pressed(0, dock._overlay_mask_query_rows[0], true)
+	_assert_true(not dock._overlay_mask_crop_check.button_pressed, "mask query edit turns Crop off")
+	dock._overlay_mask_crop_check.set_pressed_no_signal(true)
+	dock._on_shape_size_changed(2)
+	_assert_true(not dock._overlay_mask_crop_check.button_pressed, "shape size edit turns Crop off")
+	dock._overlay_mask_crop_check.set_pressed_no_signal(true)
+	dock._add_query_row(false, source_id, "Tree")
+	_assert_true(dock._overlay_mask_crop_check.button_pressed, "reference query edit does not turn Crop off")
+
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_mapdata_crop_off_stacks_overlay_sources() -> void:
+	var dock = await _new_ready_dock()
+	dock._overlay_mode_check.set_pressed_no_signal(true)
+	var primary = HexMapData.rectangle(1, 1)
+	dock.register_mapdata_source(HexMapResource.from_map_data(primary), "res://stack_primary.tres")
+	var first = HexOverlayData.from_cells(
+		[HexVector.zero()],
+		{"Tree": [HexVector.zero()]}
+	)
+	var second = HexOverlayData.from_cells(
+		[HexVector.zero(), HexVector.q_axis()],
+		{"Rock": [HexVector.zero()], "Gem": [HexVector.q_axis()]}
+	)
+	dock.register_mapdata_source(HexOverlayResource.from_overlay_data(first), "res://stack_first.tres")
+	dock.register_mapdata_source(HexOverlayResource.from_overlay_data(second), "res://stack_second.tres")
+	dock._overlay_existing_policy_option.select(1)
+
+	_assert_true(dock._apply_overlay_source_stack_to_current(), "crop off stack applies overlay sources")
+	_assert_eq(dock._current_overlay_data.item_cells("Tree").size(), 0, "replace existing removes earlier item on same cell")
+	_assert_keys_eq(dock._current_overlay_data.item_cells("Rock"), [HexVector.zero()], "stack keeps later replacement item")
+	_assert_keys_eq(dock._current_overlay_data.item_cells("Gem"), [HexVector.q_axis()], "stack preserves non-conflicting later item")
+	_assert_eq(dock._current_overlay_data.item_cells("Floor").size(), 0, "stack ignores Primary source")
+
+	dock._current_overlay_data = HexOverlayData.from_cells([HexVector.zero()], {"Old": [HexVector.zero()]})
+	dock._overlay_write_policy_option.select(1)
+	dock._overlay_existing_policy_option.select(0)
+	_assert_true(dock._apply_overlay_source_stack_to_current(), "Add Item write policy merges stack into current overlay")
+	_assert_true(dock._current_overlay_data.has_item(HexVector.zero(), "Old"), "Add Item write policy preserves existing current item")
+	_assert_true(dock._current_overlay_data.has_item(HexVector.zero(), "Tree"), "Add Item write policy adds stacked source item")
+
+	var empty_dock = await _new_ready_dock()
+	empty_dock._overlay_mode_check.set_pressed_no_signal(true)
+	_assert_true(not empty_dock._apply_overlay_source_stack_to_current(), "empty overlay source stack does not update current overlay")
+
+	empty_dock.queue_free()
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_generate_history_saves_overlay_delta_source() -> void:
+	var dock = await _new_ready_dock()
+	var history_dir = "res://.godot_user/mapdata_history"
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(history_dir))
+	dock._set_generate_history_directory_for_test(history_dir)
+	dock._overlay_mode_check.set_pressed_no_signal(true)
+	dock._generate_option.select(HexMapGenDock.GENERATE_SIMPLE)
+	dock._shape_option_simple.select(HexMapGenDock.SHAPE_RECTANGLE)
+	dock._wall_prob_slider.set_value_no_signal(1.0)
+	dock._overlay_item_pool_rows[0]["name"].text = "Key"
+	dock._overlay_item_pool_rows[0]["amount"].value = 1.0
+	dock._overlay_write_policy_option.select(1)
+	dock._current_data = HexMapData.rectangle(1, 1)
+	dock._current_overlay_data = HexOverlayData.from_cells(
+		[HexVector.zero()],
+		{"Old": [HexVector.zero()]}
+	)
+	dock._refresh_controls()
+
+	var before_count = dock._mapdata_sources.size()
+	_assert_true(await dock._generate_map(), "generate history test generates overlay")
+	_assert_eq(dock._mapdata_sources.size(), before_count + 1, "generate history adds saved source")
+	var source = dock._mapdata_sources[dock._mapdata_sources.size() - 1]
+	var saved_data = source["data"]
+	_assert_eq(source["resource_type"], HexMapGenDock.MAPDATA_SOURCE_OVERLAY, "generate history registers overlay source")
+	_assert_eq(saved_data.item_cells("Old").size(), 0, "generate history stores overlay delta before Add Item policy")
+	_assert_eq(saved_data.item_cells("Key").size(), 1, "generate history stores generated overlay delta item")
+	_assert_true(dock._current_overlay_data.has_item(HexVector.zero(), "Old"), "current overlay still applies Add Item policy")
+
+	var primary_dock = await _new_ready_dock()
+	primary_dock._set_generate_history_directory_for_test(history_dir)
+	primary_dock._generate_option.select(HexMapGenDock.GENERATE_SIMPLE)
+	primary_dock._shape_option_simple.select(HexMapGenDock.SHAPE_RECTANGLE)
+	primary_dock._rect_width_spin.set_value_no_signal(2)
+	primary_dock._rect_height_spin.set_value_no_signal(1)
+	primary_dock._wall_prob_slider.set_value_no_signal(0.0)
+	var primary_before_count = primary_dock._mapdata_sources.size()
+	_assert_true(await primary_dock._generate_map(), "generate history test generates primary map")
+	_assert_eq(primary_dock._mapdata_sources.size(), primary_before_count + 1, "generate history adds primary source")
+	_assert_eq(primary_dock._mapdata_sources[0]["resource_type"], HexMapGenDock.MAPDATA_SOURCE_MAP, "generate history registers primary source")
+	_assert_eq(primary_dock._mapdata_sources[0]["item_keys"], ["Any", "Floor", "Wall"], "generate history primary source exposes primary item keys")
+
+	var cancel_dock = await _new_ready_dock()
+	cancel_dock._set_generate_history_directory_for_test(history_dir)
+	cancel_dock._generate_option.select(HexMapGenDock.GENERATE_SIMPLE)
+	cancel_dock._shape_option_simple.select(HexMapGenDock.SHAPE_RECTANGLE)
+	cancel_dock._rect_width_spin.set_value_no_signal(20)
+	cancel_dock._rect_height_spin.set_value_no_signal(20)
+	cancel_dock._wall_prob_slider.set_value_no_signal(1.0)
+	cancel_dock._generation_chunk_size = 1
+	cancel_dock._generation_progress_delay_usec = 5000
+	cancel_dock._generate_map(true)
+	await _wait_for_core_progress(cancel_dock)
+	cancel_dock.request_generation_cancel()
+	await _wait_for_generation(cancel_dock, "cancelled generate history generation")
+	_assert_eq(cancel_dock._mapdata_sources.size(), 0, "generate history does not add source when generation is cancelled")
+
+	cancel_dock.queue_free()
+	primary_dock.queue_free()
+	dock.queue_free()
+	await process_frame
+
+
 func _save_distribution(path: String, distribution: HexDistribution) -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://.godot_user"))
 	var error = ResourceSaver.save(distribution, path)
 	_assert_eq(error, OK, "test distribution resource saves")
+
+
+func _save_resource(path: String, resource: Resource) -> void:
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://.godot_user"))
+	var error = ResourceSaver.save(resource, path)
+	_assert_eq(error, OK, "test resource saves")
 
 
 func _count_cancel(state: Dictionary) -> void:
@@ -1067,6 +1315,18 @@ func _assert_true(value: bool, message: String) -> void:
 func _assert_eq(actual: Variant, expected: Variant, message: String) -> void:
 	if actual != expected:
 		_failures.append("%s: expected %s, got %s" % [message, str(expected), str(actual)])
+
+
+func _assert_keys_eq(actual: Array, expected: Array, message: String) -> void:
+	var actual_keys: Array = []
+	for point in actual:
+		actual_keys.append(point.key())
+	actual_keys.sort()
+	var expected_keys: Array = []
+	for point in expected:
+		expected_keys.append(point.key())
+	expected_keys.sort()
+	_assert_eq(actual_keys, expected_keys, message)
 
 
 func _assert_color_approx(actual: Color, expected: Color, message: String) -> void:

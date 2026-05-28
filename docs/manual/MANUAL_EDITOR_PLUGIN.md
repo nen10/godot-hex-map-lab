@@ -80,7 +80,13 @@ Overlay generation は現在の Primary Data の floor cells を placement candi
 - `Apply Write`: `Clear And Write` または `Add Item`
 - `Existing Item`: `Merge Existing` / `Replace Existing` / `Skip Existing`
 
-Overlay mode で Generate 後の自動 apply または `Apply Layer` を実行すると、current overlay を Target `TileMapLayer` に表示します。Item Pool にある item key は row の `Tile` source / atlas coords を使い、Item Pool にない item key は Dock の `Wall` source / atlas coords を fallback として使います。`Save .tres` は Overlay mode では `HexOverlayResource` を保存対象にします。
+Source Registry では保存済み `HexMapResource` / `HexOverlayResource` を読み込み、Mask / Reference の Query Row に `source / ItemKey` として追加できます。同じ resource path を再読み込みした場合は既存sourceを更新します。sourceをClearすると、そのsourceを参照するQuery Rowも削除されます。
+
+Mask Query Row は `AND` / `OR`、`Contain` / `Exclude`、offset を持ちます。Crop On の場合は現在のShape / サイズでMask resultを切り詰め、Overlay Generateのcandidate cellsにも使います。Crop On中にMask Query RowまたはShape / サイズを編集するとCrop Offに戻ります。
+
+Overlay mode の `Apply Layer` / `Save .tres` はCrop状態で動作が変わります。Crop OnではCrop resultをShow Mask / `HexOverlayResource` 保存に使います。Crop OffではSource Registry内のOverlay sourceを表示順でstackし、`Apply Write` / `Existing Item` policyに従ってcurrent overlayへ反映してからApply / Saveします。Generate後の自動applyは従来通りcurrent overlayをTarget `TileMapLayer` に表示します。Item Pool にある item key は row の `Tile` source / atlas coords を使い、Item Pool にない item key は Dock の `Wall` source / atlas coords を fallback として使います。
+
+`Generate History` を有効にすると、Generate成功時に `.tres` を保存し、保存済みsourceとしてSource Registryへ追加します。Primaryは生成された `HexMapData` 全体、OverlayはApply Policy反映前の生成差分 `HexOverlayData` を保存します。生成キャンセル時は保存しません。
 
 ### Stats
 
