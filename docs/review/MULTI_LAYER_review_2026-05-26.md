@@ -143,3 +143,68 @@ Overlay 系は最小実用 UI として成立している。ただし、現在�
 今回の追補では `docs/algorithm/ALGORITHM_ADAPTER.md` へは直接追記しない。Deductor や Overlay data management の仕様を次期 plan として固める段階で、algorithm docs に設計意図を移す。
 
 完了済み扱いの機能は `docs/complete_on_test/MULTI_LAYER_2026-05-26_*.md` に分割済みである。この追補は完了済み扱いを取り消すものではなく、現行仕様の制限と次期改善候補をレビュー文脈で整理するための文書である。
+
+## レイアウト調整後の実装者追補 (2026-05-29)
+
+この追補は、レイアウト調整後の Editor Dock controls の表示・有効化条件と、実装済み Overlay generation algorithms の対応を整理する。目的は現行仕様の認識を揃え、次の `Overlay データ管理` plan の材料にすることである。
+
+### Control / Algorithm 対応表
+
+| Control | 表示・有効化条件 | 実際に影響する処理 |
+|---|---|---|
+| `Overlay` toggle | 常時表示。Off は Primary、On は Overlay mode | `_generate_data_from_snapshot()` で Primary / Overlay generation を切り替える。`Save .tres` も `HexMapResource` / `HexOverlayResource` を切り替える |
+| `Wall Generator` / `Overlay Generator` | Overlay toggle に応じて label が変わる。Option は `Uniform Distribution` / `Markov Mesh` | Primary では wall generation algorithm、Overlay では item generation algorithm を選ぶ |
+| `Passage Generator` / `Overlay Deductor` | Overlay toggle に応じて label が変わる | Primary では connectivity restore。Overlay では Markov Mesh かつ Adjacency Rules Off の場合だけ `deduct_items_for_connectivity()` に影響する |
+| `Toric Passage` | `Markov Mesh` 選択時に表示 | Primary symmetric square の toric connection と、shape fallback 時の square toric cells に影響する。Adjacency Overlay の cyclic behavior は主に current Primary Data の `cyclic_size` に依存する |
+| `Adjacency Rules` | Overlay mode で表示。On にすると `Markov Mesh` に切り替え、`Generate Combination` と排他 | `generate_toric_adjacency_items` を使う。`Markov Mesh Rule Set` と probability row は使わない |
+| `Generate Combination` | Overlay mode で表示。On にすると `Uniform Distribution` に切り替え、`Adjacency Rules` と排他 | `generate_limited_items` を使う。UI 名は combination だが、実装上は Item Num Limit / limited item generation を表す |
+| `Probability / Cell` | `Uniform Distribution` で表示。ただし `Generate Combination` On では非表示 | Primary simple wall probability、または Overlay `generate_random_items` の placement probability |
+| `Initial Probability` | `Markov Mesh` で表示。ただし `Adjacency Rules` On では非表示 | Primary symmetric wall generation、または Overlay `generate_symmetric_toric_items` の initial probability |
+| `Markov Mesh Rule Set` | `Markov Mesh` かつ `Adjacency Rules` Off で表示 | Primary symmetric generation / Overlay symmetric item generation に preset or custom distribution を渡す |
+| `Target Item` | Overlay mode かつ `Markov Mesh` で表示 | `generate_symmetric_toric_items` または `generate_toric_adjacency_items` の output item key |
+| `Item Pool` / `Add Item` | Overlay mode かつ `Uniform Distribution` で表示 | `generate_random_items` では weight、`generate_limited_items` では limit として使う。row の tile source / atlas は overlay apply 時の item tile mapping に使う |
+| `Placement Mask` | Overlay mode で表示 | Primary / current Overlay の item keys から candidate cells を作る。query が空の場合は現在 fallback candidates を使う |
+| `Adjacency Items` | `Adjacency Rules` On で表示 | Primary / current Overlay の item keys から reference cells を作る |
+| `Apply Write` / `Existing Item` | Overlay mode で表示 | Generated overlay を current overlay に反映するときの `HexOverlayData.apply_overlay()` policy |
+
+### 現行仕様との齟齬・懸念
+
+- `Overlay Deductor` の選択肢は Overlay mode 中も広く見えるが、実際に効くのは `Markov Mesh` かつ `Adjacency Rules` Off のときだけである。`Uniform Distribution`、`Generate Combination`、`Adjacency Rules` On では Deductor は使われない。
+- `Toric Passage` は symmetric 時に表示されるが、Adjacency Overlay では reference / candidate の toric wrap は current Primary Data の `cyclic_size` に依存する。toggle の見た目と Adjacency algorithm への直接効果が一致していない。
+- UI 上の名称 `Generate Combination` は `Item Num Limit` による `generate_limited_items` に対応する。これは各 item の配置数上限に従って確率を変化させる生成アルゴリズムであるが、確率計算に基づき、実質的には有限個のタイルをどのセルに割り当てるかに関するConbinationの全体から一様分布に従って一つの結果を得ることと数学的に同等である。
+- `Adjacency Rules` の不正入力は `HexAdjacencyRuleSet.parse_rules_text()` で無視され、rule が空なら fallback probability を使われている。fallback probabilityは仕様として想定しておらず再検討する。`Adjacency Rules` On では 使用されない想定である probability row は表示上のみ非表示に対応済み。
+- Placement Mask の query 結果が空の場合、現状は current Primary floor cells または shape-based cells へ fallback している。Maskは概念上、生成可能Cellについてのホワイトリストを想定する。全floor生成ではなく「警告して空生成」とする。
+
+### 次 plan 候補: Overlay データ管理
+
+次の plan では、Overlay source model を `Resource一覧` として扱う方針を推奨する。
+
+- 保存済みの生成マップデータ の読み込み機能
+  - 名前付き source として Dock 内に任意の個数保持する。
+  - 保持中の生成マップデータは個別にClear可能。
+  - Mask / Reference source は 保持されているマップデータのうち、任意にユーザーが選択したMapdata.ItemKeyを任意の個数並べてqueryを作成する領域として扱う。`Primary current`、`Current Overlay`、`Loaded Overlay Resources` のような分類ではなく各行をItemKeyとする。
+- query作成の集合演算子が全てをand結合するかor結合するかの扱いになっているが、あまりよろしくない。query作成用のMapdata.ItemKey指定の方法を変更する。
+  - 保持されているマップデータ.ItemKeyのコンボボックスを選択し、query作成領域に該当のItemを行として追加する。
+    - 各アイテム行は[{and,or}],[ItemKey名],[{Contain, Exclude}分類]を持ち、二つ目以降のアイテム行についてのみ[{and,or}]の集合演算子選択項目を有効とする。
+    - アイテム行は順番を上下に移動できる。
+    - アイテム行は削除できる。
+    - アイテム行ごとにCell座標の平行移動を可能とする
+      - 六方向近傍タイルのクリックにより、その方向の平行移動量の数値をインクリメントする
+        - 向かい合う方向が正だったらそちらをデクリメントする。
+  - Mask用のquery作成領域について
+    - 生成可能な該当Cell数を表示する。
+    - この計算は現在選択されているShape,サイズデータでcropする。
+      - 保持中の生成マップデータのShapeがsquareの場合のみ、本来のcyclic_sizeに従うことでToricに参照することを可能とする。ただし、平行移動処理含めたToricな座標計算には数学的に注意し堅実なテストを行うこと。
+- 既存 [Apply layer], [Save .tres]について"ボタンによる実行"はその機能を変更する。
+  - [Apply layer] : Mask用のquery作成により、cropされたデータを一つのマップデータとしてApplyする。
+  - [Save .tres] : Mask用のquery作成により、cropされたデータを一つのマップデータとして保存する。
+- `TileMapLayer` 直接参照によるマップデータ取得は不要。
+- TileMapLayer から生成マップデータは復元しない。
+- マップデータ生成後のデータ自動保存機能(Generate History)を追加する(チェックによるOn/Off可能)。保存ディレクトリのみ指定可能とし、ファイル名は作成日時-簡潔な実行条件名-主な生成タイル名を含むようにする。キャンセル時は保存不要。
+- 複数 Overlay source の表示名、resource path 表示、読み込み解除、再読み込み、同名 resource の扱いを計画する。
+
+### ドキュメント方針
+
+今回はレビュー追補のみを更新対象とする。`docs/manual/MANUAL_EDITOR_PLUGIN.md` や algorithm docs は直接更新しない。
+
+この追補は、現行仕様の完了扱いを取り消すものではない。レイアウト調整後の control semantics を明確化し、次の `Overlay データ管理` plan を立てるための前提整理として扱う。
