@@ -97,3 +97,49 @@ Manual には "Placement Mask: Primary / current Overlay の item keys から生
 
 ### 5. テスト概要の TEST.md 更新がテストファイル実体と一致しているか 【把握 : 対応不要】
 `docs/TEST.md` のテスト概要セクションでは overlay 関連の記述が追加されているが、test_hex_adapter.gd と test_engine_plugin.gd の概要記述が一部簡略的（`Adjacency Rule Set の parse`、`Overlay Data の apply policy` など見出し語のみ）。各テストの検証項目が増えているため、適宜詳細を反映するとよい。
+
+## 実装者追補 (2026-05-27)
+
+この追補は、既存レビューとユーザーによるメタレビューを上書きせず、実装した側の観点から現行仕様・制限・次に計画化しやすい事項を整理する。
+
+### 既存レビューへの評価
+
+Core / Adapter / Editor の3層で実装範囲を見ている点は概ね妥当である。今回の変更は、Overlay Data の core API、保存用 Resource、TileMapLayer adapter、Editor Dock の生成・適用 UI までを一続きで追加しているため、単一ファイル単位ではなく data flow 単位で評価する方が実態に合う。
+
+Target Layer 修正については、今回要望に対して実装・テスト・manual反映済みである。Target の `Auto: Selected / first scene layer` 維持、短い layer 表示名、`Add new layer...`、Scene Tree 選択中 `TileMapLayer` だけへの即時 apply、共有 `TileSet` の複製は `tests/test_editor_plugin.gd` と `docs/manual/MANUAL_EDITOR_PLUGIN.md` に反映されている。
+
+Overlay 系は最小実用 UI として成立している。ただし、現在の Editor Dock は「現在の Primary Data / current Overlay Data」を中心に生成する設計であり、保存済み Overlay Resource を複数読み込んで Mask / Reference source として管理する UI はまだ限定的である。
+
+### 仕様制限として扱う事項
+
+- Placement Mask の query 結果が空の場合、現在は fallback により Primary floor cells または shape-based cells が候補になる。この挙動は作業継続性を優先したものだが、Mask Items の typo や空指定で意図しない全floor生成が起きうる。
+- Markov Mesh Overlay の Deductor が連結性回復に使う floor 集合は、現在 Placement Mask で解決された candidates と同一である。`MULTI_LAYER.md` にある「floor cell集合は走査対象と独立に設定できる」という要件に対して、独立指定 UI はまだ提供していない。
+- Mask / Reference source は Primary Data と current Overlay Data が中心である。保存済み `HexOverlayResource`、複数 Overlay、または `TileMapLayer` から復元したデータを直接 source として選ぶ管理 UI は未整備である。
+- `HexOverlayTileAdapter.apply_to_tile_map_layer()` は `clear_layer=false` を持つが、Editor Dock の自動 apply / `Apply Layer` は現在 `clear_layer=true` のみを使う。既存 `TileMapLayer` cell を残して重ね書きする運用は adapter API では可能だが、Dock UI からは使えない。
+
+### UI / 運用上の懸念
+
+- Overlay controls は `Overlay` toggle On で Item Pool、Placement Mask、Adjacency Reference、Apply Policy がまとめて展開されるため、初見では情報量が多い。次に触るなら折りたたみ、段階表示、または mode 別 grouping が効果的である。
+- Item Pool row の tile 指定は source / atlas_x / atlas_y の数値入力で、複数 item を扱うと視認性が落ちる。sample atlas の拡充、tile picker、または `Floor` / `Wall` 設定からコピーする UI があると運用しやすい。
+- Adjacency Rules は `HexAdjacencyRuleSet.parse_rules_text()` で不正 entry を無視する。生成を止めない点は扱いやすいが、typo に気づきにくいため、editor 側で invalid entry の警告表示を追加する余地がある。
+- Overlay 生成後の stats は Overlay stats を優先表示する。Primary stats は Overlay toggle Off で確認できるが、Overlay mode のまま Primary / Overlay を並べて確認する data management UI はまだない。
+
+### 技術上の懸念
+
+- Adjacency probability rule は `int`、`String`、`Vector2i` key を受ける。Core API の互換性としては柔軟だが、Editor 由来の `HexAdjacencyRuleSet` は `int` と `String` を作るため、将来は正規化方針を明文化した方がよい。
+- Overlay Deductor は既存の `restore_connectivity_by()` を再利用するため実装の一貫性は高い。一方で、Overlay item を一時的に wall とみなす設計意図は algorithm docs にはまだ薄い。必要になった時点で `docs/algorithm/ALGORITHM_ADAPTER.md` または generation algorithm docs に反映する。
+- `HexOverlayData` / `HexMapData` の item selector は duck typing による `item_cells()` 参照で成立している。現状の対象型では問題ないが、将来 source 種別を増やす場合は selector source の型または adapter 境界を整理する必要がある。
+
+### 次に plan 化するなら
+
+1. Overlay データ管理を追加する。保存済み `HexOverlayResource` や複数 Overlay を読み込み、Mask / Reference source として選べるようにする。
+2. Mask 空結果の扱いを決める。fallback 維持、警告表示、または空生成のどれを正とするかを仕様化する。
+3. Deductor floor 集合の独立指定 UI を追加する。Placement Mask とは別に、連結性回復の対象 floor source / items を選べるようにする。
+4. Overlay UI を整理する。セクション折りたたみ、tile picker、sample atlas 拡充、copy-from-current tile controls などを検討する。
+5. Adjacency Rule Set editor の入力検証を追加する。不正 entry の表示、clamp 結果の見える化、rule key の正規化方針を合わせて決める。
+
+### ドキュメント方針
+
+今回の追補では `docs/algorithm/ALGORITHM_ADAPTER.md` へは直接追記しない。Deductor や Overlay data management の仕様を次期 plan として固める段階で、algorithm docs に設計意図を移す。
+
+完了済み扱いの機能は `docs/complete_on_test/MULTI_LAYER_2026-05-26_*.md` に分割済みである。この追補は完了済み扱いを取り消すものではなく、現行仕様の制限と次期改善候補をレビュー文脈で整理するための文書である。

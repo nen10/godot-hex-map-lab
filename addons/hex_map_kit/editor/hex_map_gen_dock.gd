@@ -71,6 +71,7 @@ const OVERLAY_QUERY_OPERATION_NAMES := [
 	"All Items",
 ]
 
+var _generator_row: HBoxContainer
 var _generate_option: OptionButton
 var _shape_simple_row: HBoxContainer
 var _shape_option_simple: OptionButton
@@ -88,12 +89,14 @@ var _hex_radius_spin: SpinBox
 var _radius_row: HBoxContainer
 var _gen_radius_spin: SpinBox
 
+var _prob_bar_label: Label
 var _wall_prob_slider: HSlider
 var _wall_prob_label: Label
 var _wall_prob_row: Control
 var _seed_spin: SpinBox
 var _seed_random_button: Button
 
+var _deductor_row: HBoxContainer
 var _connect_method_option: OptionButton
 var _torus_connectivity_check: CheckButton
 
@@ -120,6 +123,9 @@ var _wall_atlas_y_spin: SpinBox
 var _atlas_image_button: Button
 var _sample_tiles_button: Button
 var _current_atlas_image_path := ""
+
+var _deductor_label: Label
+var _generator_label: Label
 
 var _overlay_mode_check: CheckButton
 var _overlay_controls_container: VBoxContainer
@@ -152,7 +158,7 @@ var _generate_button: Button
 var _save_button: Button
 var _apply_layer_button: Button
 var _stats_label: Label
-var _generation_progress_container: VBoxContainer
+var _generation_progress_container: HBoxContainer
 var _generation_progress_status_label: Label
 var _generation_progress_bar: ProgressBar
 var _generation_progress_cancel_button: Button
@@ -211,6 +217,19 @@ func _build_ui() -> void:
 
 	root.add_child(_build_section_label("Hex Map Kit"))
 
+
+	var target_row = HBoxContainer.new()
+	target_row.add_child(_build_small_label("Target Layer"))
+	_tile_layer_option = OptionButton.new()
+	_tile_layer_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_tile_layer_option.item_selected.connect(_on_tile_layer_target_selected)
+	target_row.add_child(_tile_layer_option)
+	_tile_layer_refresh_button = Button.new()
+	_tile_layer_refresh_button.text = "Refresh"
+	_tile_layer_refresh_button.pressed.connect(_on_tile_layer_refresh_pressed)
+	target_row.add_child(_tile_layer_refresh_button)
+	root.add_child(target_row)
+
 	_size_container = HBoxContainer.new()
 	root.add_child(_size_container)
 
@@ -239,30 +258,101 @@ func _build_ui() -> void:
 	_build_hexagon_size_controls()
 	_build_gen_radius_controls()
 
-	_torus_connectivity_check = CheckButton.new()
-	_torus_connectivity_check.text = "Toric Connection"
-	_torus_connectivity_check.button_pressed = false
-	_torus_connectivity_check.toggled.connect(_on_torus_connectivity_toggled)
-	_size_container.add_child(_torus_connectivity_check)
+
+	var generate_methods = HBoxContainer.new()
+	var generator_labels = VBoxContainer.new()
+	var generate_method_rows = VBoxContainer.new()
+	generator_labels.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	generate_method_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	generate_methods.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	_deductor_label = Label.new()
+	_deductor_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_deductor_label.text = "Passage Generator" # "Passage Generator / Overlay Deductor"
+	generator_labels.add_child(_deductor_label)
+	_generator_label = Label.new()
+	_generator_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_generator_label.text = "Wall Generator" # "Wall Generator / Overlay Generator"
+	generator_labels.add_child(_generator_label)
+	generate_methods.add_child(generator_labels)
+
+	_deductor_row = HBoxContainer.new()
 
 	_connect_method_option = OptionButton.new()
 	for name in CONNECT_METHOD_NAMES:
 		_connect_method_option.add_item(name)
 	_connect_method_option.select(0)
 	_connect_method_option.item_selected.connect(_on_option_changed)
-	root.add_child(_wrap_labeled("Passage Generator / Overlay Deductor", _connect_method_option))
+
+	_torus_connectivity_check = CheckButton.new()
+	_torus_connectivity_check.text = "Toric Passage"
+	_torus_connectivity_check.button_pressed = false
+	_torus_connectivity_check.toggled.connect(_on_torus_connectivity_toggled)
+
+	_deductor_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var spacer = Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	_deductor_row.add_child(_connect_method_option)
+	_deductor_row.add_child(spacer)
+	_deductor_row.add_child(_torus_connectivity_check)
+	generate_method_rows.add_child(_deductor_row)
+
+	_generator_row = HBoxContainer.new()
 
 	_generate_option = OptionButton.new()
 	for name in GENERATE_NAMES:
 		_generate_option.add_item(name)
 	_generate_option.item_selected.connect(_on_generate_changed)
 	_generate_option.select(1)
-	root.add_child(_wrap_labeled("Wall Generator / Overlay Generator", _generate_option))
-	root.add_child(_build_overlay_controls())
+
+	_overlay_mode_check = CheckButton.new()
+	_overlay_mode_check.text = "Overlay"
+	_overlay_mode_check.button_pressed = false
+	_overlay_mode_check.toggled.connect(_on_overlay_mode_toggled)
+
+	_generator_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var spacer2 = Control.new()
+	spacer2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	_generator_row.add_child(_generate_option)
+	_generator_row.add_child(spacer2)
+	_generator_row.add_child(_overlay_mode_check)
+	generate_method_rows.add_child(_generator_row)
+	generate_methods.add_child(generate_method_rows)
+
+	root.add_child(generate_methods)
+
+	root.add_child(_build_seed_controls())
+	root.add_child(_build_generation_progress_controls())
+
+	var mode_row = HBoxContainer.new()
+
+	_overlay_adjacency_check = CheckButton.new()
+	_overlay_adjacency_check.text = " Adjacency Rules"
+	_overlay_adjacency_check.button_pressed = false
+	_overlay_adjacency_check.toggled.connect(_on_overlay_adjacency_toggled)
+
+	var limit_row = HBoxContainer.new()
+	_overlay_item_limit_check = CheckButton.new()
+	_overlay_item_limit_check.text = " Generate Combination"
+	_overlay_item_limit_check.toggled.connect(_on_overlay_item_limit_toggled)
+	limit_row.add_child(_overlay_item_limit_check)
+
+	_overlay_item_limit_spin = _new_int_spin(1, 0, 1048576)
+	_overlay_item_limit_spin.value_changed.connect(_on_option_changed)
+	_overlay_item_limit_spin.visible = false
+	limit_row.add_child(_overlay_item_limit_spin)
+
+	mode_row.add_child(_overlay_adjacency_check)
+	mode_row.add_child(limit_row)
+	root.add_child(mode_row)
+
+	_wall_prob_row = _build_wall_probability_controls()
+	root.add_child(_wall_prob_row)
 
 	_sym_options_container = VBoxContainer.new()
 	_sym_options_container.visible = false
-	root.add_child(_sym_options_container)
 
 	var dist_row = HBoxContainer.new()
 	var dist_label = Label.new()
@@ -279,20 +369,16 @@ func _build_ui() -> void:
 	_dist_edit_button.text = "Edit"
 	_dist_edit_button.pressed.connect(_on_dist_edit_pressed)
 	dist_row.add_child(_dist_edit_button)
-	_sym_options_container.add_child(dist_row)
 
-	_wall_prob_row = _build_wall_probability_controls()
-	root.add_child(_wall_prob_row)
-	root.add_child(_build_seed_controls())
+	_sym_options_container.add_child(dist_row)
+	root.add_child(_sym_options_container)
+
+	root.add_child(_build_overlay_adjacency_controls())
+
 
 	root.add_child(_build_separator())
-	root.add_child(_build_generation_progress_controls())
-	var button_row = HBoxContainer.new()
 
-	_generate_button = Button.new()
-	_generate_button.text = "Primary Generation"
-	_generate_button.pressed.connect(_on_generate_pressed)
-	button_row.add_child(_generate_button)
+	var button_row = HBoxContainer.new()
 
 	_apply_layer_button = Button.new()
 	_apply_layer_button.text = "Apply Layer"
@@ -311,18 +397,16 @@ func _build_ui() -> void:
 	_stats_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
 	root.add_child(_stats_label)
 
+	root.add_child(_build_overlay_controls())
+
+
+
 	root.add_child(_build_separator())
 	root.add_child(_build_tile_layer_controls())
 
 
 func _build_overlay_controls() -> Control:
 	var box = VBoxContainer.new()
-
-	_overlay_mode_check = CheckButton.new()
-	_overlay_mode_check.text = "Overlay"
-	_overlay_mode_check.button_pressed = false
-	_overlay_mode_check.toggled.connect(_on_overlay_mode_toggled)
-	box.add_child(_overlay_mode_check)
 
 	_overlay_controls_container = VBoxContainer.new()
 	_overlay_controls_container.visible = false
@@ -337,17 +421,6 @@ func _build_overlay_controls() -> Control:
 	item_row.add_child(_overlay_item_name_edit)
 	_overlay_controls_container.add_child(item_row)
 
-	var limit_row = HBoxContainer.new()
-	_overlay_item_limit_check = CheckButton.new()
-	_overlay_item_limit_check.text = "Item Num Limit"
-	_overlay_item_limit_check.toggled.connect(_on_overlay_item_limit_toggled)
-	limit_row.add_child(_overlay_item_limit_check)
-	_overlay_item_limit_spin = _new_int_spin(1, 0, 1048576)
-	_overlay_item_limit_spin.value_changed.connect(_on_option_changed)
-	_overlay_item_limit_spin.visible = false
-	limit_row.add_child(_overlay_item_limit_spin)
-	_overlay_controls_container.add_child(limit_row)
-
 	_overlay_item_pool_container = VBoxContainer.new()
 	_overlay_controls_container.add_child(_overlay_item_pool_container)
 	_add_overlay_item_pool_row(OVERLAY_DEFAULT_ITEM_NAME, 1.0)
@@ -357,8 +430,9 @@ func _build_overlay_controls() -> Control:
 	_overlay_add_item_button.pressed.connect(_on_overlay_add_item_pressed)
 	_overlay_controls_container.add_child(_overlay_add_item_button)
 
+	_overlay_controls_container.add_child(_build_separator())
+
 	_overlay_controls_container.add_child(_build_overlay_mask_controls())
-	_overlay_controls_container.add_child(_build_overlay_adjacency_controls())
 
 	_overlay_write_policy_option = OptionButton.new()
 	for policy_name in OVERLAY_WRITE_POLICY_NAMES:
@@ -379,7 +453,7 @@ func _build_overlay_controls() -> Control:
 
 func _build_overlay_mask_controls() -> Control:
 	_overlay_mask_container = VBoxContainer.new()
-	_overlay_mask_container.add_child(_build_small_label("Placement Mask"))
+	_overlay_mask_container.add_child(_build_section_label("Placement Mask"))
 
 	var primary_row = HBoxContainer.new()
 	_overlay_mask_primary_check = CheckButton.new()
@@ -415,16 +489,11 @@ func _build_overlay_mask_controls() -> Control:
 
 func _build_overlay_adjacency_controls() -> Control:
 	var box = VBoxContainer.new()
-	_overlay_adjacency_check = CheckButton.new()
-	_overlay_adjacency_check.text = "Enable Adjacency Reference"
-	_overlay_adjacency_check.button_pressed = false
-	_overlay_adjacency_check.toggled.connect(_on_overlay_adjacency_toggled)
-	box.add_child(_overlay_adjacency_check)
 
 	_overlay_reference_container = VBoxContainer.new()
 	_overlay_reference_container.visible = false
 	box.add_child(_overlay_reference_container)
-	_overlay_reference_container.add_child(_build_small_label("Reference Items"))
+	_overlay_reference_container.add_child(_build_section_label("Adjacency Items"))
 
 	var primary_row = HBoxContainer.new()
 	_overlay_reference_primary_check = CheckButton.new()
@@ -544,9 +613,9 @@ func _build_gen_radius_controls() -> void:
 
 func _build_wall_probability_controls() -> Control:
 	var row = HBoxContainer.new()
-	var label = Label.new()
-	label.text = "  Placement Probability (Non-Ref.)"
-	row.add_child(label)
+	_prob_bar_label = Label.new()
+	_prob_bar_label.text = "  Placement Probability (Non-Ref.)"
+	row.add_child(_prob_bar_label)
 
 	_wall_prob_slider = HSlider.new()
 	_wall_prob_slider.min_value = 0.0
@@ -554,6 +623,7 @@ func _build_wall_probability_controls() -> Control:
 	_wall_prob_slider.step = 0.01
 	_wall_prob_slider.value = 0.45
 	_wall_prob_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_wall_prob_slider.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_wall_prob_slider.value_changed.connect(_on_wall_prob_changed)
 	row.add_child(_wall_prob_slider)
 
@@ -566,6 +636,12 @@ func _build_wall_probability_controls() -> Control:
 
 func _build_seed_controls() -> Control:
 	var row = HBoxContainer.new()
+
+	_generate_button = Button.new()
+	_generate_button.text = "Primary Generation"
+	_generate_button.pressed.connect(_on_generate_pressed)
+	row.add_child(_generate_button)
+
 	var label = Label.new()
 	label.text = "Seed"
 	row.add_child(label)
@@ -587,19 +663,7 @@ func _build_seed_controls() -> Control:
 
 func _build_tile_layer_controls() -> Control:
 	var box = VBoxContainer.new()
-	box.add_child(_build_section_label("TileMapLayer"))
-
-	var target_row = HBoxContainer.new()
-	target_row.add_child(_build_small_label("Output Target"))
-	_tile_layer_option = OptionButton.new()
-	_tile_layer_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_tile_layer_option.item_selected.connect(_on_tile_layer_target_selected)
-	target_row.add_child(_tile_layer_option)
-	_tile_layer_refresh_button = Button.new()
-	_tile_layer_refresh_button.text = "Refresh"
-	_tile_layer_refresh_button.pressed.connect(_on_tile_layer_refresh_pressed)
-	target_row.add_child(_tile_layer_refresh_button)
-	box.add_child(target_row)
+	box.add_child(_build_section_label("Tile Settings"))
 
 	_tile_orientation_option = OptionButton.new()
 	_tile_orientation_option.add_item("flat-top / Vertical Offset")
@@ -660,7 +724,7 @@ func _build_tile_layer_controls() -> Control:
 
 
 func _build_generation_progress_controls() -> Control:
-	_generation_progress_container = VBoxContainer.new()
+	_generation_progress_container = HBoxContainer.new()
 	_generation_progress_container.visible = false
 
 	_generation_progress_status_label = Label.new()
@@ -673,6 +737,7 @@ func _build_generation_progress_controls() -> Control:
 	_generation_progress_bar.step = 0.01
 	_generation_progress_bar.value = 0.0
 	_generation_progress_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_generation_progress_bar.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_generation_progress_container.add_child(_generation_progress_bar)
 
 	var cancel_row = HBoxContainer.new()
@@ -727,7 +792,7 @@ func _build_section_label(text: String) -> Label:
 	var label = Label.new()
 	label.text = text
 	label.add_theme_color_override("font_color", Color(0.9, 0.9, 0.9))
-	label.add_theme_font_size_override("font_size", 16)
+	label.add_theme_font_size_override("font_size", 20)
 	return label
 
 
@@ -825,6 +890,10 @@ func _on_generate_changed(_index: int) -> void:
 		and _overlay_adjacency_check != null \
 		and _overlay_adjacency_check.button_pressed:
 		_overlay_adjacency_check.set_pressed_no_signal(false)
+	if _generate_option.selected == GENERATE_SYMMETRIC \
+		and _overlay_item_limit_check != null \
+		and _overlay_item_limit_check.button_pressed:
+		_overlay_item_limit_check.set_pressed_no_signal(false)
 	_refresh_controls()
 
 
@@ -852,13 +921,15 @@ func _on_overlay_mode_toggled(_enabled: bool) -> void:
 	_refresh_controls()
 
 
-func _on_overlay_item_limit_toggled(_enabled: bool) -> void:
-	_refresh_controls()
-
-
 func _on_overlay_adjacency_toggled(enabled: bool) -> void:
 	if enabled and _generate_option != null:
 		_generate_option.select(GENERATE_SYMMETRIC)
+	_refresh_controls()
+
+
+func _on_overlay_item_limit_toggled(enabled: bool) -> void:
+	if enabled and _generate_option != null:
+		_generate_option.select(GENERATE_SIMPLE)
 	_refresh_controls()
 
 
@@ -1440,7 +1511,8 @@ func _refresh_controls() -> void:
 			_rect_row.visible = false
 			_hex_row.visible = false
 			_radius_row.visible = true
-			_sym_options_container.visible = true
+			_sym_options_container.visible = not _overlay_adjacency_enabled()
+			_prob_bar_label.text = "  Initial Probability"
 		GENERATE_SIMPLE, _:
 			_shape_symmetric_row.visible = false
 			_shape_simple_row.visible = true
@@ -1448,6 +1520,7 @@ func _refresh_controls() -> void:
 			_hex_row.visible = (_shape_option_simple.selected == SHAPE_HEXAGON)
 			_radius_row.visible = false
 			_sym_options_container.visible = false
+			_prob_bar_label.text = "  Probability / Cell"
 	if _torus_connectivity_check != null:
 		_torus_connectivity_check.visible = symmetric
 		_torus_connectivity_check.disabled = not symmetric or _generation_running
@@ -1455,8 +1528,16 @@ func _refresh_controls() -> void:
 		_overlay_controls_container.visible = overlay
 	if _generate_button != null:
 		_generate_button.text = "Overlay Generation" if overlay else "Primary Generation"
+	if _deductor_label != null:
+		_deductor_label.text = "Overlay Deductor" if overlay else "Passage Generator"
+	if _generator_label != null:
+		_generator_label.text = "Overlay Generator" if overlay else "Wall Generator"
+	if _overlay_adjacency_check != null:
+		_overlay_adjacency_check.visible = overlay
+		_overlay_adjacency_check.disabled = (not overlay or _overlay_item_limit_check.button_pressed) or _generation_running
 	if _overlay_item_limit_check != null:
-		_overlay_item_limit_check.visible = overlay and not symmetric
+		_overlay_item_limit_check.visible = overlay
+		_overlay_item_limit_check.disabled = (not overlay or _overlay_adjacency_check.button_pressed) or _generation_running
 	if _overlay_item_limit_spin != null:
 		_overlay_item_limit_spin.visible = false
 	if _overlay_item_name_edit != null:
@@ -1469,16 +1550,10 @@ func _refresh_controls() -> void:
 		_overlay_add_item_button.visible = overlay and not symmetric
 	if _overlay_mask_container != null:
 		_overlay_mask_container.visible = overlay
-	if _overlay_adjacency_check != null:
-		_overlay_adjacency_check.visible = overlay
-		_overlay_adjacency_check.disabled = not overlay or _generation_running
 	if _overlay_reference_container != null:
-		_overlay_reference_container.visible = overlay \
-			and symmetric \
-			and _overlay_adjacency_check != null \
-			and _overlay_adjacency_check.button_pressed
+		_overlay_reference_container.visible = _overlay_adjacency_enabled()
 	if _wall_prob_row != null:
-		_wall_prob_row.visible = not _overlay_item_limit_enabled()
+		_wall_prob_row.visible = not overlay or not (_overlay_item_limit_enabled() or _overlay_adjacency_enabled())
 	_refresh_overlay_item_pool_rows()
 
 
