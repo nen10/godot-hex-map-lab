@@ -375,10 +375,15 @@ func _test_adjacency_rule_set_parses_probability_rules() -> void:
 	var rules = HexAdjacencyRuleSet.parse_rules_text("default=0.2;1=0.8;2,1=0.4;bad=x", 0.1)
 	_assert_eq(rules["default"], 0.2, "adjacency rule set parses default probability")
 	_assert_eq(rules[1], 0.8, "adjacency rule set parses neighbor count probability")
-	_assert_eq(rules["2,1"], 0.4, "adjacency rule set parses count/component probability key")
+	_assert_eq(rules[Vector2i(2, 1)], 0.4, "adjacency rule set normalizes count/component probability key")
+	_assert_eq(rules.has("bad"), false, "adjacency rule set ignores invalid named keys")
+	var report = HexAdjacencyRuleSet.parse_rules_text_report("default=0.2;1=0.8;2,1=0.4;bad=x;bad=0.5", 0.1)
+	_assert_eq(report["invalid_entries"], ["bad=x", "bad=0.5"], "adjacency rule set reports invalid entries")
 
 	var fallback = HexAdjacencyRuleSet.parse_rules_text("bad", 0.35)
 	_assert_eq(fallback["default"], 0.35, "adjacency rule set uses fallback probability")
+	var fallback_report = HexAdjacencyRuleSet.parse_rules_text_report("bad", 0.35)
+	_assert_eq(fallback_report["used_fallback"], true, "adjacency rule set reports fallback usage")
 
 	var resource = HexAdjacencyRuleSet.new()
 	resource.rules_text = "default=1.4;0=-0.2"

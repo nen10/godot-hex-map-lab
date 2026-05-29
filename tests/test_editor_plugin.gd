@@ -20,11 +20,12 @@ class FakeTileLayer:
 	func clear() -> void:
 		cleared = true
 
-	func set_cell(map_cell: Vector2i, source_id: int, atlas_coords: Vector2i) -> void:
+	func set_cell(map_cell: Vector2i, source_id: int, atlas_coords: Vector2i, alternative_tile: int = 0) -> void:
 		calls.append({
 			"map_cell": map_cell,
 			"source_id": source_id,
 			"atlas_coords": atlas_coords,
+			"alternative_tile": alternative_tile,
 		})
 
 var _failures: Array[String] = []
@@ -41,6 +42,7 @@ func _run() -> void:
 	await _test_distribution_editor_close_button_uses_cancel_flow()
 	await _test_distribution_editor_manages_recent_custom_and_duplicate_preset()
 	await _test_adjacency_rule_editor_applies_rule_text()
+	await _test_generation_dock_adjacency_rule_validation()
 	await _test_generation_dock_symmetric_hexagon_minimum_radii()
 	await _test_generation_dock_torus_connectivity_controls()
 	await _test_generation_dock_torus_connectivity_generation()
@@ -66,6 +68,7 @@ func _run() -> void:
 	await _test_generation_dock_overlay_item_pool_tile_mapping()
 	await _test_generation_dock_mapdata_source_registry_load_reload_clear()
 	await _test_generation_dock_mapdata_query_rows_evaluate_offset_and_toric()
+	await _test_generation_dock_overlay_deductor_floor_source_query()
 	await _test_generation_dock_mapdata_crop_result_and_reset_rules()
 	await _test_generation_dock_mapdata_crop_off_stacks_overlay_sources()
 	await _test_generation_dock_generate_history_saves_overlay_delta_source()
@@ -199,12 +202,38 @@ func _test_adjacency_rule_editor_applies_rule_text() -> void:
 	await process_frame
 
 	_assert_eq(editor._rules_edit.text, "default=0.2", "adjacency rule editor loads initial rule text")
+	_assert_eq(editor._rules_status_label.text, "Rules: 1", "adjacency rule editor shows initial valid rule count")
 	editor._rules_edit.text = "1=0.8;default=0.1"
+	editor._on_rules_text_changed(editor._rules_edit.text)
+	_assert_eq(editor._rules_status_label.text, "Rules: 2", "adjacency rule editor updates valid rule count")
+	editor._rules_edit.text = "1=0.8;bad=x"
+	editor._on_rules_text_changed(editor._rules_edit.text)
+	_assert_true(editor._rules_status_label.text.contains("Invalid: bad=x"), "adjacency rule editor reports invalid entry")
 	editor._on_apply_pressed()
 	await process_frame
 
-	_assert_eq(state["rules"], "1=0.8;default=0.1", "adjacency rule editor apply returns rule text")
+	_assert_eq(state["rules"], "1=0.8;bad=x", "adjacency rule editor apply returns rule text")
 	_assert_eq(state["count"], 0, "adjacency rule editor apply does not call cancel")
+
+
+func _test_generation_dock_adjacency_rule_validation() -> void:
+	var dock = await _new_ready_dock()
+	dock._wall_prob_slider.set_value_no_signal(0.35)
+	dock._overlay_adjacency_rules_edit.text = "default=0.2;1=0.8;2,1=0.4;bad=x;bad=0.5"
+	var rules = dock._overlay_adjacency_rules()
+	_assert_eq(rules["default"], 0.2, "generation dock adjacency rules keep default")
+	_assert_eq(rules[1], 0.8, "generation dock adjacency rules keep count rule")
+	_assert_eq(rules[Vector2i(2, 1)], 0.4, "generation dock adjacency rules normalize count/component rule")
+	_assert_true(dock._overlay_adjacency_rules_status_label.text.contains("Rules: 3"), "generation dock adjacency status shows valid rule count")
+	_assert_true(dock._overlay_adjacency_rules_status_label.text.contains("Invalid: bad=x, bad=0.5"), "generation dock adjacency status shows invalid entries")
+
+	dock._overlay_adjacency_rules_edit.text = "bad"
+	rules = dock._overlay_adjacency_rules()
+	_assert_eq(rules["default"], 0.35, "generation dock adjacency rules use fallback probability")
+	_assert_true(dock._overlay_adjacency_rules_status_label.text.contains("fallback default"), "generation dock adjacency status shows fallback")
+
+	dock.queue_free()
+	await process_frame
 
 
 func _test_generation_dock_symmetric_hexagon_minimum_radii() -> void:
@@ -475,6 +504,11 @@ func _test_generation_dock_applies_configured_tile_entries() -> void:
 	_assert_eq(fake_layer.calls[1]["map_cell"], Vector2i(1, 0), "generation dock applies wall cell position")
 	_assert_eq(fake_layer.calls[1]["source_id"], 5, "generation dock applies configured wall source")
 	_assert_eq(fake_layer.calls[1]["atlas_coords"], Vector2i(6, 7), "generation dock applies configured wall atlas")
+
+	dock._clear_layer_check.set_pressed_no_signal(false)
+	var preserving_layer = FakeTileLayer.new()
+	_assert_true(dock.apply_current_data_to_tile_map_layer(preserving_layer), "generation dock applies current data without clearing")
+	_assert_true(not preserving_layer.cleared, "Clear Layer off preserves existing Primary layer cells")
 
 	dock.queue_free()
 	await process_frame
@@ -933,10 +967,24 @@ func _test_generation_dock_overlay_item_pool_tile_mapping() -> void:
 	dock._overlay_item_pool_rows[0]["name"].text = "Tree"
 	dock._overlay_item_pool_rows[0]["tile_atlas_x"].value = 0
 	dock._overlay_item_pool_rows[0]["tile_atlas_y"].value = 0
+	dock._floor_source_spin.set_value_no_signal(0)
+	dock._floor_atlas_x_spin.set_value_no_signal(0)
+	dock._floor_atlas_y_spin.set_value_no_signal(0)
+	dock._on_overlay_item_tile_copy_pressed(dock._overlay_item_pool_rows[0], false)
+	_assert_eq(dock._overlay_item_pool_rows[0]["tile_source"].value, 0.0, "item pool copies Floor tile source")
+	_assert_eq(dock._overlay_item_pool_rows[0]["tile_atlas_x"].value, 0.0, "item pool copies Floor tile atlas x")
+	_assert_eq(dock._overlay_item_pool_rows[0]["tile_atlas_y"].value, 0.0, "item pool copies Floor tile atlas y")
 	dock._on_overlay_add_item_pressed()
 	dock._overlay_item_pool_rows[1]["name"].text = "Rock"
-	dock._overlay_item_pool_rows[1]["tile_atlas_x"].value = 1
-	dock._overlay_item_pool_rows[1]["tile_atlas_y"].value = 0
+	dock._wall_source_spin.set_value_no_signal(0)
+	dock._wall_atlas_x_spin.set_value_no_signal(1)
+	dock._wall_atlas_y_spin.set_value_no_signal(0)
+	dock._on_overlay_item_tile_copy_pressed(dock._overlay_item_pool_rows[1], true)
+	_assert_eq(dock._overlay_item_pool_rows[1]["tile_source"].value, 0.0, "item pool copies Wall tile source")
+	_assert_eq(dock._overlay_item_pool_rows[1]["tile_atlas_x"].value, 1.0, "item pool copies Wall tile atlas x")
+	_assert_eq(dock._overlay_item_pool_rows[1]["tile_atlas_y"].value, 0.0, "item pool copies Wall tile atlas y")
+	_assert_eq(dock._overlay_item_pool_rows[1]["copy_floor"].text, "Floor Tile", "item pool exposes Floor tile copy button")
+	_assert_eq(dock._overlay_item_pool_rows[1]["copy_wall"].text, "Wall Tile", "item pool exposes Wall tile copy button")
 	dock._current_overlay_data = HexOverlayData.from_cells(
 		[HexVector.zero(), HexVector.q_axis()],
 		{
@@ -948,8 +996,15 @@ func _test_generation_dock_overlay_item_pool_tile_mapping() -> void:
 	var layer = TileMapLayer.new()
 	_assert_true(dock.setup_sample_tiles_on_tile_map_layer(layer), "overlay tile mapping test configures sample tiles")
 	_assert_true(dock.apply_current_overlay_data_to_tile_map_layer(layer), "overlay tile mapping applies current overlay data")
-	_assert_eq(layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(0, 0), "overlay item pool maps Tree to its configured tile")
-	_assert_eq(layer.get_cell_atlas_coords(Vector2i(1, 0)), Vector2i(1, 0), "overlay item pool maps Rock to its configured tile")
+	_assert_eq(layer.get_cell_source_id(Vector2i.ZERO), 0, "overlay item pool maps Tree to copied source")
+	_assert_eq(layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(0, 0), "overlay item pool maps Tree to copied Floor tile")
+	_assert_eq(layer.get_cell_source_id(Vector2i(1, 0)), 0, "overlay item pool maps Rock to copied source")
+	_assert_eq(layer.get_cell_atlas_coords(Vector2i(1, 0)), Vector2i(1, 0), "overlay item pool maps Rock to copied Wall tile")
+
+	dock._clear_layer_check.set_pressed_no_signal(false)
+	var fake_overlay_layer = FakeTileLayer.new()
+	_assert_true(dock.apply_current_overlay_data_to_tile_map_layer(fake_overlay_layer), "overlay apply works without clearing")
+	_assert_true(not fake_overlay_layer.cleared, "Clear Layer off preserves existing Overlay layer cells")
 
 	layer.free()
 	dock.queue_free()
@@ -970,6 +1025,14 @@ func _test_generation_dock_mapdata_source_registry_load_reload_clear() -> void:
 	_assert_eq(dock._mapdata_sources.size(), 1, "source registry stores loaded source")
 	_assert_eq(dock._mapdata_sources[0]["resource_type"], HexMapGenDock.MAPDATA_SOURCE_OVERLAY, "source registry records overlay type")
 	_assert_eq(dock._mapdata_sources[0]["item_keys"], ["Tree"], "source registry exposes overlay item keys")
+	_assert_true(
+		dock._source_entry_details_text(dock._mapdata_sources[0]).contains("Tree: 1"),
+		"source registry details show overlay item cell count"
+	)
+	_assert_true(
+		dock._source_entry_details_text(dock._mapdata_sources[0]).contains(path),
+		"source registry details show resource path"
+	)
 
 	var reloaded = HexOverlayData.from_cells(
 		[HexVector.zero()],
@@ -981,11 +1044,24 @@ func _test_generation_dock_mapdata_source_registry_load_reload_clear() -> void:
 	_assert_eq(dock._mapdata_sources.size(), 1, "same source path does not add duplicate")
 	_assert_eq(dock._mapdata_sources[0]["item_keys"], ["Rock"], "reload updates item keys")
 
+	var map_data = HexMapData.rectangle(2, 1)
+	map_data.set_walls([HexVector.q_axis()])
+	var map_id = dock.register_mapdata_source(HexMapResource.from_map_data(map_data), "res://source_registry_map.tres")
+	var map_entry = dock._source_entry_by_id(map_id)
+	var map_details = dock._source_entry_details_text(map_entry)
+	_assert_true(map_details.contains("Any: 2"), "source registry details show primary Any count")
+	_assert_true(map_details.contains("Floor: 1"), "source registry details show primary Floor count")
+	_assert_true(map_details.contains("Wall: 1"), "source registry details show primary Wall count")
+
 	dock._add_query_row(true, source_id, "Rock")
 	_assert_eq(dock._overlay_mask_query_rows.size(), 1, "query row references loaded source")
 	dock.clear_mapdata_source(source_id)
-	_assert_eq(dock._mapdata_sources.size(), 0, "clear removes source")
+	_assert_eq(dock._mapdata_sources.size(), 1, "clear removes only selected source")
 	_assert_eq(dock._overlay_mask_query_rows.size(), 0, "clear removes query rows using source")
+	_assert_true(dock._source_registry_status_label.text.contains("Sources: 1"), "source registry status shows remaining source count")
+	dock.clear_mapdata_source(map_id)
+	_assert_eq(dock._mapdata_sources.size(), 0, "clear removes all sources")
+	_assert_eq(dock._source_registry_status_label.text, "No mapdata sources loaded.", "source registry status shows empty state")
 
 	dock.queue_free()
 	await process_frame
@@ -993,11 +1069,21 @@ func _test_generation_dock_mapdata_source_registry_load_reload_clear() -> void:
 
 func _test_generation_dock_mapdata_query_rows_evaluate_offset_and_toric() -> void:
 	var dock = await _new_ready_dock()
+	dock._overlay_mode_check.set_pressed_no_signal(true)
+	dock._generate_option.select(HexMapGenDock.GENERATE_SIMPLE)
+	dock._shape_option_simple.select(HexMapGenDock.SHAPE_RECTANGLE)
+	dock._rect_width_spin.set_value_no_signal(3)
+	dock._rect_height_spin.set_value_no_signal(1)
+	dock._refresh_controls()
 	var map_data = HexMapData.rectangle(3, 1)
 	map_data.set_walls([HexVector.q_axis()])
 	var map_id = dock.register_mapdata_source(HexMapResource.from_map_data(map_data), "res://map_query.tres")
 
-	dock._add_query_row(true, map_id, "Floor")
+	var floor_row = dock._add_query_row(true, map_id, "Floor")
+	_assert_true(floor_row["row"] is VBoxContainer, "query row uses two-line container")
+	_assert_true(floor_row["direction_control"] is GridContainer, "query row has graphical direction control")
+	_assert_eq(floor_row["direction_control"].columns, 3, "query row direction control uses compact 3-column layout")
+	_assert_eq(floor_row["direction_buttons"].size(), 6, "query row direction control exposes six direction buttons")
 	var wall_row = dock._add_query_row(true, map_id, "Wall")
 	wall_row["operation"].select(1)
 	_assert_keys_eq(
@@ -1014,6 +1100,44 @@ func _test_generation_dock_mapdata_query_rows_evaluate_offset_and_toric() -> voi
 		"query rows apply Exclude as universe complement with AND"
 	)
 
+	dock._overlay_mask_query_rows.clear()
+	dock._rect_width_spin.set_value_no_signal(1)
+	dock._rect_height_spin.set_value_no_signal(1)
+	dock._refresh_controls()
+	var outside_overlay = HexOverlayData.from_cells(
+		[HexVector.zero(), HexVector.q_axis()],
+		{"Outside": [HexVector.q_axis()], "Inside": [HexVector.zero()]}
+	)
+	var outside_id = dock.register_mapdata_source(HexOverlayResource.from_overlay_data(outside_overlay), "res://outside_query.tres")
+	var outside_row = dock._add_query_row(true, outside_id, "Outside")
+	_assert_keys_eq(
+		dock._evaluate_query_rows(true, false),
+		[],
+		"mask query Crop Off clips Contain cells to current shape universe"
+	)
+	outside_row["match"].select(1)
+	_assert_keys_eq(
+		dock._evaluate_query_rows(true, false),
+		[HexVector.zero()],
+		"mask query Crop Off uses current shape universe for Exclude complement"
+	)
+
+	dock._overlay_mask_query_rows.clear()
+	var shifted_row = dock._add_query_row(true, outside_id, "Inside")
+	dock._on_query_row_direction_pressed(0, shifted_row, true)
+	_assert_keys_eq(
+		dock._evaluate_query_rows(true, false),
+		[],
+		"mask query Crop Off clips offset results outside current shape universe"
+	)
+	dock._current_data = HexMapData.rectangle(2, 1)
+	var snapshot = dock._create_generation_snapshot()
+	_assert_keys_eq(
+		snapshot["overlay_candidate_cells"],
+		[],
+		"empty Mask query does not fallback to current Primary floor cells"
+	)
+
 	var overlay = HexOverlayData.from_cells(
 		[HexVector.zero(), HexVector.q_axis()],
 		{"Gem": [HexVector.zero()]}
@@ -1021,6 +1145,10 @@ func _test_generation_dock_mapdata_query_rows_evaluate_offset_and_toric() -> voi
 	var overlay_id = dock.register_mapdata_source(HexOverlayResource.from_overlay_data(overlay), "res://offset_query.tres")
 	dock._overlay_reference_query_rows.clear()
 	var offset_row = dock._add_query_row(false, overlay_id, "Gem")
+	dock._on_query_direction_size_changed(36.0, false)
+	_assert_eq(offset_row["direction_buttons"][0].custom_minimum_size, Vector2(36, 36), "query direction button size is adjustable")
+	_assert_eq(dock._overlay_mask_direction_size_spin.value, 36.0, "query direction size syncs mask control")
+	_assert_eq(dock._overlay_reference_direction_size_spin.value, 36.0, "query direction size syncs reference control")
 	dock._on_query_row_direction_pressed(0, offset_row, false)
 	_assert_keys_eq(
 		dock._evaluate_query_rows(false, false),
@@ -1041,6 +1169,94 @@ func _test_generation_dock_mapdata_query_rows_evaluate_offset_and_toric() -> voi
 		dock._evaluate_query_rows(false, false),
 		[HexVector.zero()],
 		"query rows wrap offset cells for toric source"
+	)
+
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_overlay_deductor_floor_source_query() -> void:
+	var dock = await _new_ready_dock()
+	dock._overlay_mode_check.set_pressed_no_signal(true)
+	dock._generate_option.select(HexMapGenDock.GENERATE_SYMMETRIC)
+	dock._shape_option_symmetric.select(HexMapGenDock.SHAPE_RECTANGLE)
+	dock._gen_radius_spin.set_value_no_signal(1)
+	dock._wall_prob_slider.set_value_no_signal(1.0)
+	dock._connect_method_option.select(_connect_method_index(HexMapGenerator.CONNECT_DENSE))
+	dock._refresh_controls()
+	_assert_true(dock._overlay_deductor_floor_container.visible, "deductor floor source is visible for Markov Mesh overlay")
+
+	dock._overlay_adjacency_check.set_pressed_no_signal(true)
+	dock._refresh_controls()
+	_assert_true(not dock._overlay_deductor_floor_container.visible, "deductor floor source hides for adjacency overlay")
+	dock._overlay_adjacency_check.set_pressed_no_signal(false)
+	dock._refresh_controls()
+
+	var candidate_source = HexOverlayData.from_cells(
+		[HexVector.zero(), HexVector.q_axis()],
+		{"Candidate": [HexVector.q_axis()]}
+	)
+	var candidate_id = dock.register_mapdata_source(
+		HexOverlayResource.from_overlay_data(candidate_source),
+		"res://deductor_candidate.tres"
+	)
+	dock._add_query_row(true, candidate_id, "Candidate")
+
+	var default_snapshot = dock._create_generation_snapshot()
+	_assert_keys_eq(
+		default_snapshot["overlay_candidate_cells"],
+		[HexVector.q_axis()],
+		"deductor floor test uses placement mask candidate"
+	)
+	_assert_keys_eq(
+		default_snapshot["overlay_deductor_floor_cells"],
+		[HexVector.q_axis()],
+		"deductor floor defaults to placement mask candidates"
+	)
+
+	var floor_source = HexMapData.rectangle(1, 1)
+	var floor_id = dock.register_mapdata_source(
+		HexMapResource.from_map_data(floor_source),
+		"res://deductor_floor.tres"
+	)
+	dock._overlay_mask_crop_check.set_pressed_no_signal(true)
+	var floor_row = dock._add_query_row(HexMapGenDock.QUERY_KIND_DEDUCTOR_FLOOR, floor_id, "Floor")
+	_assert_true(dock._overlay_mask_crop_check.button_pressed, "deductor floor query edit does not turn Crop off")
+	var custom_snapshot = dock._create_generation_snapshot()
+	_assert_keys_eq(
+		custom_snapshot["overlay_candidate_cells"],
+		[HexVector.q_axis()],
+		"deductor floor source keeps placement mask candidates separate"
+	)
+	_assert_keys_eq(
+		custom_snapshot["overlay_deductor_floor_cells"],
+		[HexVector.zero()],
+		"deductor floor source overrides connectivity floor cells"
+	)
+	_assert_true(
+		dock._overlay_deductor_floor_status_label.text.contains("Deductor floor cells: 1"),
+		"deductor floor source shows resolved cell count"
+	)
+
+	var generated = dock._generate_overlay_data_from_snapshot(custom_snapshot, {})
+	_assert_true(
+		generated.has_item(HexVector.q_axis(), "OverlayItem"),
+		"deductor floor source can differ from candidates during generation"
+	)
+
+	dock._on_query_row_remove_pressed(floor_row, HexMapGenDock.QUERY_KIND_DEDUCTOR_FLOOR)
+	var empty_row = dock._add_query_row(HexMapGenDock.QUERY_KIND_DEDUCTOR_FLOOR, floor_id, "Any")
+	empty_row["match"].select(1)
+	var empty_snapshot = dock._create_generation_snapshot()
+	_assert_keys_eq(
+		empty_snapshot["overlay_deductor_floor_cells"],
+		[],
+		"empty deductor floor query stays empty"
+	)
+	_assert_eq(
+		dock._overlay_deductor_floor_status_label.text,
+		"Deductor Floor Source query result is empty.",
+		"empty deductor floor query shows status warning"
 	)
 
 	dock.queue_free()
@@ -1109,6 +1325,9 @@ func _test_generation_dock_mapdata_crop_off_stacks_overlay_sources() -> void:
 	dock._overlay_existing_policy_option.select(1)
 
 	_assert_true(dock._apply_overlay_source_stack_to_current(), "crop off stack applies overlay sources")
+	_assert_true(dock._source_registry_status_label.text.contains("Stacked 2 overlay source(s)"), "crop off stack status shows source count")
+	_assert_true(dock._source_registry_status_label.text.contains("occupied=2"), "crop off stack status shows occupied count")
+	_assert_true(dock._source_registry_status_label.text.contains(HexOverlayData.APPLY_CLEAR_AND_WRITE), "crop off stack status shows Clear And Write policy")
 	_assert_eq(dock._current_overlay_data.item_cells("Tree").size(), 0, "replace existing removes earlier item on same cell")
 	_assert_keys_eq(dock._current_overlay_data.item_cells("Rock"), [HexVector.zero()], "stack keeps later replacement item")
 	_assert_keys_eq(dock._current_overlay_data.item_cells("Gem"), [HexVector.q_axis()], "stack preserves non-conflicting later item")
@@ -1118,12 +1337,18 @@ func _test_generation_dock_mapdata_crop_off_stacks_overlay_sources() -> void:
 	dock._overlay_write_policy_option.select(1)
 	dock._overlay_existing_policy_option.select(0)
 	_assert_true(dock._apply_overlay_source_stack_to_current(), "Add Item write policy merges stack into current overlay")
+	_assert_true(dock._source_registry_status_label.text.contains(HexOverlayData.APPLY_ADD_ITEM), "crop off stack status shows Add Item policy")
 	_assert_true(dock._current_overlay_data.has_item(HexVector.zero(), "Old"), "Add Item write policy preserves existing current item")
 	_assert_true(dock._current_overlay_data.has_item(HexVector.zero(), "Tree"), "Add Item write policy adds stacked source item")
 
 	var empty_dock = await _new_ready_dock()
 	empty_dock._overlay_mode_check.set_pressed_no_signal(true)
 	_assert_true(not empty_dock._apply_overlay_source_stack_to_current(), "empty overlay source stack does not update current overlay")
+	_assert_eq(
+		empty_dock._source_registry_status_label.text,
+		"No HexOverlayData source found in Source Registry.",
+		"empty overlay source stack shows status reason"
+	)
 
 	empty_dock.queue_free()
 	dock.queue_free()
@@ -1139,6 +1364,7 @@ func _test_generation_dock_generate_history_saves_overlay_delta_source() -> void
 	dock._generate_option.select(HexMapGenDock.GENERATE_SIMPLE)
 	dock._shape_option_simple.select(HexMapGenDock.SHAPE_RECTANGLE)
 	dock._wall_prob_slider.set_value_no_signal(1.0)
+	dock._overlay_item_limit_check.set_pressed_no_signal(true)
 	dock._overlay_item_pool_rows[0]["name"].text = "Key"
 	dock._overlay_item_pool_rows[0]["amount"].value = 1.0
 	dock._overlay_write_policy_option.select(1)
@@ -1155,9 +1381,13 @@ func _test_generation_dock_generate_history_saves_overlay_delta_source() -> void
 	var source = dock._mapdata_sources[dock._mapdata_sources.size() - 1]
 	var saved_data = source["data"]
 	_assert_eq(source["resource_type"], HexMapGenDock.MAPDATA_SOURCE_OVERLAY, "generate history registers overlay source")
+	_assert_true(String(source["resource_path"]).contains("overlay-combination-key"), "generate history uses combination in limited overlay filenames")
 	_assert_eq(saved_data.item_cells("Old").size(), 0, "generate history stores overlay delta before Add Item policy")
 	_assert_eq(saved_data.item_cells("Key").size(), 1, "generate history stores generated overlay delta item")
 	_assert_true(dock._current_overlay_data.has_item(HexVector.zero(), "Old"), "current overlay still applies Add Item policy")
+	_assert_eq(dock._history_condition_name({"overlay_mode": true}), "overlay-uniform", "generate history keeps overlay uniform name")
+	_assert_eq(dock._history_condition_name({"overlay_mode": true, "symmetric": true}), "overlay-markov", "generate history keeps overlay markov name")
+	_assert_eq(dock._history_condition_name({"overlay_mode": true, "overlay_adjacency_enabled": true}), "overlay-adjacency", "generate history keeps overlay adjacency name")
 
 	var primary_dock = await _new_ready_dock()
 	primary_dock._set_generate_history_directory_for_test(history_dir)

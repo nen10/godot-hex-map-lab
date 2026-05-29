@@ -69,24 +69,25 @@ Overlay generation は現在の Primary Data の floor cells を placement candi
 - `Add Item`: Item Pool row を追加する
 - `Item Num Limit`: Off の場合は各 row の数値を `Weight` として扱い、`Placement Probability` に従って配置する
 - `Item Num Limit`: On の場合は各 row の数値を `Limit` として扱い、`Placement Probability` を非表示にする
-- Item Pool row の `Tile` は、その item key を `TileMapLayer` に表示するときの source / atlas coords
+- Item Pool row の `Tile` は、その item key を `TileMapLayer` に表示するときの source / atlas coords。`Floor Tile` / `Wall Tile` でDock上部のFloor / Wall tile設定をrowへコピーできる
 - `Target Item`: `Markov Mesh` で生成する item key。`Wall` など既存名も入力できる
 - `Markov Mesh`: `Target Item` に対して対称 toric item generation を使う
 - `Placement Mask`: Primary / current Overlay の item keys から生成候補cellを作る
+- `Deductor Floor Source`: `Markov Mesh` かつ `Adjacency Rules` Off のOverlay Deductorで、連結性回復に使うfloor集合をPlacement Maskとは別に指定する。未指定時はPlacement Mask candidatesを使う
 - `Enable Adjacency Reference`: On にすると `Markov Mesh` に切り替え、Reference Items と Adjacency Rules を使う
 - `Reference Items`: Primary / current Overlay の item keys から参照cellを作る
 - `Neighbor Radius`: Adjacency Reference の参照範囲
-- `Adjacency Rules`: `default=0.2;1=0.8;2,1=0.4` のように、参照item近傍数または `近傍数,連結成分数` ごとの確率を指定する。`Edit` で専用editorを開く
+- `Adjacency Rules`: `default=0.2;1=0.8;2,1=0.4` のように、参照item近傍数または `近傍数,連結成分数` ごとの確率を指定する。`2,1` は内部では `Vector2i(2, 1)` keyとして正規化される。不正entryはstatusに表示され、有効ruleがない場合はfallback defaultを使う。`Edit` で専用editorを開く
 - `Apply Write`: `Clear And Write` または `Add Item`
 - `Existing Item`: `Merge Existing` / `Replace Existing` / `Skip Existing`
 
-Source Registry では保存済み `HexMapResource` / `HexOverlayResource` を読み込み、Mask / Reference の Query Row に `source / ItemKey` として追加できます。同じ resource path を再読み込みした場合は既存sourceを更新します。sourceをClearすると、そのsourceを参照するQuery Rowも削除されます。
+Source Registry では保存済み `HexMapResource` / `HexOverlayResource` を読み込み、Mask / Reference の Query Row に `source / ItemKey` として追加できます。各sourceにはresource pathと `Item: cell数` が表示されます。同じ resource path を再読み込みした場合は既存sourceを更新します。sourceをClearすると、そのsourceを参照するQuery Rowも削除されます。
 
-Mask Query Row は `AND` / `OR`、`Contain` / `Exclude`、offset を持ちます。Crop On の場合は現在のShape / サイズでMask resultを切り詰め、Overlay Generateのcandidate cellsにも使います。Crop On中にMask Query RowまたはShape / サイズを編集するとCrop Offに戻ります。
+Mask Query Row は `AND` / `OR`、`Contain` / `Exclude`、offset を持ちます。offset は3列配置の六方向controlで操作し、`Direction Size` でbutton sizeを調整できます。Mask result は Crop On / Off に関わらず現在のShape / サイズを query universe として評価し、Overlay Generateのcandidate cellsにも使います。source が toric square の場合、offset参照はsource本来の `cyclic_size` でwrapします。Crop On中にMask Query RowまたはShape / サイズを編集するとCrop Offに戻ります。
 
-Overlay mode の `Apply Layer` / `Save .tres` はCrop状態で動作が変わります。Crop OnではCrop resultをShow Mask / `HexOverlayResource` 保存に使います。Crop OffではSource Registry内のOverlay sourceを表示順でstackし、`Apply Write` / `Existing Item` policyに従ってcurrent overlayへ反映してからApply / Saveします。Generate後の自動applyは従来通りcurrent overlayをTarget `TileMapLayer` に表示します。Item Pool にある item key は row の `Tile` source / atlas coords を使い、Item Pool にない item key は Dock の `Wall` source / atlas coords を fallback として使います。
+Overlay mode の `Apply Layer` / `Save .tres` はCrop状態で動作が変わります。Crop OnではCrop resultをShow Mask / `HexOverlayResource` 保存に使います。Crop OffではSource Registry内のOverlay sourceを表示順でstackし、`Apply Write` / `Existing Item` policyに従ってcurrent overlayへ反映してからApply / Saveします。stack実行後はSource Registryのstatusにsource数、item数、occupied数、policyが表示されます。Generate後の自動applyは従来通りcurrent overlayをTarget `TileMapLayer` に表示します。Item Pool にある item key は row の `Tile` source / atlas coords を使い、Item Pool にない item key は Dock の `Wall` source / atlas coords を fallback として使います。
 
-`Generate History` を有効にすると、Generate成功時に `.tres` を保存し、保存済みsourceとしてSource Registryへ追加します。Primaryは生成された `HexMapData` 全体、OverlayはApply Policy反映前の生成差分 `HexOverlayData` を保存します。生成キャンセル時は保存しません。
+`Generate History` を有効にすると、Generate成功時に `.tres` を保存し、保存済みsourceとしてSource Registryへ追加します。Primaryは生成された `HexMapData` 全体、OverlayはApply Policy反映前の生成差分 `HexOverlayData` を保存します。Generate Combination の履歴ファイル名には `overlay-combination` を使います。生成キャンセル時は保存しません。
 
 ### Stats
 
@@ -120,6 +121,7 @@ Generate 後の自動 apply と `Apply Layer` で使う TileMapLayer 設定を D
 | `Tile Size` | `TileSet.tile_size` に設定する width / height |
 | `Floor` | floor tile の `source_id`, `atlas_x`, `atlas_y` |
 | `Wall` | wall tile の `source_id`, `atlas_x`, `atlas_y` |
+| `Clear Layer` | On の場合はApply前に対象 `TileMapLayer` をclearする。Off の場合は既存cellを残して生成結果を重ね書きする |
 
 `Orientation` は `HexMapResource` に保存されます。Generate 後の自動 apply と `Apply Layer` はこの orientation を正として、対象 `TileMapLayer.tile_set` と `set_cell()` 用の cell 座標を同時に設定します。
 `Orientation` を切り替えると、flat-top / pointy-top で横長・縦長が入れ替わる前提に合わせて `Tile Size` の width / height も入れ替えます。
@@ -141,6 +143,7 @@ tile_offset_axis = TILE_OFFSET_AXIS_HORIZONTAL  # pointy-top
 
 TileSet が未設定の `TileMapLayer` へ適用した場合は、新しい `TileSet` を作成してから設定します。
 同じ `TileSet` resource を複数 `TileMapLayer` が共有している場合、Dock は設定変更前に選択中レイヤー側の `TileSet` を複製して、他レイヤーへ Tile Size / Orientation / atlas 設定が伝播しないようにします。
+`Clear Layer` Off のApplyでは、既存 `TileMapLayer` cellは維持され、生成結果があるcellだけが上書きされます。
 Apply 後に TileMapLayer Inspector 側だけで `Horizontal Offset` / `Vertical Offset` を手動変更する経路は管理対象外です。
 
 Godot 側の対応 API は公式ドキュメントの `TileMapLayer`、`TileSet`、`TileSetAtlasSource` を参照します。

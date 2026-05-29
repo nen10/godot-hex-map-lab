@@ -4,6 +4,8 @@
 
 ## 1. Mask Query Universe
 
+状態: 完了済み。詳細は `docs/complete_on_test/MAPDATA_QUERY_2026-05-29.md` を参照。
+
 優先度: 最優先。
 
 目的:
@@ -33,6 +35,8 @@
 
 ## 2. Generate History 表示名
 
+状態: 完了済み。詳細は `docs/complete_on_test/MAPDATA_QUERY_2026-05-29.md` を参照。
+
 目的:
 
 - ユーザー向けのGenerate Historyファイル名では、実装上の `limited` ではなく `combination` を使う。
@@ -57,6 +61,8 @@
 - 保存成功した履歴だけがSource Registryへ追加される。
 
 ## 3. Source Registry 可視化と操作フィードバック
+
+状態: 完了済み。詳細は `docs/complete_on_test/EDITOR_OVERLAY_REMAINS_2026-05-30_SOURCE_STATUS.md` を参照。
 
 目的:
 
@@ -84,6 +90,8 @@
 
 ## 4. Crop Off Source Stack の状態表示
 
+状態: 完了済み。詳細は `docs/complete_on_test/EDITOR_OVERLAY_REMAINS_2026-05-30_SOURCE_STATUS.md` を参照。
+
 目的:
 
 - Crop Off / Overlay の `Apply Layer` / `Save .tres` が Source Registry のOverlay source stackを合成し、`_current_overlay_data` を更新することをUI上で分かるようにする。
@@ -109,6 +117,8 @@
 - ~~mixed `cyclic_size` sourceを含むstackで警告が表示され、~~処理結果が既存policyに従う。
 
 ## 5. Query Row Offset Control
+
+状態: 完了済み。詳細は `docs/complete_on_test/EDITOR_OVERLAY_REMAINS_2026-05-30_QUERY_OFFSET_CONTROL.md` を参照。
 
 目的:
 
@@ -145,6 +155,8 @@
 
 ## 6. Deductor Floor Source
 
+状態: 完了済み。詳細は `docs/complete_on_test/EDITOR_OVERLAY_REMAINS_2026-05-30_DEDUCTOR_FLOOR_SOURCE.md` を参照。
+
 目的:
 
 - Overlay Deductorが連結性回復に使うfloor集合を、Placement Mask candidate cellsとは独立して指定できるようにする。
@@ -172,6 +184,8 @@
 
 ## 7. Adjacency Rule Set Validation
 
+状態: 完了済み。詳細は `docs/complete_on_test/EDITOR_OVERLAY_REMAINS_2026-05-30_ADJACENCY_RULE_VALIDATION.md` を参照。
+
 目的:
 
 - `Adjacency Rules` の不正entryを無視するだけでなく、Editor Dock上で検出して表示する。
@@ -196,6 +210,8 @@
 - invalid entryがある場合でも、有効ruleとfallbackが仕様通りに使われる。
 
 ## 8. Overlay Layout と Tile Selection
+
+状態: 完了済み。詳細は `docs/complete_on_test/EDITOR_OVERLAY_REMAINS_2026-05-30_OVERLAY_LAYOUT_TILE_SELECTION.md` を参照。
 
 目的:
 
@@ -222,6 +238,8 @@
 - 未定義itemは既存のWall fallback policyで描画される。
 
 ## 9. clear_layer=false の Editor UI
+
+状態: 完了済み。詳細は `docs/complete_on_test/EDITOR_OVERLAY_REMAINS_2026-05-30_CLEAR_LAYER_UI.md` を参照。
 
 目的:
 

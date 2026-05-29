@@ -40,7 +40,7 @@
 
 - query result cells
 
-queryは行順に左から評価する。`Exclude` はquery universe内での補集合として扱う。sourceがtoric squareの場合、offset後の座標はsourceの `cyclic_size` でwrapする。
+queryは行順に左から評価する。`Exclude` はquery universe内での補集合として扱う。Mask Query RowはCrop On / Offに関わらず現在のShape / サイズをquery universeとして使う。Reference Query Rowはsource由来の座標集合をquery universeとして使う。sourceがtoric squareの場合、offset後の座標はsourceの `cyclic_size` でwrapする。
 
 ### Mask Crop
 
@@ -89,6 +89,7 @@ Source Registryの表示順にOverlay sourceを合成する。先頭sourceで初
 - `.tres`
   - Primary: `HexMapResource`
   - Overlay: Apply Policy反映前の差分 `HexOverlayResource`
+  - Generate Combination: ファイル名に `overlay-combination` を含める
 - 保存成功したsource registry entry
 
 生成キャンセル時、生成失敗時、保存失敗時はsourceを追加しない。
@@ -99,6 +100,7 @@ Source Registryの表示順にOverlay sourceを合成する。先頭sourceで初
 - [x] 同じpathの読み込みをreloadとして扱う
 - [x] Source Clear時に参照query rowを削除する
 - [x] Query Rowの `AND` / `OR`、`Contain` / `Exclude`、offset、toric wrapを扱う
+- [x] Mask Query RowのCrop Off評価を現在Shape / サイズのuniverseへ制限する
 - [x] Crop On時のcandidate cellsとCrop result dataを作る
 - [x] Mask Query Row編集、Shape / サイズ変更でCrop Offへ戻す
 - [x] Crop On / OverlayのApplyをShow Mask用途にする
@@ -107,15 +109,16 @@ Source Registryの表示順にOverlay sourceを合成する。先頭sourceで初
 - [x] Crop Off stack resultをApply / Saveへ使う
 - [x] Generate History成功時に`.tres`保存とsource追加を行う
 - [x] Overlay Generate HistoryはApply Policy反映前の差分だけを保存する
+- [x] Generate Combinationの履歴ファイル名に `overlay-combination` を使う
 
 ## テスト
 
 - `tests/test_editor_plugin.gd`
   - Source RegistryのLoad / reload / Clear
-  - Query Row評価、offset、toric wrap
+  - Query Row評価、offset、toric wrap、Mask Query RowのShape universe制限
   - Crop result、Crop count、Crop Off連動
   - Crop Off source stackとApply Write / Existing Item policy
-  - Generate HistoryによるPrimary source保存、Overlay差分source保存、cancel時非保存
+  - Generate HistoryによるPrimary source保存、Overlay差分source保存、`overlay-combination`命名、cancel時非保存
 
 確認コマンド:
 
