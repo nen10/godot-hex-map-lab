@@ -20,3 +20,4 @@
 作業の効率化のために簡単にできることがあれば記録したりtoolを作成してよい。
 
   - Note: テスト実行は `tools/test.sh` を使用してよい。詳細は `docs/TEST.md` の 実行 セクションを参照
+  - Note: minimal に godot を headless 実行する場合 ` --log-file .godot_user/<purpose>.log ` を付けることでクラッシュを回避します。

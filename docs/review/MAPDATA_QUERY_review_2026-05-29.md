@@ -128,3 +128,27 @@ Source Registry に source を追加するたびに、全 source × 全 item_key
 ### 5. `Generate History` のファイル命名規則
 Manual にはファイル名の具体例 `20260529-153012-overlay-uniform-tree.tres` が記載されていない。`_history_condition_name` / `_history_item_name` の決定ロジック（overlay-uniform, overlay-limited, overlay-markov, overlay-adjacency, primary-uniform, primary-markov）をドキュメント化すべき。
 【overlay-limited ではなく overlay-combination にしましょう。アルゴリズム上の名前とユーザー向けの表示は切り分けます。ドキュメントについてはどうでもいいかも】
+
+## 実装者追補 (2026-05-30)
+
+この追補は、既存レビューとユーザー追記を上書きせず、実装した側の観点から残すべき懸念を整理する。ユーザー追記で「無用」とされた指摘は次期課題として再採用しない。
+
+### 実装済みとして扱う範囲
+
+`docs/plan/MAPDATA_QUERY.md` の中心要件である Source Registry、Query Row、Mask Crop、Crop Off source stack、Generate History は実装・テスト・manual反映済みである。完了済み仕様は `docs/complete_on_test/MAPDATA_QUERY_2026-05-29.md` に移しており、このレビュー追補は完了扱いを取り消すものではない。
+
+特に、保存済み `HexMapResource` / `HexOverlayResource` を Dock session 内の source registry として読み込み、Mask / Reference query に利用する流れは成立している。`TileMapLayer` 直接参照や TileMapLayer からの mapdata 復元ではなく、生成済み Resource を query source とする方針で整理済みである。
+
+### 実装者観点で残る懸念
+
+- Mask query の non-crop universe は最優先で整理したい。現在の実装は Crop Off の query universe を query row source cells の union として扱うため、`Exclude` の補集合や Overlay Generate candidate cells が現在の Shape / サイズ境界と直感的に一致しない可能性がある。参照sourceは広く取れてよいが、生成候補として使う Mask query result は現在Shape/サイズの universe で評価する方が仕様として明確である。
+- Crop Off / Overlay の `Apply Layer` / `Save .tres` は、Source Registry 内の Overlay source stack を合成し、その結果を `_current_overlay_data` に反映してから実行する。この副作用は仕様通りだが、ボタン名だけでは「current overlay が更新される」ことが見えにくい。状態表示や確認用statsの改善余地がある。
+- Crop Off source stack で異なる `cyclic_size` の Overlay source が混在した場合、現状は警告して処理を継続する。優先度は高くないが、source本来の `cyclic_size` を尊重する設計を維持しつつ、混在時の結果をUI上で確認しやすくする必要がある。
+- Crop Off / Overlay で合成対象の Overlay source が0件の場合、警告ログだけで Save dialog は開かない。ユーザー操作としては失敗理由がDock上に見える方がよい。
+- Query Row は現在横長で、六方向offset buttonを他の場面にも使うなら、専用のグラフィカルcontrolとして切り出す価値がある。
+- Source Registry は `display_name [resource_type]` が中心で、itemごとのcell数やresource pathの視認性は限定的である。`Item: cell数` の一覧表示またはdetails表示があると、query sourceを選ぶ判断がしやすい。
+- Generate History のユーザー向けcondition名は、実装上の `limited` ではなく `combination` として扱う方がよい。アルゴリズム関数名とファイル名・UI表示名は分離する。
+
+### 次期planへの反映
+
+上記のうち、次の実装に向けて整理すべき主要項目は `docs/plan/EDITOR_OVERLAY_REMAINS.md` に集約する。`MAPDATA_QUERY` の完了済み仕様は維持しつつ、Mask query universe、Source Registry可視化、Query Row layout、Generate History表示名、Overlay source stackの状態表示を次の改善対象として扱う。

@@ -208,3 +208,11 @@ Overlay 系は最小実用 UI として成立している。ただし、現在�
 今回はレビュー追補のみを更新対象とする。`docs/manual/MANUAL_EDITOR_PLUGIN.md` や algorithm docs は直接更新しない。
 
 この追補は、現行仕様の完了扱いを取り消すものではない。レイアウト調整後の control semantics を明確化し、次の `Overlay データ管理` plan を立てるための前提整理として扱う。
+
+## MAPDATA_QUERY実装後の残課題整理 (2026-05-30)
+
+`Overlay データ管理` として挙げていた保存済み `HexMapResource` / `HexOverlayResource` の読み込み、Source Registry、行ベースquery、Mask Crop、Crop Off source stack、Generate History は `MAPDATA_QUERY` 実装で完了済みとして扱う。完了範囲は `docs/complete_on_test/MAPDATA_QUERY_2026-05-29.md` に記録されている。
+
+`MULTI_LAYER` レビューに残る主要課題は、Resource registryそのものではなく、Editor Dock上の操作性とアルゴリズム入力の分離に移っている。具体的には、Mask query universeの境界整理、Deductor floor集合の独立指定、Adjacency Rule Setの入力検証、Item Pool / tile指定UI、`clear_layer=false` のEditor露出、Overlay sourceやstatsの見える化である。
+
+これらの次期対応候補は `docs/plan/EDITOR_OVERLAY_REMAINS.md` に集約する。この文書では、完了済みの `MAPDATA_QUERY` 仕様を維持したまま、次にテスト可能な機能追加・修正として扱う。
