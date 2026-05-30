@@ -307,3 +307,5 @@ Dock は Source Registry、Query Rows、Crop、Deductor Floor Source、Adjacency
 - Runtime click / loop path / connected component helper。
 - マップのマニュアル編集tool。
 - 公開用 sample project / API reference / package整備。
+
+上記の方針・詳細実装計画は `docs/plan/BRAINSTORM_OPEN_TOPICS_PLAN_INDEX_2026-05-31.md` に分割した。
