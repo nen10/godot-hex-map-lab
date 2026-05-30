@@ -61,7 +61,7 @@ fallback候補。目的の一貫性に合わないため代表案にしない。
 - polygon hit testにより、見た目と入力判定を一致させられる。
 - focus / hover / pressed / disabled状態は自前で管理する必要がある。
 
-採用候補。
+採用する
 
 ### 候補D: `TextureButton` / `TextureRect` で六角形画像を並べる
 
@@ -80,7 +80,7 @@ fallback候補。目的の一貫性に合わないため代表案にしない。
 
 代表案ではpitch補正値として扱う。Editor UIでは厳密な実寸gapより、既存hex layoutとの方向関係を保ったままcompact / wideを調整できることを優先する。
 
-### label描画方式
+### ~~label~~text描画方式
 
 候補:
 
@@ -88,7 +88,7 @@ fallback候補。目的の一貫性に合わないため代表案にしない。
 - cell上のtextは省略し、tooltipと外部labelで説明する。
 - child `Label` をcell centerに重ねる。
 
-代表案ではPanel自身が短いlabelを描く。長いtextはtooltipへ逃がす。child `Label` は矩形Controlの重なりを増やすため、初期実装では使わない。
+代表案ではtooltipを使用する。child `Label` は矩形Controlの重なりを増やすため、初期実装では使わない。
 
 ## 破壊的変更候補
 

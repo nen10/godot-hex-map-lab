@@ -13,6 +13,7 @@ const HexOverlayResource = preload("res://addons/hex_map_kit/adapter/hex_overlay
 const HexOverlayTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_overlay_tile_adapter.gd")
 const HexAdjacencyRuleSet = preload("res://addons/hex_map_kit/adapter/hex_adjacency_rule_set.gd")
 const HexAdjacencyRuleEditor = preload("res://addons/hex_map_kit/editor/hex_adjacency_rule_editor.gd")
+const HexCellButtonPanel = preload("res://addons/hex_map_kit/editor/hex_cell_button_panel.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const HexToricCoordinate = preload("res://addons/hex_map_kit/core/hex_toric_coordinate.gd")
 const HexRandomizer = preload("res://addons/hex_map_kit/core/hex_randomizer.gd")
@@ -76,7 +77,9 @@ const QUERY_ROW_MATCHES := [QUERY_ROW_MATCH_CONTAIN, QUERY_ROW_MATCH_EXCLUDE]
 const GENERATION_BLOCK_EMPTY_MASK := "Placement Mask query result is empty."
 const GENERATION_BLOCK_EMPTY_ADJACENCY_RULES := "Adjacency Rules has no valid rules."
 const GENERATION_BLOCK_STATUS_PREFIX := "Blocked: "
-const QUERY_DIRECTION_BUTTON_DEFAULT_SIZE := 28.0
+const QUERY_HEX_CELL_DEFAULT_RADIUS := 12.0
+const QUERY_HEX_CELL_DEFAULT_GAP := 1.0
+const QUERY_HEX_CELL_DEFAULT_PADDING := 2.0
 const QUERY_KIND_MASK := "mask"
 const QUERY_KIND_REFERENCE := "reference"
 const QUERY_KIND_DEDUCTOR_FLOOR := "deductor_floor"
@@ -156,7 +159,9 @@ var _overlay_mask_container: VBoxContainer
 var _overlay_mask_query_container: VBoxContainer
 var _overlay_mask_add_source_option: OptionButton
 var _overlay_mask_add_button: Button
-var _overlay_mask_direction_size_spin: SpinBox
+var _overlay_mask_cell_radius_spin: SpinBox
+var _overlay_mask_cell_gap_spin: SpinBox
+var _overlay_mask_cell_padding_spin: SpinBox
 var _overlay_mask_crop_check: CheckButton
 var _overlay_mask_count_label: Label
 var _overlay_mask_query_rows: Array[Dictionary] = []
@@ -164,7 +169,9 @@ var _overlay_deductor_floor_container: VBoxContainer
 var _overlay_deductor_floor_query_container: VBoxContainer
 var _overlay_deductor_floor_add_source_option: OptionButton
 var _overlay_deductor_floor_add_button: Button
-var _overlay_deductor_floor_direction_size_spin: SpinBox
+var _overlay_deductor_floor_cell_radius_spin: SpinBox
+var _overlay_deductor_floor_cell_gap_spin: SpinBox
+var _overlay_deductor_floor_cell_padding_spin: SpinBox
 var _overlay_deductor_floor_status_label: Label
 var _overlay_deductor_floor_query_rows: Array[Dictionary] = []
 var _overlay_adjacency_check: CheckButton
@@ -172,7 +179,9 @@ var _overlay_reference_container: VBoxContainer
 var _overlay_reference_query_container: VBoxContainer
 var _overlay_reference_add_source_option: OptionButton
 var _overlay_reference_add_button: Button
-var _overlay_reference_direction_size_spin: SpinBox
+var _overlay_reference_cell_radius_spin: SpinBox
+var _overlay_reference_cell_gap_spin: SpinBox
+var _overlay_reference_cell_padding_spin: SpinBox
 var _overlay_reference_query_rows: Array[Dictionary] = []
 var _overlay_neighbor_radius_spin: SpinBox
 var _overlay_adjacency_rules_edit: LineEdit
@@ -196,7 +205,9 @@ var _generation_progress_cancel_button: Button
 
 var _current_data = null
 var _current_orientation := HexMapResource.ORIENTATION_FLAT_TOP
-var _query_direction_button_size := QUERY_DIRECTION_BUTTON_DEFAULT_SIZE
+var _query_hex_cell_radius := QUERY_HEX_CELL_DEFAULT_RADIUS
+var _query_hex_cell_gap := QUERY_HEX_CELL_DEFAULT_GAP
+var _query_hex_cell_padding := QUERY_HEX_CELL_DEFAULT_PADDING
 var _generation_running := false
 var _generation_cancel_requested := false
 var _generation_progress := 0.0
@@ -592,10 +603,18 @@ func _build_query_row_controls(mask_query) -> Control:
 	box.add_child(add_row)
 
 	var size_row = HBoxContainer.new()
-	size_row.add_child(_build_small_label("Direction Size"))
-	var size_spin = _new_int_spin(int(_query_direction_button_size), 20, 64)
-	size_spin.value_changed.connect(_on_query_direction_size_changed.bind(query_kind))
-	size_row.add_child(size_spin)
+	size_row.add_child(_build_small_label("Cell Radius"))
+	var radius_spin = _new_int_spin(int(_query_hex_cell_radius), 6, 32)
+	radius_spin.value_changed.connect(_on_query_cell_radius_changed.bind(query_kind))
+	size_row.add_child(radius_spin)
+	size_row.add_child(_build_small_label("Gap"))
+	var gap_spin = _new_int_spin(int(_query_hex_cell_gap), 0, 12)
+	gap_spin.value_changed.connect(_on_query_cell_gap_changed.bind(query_kind))
+	size_row.add_child(gap_spin)
+	size_row.add_child(_build_small_label("Padding"))
+	var padding_spin = _new_int_spin(int(_query_hex_cell_padding), 0, 16)
+	padding_spin.value_changed.connect(_on_query_cell_padding_changed.bind(query_kind))
+	size_row.add_child(padding_spin)
 	box.add_child(size_row)
 
 	var rows = VBoxContainer.new()
@@ -604,7 +623,9 @@ func _build_query_row_controls(mask_query) -> Control:
 	if query_kind == QUERY_KIND_MASK:
 		_overlay_mask_add_source_option = option
 		_overlay_mask_add_button = add_button
-		_overlay_mask_direction_size_spin = size_spin
+		_overlay_mask_cell_radius_spin = radius_spin
+		_overlay_mask_cell_gap_spin = gap_spin
+		_overlay_mask_cell_padding_spin = padding_spin
 		_overlay_mask_query_container = rows
 
 		var crop_row = HBoxContainer.new()
@@ -619,12 +640,16 @@ func _build_query_row_controls(mask_query) -> Control:
 	elif query_kind == QUERY_KIND_REFERENCE:
 		_overlay_reference_add_source_option = option
 		_overlay_reference_add_button = add_button
-		_overlay_reference_direction_size_spin = size_spin
+		_overlay_reference_cell_radius_spin = radius_spin
+		_overlay_reference_cell_gap_spin = gap_spin
+		_overlay_reference_cell_padding_spin = padding_spin
 		_overlay_reference_query_container = rows
 	else:
 		_overlay_deductor_floor_add_source_option = option
 		_overlay_deductor_floor_add_button = add_button
-		_overlay_deductor_floor_direction_size_spin = size_spin
+		_overlay_deductor_floor_cell_radius_spin = radius_spin
+		_overlay_deductor_floor_cell_gap_spin = gap_spin
+		_overlay_deductor_floor_cell_padding_spin = padding_spin
 		_overlay_deductor_floor_query_container = rows
 
 	_refresh_source_item_options()
@@ -1224,9 +1249,8 @@ func _add_query_row(
 	match_option.item_selected.connect(_on_query_row_changed.bind(row, query_kind))
 	source_item_option.item_selected.connect(_on_query_row_source_selected.bind(row, query_kind))
 
-	var direction_control = _build_query_direction_control(row, query_kind)
-	row["direction_control"] = direction_control
-	row_control.add_child(direction_control)
+	var offset_control = _build_query_offset_control(row, query_kind)
+	row_control.add_child(offset_control)
 
 	var up_button = Button.new()
 	up_button.text = "Up"
@@ -1254,67 +1278,118 @@ func _add_query_row(
 	return row
 
 
-func _build_query_direction_control(row: Dictionary, mask_query) -> GridContainer:
+func _build_query_offset_control(row: Dictionary, mask_query) -> Control:
 	var query_kind = _query_kind_from_value(mask_query)
-	var grid = GridContainer.new()
-	grid.columns = 3
-	grid.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	var buttons: Array = []
-	for direction_index in [-1, 2, 1, 3, -2, 0, 4, 5, -1]:
-		if direction_index >= 0:
-			var button = Button.new()
-			button.text = _query_direction_label(direction_index)
-			button.tooltip_text = "Offset %s" % button.text
-			button.pressed.connect(_on_query_row_direction_pressed.bind(direction_index, row, query_kind))
-			grid.add_child(button)
-			buttons.append(button)
-		elif direction_index == -2:
-			var center = Label.new()
-			center.text = "Offset"
-			center.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			center.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-			grid.add_child(center)
-		else:
-			grid.add_child(_query_direction_placeholder())
-	row["direction_buttons"] = buttons
-	row["direction_control"] = grid
-	_apply_query_direction_button_size(row)
-	return grid
+	var panel = HexCellButtonPanel.new()
+	panel.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	panel.cell_pressed.connect(_on_query_offset_cell_pressed.bind(row, query_kind))
+	row["offset_panel"] = panel
+	_refresh_query_offset_panel(row)
+	return panel
 
 
-func _query_direction_placeholder() -> Control:
-	var control = Control.new()
-	var size = Vector2(_query_direction_button_size, _query_direction_button_size)
-	control.custom_minimum_size = size
-	return control
-
-
-func _apply_query_direction_button_size(row: Dictionary) -> void:
-	var size = Vector2(_query_direction_button_size, _query_direction_button_size)
-	for button in row.get("direction_buttons", []):
-		button.custom_minimum_size = size
-	var grid: GridContainer = row.get("direction_control", null)
-	if grid == null:
+func _refresh_query_offset_panel(row: Dictionary) -> void:
+	var panel: HexCellButtonPanel = row.get("offset_panel", null)
+	if panel == null:
 		return
-	for child in grid.get_children():
-		if child is Control and not child is Button:
-			child.custom_minimum_size = size
+	var offset = row.get("offset", HexVector.zero())
+	panel.configure({
+		"shape_kind": "directions",
+		"flat_top": _tile_settings_flat_top(),
+		"cell_radius": _query_hex_cell_radius,
+		"cell_gap": _query_hex_cell_gap,
+		"padding": Vector2(_query_hex_cell_padding, _query_hex_cell_padding),
+		"center_cell": HexVector.zero(),
+		"pressable_cells": _query_direction_pressable_cells(),
+		"label_by_cell": _query_direction_label_map(offset),
+		"tooltip_by_cell": _query_direction_tooltip_map(offset),
+		"metadata_by_cell": _query_direction_metadata_map(),
+	})
 
 
-func _on_query_direction_size_changed(value: float, _mask_query) -> void:
-	_query_direction_button_size = clampf(value, 20.0, 64.0)
-	if _overlay_mask_direction_size_spin != null:
-		_overlay_mask_direction_size_spin.set_value_no_signal(_query_direction_button_size)
-	if _overlay_reference_direction_size_spin != null:
-		_overlay_reference_direction_size_spin.set_value_no_signal(_query_direction_button_size)
-	if _overlay_deductor_floor_direction_size_spin != null:
-		_overlay_deductor_floor_direction_size_spin.set_value_no_signal(_query_direction_button_size)
+func _refresh_all_query_offset_panels() -> void:
 	for query_row in _overlay_mask_query_rows + _overlay_deductor_floor_query_rows + _overlay_reference_query_rows:
-		_apply_query_direction_button_size(query_row)
+		_refresh_query_offset_panel(query_row)
+
+
+func _on_query_cell_radius_changed(value: float, _query_kind: String) -> void:
+	_query_hex_cell_radius = clampf(value, 6.0, 32.0)
+	_sync_query_cell_setting_spins()
+	_refresh_all_query_offset_panels()
+
+
+func _on_query_cell_gap_changed(value: float, _query_kind: String) -> void:
+	_query_hex_cell_gap = clampf(value, 0.0, 12.0)
+	_sync_query_cell_setting_spins()
+	_refresh_all_query_offset_panels()
+
+
+func _on_query_cell_padding_changed(value: float, _query_kind: String) -> void:
+	_query_hex_cell_padding = clampf(value, 0.0, 16.0)
+	_sync_query_cell_setting_spins()
+	_refresh_all_query_offset_panels()
+
+
+func _sync_query_cell_setting_spins() -> void:
+	for spin in [
+		_overlay_mask_cell_radius_spin,
+		_overlay_reference_cell_radius_spin,
+		_overlay_deductor_floor_cell_radius_spin,
+	]:
+		if spin != null:
+			spin.set_value_no_signal(_query_hex_cell_radius)
+	for spin in [
+		_overlay_mask_cell_gap_spin,
+		_overlay_reference_cell_gap_spin,
+		_overlay_deductor_floor_cell_gap_spin,
+	]:
+		if spin != null:
+			spin.set_value_no_signal(_query_hex_cell_gap)
+	for spin in [
+		_overlay_mask_cell_padding_spin,
+		_overlay_reference_cell_padding_spin,
+		_overlay_deductor_floor_cell_padding_spin,
+	]:
+		if spin != null:
+			spin.set_value_no_signal(_query_hex_cell_padding)
 
 
 func _query_direction_label(direction_index: int) -> String:
 	return ["+Q", "-R", "+S", "-Q", "+R", "-S"][direction_index]
+
+
+func _query_direction_pressable_cells() -> Dictionary:
+	var result := {}
+	for direction in HexVector.directions():
+		result[direction.key()] = true
+	return result
+
+
+func _query_direction_label_map(offset) -> Dictionary:
+	var result := {HexVector.zero().key(): offset.key()}
+	for direction_index in range(HexVector.directions().size()):
+		var direction = HexVector.directions()[direction_index]
+		result[direction.key()] = _query_direction_label(direction_index)
+	return result
+
+
+func _query_direction_tooltip_map(offset) -> Dictionary:
+	var result := {HexVector.zero().key(): "Current offset %s" % offset.key()}
+	for direction_index in range(HexVector.directions().size()):
+		var direction = HexVector.directions()[direction_index]
+		result[direction.key()] = "Offset %s" % _query_direction_label(direction_index)
+	return result
+
+
+func _query_direction_metadata_map() -> Dictionary:
+	var result := {}
+	for direction_index in range(HexVector.directions().size()):
+		var direction = HexVector.directions()[direction_index]
+		result[direction.key()] = {
+			"direction_index": direction_index,
+			"direction": direction,
+		}
+	return result
 
 
 func _on_query_row_changed(_index: int, row: Dictionary, mask_query) -> void:
@@ -1336,6 +1411,21 @@ func _on_query_row_source_selected(index: int, row: Dictionary, mask_query) -> v
 	_on_query_row_edited(query_kind)
 
 
+func _on_query_offset_cell_pressed(entry: Dictionary, row: Dictionary, mask_query) -> void:
+	var metadata: Dictionary = entry.get("metadata", {})
+	var direction = metadata.get("direction", null)
+	if direction == null:
+		return
+	var query_kind = _query_kind_from_value(mask_query)
+	var offset = row.get("offset", HexVector.zero())
+	offset = offset.add(direction)
+	row["offset"] = offset
+	var label: Label = row["offset_label"]
+	label.text = offset.key()
+	_refresh_query_offset_panel(row)
+	_on_query_row_edited(query_kind)
+
+
 func _on_query_row_direction_pressed(direction_index: int, row: Dictionary, mask_query) -> void:
 	var query_kind = _query_kind_from_value(mask_query)
 	var offset = row.get("offset", HexVector.zero())
@@ -1343,6 +1433,7 @@ func _on_query_row_direction_pressed(direction_index: int, row: Dictionary, mask
 	row["offset"] = offset
 	var label: Label = row["offset_label"]
 	label.text = offset.key()
+	_refresh_query_offset_panel(row)
 	_on_query_row_edited(query_kind)
 
 
@@ -1694,6 +1785,7 @@ func _on_tile_orientation_changed(_index: int) -> void:
 	_current_orientation = _tile_settings_orientation()
 	if previous_orientation != _current_orientation:
 		_swap_tile_size_controls()
+		_refresh_all_query_offset_panels()
 	_apply_tile_settings_to_current_layer()
 
 
@@ -3348,15 +3440,21 @@ func _set_generation_controls_disabled(disabled: bool) -> void:
 		_overlay_add_item_button,
 		_overlay_mask_add_source_option,
 		_overlay_mask_add_button,
-		_overlay_mask_direction_size_spin,
+		_overlay_mask_cell_radius_spin,
+		_overlay_mask_cell_gap_spin,
+		_overlay_mask_cell_padding_spin,
 		_overlay_mask_crop_check,
 		_overlay_deductor_floor_add_source_option,
 		_overlay_deductor_floor_add_button,
-		_overlay_deductor_floor_direction_size_spin,
+		_overlay_deductor_floor_cell_radius_spin,
+		_overlay_deductor_floor_cell_gap_spin,
+		_overlay_deductor_floor_cell_padding_spin,
 		_overlay_adjacency_check,
 		_overlay_reference_add_source_option,
 		_overlay_reference_add_button,
-		_overlay_reference_direction_size_spin,
+		_overlay_reference_cell_radius_spin,
+		_overlay_reference_cell_gap_spin,
+		_overlay_reference_cell_padding_spin,
 		_overlay_neighbor_radius_spin,
 		_overlay_adjacency_rules_edit,
 		_overlay_adjacency_rules_edit_button,
@@ -3384,8 +3482,7 @@ func _set_generation_controls_disabled(disabled: bool) -> void:
 		_set_control_disabled(query_row["up"], disabled)
 		_set_control_disabled(query_row["down"], disabled)
 		_set_control_disabled(query_row["remove"], disabled)
-		for direction_button in query_row.get("direction_buttons", []):
-			_set_control_disabled(direction_button, disabled)
+		_set_control_disabled(query_row.get("offset_panel", null), disabled)
 	if _torus_connectivity_check != null:
 		_torus_connectivity_check.disabled = disabled or not _uses_symmetric_generation()
 	_refresh_generation_block_state()
@@ -3406,6 +3503,8 @@ func _set_control_disabled(control: Control, disabled: bool) -> void:
 		control.editable = not disabled
 	elif control is Slider:
 		control.editable = not disabled
+	elif control is HexCellButtonPanel:
+		control.enabled = not disabled
 
 
 func _update_stats() -> void:

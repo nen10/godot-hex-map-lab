@@ -12,6 +12,8 @@ const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile
 const HexMapGenDock = preload("res://addons/hex_map_kit/editor/hex_map_gen_dock.gd")
 const HexDistEditor = preload("res://addons/hex_map_kit/editor/hex_dist_editor.gd")
 const HexAdjacencyRuleEditor = preload("res://addons/hex_map_kit/editor/hex_adjacency_rule_editor.gd")
+const HexCellButtonLayout = preload("res://addons/hex_map_kit/editor/hex_cell_button_layout.gd")
+const HexCellButtonPanel = preload("res://addons/hex_map_kit/editor/hex_cell_button_panel.gd")
 
 class FakeTileLayer:
 	var cleared := false
@@ -28,6 +30,14 @@ class FakeTileLayer:
 			"alternative_tile": alternative_tile,
 		})
 
+
+class CellPressRecorder:
+	var entries: Array = []
+
+	func record(entry: Dictionary) -> void:
+		entries.append(entry)
+
+
 var _failures: Array[String] = []
 
 
@@ -37,8 +47,19 @@ func _init() -> void:
 
 func _run() -> void:
 	_test_plugin_registration_files()
+	_test_hex_cell_button_layout_direction_cells_flat_top()
+	_test_hex_cell_button_layout_direction_cells_pointy_top()
+	_test_hex_cell_button_layout_minimum_size_uses_padding()
+	_test_hex_cell_button_layout_polygon_hit_rejects_rect_corner()
+	_test_hex_cell_button_layout_shape_cells_custom_ring_disc()
+	await _test_hex_cell_button_panel_emits_pressed_for_hex_hit()
+	await _test_hex_cell_button_panel_emits_hover_for_hex_hit()
+	await _test_hex_cell_button_panel_does_not_press_disabled_cell()
+	await _test_hex_cell_button_panel_focus_navigation()
 	await _test_distribution_editor_loads_default_preset_values()
 	await _test_distribution_editor_loads_resource_values_and_colors_cells()
+	await _test_distribution_editor_uses_hex_cell_layout_for_patterns()
+	await _test_distribution_editor_pattern_redraw_uses_layout_entries()
 	await _test_distribution_editor_close_button_uses_cancel_flow()
 	await _test_distribution_editor_manages_recent_custom_and_duplicate_preset()
 	await _test_adjacency_rule_editor_applies_rule_text()
@@ -93,6 +114,196 @@ func _test_plugin_registration_files() -> void:
 	_assert_true(load(script_path) != null, "plugin.cfg script can be loaded")
 
 
+func _test_hex_cell_button_layout_direction_cells_flat_top() -> void:
+	var radius := 12.0
+	var gap := 1.5
+	var entries = HexCellButtonLayout.build_entries({
+		"shape_kind": HexCellButtonLayout.SHAPE_DIRECTIONS,
+		"flat_top": true,
+		"cell_radius": radius,
+		"cell_gap": gap,
+		"padding": Vector2(2, 2),
+	})
+	var by_id = _entries_by_id(entries)
+	var origin: Vector2 = by_id[HexVector.zero().key()]["center"]
+	_assert_eq(entries.size(), 7, "direction layout includes center and six neighbor cells")
+	for direction in HexVector.directions():
+		var actual: Vector2 = by_id[direction.key()]["center"] - origin
+		var expected = HexMapTileAdapter.hex_to_local(direction, radius + gap, true)
+		_assert_vec2_approx(actual, expected, "flat-top direction cell uses tile adapter pitch")
+
+
+func _test_hex_cell_button_layout_direction_cells_pointy_top() -> void:
+	var radius := 12.0
+	var gap := 1.5
+	var flat_entries = HexCellButtonLayout.build_entries({
+		"shape_kind": HexCellButtonLayout.SHAPE_DIRECTIONS,
+		"flat_top": true,
+		"cell_radius": radius,
+		"cell_gap": gap,
+		"padding": Vector2(2, 2),
+	})
+	var pointy_entries = HexCellButtonLayout.build_entries({
+		"shape_kind": HexCellButtonLayout.SHAPE_DIRECTIONS,
+		"flat_top": false,
+		"cell_radius": radius,
+		"cell_gap": gap,
+		"padding": Vector2(2, 2),
+	})
+	var direction = HexVector.q_axis()
+	var flat_by_id = _entries_by_id(flat_entries)
+	var pointy_by_id = _entries_by_id(pointy_entries)
+	var flat_delta: Vector2 = flat_by_id[direction.key()]["center"] - flat_by_id[HexVector.zero().key()]["center"]
+	var pointy_delta: Vector2 = pointy_by_id[direction.key()]["center"] - pointy_by_id[HexVector.zero().key()]["center"]
+	_assert_vec2_approx(
+		pointy_delta,
+		HexMapTileAdapter.hex_to_local(direction, radius + gap, false),
+		"pointy-top direction cell uses tile adapter pitch"
+	)
+	_assert_true(not pointy_delta.is_equal_approx(flat_delta), "pointy-top layout differs from flat-top layout")
+
+
+func _test_hex_cell_button_layout_minimum_size_uses_padding() -> void:
+	var tight_padding := Vector2(2, 2)
+	var wide_padding := Vector2(10, 10)
+	var tight_entries = HexCellButtonLayout.build_entries({
+		"shape_kind": HexCellButtonLayout.SHAPE_CUSTOM,
+		"shape_cells": [HexVector.zero()],
+		"cell_radius": 12.0,
+		"padding": tight_padding,
+	})
+	var wide_entries = HexCellButtonLayout.build_entries({
+		"shape_kind": HexCellButtonLayout.SHAPE_CUSTOM,
+		"shape_cells": [HexVector.zero()],
+		"cell_radius": 12.0,
+		"padding": wide_padding,
+	})
+	var tight_size = HexCellButtonLayout.minimum_size(tight_entries, tight_padding)
+	var wide_size = HexCellButtonLayout.minimum_size(wide_entries, wide_padding)
+	_assert_true(wide_size.x > tight_size.x and wide_size.y > tight_size.y, "layout minimum size grows with padding")
+
+
+func _test_hex_cell_button_layout_polygon_hit_rejects_rect_corner() -> void:
+	var entries = HexCellButtonLayout.build_entries({
+		"shape_kind": HexCellButtonLayout.SHAPE_CUSTOM,
+		"shape_cells": [HexVector.zero()],
+		"cell_radius": 12.0,
+		"padding": Vector2(2, 2),
+	})
+	var entry: Dictionary = entries[0]
+	var rect_corner = entry["bounds"].position + Vector2(0.2, 0.2)
+	_assert_true(entry["bounds"].has_point(rect_corner), "hex rect corner fixture is inside entry bounds")
+	_assert_true(HexCellButtonLayout.hit_entry(entries, rect_corner).is_empty(), "hex hit test rejects bounds corner outside polygon")
+	_assert_eq(HexCellButtonLayout.hit_entry(entries, entry["center"])["id"], entry["id"], "hex hit test accepts polygon center")
+
+
+func _test_hex_cell_button_layout_shape_cells_custom_ring_disc() -> void:
+	var custom = [HexVector.zero(), HexVector.q_axis()]
+	var custom_cells = HexCellButtonLayout.shape_cells(HexCellButtonLayout.SHAPE_CUSTOM, {"shape_cells": custom})
+	_assert_keys_eq(custom_cells, custom, "custom shape returns the requested cell set")
+	custom.clear()
+	_assert_eq(custom_cells.size(), 2, "custom shape returns a duplicate cell array")
+	_assert_eq(
+		HexCellButtonLayout.shape_cells(HexCellButtonLayout.SHAPE_RING, {"radius": 1}).size(),
+		6,
+		"ring shape hook returns radius-1 ring cells"
+	)
+	_assert_eq(
+		HexCellButtonLayout.shape_cells(HexCellButtonLayout.SHAPE_DISC, {"radius": 1}).size(),
+		7,
+		"disc shape hook returns radius-1 disc cells"
+	)
+
+
+func _test_hex_cell_button_panel_emits_pressed_for_hex_hit() -> void:
+	var panel = HexCellButtonPanel.new()
+	panel.configure({
+		"shape_kind": HexCellButtonLayout.SHAPE_DIRECTIONS,
+		"pressable_cells": _direction_pressable_cells(),
+		"cell_radius": 12.0,
+	})
+	var recorder = CellPressRecorder.new()
+	panel.cell_pressed.connect(Callable(recorder, "record"))
+	root.add_child(panel)
+	await process_frame
+
+	var entry: Dictionary = _entries_by_id(panel.get_entries())[HexVector.q_axis().key()]
+	_send_panel_click(panel, entry["center"])
+	_assert_eq(recorder.entries.size(), 1, "hex cell panel emits pressed for hex polygon hit")
+	_assert_eq(recorder.entries[0]["id"], HexVector.q_axis().key(), "hex cell panel emits the hit cell entry")
+
+	panel.queue_free()
+	await process_frame
+
+
+func _test_hex_cell_button_panel_emits_hover_for_hex_hit() -> void:
+	var panel = HexCellButtonPanel.new()
+	panel.configure({
+		"shape_kind": HexCellButtonLayout.SHAPE_DIRECTIONS,
+		"pressable_cells": _direction_pressable_cells(),
+		"cell_radius": 12.0,
+	})
+	var recorder = CellPressRecorder.new()
+	panel.cell_hovered.connect(Callable(recorder, "record"))
+	root.add_child(panel)
+	await process_frame
+
+	var entry: Dictionary = _entries_by_id(panel.get_entries())[HexVector.q_axis().key()]
+	_send_panel_motion(panel, entry["center"])
+	_assert_eq(recorder.entries.size(), 1, "hex cell panel emits hover for hex polygon hit")
+	_assert_eq(recorder.entries[0]["id"], HexVector.q_axis().key(), "hex cell panel hover emits the hit cell entry")
+
+	panel.queue_free()
+	await process_frame
+
+
+func _test_hex_cell_button_panel_does_not_press_disabled_cell() -> void:
+	var disabled := {}
+	disabled[HexVector.q_axis().key()] = true
+	var panel = HexCellButtonPanel.new()
+	panel.configure({
+		"shape_kind": HexCellButtonLayout.SHAPE_DIRECTIONS,
+		"pressable_cells": _direction_pressable_cells(),
+		"disabled_cells": disabled,
+		"cell_radius": 12.0,
+	})
+	var recorder = CellPressRecorder.new()
+	panel.cell_pressed.connect(Callable(recorder, "record"))
+	root.add_child(panel)
+	await process_frame
+
+	var entry: Dictionary = _entries_by_id(panel.get_entries())[HexVector.q_axis().key()]
+	_send_panel_click(panel, entry["center"])
+	_assert_eq(recorder.entries.size(), 0, "hex cell panel ignores disabled cell press")
+
+	panel.queue_free()
+	await process_frame
+
+
+func _test_hex_cell_button_panel_focus_navigation() -> void:
+	var panel = HexCellButtonPanel.new()
+	panel.configure({
+		"shape_kind": HexCellButtonLayout.SHAPE_DIRECTIONS,
+		"pressable_cells": _direction_pressable_cells(),
+		"cell_radius": 12.0,
+	})
+	var focus_recorder = CellPressRecorder.new()
+	var press_recorder = CellPressRecorder.new()
+	panel.cell_focus_changed.connect(Callable(focus_recorder, "record"))
+	panel.cell_pressed.connect(Callable(press_recorder, "record"))
+	root.add_child(panel)
+	await process_frame
+
+	_send_panel_key(panel, KEY_RIGHT)
+	_send_panel_key(panel, KEY_SPACE)
+	_assert_eq(focus_recorder.entries.size(), 1, "hex cell panel emits focus change for keyboard navigation")
+	_assert_eq(press_recorder.entries.size(), 1, "hex cell panel emits pressed for focused keyboard cell")
+	_assert_eq(press_recorder.entries[0]["id"], HexVector.directions()[0].key(), "keyboard press uses the focused cell")
+
+	panel.queue_free()
+	await process_frame
+
+
 func _test_distribution_editor_loads_default_preset_values() -> void:
 	var editor = HexDistEditor.new()
 	root.add_child(editor)
@@ -136,6 +347,52 @@ func _test_distribution_editor_loads_resource_values_and_colors_cells() -> void:
 		Color(0.1, 0.1, 0.1),
 		"distribution editor center color follows spin value"
 	)
+
+	editor.queue_free()
+	await process_frame
+
+
+func _test_distribution_editor_uses_hex_cell_layout_for_patterns() -> void:
+	var editor = HexDistEditor.new()
+	var origin := Vector2(70, 36)
+	var entries = editor._distribution_pattern_entries(3, origin)
+	var center_entry := {}
+	var refs := {}
+	for entry in entries:
+		var metadata: Dictionary = entry["metadata"]
+		if bool(metadata.get("center", false)):
+			center_entry = entry
+		else:
+			refs[int(metadata["ref_index"])] = entry
+
+	var hex_size := 16.0
+	var expected_refs = [
+		origin + Vector2(-hex_size * 1.5, -hex_size * sqrt(3.0) / 2.0),
+		origin + Vector2(0, -hex_size * sqrt(3.0)),
+		origin + Vector2(hex_size * 1.5, -hex_size * sqrt(3.0) / 2.0),
+	]
+	_assert_eq(entries.size(), 4, "distribution 3-neighbor pattern uses center and three reference entries")
+	_assert_true(not center_entry.is_empty(), "distribution pattern marks the center entry")
+	_assert_vec2_approx(center_entry["center"], origin, "distribution pattern keeps the existing center position")
+	for index in range(expected_refs.size()):
+		_assert_vec2_approx(refs[index]["center"], expected_refs[index], "distribution pattern keeps the existing reference position")
+
+	editor.free()
+
+
+func _test_distribution_editor_pattern_redraw_uses_layout_entries() -> void:
+	var editor = HexDistEditor.new()
+	root.add_child(editor)
+	await process_frame
+
+	var control = editor._pattern_controls[0]
+	var entries = editor._distribution_pattern_entries(3)
+	_assert_eq(entries.size(), 4, "distribution redraw test uses layout-backed entries")
+	_assert_true(
+		control.draw.is_connected(Callable(editor, "_draw_pattern").bind(3, 0, control)),
+		"distribution pattern control draws through the layout-backed draw method"
+	)
+	editor._on_spin_changed(1.0, 3, 0)
 
 	editor.queue_free()
 	await process_frame
@@ -1153,9 +1410,9 @@ func _test_generation_dock_mapdata_query_rows_evaluate_offset_and_toric() -> voi
 
 	var floor_row = dock._add_query_row(HexMapGenDock.QUERY_KIND_MASK, map_id, "Floor")
 	_assert_true(floor_row["row"] is VBoxContainer, "query row uses two-line container")
-	_assert_true(floor_row["direction_control"] is GridContainer, "query row has graphical direction control")
-	_assert_eq(floor_row["direction_control"].columns, 3, "query row direction control uses compact 3-column layout")
-	_assert_eq(floor_row["direction_buttons"].size(), 6, "query row direction control exposes six direction buttons")
+	_assert_true(floor_row["offset_panel"] is HexCellButtonPanel, "query row has common hex cell offset panel")
+	_assert_eq(floor_row["offset_panel"].get_entries().size(), 7, "query row offset panel lays out center and six direction cells")
+	_assert_eq(_pressable_entry_count(floor_row["offset_panel"].get_entries()), 6, "query row offset panel exposes six pressable directions")
 	var wall_row = dock._add_query_row(HexMapGenDock.QUERY_KIND_MASK, map_id, "Wall")
 	wall_row["operation"].select(1)
 	_assert_keys_eq(
@@ -1227,11 +1484,19 @@ func _test_generation_dock_mapdata_query_rows_evaluate_offset_and_toric() -> voi
 	dock._rect_height_spin.set_value_no_signal(1)
 	dock._refresh_controls()
 	var offset_row = dock._add_query_row(HexMapGenDock.QUERY_KIND_REFERENCE, overlay_id, "Gem")
-	dock._on_query_direction_size_changed(36.0, false)
-	_assert_eq(offset_row["direction_buttons"][0].custom_minimum_size, Vector2(36, 36), "query direction button size is adjustable")
-	_assert_eq(dock._overlay_mask_direction_size_spin.value, 36.0, "query direction size syncs mask control")
-	_assert_eq(dock._overlay_reference_direction_size_spin.value, 36.0, "query direction size syncs reference control")
-	dock._on_query_row_direction_pressed(0, offset_row, false)
+	var offset_panel: HexCellButtonPanel = offset_row["offset_panel"]
+	dock._on_query_cell_radius_changed(18.0, HexMapGenDock.QUERY_KIND_REFERENCE)
+	dock._on_query_cell_gap_changed(3.0, HexMapGenDock.QUERY_KIND_REFERENCE)
+	dock._on_query_cell_padding_changed(5.0, HexMapGenDock.QUERY_KIND_REFERENCE)
+	_assert_eq(offset_panel.cell_radius, 18.0, "query offset panel radius is adjustable")
+	_assert_eq(offset_panel.cell_gap, 3.0, "query offset panel gap is adjustable")
+	_assert_eq(offset_panel.padding, Vector2(5, 5), "query offset panel padding is adjustable")
+	_assert_eq(dock._overlay_mask_cell_radius_spin.value, 18.0, "query cell radius syncs mask control")
+	_assert_eq(dock._overlay_reference_cell_radius_spin.value, 18.0, "query cell radius syncs reference control")
+	_assert_eq(dock._overlay_mask_cell_gap_spin.value, 3.0, "query cell gap syncs mask control")
+	_assert_eq(dock._overlay_reference_cell_padding_spin.value, 5.0, "query cell padding syncs reference control")
+	var q_entry: Dictionary = _entries_by_id(offset_panel.get_entries())[HexVector.q_axis().key()]
+	_send_panel_click(offset_panel, q_entry["center"])
 	_assert_keys_eq(
 		dock._evaluate_query_rows(HexMapGenDock.QUERY_KIND_REFERENCE),
 		[HexVector.q_axis()],
@@ -1674,6 +1939,55 @@ func _has_button_text(node: Node, text: String) -> bool:
 	return false
 
 
+func _entries_by_id(entries: Array) -> Dictionary:
+	var result := {}
+	for entry in entries:
+		result[String(entry["id"])] = entry
+	return result
+
+
+func _pressable_entry_count(entries: Array) -> int:
+	var count := 0
+	for entry in entries:
+		if bool(entry.get("pressable", false)) and not bool(entry.get("disabled", false)):
+			count += 1
+	return count
+
+
+func _direction_pressable_cells() -> Dictionary:
+	var result := {}
+	for direction in HexVector.directions():
+		result[direction.key()] = true
+	return result
+
+
+func _send_panel_click(panel: HexCellButtonPanel, position: Vector2) -> void:
+	var press = InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.position = position
+	press.pressed = true
+	panel._gui_input(press)
+
+	var release = InputEventMouseButton.new()
+	release.button_index = MOUSE_BUTTON_LEFT
+	release.position = position
+	release.pressed = false
+	panel._gui_input(release)
+
+
+func _send_panel_motion(panel: HexCellButtonPanel, position: Vector2) -> void:
+	var motion = InputEventMouseMotion.new()
+	motion.position = position
+	panel._gui_input(motion)
+
+
+func _send_panel_key(panel: HexCellButtonPanel, keycode: int) -> void:
+	var event = InputEventKey.new()
+	event.keycode = keycode
+	event.pressed = true
+	panel._gui_input(event)
+
+
 func _assert_true(value: bool, message: String) -> void:
 	if not value:
 		_failures.append(message)
@@ -1681,6 +1995,11 @@ func _assert_true(value: bool, message: String) -> void:
 
 func _assert_eq(actual: Variant, expected: Variant, message: String) -> void:
 	if actual != expected:
+		_failures.append("%s: expected %s, got %s" % [message, str(expected), str(actual)])
+
+
+func _assert_vec2_approx(actual: Vector2, expected: Vector2, message: String, tolerance: float = 0.01) -> void:
+	if actual.distance_to(expected) > tolerance:
 		_failures.append("%s: expected %s, got %s" % [message, str(expected), str(actual)])
 
 

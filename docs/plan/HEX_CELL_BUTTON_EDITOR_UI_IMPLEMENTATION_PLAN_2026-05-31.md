@@ -144,9 +144,10 @@ func entry_at(local_pos: Vector2) -> Dictionary
 - fill color: normal / hover / pressed / disabled / center
 - outline color
 - focus outline
-- label text
+~~- label text~~
+- tooltip text
 
-drawは `draw_colored_polygon()` と `draw_polyline()` を使う。labelはPanel自身が `draw_string()` で短いtextだけを描く。長いtextはtooltipへ逃がす。
+drawは `draw_colored_polygon()` と `draw_polyline()` を使う。~~labelはPanel自身が `draw_string()` で短いtextだけを描く。長い~~textはtooltipを使用する。
 
 ### size
 

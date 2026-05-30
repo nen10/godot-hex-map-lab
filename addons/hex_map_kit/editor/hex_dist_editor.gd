@@ -4,6 +4,8 @@ extends Window
 
 const HexRandomizer = preload("res://addons/hex_map_kit/core/hex_randomizer.gd")
 const HexDistribution = preload("res://addons/hex_map_kit/adapter/hex_distribution.gd")
+const HexCellButtonLayout = preload("res://addons/hex_map_kit/editor/hex_cell_button_layout.gd")
+const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 
 var root: VBoxContainer
 
@@ -215,30 +217,86 @@ func _initial_value(n_neighbor: int, state_index: int) -> float:
 
 func _draw_pattern(n_neighbor: int, state_index: int, control: Control) -> void:
 	var origin = Vector2(70, 36)
-
-	var ref0 = origin + Vector2(-HEX_SIZE * 1.5, -HEX_SIZE * 1.732 / 2)
-	var ref1 = origin + Vector2(0, -HEX_SIZE * 1.732)
-	var ref2 = origin + Vector2(HEX_SIZE * 1.5, -HEX_SIZE * 1.732 / 2)
-
-	var ref_positions = [ref0, ref1, ref2] if n_neighbor == 3 else [ref1, ref2]
 	var is_wall := []
 	for i in range(n_neighbor):
 		is_wall.append((state_index >> i) & 1 == 1)
 
-	for i in range(n_neighbor):
-		_draw_hex(control, ref_positions[i], WALL_FILL if is_wall[i] else FLOOR_FILL)
+	for entry in _distribution_pattern_entries(n_neighbor, origin):
+		var metadata: Dictionary = entry.get("metadata", {})
+		var ref_index = int(metadata.get("ref_index", -1))
+		var fill = _center_color(n_neighbor, state_index)
+		if ref_index >= 0:
+			fill = WALL_FILL if is_wall[ref_index] else FLOOR_FILL
+		_draw_hex_entry(control, entry, fill)
 
-	_draw_hex(control, origin, _center_color(n_neighbor, state_index))
+
+func _distribution_pattern_entries(n_neighbor: int, origin: Vector2 = Vector2(70, 36)) -> Array:
+	var directions = HexVector.directions()
+	var direction_indices: Array
+	match n_neighbor:
+		3:
+			direction_indices = [3, 2, 1]
+		2:
+			direction_indices = [2, 1]
+		1:
+			direction_indices = [2]
+		_:
+			direction_indices = []
+
+	var cells := [HexVector.zero()]
+	var metadata := {
+		HexVector.zero().key(): {"center": true, "ref_index": -1},
+	}
+	for ref_index in range(direction_indices.size()):
+		var direction = directions[int(direction_indices[ref_index])]
+		cells.append(direction)
+		metadata[direction.key()] = {
+			"center": false,
+			"ref_index": ref_index,
+			"direction_index": int(direction_indices[ref_index]),
+		}
+
+	var entries = HexCellButtonLayout.build_entries({
+		"shape_kind": HexCellButtonLayout.SHAPE_CUSTOM,
+		"shape_cells": cells,
+		"flat_top": true,
+		"cell_radius": HEX_SIZE,
+		"cell_gap": 0.0,
+		"padding": Vector2.ZERO,
+		"pressable_cells": {},
+		"metadata_by_cell": metadata,
+	})
+	return _shift_pattern_entries_to_origin(entries, origin)
 
 
-func _draw_hex(control: Control, center: Vector2, fill: Color) -> void:
-	var points: PackedVector2Array = []
-	for index in range(6):
-		var angle = deg_to_rad(60.0 * float(index))
-		points.append(center + Vector2(cos(angle), sin(angle)) * HEX_SIZE)
+func _shift_pattern_entries_to_origin(entries: Array, origin: Vector2) -> Array:
+	var center_entry := {}
+	for entry in entries:
+		var metadata: Dictionary = entry.get("metadata", {})
+		if bool(metadata.get("center", false)):
+			center_entry = entry
+			break
+	if center_entry.is_empty():
+		return entries
+	var offset = origin - center_entry["center"]
+	var result := []
+	for entry in entries:
+		var polygon := PackedVector2Array()
+		for point in entry["polygon"]:
+			polygon.append(point + offset)
+		var shifted = entry.duplicate(true)
+		shifted["center"] = entry["center"] + offset
+		shifted["polygon"] = polygon
+		shifted["bounds"] = Rect2(entry["bounds"].position + offset, entry["bounds"].size)
+		result.append(shifted)
+	return result
+
+
+func _draw_hex_entry(control: Control, entry: Dictionary, fill: Color) -> void:
+	var points: PackedVector2Array = entry["polygon"]
 
 	control.draw_colored_polygon(points, fill)
-	var outline = points
+	var outline := PackedVector2Array(points)
 	outline.append(points[0])
 	control.draw_polyline(outline, OUTLINE_COLOR, 1.0)
 
