@@ -10,7 +10,7 @@
 
 `HexCellButtonLayout`（純粋 layout builder）と `HexCellButtonPanel`（custom Control）の2点が追加され、Query Row offset control が矩形 Button grid から hex polygon ベースの操作へ完全移行した。`hex_dist_editor.gd` の pattern 描画も共通 layout entry を使うようになり、polygon と hit test の単一 source of truth が確立されている。
 
-全計画手順(1〜10)が完了し、全6テストファイルがパス。新規テスト19件（layout 5件、panel 4件、distribution 2件、query row 8件間接的）。
+全計画手順(1〜10)が完了し、全6テストファイルがパス。初回レビュー時点では新規テスト19件（layout 5件、panel 4件、distribution 2件、query row 8件間接的）。
 
 ---
 
@@ -157,6 +157,46 @@ disabled 状態の色があるんですか？簡単なテストケースが不�
 
 ---
 
+## Codex対応結果 (2026-05-31)
+
+価値が明確な指摘事項に対して以下を実装した。
+
+### 実装対応
+
+- `show_labels` を実描画へ接続した。`HexCellButtonPanel` は `label` を持つentryに対して `show_labels=true` のときだけ `draw_string()` で短いlabelを描画する。長いlabelはcell radius内に収まるようにfont sizeを小さくする。
+- center cell hoverで `Current offset ...` tooltipが表示されるようにした。press対象の判定は従来どおりpressable cellのみだが、hover判定ではnon-pressableなcenter cellも拾う。
+- dead codeだった `_on_query_row_direction_pressed()` を削除した。既存テストは `HexCellButtonPanel` のclick経由でoffset更新を確認する形へ統一した。
+- `Cell Radius` / `Gap` / `Padding` を各Query sectionから外し、Overlay controls内の単一 `Query Cell` rowへまとめた。下部のQuery section内SpinBox操作で上部row位置が動く経路をなくした。
+- Query Rowのsource指定を `Resource名 label` + `ItemKey combo` に分離した。Row追加時はsource単位で選び、Row内部でそのsourceのItemKeyだけを選ぶ。OptionButton popupは高さ制限を付け、長いitem listではスクロール可能なpopupにする。
+- Query Rowのhex cell panelをoffset表示labelの隣へ移動した。
+- Up/Downはtext buttonから、SpinBoxに近い縦並びの `^` / `v` stepper風buttonへ変更した。
+- generation disabled切替時に `HexCellButtonPanel.queue_redraw()` を呼び、enabled/disabled表示の更新を待たないようにした。
+
+### 見送り・継続検討
+
+- `_query_direction_*` map helperの統合は、利点が明確でないというユーザー意見に従い今回の実装対象から外した。
+- `_entry_fill()` のEditor theme追従は、利点と既存Distribution Editor色との整合を議論してから扱う。
+- `cell_gap = 0` の境界clickは通常動作として扱い、今回の変更では抑制しない。
+
+### 追加検証
+
+- `show_labels` が有効状態とlabel entryを保持すること。
+- center cell hoverで現在offset tooltipが表示されること。
+- Add Row optionがsource単位になり、Query Row内のItemKey comboがsource内itemだけを表示すること。
+- source / item popupに高さ制限が設定されること。
+- 共通 `Query Cell` rowの `Cell Radius` / `Gap` / `Padding` が既存rowのpanelへ反映されること。
+- generation disabled切替でquery offset panelの `enabled` が切り替わること。
+
+確認コマンド:
+
+```sh
+./tools/test.sh
+```
+
+実行結果: 全テスト通過。
+
+---
+
 ## テストに対する評価
 
 | 計画のテスト | 実装 | 状態 |
@@ -171,9 +211,11 @@ disabled 状態の色があるんですか？簡単なテストケースが不�
 | panel: doesn't press disabled cell | ✅ | disabled entry ignored |
 | panel: focus navigation | ✅ | keyboard Right+Space |
 | Query Row: uses HexCellButtonPanel | ✅ | offset_panel is HexCellButtonPanel |
-| Query Row: radius/gap/padding sync | ✅ | across Mask/Reference |
+| Query Row: radius/gap/padding sync | ✅ | shared Query Cell control |
+| Query Row: source / item split | ✅ | Resource label + ItemKey combo |
+| Query Row: center tooltip | ✅ | Current offset tooltip on center hover |
 | Query Row: offset update via panel press | ✅ | _send_panel_click |
 | Distribution Editor: pattern uses layout entries | ✅ | center/ref positions match |
 | Distribution Editor: draw signal uses layout-backed method | ✅ | connected |
 
-全19件のテストが充足。`setting_sync` テストは Deductor Floor Source の spin sync を直接確認していないが、Mask/Reference で検証されており、実装の対称性から問題ない。
+レビュー対応後も全テストが通過している。

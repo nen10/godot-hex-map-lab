@@ -54,6 +54,7 @@ func _run() -> void:
 	_test_hex_cell_button_layout_shape_cells_custom_ring_disc()
 	await _test_hex_cell_button_panel_emits_pressed_for_hex_hit()
 	await _test_hex_cell_button_panel_emits_hover_for_hex_hit()
+	await _test_hex_cell_button_panel_accepts_label_display_state()
 	await _test_hex_cell_button_panel_does_not_press_disabled_cell()
 	await _test_hex_cell_button_panel_focus_navigation()
 	await _test_distribution_editor_loads_default_preset_values()
@@ -252,6 +253,26 @@ func _test_hex_cell_button_panel_emits_hover_for_hex_hit() -> void:
 	_send_panel_motion(panel, entry["center"])
 	_assert_eq(recorder.entries.size(), 1, "hex cell panel emits hover for hex polygon hit")
 	_assert_eq(recorder.entries[0]["id"], HexVector.q_axis().key(), "hex cell panel hover emits the hit cell entry")
+
+	panel.queue_free()
+	await process_frame
+
+
+func _test_hex_cell_button_panel_accepts_label_display_state() -> void:
+	var labels := {HexVector.zero().key(): "0,0,0"}
+	var panel = HexCellButtonPanel.new()
+	panel.configure({
+		"shape_kind": HexCellButtonLayout.SHAPE_DIRECTIONS,
+		"label_by_cell": labels,
+		"show_labels": true,
+		"cell_radius": 12.0,
+	})
+	root.add_child(panel)
+	await process_frame
+
+	var center_entry: Dictionary = _entries_by_id(panel.get_entries())[HexVector.zero().key()]
+	_assert_true(panel.show_labels, "hex cell panel keeps label display enabled")
+	_assert_eq(center_entry["label"], "0,0,0", "hex cell panel keeps label text in layout entry")
 
 	panel.queue_free()
 	await process_frame
@@ -1407,12 +1428,21 @@ func _test_generation_dock_mapdata_query_rows_evaluate_offset_and_toric() -> voi
 	var map_data = HexMapData.rectangle(3, 1)
 	map_data.set_walls([HexVector.q_axis()])
 	var map_id = dock.register_mapdata_source(HexMapResource.from_map_data(map_data), "res://map_query.tres")
+	_assert_eq(dock._overlay_mask_add_source_option.get_item_text(0), "map_query.tres", "query add source option is scoped to resource name")
+	_assert_eq(dock._overlay_mask_add_source_option.get_popup().max_size.y, 260, "query add source option popup is height-limited for scrolling")
 
 	var floor_row = dock._add_query_row(HexMapGenDock.QUERY_KIND_MASK, map_id, "Floor")
 	_assert_true(floor_row["row"] is VBoxContainer, "query row uses two-line container")
+	_assert_eq(floor_row["source_label"].text, "map_query.tres", "query row shows resource name as a label")
+	_assert_eq(floor_row["source_item"].get_item_text(floor_row["source_item"].selected), "Floor", "query row item combo is scoped to item key")
+	_assert_eq(floor_row["source_item"].item_count, 3, "query row item combo lists only selected resource items")
+	_assert_eq(floor_row["source_item"].get_popup().max_size.y, 260, "query row item combo popup is height-limited for scrolling")
 	_assert_true(floor_row["offset_panel"] is HexCellButtonPanel, "query row has common hex cell offset panel")
 	_assert_eq(floor_row["offset_panel"].get_entries().size(), 7, "query row offset panel lays out center and six direction cells")
 	_assert_eq(_pressable_entry_count(floor_row["offset_panel"].get_entries()), 6, "query row offset panel exposes six pressable directions")
+	var center_entry: Dictionary = _entries_by_id(floor_row["offset_panel"].get_entries())[HexVector.zero().key()]
+	_send_panel_motion(floor_row["offset_panel"], center_entry["center"])
+	_assert_true(floor_row["offset_panel"].tooltip_text.contains("Current offset"), "query row center cell shows current offset tooltip")
 	var wall_row = dock._add_query_row(HexMapGenDock.QUERY_KIND_MASK, map_id, "Wall")
 	wall_row["operation"].select(1)
 	_assert_keys_eq(
@@ -1453,7 +1483,7 @@ func _test_generation_dock_mapdata_query_rows_evaluate_offset_and_toric() -> voi
 
 	dock._overlay_mask_query_rows.clear()
 	var shifted_row = dock._add_query_row(HexMapGenDock.QUERY_KIND_MASK, outside_id, "Inside")
-	dock._on_query_row_direction_pressed(0, shifted_row, true)
+	_press_query_row_direction(shifted_row, 0)
 	_assert_keys_eq(
 		dock._evaluate_query_rows(HexMapGenDock.QUERY_KIND_MASK),
 		[],
@@ -1485,16 +1515,15 @@ func _test_generation_dock_mapdata_query_rows_evaluate_offset_and_toric() -> voi
 	dock._refresh_controls()
 	var offset_row = dock._add_query_row(HexMapGenDock.QUERY_KIND_REFERENCE, overlay_id, "Gem")
 	var offset_panel: HexCellButtonPanel = offset_row["offset_panel"]
-	dock._on_query_cell_radius_changed(18.0, HexMapGenDock.QUERY_KIND_REFERENCE)
-	dock._on_query_cell_gap_changed(3.0, HexMapGenDock.QUERY_KIND_REFERENCE)
-	dock._on_query_cell_padding_changed(5.0, HexMapGenDock.QUERY_KIND_REFERENCE)
+	dock._on_query_cell_radius_changed(18.0)
+	dock._on_query_cell_gap_changed(3.0)
+	dock._on_query_cell_padding_changed(5.0)
 	_assert_eq(offset_panel.cell_radius, 18.0, "query offset panel radius is adjustable")
 	_assert_eq(offset_panel.cell_gap, 3.0, "query offset panel gap is adjustable")
 	_assert_eq(offset_panel.padding, Vector2(5, 5), "query offset panel padding is adjustable")
-	_assert_eq(dock._overlay_mask_cell_radius_spin.value, 18.0, "query cell radius syncs mask control")
-	_assert_eq(dock._overlay_reference_cell_radius_spin.value, 18.0, "query cell radius syncs reference control")
-	_assert_eq(dock._overlay_mask_cell_gap_spin.value, 3.0, "query cell gap syncs mask control")
-	_assert_eq(dock._overlay_reference_cell_padding_spin.value, 5.0, "query cell padding syncs reference control")
+	_assert_eq(dock._query_cell_radius_spin.value, 18.0, "query cell radius syncs shared control")
+	_assert_eq(dock._query_cell_gap_spin.value, 3.0, "query cell gap syncs shared control")
+	_assert_eq(dock._query_cell_padding_spin.value, 5.0, "query cell padding syncs shared control")
 	var q_entry: Dictionary = _entries_by_id(offset_panel.get_entries())[HexVector.q_axis().key()]
 	_send_panel_click(offset_panel, q_entry["center"])
 	_assert_keys_eq(
@@ -1502,6 +1531,10 @@ func _test_generation_dock_mapdata_query_rows_evaluate_offset_and_toric() -> voi
 		[HexVector.q_axis()],
 		"query rows offset item cells"
 	)
+	dock._set_generation_controls_disabled(true)
+	_assert_true(not offset_panel.enabled, "generation disable state disables query offset panel")
+	dock._set_generation_controls_disabled(false)
+	_assert_true(offset_panel.enabled, "generation enable state re-enables query offset panel")
 
 	var toric_data = HexOverlayData.from_cells(
 		HexMapData.square(3, true).cells,
@@ -1511,7 +1544,7 @@ func _test_generation_dock_mapdata_query_rows_evaluate_offset_and_toric() -> voi
 	var toric_id = dock.register_mapdata_source(HexOverlayResource.from_overlay_data(toric_data), "res://toric_query.tres")
 	dock._overlay_reference_query_rows.clear()
 	var toric_row = dock._add_query_row(HexMapGenDock.QUERY_KIND_REFERENCE, toric_id, "Wrap")
-	dock._on_query_row_direction_pressed(0, toric_row, false)
+	_press_query_row_direction(toric_row, 0)
 	_assert_keys_eq(
 		dock._evaluate_query_rows(HexMapGenDock.QUERY_KIND_REFERENCE),
 		[HexVector.zero()],
@@ -1528,7 +1561,7 @@ func _test_generation_dock_mapdata_query_rows_evaluate_offset_and_toric() -> voi
 
 	dock._overlay_mask_query_rows.clear()
 	var toric_mask_row = dock._add_query_row(HexMapGenDock.QUERY_KIND_MASK, toric_id, "Wrap")
-	dock._on_query_row_direction_pressed(0, toric_mask_row, true)
+	_press_query_row_direction(toric_mask_row, 0)
 	var crop_data = dock._overlay_crop_result_data()
 	_assert_keys_eq(
 		crop_data.item_cells(dock._crop_result_item_key(toric_mask_row)),
@@ -1694,7 +1727,7 @@ func _test_generation_dock_mapdata_crop_result_and_reset_rules() -> void:
 	_assert_true(dock._current_overlay_data.has_item(HexVector.zero(), "Old"), "crop result Add Item preserves current overlay item")
 	_assert_keys_eq(dock._current_overlay_data.item_cells(crop_item_key), [HexVector.zero()], "crop result Add Item merges crop item")
 
-	dock._on_query_row_direction_pressed(0, dock._overlay_mask_query_rows[0], true)
+	_press_query_row_direction(dock._overlay_mask_query_rows[0], 0)
 	_assert_true(not dock._overlay_mask_crop_check.button_pressed, "mask query edit turns Crop off")
 	dock._overlay_mask_crop_check.set_pressed_no_signal(true)
 	dock._on_shape_size_changed(2)
@@ -1959,6 +1992,13 @@ func _direction_pressable_cells() -> Dictionary:
 	for direction in HexVector.directions():
 		result[direction.key()] = true
 	return result
+
+
+func _press_query_row_direction(row: Dictionary, direction_index: int) -> void:
+	var panel: HexCellButtonPanel = row["offset_panel"]
+	var direction = HexVector.directions()[direction_index]
+	var entry: Dictionary = _entries_by_id(panel.get_entries())[direction.key()]
+	_send_panel_click(panel, entry["center"])
 
 
 func _send_panel_click(panel: HexCellButtonPanel, position: Vector2) -> void:

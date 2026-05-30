@@ -83,8 +83,8 @@ func get_entries() -> Array:
 	return _entries.duplicate(true)
 
 
-func entry_at(local_pos: Vector2) -> Dictionary:
-	return HexCellButtonLayout.hit_entry(_entries, local_pos)
+func entry_at(local_pos: Vector2, pressable_only: bool = true) -> Dictionary:
+	return HexCellButtonLayout.hit_entry(_entries, local_pos, pressable_only)
 
 
 func _get_minimum_size() -> Vector2:
@@ -95,7 +95,7 @@ func _gui_input(event: InputEvent) -> void:
 	if not enabled:
 		return
 	if event is InputEventMouseMotion:
-		_set_hovered_entry(entry_at(event.position))
+		_set_hovered_entry(entry_at(event.position, false))
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		var entry = entry_at(event.position)
@@ -124,6 +124,7 @@ func _draw() -> void:
 		var outline := PackedVector2Array(polygon)
 		outline.append(polygon[0])
 		draw_polyline(outline, _entry_outline(entry), 1.25)
+		_draw_entry_label(entry)
 
 
 func _rebuild() -> void:
@@ -231,6 +232,39 @@ func _entry_outline(entry: Dictionary) -> Color:
 	if bool(entry.get("pressable", true)) and not bool(entry.get("disabled", false)):
 		return Color(0.68, 0.72, 0.78)
 	return Color(0.45, 0.47, 0.5)
+
+
+func _draw_entry_label(entry: Dictionary) -> void:
+	if not show_labels:
+		return
+	var text = String(entry.get("label", ""))
+	if text == "":
+		return
+	var font = get_theme_font("font", "Label")
+	if font == null:
+		return
+	var font_size = mini(get_theme_font_size("font_size", "Label"), max(7, int(cell_radius * 0.75)))
+	var max_width = maxf(8.0, cell_radius * 1.8)
+	while font_size > 7 and font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > max_width:
+		font_size -= 1
+	var text_size = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
+	var center: Vector2 = entry["center"]
+	var position = center + Vector2(-max_width * 0.5, text_size.y * 0.35)
+	draw_string(
+		font,
+		position,
+		text,
+		HORIZONTAL_ALIGNMENT_CENTER,
+		max_width,
+		font_size,
+		_entry_label_color(entry)
+	)
+
+
+func _entry_label_color(entry: Dictionary) -> Color:
+	if bool(entry.get("disabled", false)):
+		return Color(0.55, 0.55, 0.55, 0.9)
+	return Color(0.92, 0.94, 0.98, 1.0)
 
 
 func _entry_is_center(entry: Dictionary) -> bool:

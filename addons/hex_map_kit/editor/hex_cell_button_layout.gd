@@ -79,10 +79,12 @@ static func hex_polygon(center: Vector2, radius: float, flat_top: bool) -> Packe
 	return points
 
 
-static func hit_entry(entries: Array, local_pos: Vector2) -> Dictionary:
+static func hit_entry(entries: Array, local_pos: Vector2, pressable_only: bool = true) -> Dictionary:
 	for index in range(entries.size() - 1, -1, -1):
 		var entry: Dictionary = entries[index]
-		if bool(entry.get("disabled", false)) or not bool(entry.get("pressable", true)):
+		if bool(entry.get("disabled", false)):
+			continue
+		if pressable_only and not bool(entry.get("pressable", true)):
 			continue
 		var bounds: Rect2 = entry["bounds"]
 		if not bounds.has_point(local_pos):

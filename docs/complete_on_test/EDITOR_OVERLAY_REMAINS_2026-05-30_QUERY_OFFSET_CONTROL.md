@@ -10,34 +10,37 @@
 - `Cell Radius`
 - `Gap`
 - `Padding`
+- source
+- ItemKey
 - 六方向hex cell操作
 
 出力:
 
 - 2段構成のQuery Row
-  - 上段: `AND|OR`、`Contain|Exclude`、`source / ItemKey`、offset、row操作
-  - 下段: `HexCellButtonPanel` によるhex形状の六方向offset control
+  - 上段: `AND|OR`、`Contain|Exclude`、source label、ItemKey combo、offset、`HexCellButtonPanel`、row操作
 - 更新されたoffset
 - Mask Query Row編集時のCrop Off連動
 
-`Cell Radius` / `Gap` / `Padding` は Mask / Reference / Deductor Floor Source query controlで共有され、既存rowの `HexCellButtonPanel` にも反映される。
+`Cell Radius` / `Gap` / `Padding` は単一の `Query Cell` rowで指定し、Mask / Reference / Deductor Floor Sourceの既存rowの `HexCellButtonPanel` にも反映される。
 
 ## 実装状況
 
-- [x] Query Rowを2段構成にして、offset controlを `HexCellButtonPanel` へ移行する
+- [x] Query Rowにoffset controlを `HexCellButtonPanel` として配置する
 - [x] 六方向cellを `HexMapTileAdapter.hex_to_local()` のflat-top / pointy-top配置に従って表示する
 - [x] hex polygonと同じshapeでhit testする
-- [x] `Cell Radius` / `Gap` / `Padding` でoffset controlの配置を変更できる
+- [x] 共通 `Cell Radius` / `Gap` / `Padding` でoffset controlの配置を変更できる
+- [x] source名はlabel、ItemKeyはsource内comboとして扱う
+- [x] center cell hoverで現在offset tooltipを表示する
 - [x] 既存のoffset更新、Mask Crop Off連動、Reference query編集時のCrop維持を維持する
 
 ## テスト
 
 - `tests/test_editor_plugin.gd`
-  - Query Rowが2段構成になること
   - Query Rowが `HexCellButtonPanel` を持つこと
   - offset controlがcenterと6方向entryを持ち、6方向だけpressableであること
   - `Cell Radius` / `Gap` / `Padding` 変更が既存rowのpanelへ反映されること
-  - Mask / Reference / Deductor Floor Sourceの設定表示が同期すること
+  - source labelとItemKey comboに分離されること
+  - center cell hoverで現在offset tooltipを表示すること
   - 既存のoffset、toric wrap、Crop Off連動が維持されること
 
 確認コマンド:

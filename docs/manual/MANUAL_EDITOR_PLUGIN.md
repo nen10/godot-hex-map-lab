@@ -89,9 +89,9 @@ Overlay generation は Placement Mask Query Rows を現在の Shape / サイズ�
 - `Apply Write`: `Clear And Write` または `Add Item`。Primary / Overlay 共通で、`TileMapLayer` をclearするか、既存cellを残して書くかを決める
 - `Existing Item`: `Merge Existing` / `Replace Existing` / `Skip Existing`
 
-Source Registry では保存済み `HexMapResource` / `HexOverlayResource` を読み込み、Mask / Reference の Query Row に `source / ItemKey` として追加できます。各sourceにはresource pathと `Item: cell数` が表示されます。同じ resource path を再読み込みした場合は既存sourceを更新します。sourceをClearすると、そのsourceを参照するQuery Rowも削除されます。
+Source Registry では保存済み `HexMapResource` / `HexOverlayResource` を読み込み、Mask / Reference の Query Row にsourceとして追加できます。Query Row追加時はsourceを選び、row内部ではsource名のラベルと、そのsourceに含まれるItemKeyのcomboで対象を絞ります。各sourceにはresource pathと `Item: cell数` が表示されます。同じ resource path を再読み込みした場合は既存sourceを更新します。sourceをClearすると、そのsourceを参照するQuery Rowも削除されます。
 
-Mask Query Row は `AND` / `OR`、`Contain` / `Exclude`、offset を持ちます。offset は3列配置の六方向controlで操作し、`Direction Size` でbutton sizeを調整できます。Mask result は Crop On / Off に関わらず現在のShape / サイズを query universe として評価し、Overlay Generateのcandidate cellsにも使います。source が toric square の場合、offset参照はsource本来の `cyclic_size` でwrapします。Crop On中にMask Query RowまたはShape / サイズを編集するとCrop Offに戻ります。
+Mask Query Row は `AND` / `OR`、`Contain` / `Exclude`、offset を持ちます。offset は現在値ラベル横の六角形cell panelで操作します。`Query Cell` の `Cell Radius` / `Gap` / `Padding` はQuery Rowのhex cell panel共通の表示サイズ設定です。Mask result は Crop On / Off に関わらず現在のShape / サイズを query universe として評価し、Overlay Generateのcandidate cellsにも使います。source が toric square の場合、offset参照はsource本来の `cyclic_size` でwrapします。Crop On中にMask Query RowまたはShape / サイズを編集するとCrop Offに戻ります。
 
 Overlay mode の `Apply Layer` / `Save .tres` はCrop状態で動作が変わります。Crop OnではCrop resultをShow Mask / `HexOverlayResource` 保存に使います。Crop OffではSource Registry内のOverlay sourceを表示順でstackし、`Apply Write` / `Existing Item` policyに従ってcurrent overlayへ反映してからApply / Saveします。`Apply Write = Clear And Write` はcurrent overlayを置換し、`TileMapLayer` をclearしてから書きます。`Apply Write = Add Item` はcurrent overlayへ合成し、`TileMapLayer` の既存cellを残して書きます。stack実行後はSource Registryのstatusにsource数、item数、occupied数、policyが表示されます。Generate後の自動applyは同じ `Apply Write` に従ってcurrent overlayをTarget `TileMapLayer` に表示します。Item Pool にある item key は row の `Tile` source / atlas coords を使い、Item Pool にない item key は Dock の `Wall` source / atlas coords を fallback として使います。
 

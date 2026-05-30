@@ -159,9 +159,9 @@ var _overlay_mask_container: VBoxContainer
 var _overlay_mask_query_container: VBoxContainer
 var _overlay_mask_add_source_option: OptionButton
 var _overlay_mask_add_button: Button
-var _overlay_mask_cell_radius_spin: SpinBox
-var _overlay_mask_cell_gap_spin: SpinBox
-var _overlay_mask_cell_padding_spin: SpinBox
+var _query_cell_radius_spin: SpinBox
+var _query_cell_gap_spin: SpinBox
+var _query_cell_padding_spin: SpinBox
 var _overlay_mask_crop_check: CheckButton
 var _overlay_mask_count_label: Label
 var _overlay_mask_query_rows: Array[Dictionary] = []
@@ -169,9 +169,6 @@ var _overlay_deductor_floor_container: VBoxContainer
 var _overlay_deductor_floor_query_container: VBoxContainer
 var _overlay_deductor_floor_add_source_option: OptionButton
 var _overlay_deductor_floor_add_button: Button
-var _overlay_deductor_floor_cell_radius_spin: SpinBox
-var _overlay_deductor_floor_cell_gap_spin: SpinBox
-var _overlay_deductor_floor_cell_padding_spin: SpinBox
 var _overlay_deductor_floor_status_label: Label
 var _overlay_deductor_floor_query_rows: Array[Dictionary] = []
 var _overlay_adjacency_check: CheckButton
@@ -179,9 +176,6 @@ var _overlay_reference_container: VBoxContainer
 var _overlay_reference_query_container: VBoxContainer
 var _overlay_reference_add_source_option: OptionButton
 var _overlay_reference_add_button: Button
-var _overlay_reference_cell_radius_spin: SpinBox
-var _overlay_reference_cell_gap_spin: SpinBox
-var _overlay_reference_cell_padding_spin: SpinBox
 var _overlay_reference_query_rows: Array[Dictionary] = []
 var _overlay_neighbor_radius_spin: SpinBox
 var _overlay_adjacency_rules_edit: LineEdit
@@ -486,6 +480,10 @@ func _build_overlay_controls() -> Control:
 
 	_overlay_controls_container.add_child(_build_separator())
 
+	_overlay_controls_container.add_child(_build_query_cell_settings_controls())
+
+	_overlay_controls_container.add_child(_build_separator())
+
 	_overlay_controls_container.add_child(_build_overlay_mask_controls())
 
 	_overlay_controls_container.add_child(_build_overlay_deductor_floor_controls())
@@ -532,6 +530,24 @@ func _build_source_registry_controls() -> Control:
 	_source_registry_status_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
 	_source_registry_container.add_child(_source_registry_status_label)
 	return _source_registry_container
+
+
+func _build_query_cell_settings_controls() -> Control:
+	var row = HBoxContainer.new()
+	row.add_child(_build_small_label("Query Cell"))
+	row.add_child(_build_small_label("Cell Radius"))
+	_query_cell_radius_spin = _new_int_spin(int(_query_hex_cell_radius), 6, 32)
+	_query_cell_radius_spin.value_changed.connect(_on_query_cell_radius_changed)
+	row.add_child(_query_cell_radius_spin)
+	row.add_child(_build_small_label("Gap"))
+	_query_cell_gap_spin = _new_int_spin(int(_query_hex_cell_gap), 0, 12)
+	_query_cell_gap_spin.value_changed.connect(_on_query_cell_gap_changed)
+	row.add_child(_query_cell_gap_spin)
+	row.add_child(_build_small_label("Padding"))
+	_query_cell_padding_spin = _new_int_spin(int(_query_hex_cell_padding), 0, 16)
+	_query_cell_padding_spin.value_changed.connect(_on_query_cell_padding_changed)
+	row.add_child(_query_cell_padding_spin)
+	return row
 
 
 func _build_overlay_mask_controls() -> Control:
@@ -594,6 +610,7 @@ func _build_query_row_controls(mask_query) -> Control:
 	var box = VBoxContainer.new()
 	var add_row = HBoxContainer.new()
 	var option = OptionButton.new()
+	_configure_scrollable_option(option)
 	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	add_row.add_child(option)
 	var add_button = Button.new()
@@ -602,30 +619,12 @@ func _build_query_row_controls(mask_query) -> Control:
 	add_row.add_child(add_button)
 	box.add_child(add_row)
 
-	var size_row = HBoxContainer.new()
-	size_row.add_child(_build_small_label("Cell Radius"))
-	var radius_spin = _new_int_spin(int(_query_hex_cell_radius), 6, 32)
-	radius_spin.value_changed.connect(_on_query_cell_radius_changed.bind(query_kind))
-	size_row.add_child(radius_spin)
-	size_row.add_child(_build_small_label("Gap"))
-	var gap_spin = _new_int_spin(int(_query_hex_cell_gap), 0, 12)
-	gap_spin.value_changed.connect(_on_query_cell_gap_changed.bind(query_kind))
-	size_row.add_child(gap_spin)
-	size_row.add_child(_build_small_label("Padding"))
-	var padding_spin = _new_int_spin(int(_query_hex_cell_padding), 0, 16)
-	padding_spin.value_changed.connect(_on_query_cell_padding_changed.bind(query_kind))
-	size_row.add_child(padding_spin)
-	box.add_child(size_row)
-
 	var rows = VBoxContainer.new()
 	box.add_child(rows)
 
 	if query_kind == QUERY_KIND_MASK:
 		_overlay_mask_add_source_option = option
 		_overlay_mask_add_button = add_button
-		_overlay_mask_cell_radius_spin = radius_spin
-		_overlay_mask_cell_gap_spin = gap_spin
-		_overlay_mask_cell_padding_spin = padding_spin
 		_overlay_mask_query_container = rows
 
 		var crop_row = HBoxContainer.new()
@@ -640,16 +639,10 @@ func _build_query_row_controls(mask_query) -> Control:
 	elif query_kind == QUERY_KIND_REFERENCE:
 		_overlay_reference_add_source_option = option
 		_overlay_reference_add_button = add_button
-		_overlay_reference_cell_radius_spin = radius_spin
-		_overlay_reference_cell_gap_spin = gap_spin
-		_overlay_reference_cell_padding_spin = padding_spin
 		_overlay_reference_query_container = rows
 	else:
 		_overlay_deductor_floor_add_source_option = option
 		_overlay_deductor_floor_add_button = add_button
-		_overlay_deductor_floor_cell_radius_spin = radius_spin
-		_overlay_deductor_floor_cell_gap_spin = gap_spin
-		_overlay_deductor_floor_cell_padding_spin = padding_spin
 		_overlay_deductor_floor_query_container = rows
 
 	_refresh_source_item_options()
@@ -900,6 +893,12 @@ func _wrap_labeled(label_text: String, control: Control) -> Control:
 	return row
 
 
+func _configure_scrollable_option(option: OptionButton) -> void:
+	var popup = option.get_popup()
+	if popup != null:
+		popup.max_size = Vector2i(420, 260)
+
+
 func _build_section_label(text: String) -> Label:
 	var label = Label.new()
 	label.text = text
@@ -1116,9 +1115,9 @@ func _query_add_source_option_for_kind(query_kind: String) -> OptionButton:
 
 
 func _refresh_source_item_options() -> void:
-	_refresh_source_item_option(_overlay_mask_add_source_option, -1, "")
-	_refresh_source_item_option(_overlay_reference_add_source_option, -1, "")
-	_refresh_source_item_option(_overlay_deductor_floor_add_source_option, -1, "")
+	_refresh_source_add_option(_overlay_mask_add_source_option, -1)
+	_refresh_source_add_option(_overlay_reference_add_source_option, -1)
+	_refresh_source_add_option(_overlay_deductor_floor_add_source_option, -1)
 	for row in _overlay_mask_query_rows:
 		_refresh_query_row_source_option(row)
 	for row in _overlay_deductor_floor_query_rows:
@@ -1130,32 +1129,56 @@ func _refresh_source_item_options() -> void:
 	_refresh_query_row_order(false)
 
 
-func _refresh_source_item_option(option: OptionButton, selected_source_id: int, selected_item_key: String) -> void:
+func _refresh_source_add_option(option: OptionButton, selected_source_id: int) -> void:
 	if option == null:
 		return
 	option.clear()
 	var selected_index := 0
 	for entry in _mapdata_sources:
-		for item_key in entry.get("item_keys", []):
-			var index = option.item_count
-			option.add_item("%s / %s" % [entry.get("display_name", ""), item_key])
-			option.set_item_metadata(index, {
-				"source_id": int(entry["id"]),
-				"item_key": String(item_key),
-			})
-			if int(entry["id"]) == selected_source_id and String(item_key) == selected_item_key:
-				selected_index = index
+		var item_keys: Array = entry.get("item_keys", [])
+		if item_keys.is_empty():
+			continue
+		var index = option.item_count
+		option.add_item(String(entry.get("display_name", "")))
+		option.set_item_metadata(index, {"source_id": int(entry["id"])})
+		if int(entry["id"]) == selected_source_id:
+			selected_index = index
 	option.disabled = option.item_count == 0
 	if option.item_count > 0:
 		option.select(clampi(selected_index, 0, option.item_count - 1))
 
 
 func _refresh_query_row_source_option(row: Dictionary) -> void:
-	_refresh_source_item_option(
-		row.get("source_item", null),
-		int(row.get("source_id", -1)),
-		String(row.get("item_key", ""))
-	)
+	var source_id = int(row.get("source_id", -1))
+	var entry = _source_entry_by_id(source_id)
+	var source_label: Label = row.get("source_label", null)
+	if source_label != null:
+		source_label.text = String(entry.get("display_name", "(missing source)")) if not entry.is_empty() else "(missing source)"
+		source_label.tooltip_text = String(entry.get("resource_path", ""))
+
+	var option: OptionButton = row.get("source_item", null)
+	if option == null:
+		return
+	option.clear()
+	var selected_item_key = String(row.get("item_key", ""))
+	var selected_index := 0
+	if not entry.is_empty():
+		for item_key in entry.get("item_keys", []):
+			var index = option.item_count
+			option.add_item(String(item_key))
+			option.set_item_metadata(index, {
+				"source_id": source_id,
+				"item_key": String(item_key),
+			})
+			if String(item_key) == selected_item_key:
+				selected_index = index
+	option.disabled = option.item_count == 0
+	if option.item_count > 0:
+		option.select(clampi(selected_index, 0, option.item_count - 1))
+		var metadata = option.get_item_metadata(option.selected)
+		if metadata is Dictionary:
+			row["source_id"] = int(metadata["source_id"])
+			row["item_key"] = String(metadata["item_key"])
 
 
 func _on_source_load_pressed() -> void:
@@ -1190,10 +1213,15 @@ func _on_query_add_row_pressed(mask_query) -> void:
 	var metadata = option.get_item_metadata(option.selected)
 	if not metadata is Dictionary:
 		return
+	var source_id = int(metadata["source_id"])
+	var source_entry = _source_entry_by_id(source_id)
+	var item_keys: Array = source_entry.get("item_keys", [])
+	if item_keys.is_empty():
+		return
 	_add_query_row(
 		query_kind,
-		int(metadata["source_id"]),
-		String(metadata["item_key"])
+		source_id,
+		String(item_keys[0])
 	)
 
 
@@ -1224,7 +1252,12 @@ func _add_query_row(
 	match_option.select(max(0, QUERY_ROW_MATCHES.find(match)))
 	top_row.add_child(match_option)
 
+	var source_label = Label.new()
+	source_label.custom_minimum_size = Vector2(96, 0)
+	top_row.add_child(source_label)
+
 	var source_item_option = OptionButton.new()
+	_configure_scrollable_option(source_item_option)
 	source_item_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top_row.add_child(source_item_option)
 
@@ -1236,6 +1269,7 @@ func _add_query_row(
 		"row": row_control,
 		"operation": operation_option,
 		"match": match_option,
+		"source_label": source_label,
 		"source_item": source_item_option,
 		"source_id": source_id,
 		"item_key": item_key,
@@ -1250,19 +1284,23 @@ func _add_query_row(
 	source_item_option.item_selected.connect(_on_query_row_source_selected.bind(row, query_kind))
 
 	var offset_control = _build_query_offset_control(row, query_kind)
-	row_control.add_child(offset_control)
+	top_row.add_child(offset_control)
 
+	var move_buttons = VBoxContainer.new()
 	var up_button = Button.new()
-	up_button.text = "Up"
+	up_button.text = "^"
+	up_button.tooltip_text = "Move row up"
 	up_button.pressed.connect(_on_query_row_move_pressed.bind(row, query_kind, -1))
-	top_row.add_child(up_button)
+	move_buttons.add_child(up_button)
 	row["up"] = up_button
 
 	var down_button = Button.new()
-	down_button.text = "Dn"
+	down_button.text = "v"
+	down_button.tooltip_text = "Move row down"
 	down_button.pressed.connect(_on_query_row_move_pressed.bind(row, query_kind, 1))
-	top_row.add_child(down_button)
+	move_buttons.add_child(down_button)
 	row["down"] = down_button
+	top_row.add_child(move_buttons)
 
 	var remove_button = Button.new()
 	remove_button.text = "-"
@@ -1312,46 +1350,31 @@ func _refresh_all_query_offset_panels() -> void:
 		_refresh_query_offset_panel(query_row)
 
 
-func _on_query_cell_radius_changed(value: float, _query_kind: String) -> void:
+func _on_query_cell_radius_changed(value: float) -> void:
 	_query_hex_cell_radius = clampf(value, 6.0, 32.0)
 	_sync_query_cell_setting_spins()
 	_refresh_all_query_offset_panels()
 
 
-func _on_query_cell_gap_changed(value: float, _query_kind: String) -> void:
+func _on_query_cell_gap_changed(value: float) -> void:
 	_query_hex_cell_gap = clampf(value, 0.0, 12.0)
 	_sync_query_cell_setting_spins()
 	_refresh_all_query_offset_panels()
 
 
-func _on_query_cell_padding_changed(value: float, _query_kind: String) -> void:
+func _on_query_cell_padding_changed(value: float) -> void:
 	_query_hex_cell_padding = clampf(value, 0.0, 16.0)
 	_sync_query_cell_setting_spins()
 	_refresh_all_query_offset_panels()
 
 
 func _sync_query_cell_setting_spins() -> void:
-	for spin in [
-		_overlay_mask_cell_radius_spin,
-		_overlay_reference_cell_radius_spin,
-		_overlay_deductor_floor_cell_radius_spin,
-	]:
-		if spin != null:
-			spin.set_value_no_signal(_query_hex_cell_radius)
-	for spin in [
-		_overlay_mask_cell_gap_spin,
-		_overlay_reference_cell_gap_spin,
-		_overlay_deductor_floor_cell_gap_spin,
-	]:
-		if spin != null:
-			spin.set_value_no_signal(_query_hex_cell_gap)
-	for spin in [
-		_overlay_mask_cell_padding_spin,
-		_overlay_reference_cell_padding_spin,
-		_overlay_deductor_floor_cell_padding_spin,
-	]:
-		if spin != null:
-			spin.set_value_no_signal(_query_hex_cell_padding)
+	if _query_cell_radius_spin != null:
+		_query_cell_radius_spin.set_value_no_signal(_query_hex_cell_radius)
+	if _query_cell_gap_spin != null:
+		_query_cell_gap_spin.set_value_no_signal(_query_hex_cell_gap)
+	if _query_cell_padding_spin != null:
+		_query_cell_padding_spin.set_value_no_signal(_query_hex_cell_padding)
 
 
 func _query_direction_label(direction_index: int) -> String:
@@ -1419,17 +1442,6 @@ func _on_query_offset_cell_pressed(entry: Dictionary, row: Dictionary, mask_quer
 	var query_kind = _query_kind_from_value(mask_query)
 	var offset = row.get("offset", HexVector.zero())
 	offset = offset.add(direction)
-	row["offset"] = offset
-	var label: Label = row["offset_label"]
-	label.text = offset.key()
-	_refresh_query_offset_panel(row)
-	_on_query_row_edited(query_kind)
-
-
-func _on_query_row_direction_pressed(direction_index: int, row: Dictionary, mask_query) -> void:
-	var query_kind = _query_kind_from_value(mask_query)
-	var offset = row.get("offset", HexVector.zero())
-	offset = offset.add(HexVector.directions()[direction_index])
 	row["offset"] = offset
 	var label: Label = row["offset_label"]
 	label.text = offset.key()
@@ -3440,21 +3452,15 @@ func _set_generation_controls_disabled(disabled: bool) -> void:
 		_overlay_add_item_button,
 		_overlay_mask_add_source_option,
 		_overlay_mask_add_button,
-		_overlay_mask_cell_radius_spin,
-		_overlay_mask_cell_gap_spin,
-		_overlay_mask_cell_padding_spin,
+		_query_cell_radius_spin,
+		_query_cell_gap_spin,
+		_query_cell_padding_spin,
 		_overlay_mask_crop_check,
 		_overlay_deductor_floor_add_source_option,
 		_overlay_deductor_floor_add_button,
-		_overlay_deductor_floor_cell_radius_spin,
-		_overlay_deductor_floor_cell_gap_spin,
-		_overlay_deductor_floor_cell_padding_spin,
 		_overlay_adjacency_check,
 		_overlay_reference_add_source_option,
 		_overlay_reference_add_button,
-		_overlay_reference_cell_radius_spin,
-		_overlay_reference_cell_gap_spin,
-		_overlay_reference_cell_padding_spin,
 		_overlay_neighbor_radius_spin,
 		_overlay_adjacency_rules_edit,
 		_overlay_adjacency_rules_edit_button,
@@ -3505,6 +3511,7 @@ func _set_control_disabled(control: Control, disabled: bool) -> void:
 		control.editable = not disabled
 	elif control is HexCellButtonPanel:
 		control.enabled = not disabled
+		control.queue_redraw()
 
 
 func _update_stats() -> void:
