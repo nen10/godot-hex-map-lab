@@ -97,7 +97,5 @@ func _adjacency_rule_status_text(report: Dictionary) -> String:
 	var invalid_entries: Array = report.get("invalid_entries", [])
 	var text = "Rules: %d" % rules.size()
 	if not invalid_entries.is_empty():
-		text += " (fallback default)"
-	if not invalid_entries.is_empty():
 		text += "  Invalid: %s" % ", ".join(invalid_entries)
 	return text

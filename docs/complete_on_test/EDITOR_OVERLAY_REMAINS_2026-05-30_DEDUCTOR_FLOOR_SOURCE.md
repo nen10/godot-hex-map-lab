@@ -19,15 +19,15 @@
 - Deductor適用後の `HexOverlayData`
 - Deductor Floor Source status
 
-Deductor Floor Source未指定時は、従来通りPlacement Mask candidatesをDeductorのfloor集合として使う。Deductor Floor Sourceが指定されている場合は、そのquery resultを連結性回復用floor集合として使い、Placement Mask candidatesとは分離する。query resultが空の場合は警告し、空floor集合のままDeductorへ渡す。
+Deductor Floor Source未指定時は、生成後に配置item集合のShape universe内complementをDeductorのfloor集合として使う。Deductor Floor Sourceが指定されている場合は、そのquery resultを連結性回復用floor集合として使い、Placement Mask candidatesとは分離する。query resultが空の場合は警告し、空floor集合のままDeductorへ渡す。
 
 ## 実装状況
 
 - [x] `Markov Mesh` OverlayかつAdjacency OffのときだけDeductor Floor Source controlを表示する
 - [x] Source Registryの行ベースqueryでDeductor floor cellsを指定できる
-- [x] 未指定時はPlacement Mask candidatesをDeductor floor cellsとして使う
+- [x] 未指定時は生成後の配置item集合のcomplementをDeductor floor cellsとして使う
 - [x] 指定時はPlacement Mask candidatesとDeductor floor cellsを分離してsnapshotに保持する
-- [x] `_generate_overlay_data_from_snapshot()` がDeductorへ独立floor cellsを渡す
+- [x] `_generate_overlay_data_from_snapshot()` がsnapshot内のShape universe / Deductor Floor Source有無だけを参照してDeductorへfloor cellsを渡す
 - [x] 空Deductor floor queryを警告し、fallbackしない
 
 ## テスト
@@ -35,7 +35,7 @@ Deductor Floor Source未指定時は、従来通りPlacement Mask candidatesをD
 - `tests/test_editor_plugin.gd`
   - Markov Mesh OverlayでDeductor Floor Sourceが表示される
   - Adjacency OverlayではDeductor Floor Sourceが非表示になる
-  - 未指定時にPlacement Mask candidatesがDeductor floor cellsになる
+  - 未指定時に生成後の配置item集合のcomplementがDeductor floor cellsになる
   - 指定時にPlacement Mask candidatesとDeductor floor cellsが分離される
   - Deductor floor query編集ではMask CropがOffに戻らない
   - 生成時に独立floor sourceがDeductorへ反映される

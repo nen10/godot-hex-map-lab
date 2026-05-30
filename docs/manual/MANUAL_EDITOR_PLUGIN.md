@@ -63,7 +63,7 @@ Overlay mode の Markov Mesh では同じ選択肢を Overlay Deductor として
 
 `Overlay` を有効にすると、`Generate` ボタンは `Overlay Generation` になり、ユーザー定義 item key を持つ `HexOverlayData` を生成します。`Overlay` が無効な場合は `Primary Generation` として従来の床・壁 `HexMapData` を生成します。
 
-Overlay generation は現在の Primary Data の floor cells を placement candidates として使います。
+Overlay generation は Placement Mask Query Rows を現在の Shape / サイズの universe に対して評価し、placement candidates として使います。Query Row が0行の場合はShape universe全体を候補にし、Query Row が1行以上あって結果が空の場合はGenerateを実行しません。
 
 - `Uniform Distribution`: Item Pool の各 row を使って item を配置する
 - `Add Item`: Item Pool row を追加する
@@ -72,12 +72,12 @@ Overlay generation は現在の Primary Data の floor cells を placement candi
 - Item Pool row の `Tile` は、その item key を `TileMapLayer` に表示するときの source / atlas coords。`Floor Tile` / `Wall Tile` でDock上部のFloor / Wall tile設定をrowへコピーできる
 - `Target Item`: `Markov Mesh` で生成する item key。`Wall` など既存名も入力できる
 - `Markov Mesh`: `Target Item` に対して対称 toric item generation を使う
-- `Placement Mask`: Primary / current Overlay の item keys から生成候補cellを作る
-- `Deductor Floor Source`: `Markov Mesh` かつ `Adjacency Rules` Off のOverlay Deductorで、連結性回復に使うfloor集合をPlacement Maskとは別に指定する。未指定時はPlacement Mask candidatesを使う
+- `Placement Mask`: Source Registry の `HexMapResource` / `HexOverlayResource` item keys から生成候補cellを作る
+- `Deductor Floor Source`: `Markov Mesh` かつ `Adjacency Rules` Off のOverlay Deductorで、連結性回復に使うfloor集合をPlacement Maskとは別に指定する。未指定時は、生成後に配置item集合のShape universe内complementをfloor集合として使う
 - `Enable Adjacency Reference`: On にすると `Markov Mesh` に切り替え、Reference Items と Adjacency Rules を使う
 - `Reference Items`: Primary / current Overlay の item keys から参照cellを作る
 - `Neighbor Radius`: Adjacency Reference の参照範囲
-- `Adjacency Rules`: `default=0.2;1=0.8;2,1=0.4` のように、参照item近傍数または `近傍数,連結成分数` ごとの確率を指定する。`2,1` は内部では `Vector2i(2, 1)` keyとして正規化される。不正entryはstatusに表示され、有効ruleがない場合はfallback defaultを使う。`Edit` で専用editorを開く
+- `Adjacency Rules`: `default=0.2;1=0.8;2,1=0.4` のように、参照item近傍数または `近傍数,連結成分数` ごとの確率を指定する。`2,1` は内部では `Vector2i(2, 1)` keyとして正規化される。不正entryはstatusに表示され、有効ruleがない場合はGenerateを実行しない。`Edit` で専用editorを開く
 - `Apply Write`: `Clear And Write` または `Add Item`
 - `Existing Item`: `Merge Existing` / `Replace Existing` / `Skip Existing`
 

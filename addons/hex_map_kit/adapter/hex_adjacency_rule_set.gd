@@ -29,8 +29,6 @@ static func parse_rules_text_report(text: String) -> Dictionary:
 			invalid_entries.append(entry)
 			continue
 		rules[key] = clampf(float(value_text), 0.0, 1.0)
-	if rules.is_empty():
-		rules["default"] = 0.0
 	return {
 		"rules": rules,
 		"invalid_entries": invalid_entries,

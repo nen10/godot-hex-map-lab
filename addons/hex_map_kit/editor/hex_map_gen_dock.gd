@@ -73,6 +73,8 @@ const QUERY_ROW_OPERATION_NAMES := ["AND", "OR"]
 const QUERY_ROW_OPERATIONS := [QUERY_ROW_OPERATION_AND, QUERY_ROW_OPERATION_OR]
 const QUERY_ROW_MATCH_NAMES := ["Contain", "Exclude"]
 const QUERY_ROW_MATCHES := [QUERY_ROW_MATCH_CONTAIN, QUERY_ROW_MATCH_EXCLUDE]
+const GENERATION_BLOCK_EMPTY_MASK := "Placement Mask query result is empty."
+const GENERATION_BLOCK_EMPTY_ADJACENCY_RULES := "Adjacency Rules has no valid rules."
 const QUERY_DIRECTION_BUTTON_DEFAULT_SIZE := 28.0
 const QUERY_KIND_MASK := "mask"
 const QUERY_KIND_REFERENCE := "reference"
@@ -531,7 +533,7 @@ func _build_overlay_deductor_floor_controls() -> Control:
 	_overlay_deductor_floor_container.add_child(_build_section_label("Deductor Floor Source"))
 	_overlay_deductor_floor_container.add_child(_build_query_row_controls(QUERY_KIND_DEDUCTOR_FLOOR))
 	_overlay_deductor_floor_status_label = Label.new()
-	_overlay_deductor_floor_status_label.text = "Default: Placement Mask candidates"
+	_overlay_deductor_floor_status_label.text = "Default: generated complement"
 	_overlay_deductor_floor_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_overlay_deductor_floor_status_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
 	_overlay_deductor_floor_container.add_child(_overlay_deductor_floor_status_label)
@@ -1406,6 +1408,7 @@ func _on_query_row_edited(mask_query) -> void:
 		_refresh_mask_crop_count()
 	elif query_kind == QUERY_KIND_DEDUCTOR_FLOOR:
 		_refresh_deductor_floor_status()
+	_refresh_generation_block_state()
 
 
 func _add_overlay_item_pool_row(item_name: String = "", amount: float = 1.0) -> void:
@@ -1628,7 +1631,7 @@ func _adjacency_rule_status_text(report: Dictionary) -> String:
 
 
 func _on_option_changed(_v = null) -> void:
-	pass
+	_refresh_generation_block_state()
 
 
 func _on_mask_crop_toggled(_enabled: bool) -> void:
@@ -2494,16 +2497,65 @@ func _refresh_controls() -> void:
 		_wall_prob_row.visible = not overlay or not (_overlay_item_limit_enabled() or _overlay_adjacency_enabled())
 	_refresh_overlay_item_pool_rows()
 	_refresh_adjacency_rules_status()
+	_refresh_generation_block_state()
 
 
 func _uses_symmetric_generation() -> bool:
 	return _generate_option.selected == GENERATE_SYMMETRIC
 
 
+func _current_generation_block_reason() -> String:
+	if _generation_running or not _overlay_mode_enabled():
+		return ""
+	if _query_rows_enabled(QUERY_KIND_MASK) \
+		and _evaluate_query_rows(QUERY_KIND_MASK).is_empty():
+		return GENERATION_BLOCK_EMPTY_MASK
+	if _overlay_adjacency_enabled():
+		var text = _overlay_adjacency_rules_edit.text if _overlay_adjacency_rules_edit != null else ""
+		var rules: Dictionary = HexAdjacencyRuleSet.parse_rules_text(text)
+		if rules.is_empty():
+			return GENERATION_BLOCK_EMPTY_ADJACENCY_RULES
+	return ""
+
+
+func _generation_block_reason_for_snapshot(snapshot: Dictionary) -> String:
+	if not bool(snapshot.get("overlay_mode", false)):
+		return ""
+	var candidates: Array = snapshot.get("overlay_candidate_cells", [])
+	if bool(snapshot.get("overlay_mask_query_enabled", false)) and candidates.is_empty():
+		return GENERATION_BLOCK_EMPTY_MASK
+	var rules: Dictionary = snapshot.get("overlay_adjacency_rules", {})
+	if bool(snapshot.get("overlay_adjacency_enabled", false)) and rules.is_empty():
+		return GENERATION_BLOCK_EMPTY_ADJACENCY_RULES
+	return ""
+
+
+func _refresh_generation_block_state() -> void:
+	if _generate_button == null:
+		return
+	if _generation_running:
+		_generate_button.disabled = true
+		return
+	var reason = _current_generation_block_reason()
+	_generate_button.disabled = reason != ""
+	_generate_button.tooltip_text = reason
+	if reason != "":
+		_set_generation_progress(0.0, reason)
+	elif _generation_status == GENERATION_BLOCK_EMPTY_MASK \
+		or _generation_status == GENERATION_BLOCK_EMPTY_ADJACENCY_RULES:
+		_set_generation_progress(0.0, "Ready")
+
+
 func _generate_map(show_progress: bool = false) -> bool:
 	if _generation_running:
 		return false
 	var snapshot = _create_generation_snapshot()
+	var block_reason = _generation_block_reason_for_snapshot(snapshot)
+	if block_reason != "":
+		_set_generation_progress(0.0, block_reason)
+		push_warning(block_reason)
+		_refresh_generation_block_state()
+		return false
 	_begin_generation(int(snapshot["generation_id"]), show_progress)
 	await get_tree().process_frame
 
@@ -2575,6 +2627,9 @@ func _create_generation_snapshot() -> Dictionary:
 		"overlay_adjacency_rules": _overlay_adjacency_rules(),
 	}
 	if bool(snapshot["overlay_mode"]):
+		snapshot["overlay_shape_universe"] = _overlay_shape_universe()
+		snapshot["overlay_mask_query_enabled"] = _query_rows_enabled(QUERY_KIND_MASK)
+		snapshot["overlay_deductor_floor_source_enabled"] = _query_rows_enabled(QUERY_KIND_DEDUCTOR_FLOOR)
 		snapshot["overlay_candidate_cells"] = _overlay_mask_cells_for_snapshot(snapshot)
 		snapshot["overlay_deductor_floor_cells"] = _overlay_deductor_floor_cells_for_snapshot(
 			snapshot["overlay_candidate_cells"]
@@ -2671,14 +2726,13 @@ func _query_rows_enabled(mask_query) -> bool:
 	return not _query_rows_for_kind(_query_kind_from_value(mask_query)).is_empty()
 
 
-func _evaluate_query_rows(query_kind, crop_enabled: bool = false) -> Array:
+func _evaluate_query_rows(query_kind) -> Array:
 	var rows = _query_rows_for_kind(query_kind)
 	if rows.is_empty():
 		if query_kind == QUERY_KIND_MASK:
 			return _overlay_shape_universe()  # Any predicate: 全 cell 通過
 		return []
 	var universe = _overlay_shape_universe()
-	var universe_set = HexMapData.make_set(universe)
 	var result: Array = []
 	for index in range(rows.size()):
 		var row = rows[index]
@@ -2694,20 +2748,6 @@ func _evaluate_query_rows(query_kind, crop_enabled: bool = false) -> Array:
 		else:
 			result = HexMapData.unique_points(result + row_cells)
 	return result
-
-
-func _query_row_contain_cells(row: Dictionary) -> Array:
-	var entry = _source_entry_by_id(int(row.get("source_id", -1)))
-	if entry.is_empty():
-		return []
-	var data = entry.get("data", null)
-	if data == null:
-		return []
-	return _offset_points(
-		data.item_cells(String(row.get("item_key", ""))),
-		row.get("offset", HexVector.zero()),
-		int(data.cyclic_size)
-	)
 
 
 func _offset_points(points: Array, offset, cyclic_size: int = 0) -> Array:
@@ -2778,17 +2818,17 @@ func _query_row_match(row: Dictionary) -> String:
 
 
 func _overlay_mask_cells_for_snapshot(snapshot: Dictionary) -> Array:
-	var query_cells = _evaluate_query_rows(QUERY_KIND_MASK, false)
+	var query_cells = _evaluate_query_rows(QUERY_KIND_MASK)
 	if _query_rows_enabled(QUERY_KIND_MASK) and query_cells.is_empty():
-		push_warning("Placement Mask query result is empty. Overlay generation will use no candidate cells.")
+		push_warning(GENERATION_BLOCK_EMPTY_MASK)
 	return query_cells
 
 
 func _overlay_deductor_floor_cells_for_snapshot(default_floor_cells: Array) -> Array:
 	if not _query_rows_enabled(QUERY_KIND_DEDUCTOR_FLOOR):
-		_set_deductor_floor_status("Default: Placement Mask candidates (%d cells)" % default_floor_cells.size())
-		return default_floor_cells
-	var cells = _evaluate_query_rows(QUERY_KIND_DEDUCTOR_FLOOR, false)
+		_set_deductor_floor_status("Default: generated complement")
+		return []
+	var cells = _evaluate_query_rows(QUERY_KIND_DEDUCTOR_FLOOR)
 	if cells.is_empty():
 		var message = "Deductor Floor Source query result is empty."
 		_set_deductor_floor_status(message)
@@ -2800,9 +2840,9 @@ func _overlay_deductor_floor_cells_for_snapshot(default_floor_cells: Array) -> A
 
 func _refresh_deductor_floor_status() -> void:
 	if not _query_rows_enabled(QUERY_KIND_DEDUCTOR_FLOOR):
-		_set_deductor_floor_status("Default: Placement Mask candidates")
+		_set_deductor_floor_status("Default: generated complement")
 		return
-	var cells = _evaluate_query_rows(QUERY_KIND_DEDUCTOR_FLOOR, false)
+	var cells = _evaluate_query_rows(QUERY_KIND_DEDUCTOR_FLOOR)
 	_set_deductor_floor_status("Deductor floor cells: %d" % cells.size())
 
 
@@ -2813,7 +2853,7 @@ func _set_deductor_floor_status(text: String) -> void:
 
 func _overlay_reference_cells_for_snapshot() -> Array:
 	if _query_rows_enabled(QUERY_KIND_REFERENCE):
-		return _evaluate_query_rows(QUERY_KIND_REFERENCE, false)
+		return _evaluate_query_rows(QUERY_KIND_REFERENCE)
 	return []
 
 
@@ -2871,18 +2911,47 @@ func _overlay_mask_crop_enabled() -> bool:
 func _overlay_shape_universe() -> Array:
 	var symmetric = _uses_symmetric_generation()
 	var shape = _shape_option_symmetric.selected if symmetric else _shape_option_simple.selected
+	return _shape_universe_from_values(
+		symmetric,
+		shape,
+		int(_hex_radius_spin.value),
+		int(_rect_width_spin.value),
+		int(_rect_height_spin.value),
+		int(_gen_radius_spin.value)
+	)
+
+
+func _shape_universe_for_snapshot(snapshot: Dictionary) -> Array:
+	return _shape_universe_from_values(
+		bool(snapshot.get("symmetric", false)),
+		int(snapshot.get("shape", SHAPE_RECTANGLE)),
+		int(snapshot.get("hex_radius", 1)),
+		int(snapshot.get("rect_width", 1)),
+		int(snapshot.get("rect_height", 1)),
+		int(snapshot.get("generation_radius", 1))
+	)
+
+
+func _shape_universe_from_values(
+	symmetric: bool,
+	shape: int,
+	hex_radius: int,
+	rect_width: int,
+	rect_height: int,
+	generation_radius: int
+) -> Array:
 	if symmetric:
-		var radius = int(_gen_radius_spin.value)
+		var radius = generation_radius
 		if shape == SHAPE_HEXAGON:
 			return HexMapData.hexagon(radius).cells
 		return HexMapData.square(radius * 2 + 1, false).cells
 	match shape:
 		SHAPE_HEXAGON:
-			return HexMapData.hexagon(int(_hex_radius_spin.value)).cells
+			return HexMapData.hexagon(hex_radius).cells
 		SHAPE_RECTANGLE:
-			return HexMapData.rectangle(int(_rect_width_spin.value), int(_rect_height_spin.value)).cells
+			return HexMapData.rectangle(rect_width, rect_height).cells
 		SHAPE_TORUS, _:
-			var radius = int(_gen_radius_spin.value)
+			var radius = generation_radius
 			return HexMapData.square(radius * 2 + 1, false).cells
 
 
@@ -2918,7 +2987,7 @@ func _refresh_mask_crop_count() -> void:
 
 func _overlay_crop_result_data():
 	var universe = _overlay_shape_universe()
-	var result_cells = _evaluate_query_rows(QUERY_KIND_MASK, false)
+	var result_cells = _evaluate_query_rows(QUERY_KIND_MASK)
 	var result_set = HexMapData.make_set(result_cells)
 	var items := {}
 	items[HexMapData.ITEM_ANY] = universe
@@ -2926,7 +2995,7 @@ func _overlay_crop_result_data():
 		if _query_row_match(row) != QUERY_ROW_MATCH_CONTAIN:
 			continue
 		var item_key = _crop_result_item_key(row)
-		var cells = _intersect_points(_query_row_contain_cells(row), result_cells)
+		var cells = _intersect_points(_query_row_contain_cells_in_universe(row, universe), result_cells)
 		cells = HexMapData.filter_points(cells, result_set)
 		if not cells.is_empty():
 			if not items.has(item_key):
@@ -2994,8 +3063,11 @@ func _generate_overlay_data_from_snapshot(snapshot: Dictionary, interrupt_option
 		and bool(snapshot["symmetric"]) \
 		and not bool(snapshot.get("overlay_adjacency_enabled", false)):
 		var deductor_floor = snapshot.get("overlay_deductor_floor_cells", candidates)
-		if not _query_rows_enabled(QUERY_KIND_DEDUCTOR_FLOOR):
-			deductor_floor = HexMapData.points_except(_overlay_shape_universe(), data.occupied_cells())
+		if not bool(snapshot.get("overlay_deductor_floor_source_enabled", false)):
+			deductor_floor = HexMapData.points_except(
+				snapshot.get("overlay_shape_universe", _shape_universe_for_snapshot(snapshot)),
+				data.occupied_cells()
+			)
 		HexMapGenerator.deduct_items_for_connectivity(
 			data,
 			item_name,
@@ -3188,6 +3260,7 @@ func _finish_generation(cancelled: bool) -> void:
 			_hide_generation_progress_controls()
 		else:
 			_finish_generation_progress_controls_success()
+	_refresh_generation_block_state()
 	generation_finished.emit(cancelled)
 
 
@@ -3336,8 +3409,10 @@ func _set_generation_controls_disabled(disabled: bool) -> void:
 			_set_control_disabled(direction_button, disabled)
 	if _torus_connectivity_check != null:
 		_torus_connectivity_check.disabled = disabled or not _uses_symmetric_generation()
+	_refresh_generation_block_state()
 	_refresh_overlay_item_pool_rows()
 	_refresh_query_row_order(true)
+	_refresh_query_row_order(QUERY_KIND_DEDUCTOR_FLOOR)
 	_refresh_query_row_order(false)
 
 

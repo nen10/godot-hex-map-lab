@@ -381,9 +381,9 @@ func _test_adjacency_rule_set_parses_probability_rules() -> void:
 	_assert_eq(report["invalid_entries"], ["bad=x", "bad=0.5"], "adjacency rule set reports invalid entries")
 
 	var empty_rules = HexAdjacencyRuleSet.parse_rules_text("bad")
-	_assert_eq(empty_rules["default"], 0.0, "adjacency rule set uses zero probability when no valid rules")
+	_assert_eq(empty_rules, {}, "adjacency rule set returns empty rules when no entries are valid")
 	var empty_report = HexAdjacencyRuleSet.parse_rules_text_report("bad")
-	_assert_eq(empty_report["rules"]["default"], 0.0, "adjacency rule set reports zero default on empty rules")
+	_assert_eq(empty_report["rules"], {}, "adjacency rule set reports empty rules without fallback default")
 
 	var resource = HexAdjacencyRuleSet.new()
 	resource.rules_text = "default=1.4;0=-0.2"

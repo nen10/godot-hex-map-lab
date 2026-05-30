@@ -10,14 +10,14 @@
 
 - `rules_text`
   - `default=0.2;1=0.8;2,1=0.4` 形式
-- fallback probability
 
 出力:
 
 - probability rule dictionary
   - `"default"`
   - neighbor count `int`
-  - `"count,components"` string
+  - count / components `Vector2i`
+- invalid entry list
 
 ### HexAdjacencyRuleEditor
 
@@ -36,7 +36,7 @@
 - [x] `HexAdjacencyRuleSet` Resource を追加する
 - [x] rule text を probability rule dictionary に変換する
 - [x] probability を `0.0..1.0` に clamp する
-- [x] rule text が空または不正な場合、fallback probability を `default` として使う
+- [x] rule text が空または全不正な場合、空rules `{}` を返す
 - [x] `HexAdjacencyRuleEditor` で rule text を編集し、Apply callback に返す
 - [x] Editor Dock の Adjacency Rules `Edit` button から rule editor を開く
 - [x] Editor Dock の adjacency generation が `HexAdjacencyRuleSet` の parser を使う
@@ -45,7 +45,7 @@
 
 - `tests/test_hex_adapter.gd`
   - default / neighbor count / count-component key の parse
-  - fallback probability
+  - 全不正入力で空rulesを返すこと
   - probability clamp
 - `tests/test_editor_plugin.gd`
   - `HexAdjacencyRuleEditor` が初期rule textを表示すること

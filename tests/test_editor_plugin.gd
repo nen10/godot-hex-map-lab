@@ -209,6 +209,7 @@ func _test_adjacency_rule_editor_applies_rule_text() -> void:
 	editor._rules_edit.text = "1=0.8;bad=x"
 	editor._on_rules_text_changed(editor._rules_edit.text)
 	_assert_true(editor._rules_status_label.text.contains("Invalid: bad=x"), "adjacency rule editor reports invalid entry")
+	_assert_true(not editor._rules_status_label.text.contains("fallback default"), "adjacency rule editor does not show fallback status")
 	editor._on_apply_pressed()
 	await process_frame
 
@@ -229,8 +230,18 @@ func _test_generation_dock_adjacency_rule_validation() -> void:
 
 	dock._overlay_adjacency_rules_edit.text = "bad"
 	rules = dock._overlay_adjacency_rules()
-	_assert_eq(rules["default"], 0.0, "generation dock adjacency rules use zero default when no valid rules")
-	_assert_true(dock._overlay_adjacency_rules_status_label.text.contains("Rules: 1"), "generation dock adjacency status shows single default rule on empty input")
+	_assert_eq(rules, {}, "generation dock adjacency rules stay empty when no valid rules exist")
+	_assert_true(dock._overlay_adjacency_rules_status_label.text.contains("Rules: 0"), "generation dock adjacency status shows empty rules")
+	_assert_true(not dock._overlay_adjacency_rules_status_label.text.contains("fallback default"), "generation dock adjacency status does not show fallback")
+
+	dock._overlay_mode_check.set_pressed_no_signal(true)
+	dock._overlay_adjacency_check.set_pressed_no_signal(true)
+	dock._on_overlay_adjacency_toggled(true)
+	dock._overlay_adjacency_rules_edit.text = "bad"
+	dock._refresh_controls()
+	_assert_true(dock._generate_button.disabled, "generation dock disables Generate when adjacency rules are empty")
+	_assert_true(not await dock._generate_map(), "generation dock does not generate adjacency overlay with empty rules")
+	_assert_eq(dock.generation_status()["status"], HexMapGenDock.GENERATION_BLOCK_EMPTY_ADJACENCY_RULES, "empty adjacency rules block generation status")
 
 	dock.queue_free()
 	await process_frame
@@ -865,6 +876,7 @@ func _test_generation_dock_overlay_uniform_generation_and_apply() -> void:
 	dock._tile_layer_option.select(1)
 	_assert_true(dock.setup_sample_tiles_on_tile_map_layer(layer), "overlay apply test configures sample tiles")
 
+	_assert_true(dock._current_data == null, "overlay generation does not require current primary data")
 	_assert_true(await dock._generate_map(), "generation dock generates overlay data")
 	_assert_true(dock._current_overlay_data != null, "overlay generation stores current overlay data")
 	_assert_eq(dock._current_overlay_data.item_cells("Tree").size(), data.floor_cells().size(), "overlay uniform generation uses primary floor cells as candidates")
@@ -1078,6 +1090,11 @@ func _test_generation_dock_mapdata_query_rows_evaluate_offset_and_toric() -> voi
 	dock._rect_width_spin.set_value_no_signal(3)
 	dock._rect_height_spin.set_value_no_signal(1)
 	dock._refresh_controls()
+	_assert_keys_eq(
+		dock._evaluate_query_rows(HexMapGenDock.QUERY_KIND_MASK),
+		HexMapData.rectangle(3, 1).cells,
+		"zero Mask Query Rows pass the full shape universe"
+	)
 	var map_data = HexMapData.rectangle(3, 1)
 	map_data.set_walls([HexVector.q_axis()])
 	var map_id = dock.register_mapdata_source(HexMapResource.from_map_data(map_data), "res://map_query.tres")
@@ -1140,6 +1157,9 @@ func _test_generation_dock_mapdata_query_rows_evaluate_offset_and_toric() -> voi
 		[],
 		"empty Mask query does not fallback to current Primary floor cells"
 	)
+	_assert_true(dock._generate_button.disabled, "empty Mask query disables Generate")
+	_assert_true(not await dock._generate_map(), "empty Mask query does not start generation")
+	_assert_eq(dock.generation_status()["status"], HexMapGenDock.GENERATION_BLOCK_EMPTY_MASK, "empty Mask query block reason is visible")
 
 	var overlay = HexOverlayData.from_cells(
 		[HexVector.zero(), HexVector.q_axis()],
@@ -1175,6 +1195,24 @@ func _test_generation_dock_mapdata_query_rows_evaluate_offset_and_toric() -> voi
 		dock._evaluate_query_rows(HexMapGenDock.QUERY_KIND_REFERENCE),
 		[HexVector.zero()],
 		"query rows wrap offset cells for toric source"
+	)
+	dock._rect_width_spin.set_value_no_signal(5)
+	dock._rect_height_spin.set_value_no_signal(1)
+	dock._refresh_controls()
+	_assert_keys_eq(
+		dock._evaluate_query_rows(HexMapGenDock.QUERY_KIND_REFERENCE),
+		[HexVector.zero(), HexVector.apply_basis(3, 0, 0)],
+		"toric source query expands all matching representatives inside the shape universe"
+	)
+
+	dock._overlay_mask_query_rows.clear()
+	var toric_mask_row = dock._add_query_row(HexMapGenDock.QUERY_KIND_MASK, toric_id, "Wrap")
+	dock._on_query_row_direction_pressed(0, toric_mask_row, true)
+	var crop_data = dock._overlay_crop_result_data()
+	_assert_keys_eq(
+		crop_data.item_cells(dock._crop_result_item_key(toric_mask_row)),
+		[HexVector.zero(), HexVector.apply_basis(3, 0, 0)],
+		"Crop result stores all toric source representatives inside the shape universe"
 	)
 
 	dock.queue_free()
@@ -1216,8 +1254,23 @@ func _test_generation_dock_overlay_deductor_floor_source_query() -> void:
 	)
 	_assert_keys_eq(
 		default_snapshot["overlay_deductor_floor_cells"],
-		[HexVector.q_axis()],
-		"deductor floor defaults to placement mask candidates"
+		[],
+		"deductor floor default is resolved after generation"
+	)
+	_assert_eq(
+		default_snapshot["overlay_deductor_floor_source_enabled"],
+		false,
+		"deductor floor snapshot records missing source rows"
+	)
+	_assert_eq(
+		dock._overlay_deductor_floor_status_label.text,
+		"Default: generated complement",
+		"deductor floor default status describes generated complement"
+	)
+	var default_generated = dock._generate_overlay_data_from_snapshot(default_snapshot, {})
+	_assert_true(
+		default_generated.has_item(HexVector.q_axis(), "Item1"),
+		"deductor floor default uses generated complement instead of placement candidates"
 	)
 
 	var floor_source = HexMapData.rectangle(1, 1)

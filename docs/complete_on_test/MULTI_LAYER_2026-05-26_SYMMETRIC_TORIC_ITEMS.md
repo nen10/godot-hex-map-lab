@@ -11,7 +11,7 @@
 - `target_cells: Array[HexVector]`
   - Overlay item generation の生成対象 cell
 - `wall_probability: float`
-  - 既存 Markov Mesh の non-reference fallback probability と同じ扱い
+  - 既存 Markov Mesh の non-reference initial probability と同じ扱い
 - `seed: int`
 - `distribution_id: int`
 - `blocked_cells: Array[HexVector]`
