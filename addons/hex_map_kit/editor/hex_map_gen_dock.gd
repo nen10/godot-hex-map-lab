@@ -44,7 +44,7 @@ const TILE_TARGET_LAYER_INDEX_OFFSET := 1
 const TILE_TARGET_AUTO_LABEL := "Auto: Selected / first scene layer"
 const TILE_TARGET_ADD_LAYER_LABEL := "Add new layer..."
 const NEW_TILE_LAYER_BASE_NAME := "HexMapLayer"
-const OVERLAY_DEFAULT_ITEM_NAME := "OverlayItem"
+const OVERLAY_DEFAULT_ITEM_NAME := "Item1"
 const OVERLAY_WRITE_POLICIES := [
 	HexOverlayData.APPLY_CLEAR_AND_WRITE,
 	HexOverlayData.APPLY_ADD_ITEM,
@@ -62,14 +62,6 @@ const OVERLAY_EXISTING_POLICY_NAMES := [
 	"Merge Existing",
 	"Replace Existing",
 	"Skip Existing",
-]
-const OVERLAY_QUERY_OPERATIONS := [
-	HexOverlayData.ITEM_QUERY_OR,
-	HexOverlayData.ITEM_QUERY_AND,
-]
-const OVERLAY_QUERY_OPERATION_NAMES := [
-	"Any Item",
-	"All Items",
 ]
 const MAPDATA_SOURCE_MAP := "map"
 const MAPDATA_SOURCE_OVERLAY := "overlay"
@@ -159,11 +151,6 @@ var _mapdata_sources: Array[Dictionary] = []
 var _next_mapdata_source_id := 1
 var _last_overlay_stack_source_count := 0
 var _overlay_mask_container: VBoxContainer
-var _overlay_mask_primary_check: CheckButton
-var _overlay_mask_primary_items_edit: LineEdit
-var _overlay_mask_overlay_check: CheckButton
-var _overlay_mask_overlay_items_edit: LineEdit
-var _overlay_mask_operation_option: OptionButton
 var _overlay_mask_query_container: VBoxContainer
 var _overlay_mask_add_source_option: OptionButton
 var _overlay_mask_add_button: Button
@@ -180,11 +167,6 @@ var _overlay_deductor_floor_status_label: Label
 var _overlay_deductor_floor_query_rows: Array[Dictionary] = []
 var _overlay_adjacency_check: CheckButton
 var _overlay_reference_container: VBoxContainer
-var _overlay_reference_primary_check: CheckButton
-var _overlay_reference_primary_items_edit: LineEdit
-var _overlay_reference_overlay_check: CheckButton
-var _overlay_reference_overlay_items_edit: LineEdit
-var _overlay_reference_operation_option: OptionButton
 var _overlay_reference_query_container: VBoxContainer
 var _overlay_reference_add_source_option: OptionButton
 var _overlay_reference_add_button: Button
@@ -539,37 +521,7 @@ func _build_source_registry_controls() -> Control:
 func _build_overlay_mask_controls() -> Control:
 	_overlay_mask_container = VBoxContainer.new()
 	_overlay_mask_container.add_child(_build_section_label("Placement Mask"))
-
-	var primary_row = HBoxContainer.new()
-	_overlay_mask_primary_check = CheckButton.new()
-	_overlay_mask_primary_check.text = "Primary"
-	_overlay_mask_primary_check.button_pressed = true
-	_overlay_mask_primary_check.toggled.connect(_on_option_changed)
-	primary_row.add_child(_overlay_mask_primary_check)
-	_overlay_mask_primary_items_edit = LineEdit.new()
-	_overlay_mask_primary_items_edit.text = "Floor"
-	_overlay_mask_primary_items_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_overlay_mask_primary_items_edit.text_changed.connect(_on_option_changed)
-	primary_row.add_child(_overlay_mask_primary_items_edit)
-	_overlay_mask_container.add_child(primary_row)
-
-	var overlay_row = HBoxContainer.new()
-	_overlay_mask_overlay_check = CheckButton.new()
-	_overlay_mask_overlay_check.text = "Overlay"
-	_overlay_mask_overlay_check.button_pressed = false
-	_overlay_mask_overlay_check.toggled.connect(_on_option_changed)
-	overlay_row.add_child(_overlay_mask_overlay_check)
-	_overlay_mask_overlay_items_edit = LineEdit.new()
-	_overlay_mask_overlay_items_edit.text = ""
-	_overlay_mask_overlay_items_edit.placeholder_text = "ItemA, ItemB"
-	_overlay_mask_overlay_items_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_overlay_mask_overlay_items_edit.text_changed.connect(_on_option_changed)
-	overlay_row.add_child(_overlay_mask_overlay_items_edit)
-	_overlay_mask_container.add_child(overlay_row)
-
-	_overlay_mask_operation_option = _new_query_operation_option()
-	_overlay_mask_container.add_child(_wrap_labeled("Mask Set", _overlay_mask_operation_option))
-	_overlay_mask_container.add_child(_build_query_row_controls(true))
+	_overlay_mask_container.add_child(_build_query_row_controls(QUERY_KIND_MASK))
 	return _overlay_mask_container
 
 
@@ -593,37 +545,7 @@ func _build_overlay_adjacency_controls() -> Control:
 	_overlay_reference_container.visible = false
 	box.add_child(_overlay_reference_container)
 	_overlay_reference_container.add_child(_build_section_label("Adjacency Items"))
-
-	var primary_row = HBoxContainer.new()
-	_overlay_reference_primary_check = CheckButton.new()
-	_overlay_reference_primary_check.text = "Primary"
-	_overlay_reference_primary_check.button_pressed = true
-	_overlay_reference_primary_check.toggled.connect(_on_option_changed)
-	primary_row.add_child(_overlay_reference_primary_check)
-	_overlay_reference_primary_items_edit = LineEdit.new()
-	_overlay_reference_primary_items_edit.text = "Wall"
-	_overlay_reference_primary_items_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_overlay_reference_primary_items_edit.text_changed.connect(_on_option_changed)
-	primary_row.add_child(_overlay_reference_primary_items_edit)
-	_overlay_reference_container.add_child(primary_row)
-
-	var overlay_row = HBoxContainer.new()
-	_overlay_reference_overlay_check = CheckButton.new()
-	_overlay_reference_overlay_check.text = "Overlay"
-	_overlay_reference_overlay_check.button_pressed = false
-	_overlay_reference_overlay_check.toggled.connect(_on_option_changed)
-	overlay_row.add_child(_overlay_reference_overlay_check)
-	_overlay_reference_overlay_items_edit = LineEdit.new()
-	_overlay_reference_overlay_items_edit.text = ""
-	_overlay_reference_overlay_items_edit.placeholder_text = "ItemA, ItemB"
-	_overlay_reference_overlay_items_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_overlay_reference_overlay_items_edit.text_changed.connect(_on_option_changed)
-	overlay_row.add_child(_overlay_reference_overlay_items_edit)
-	_overlay_reference_container.add_child(overlay_row)
-
-	_overlay_reference_operation_option = _new_query_operation_option()
-	_overlay_reference_container.add_child(_wrap_labeled("Reference Set", _overlay_reference_operation_option))
-	_overlay_reference_container.add_child(_build_query_row_controls(false))
+	_overlay_reference_container.add_child(_build_query_row_controls(QUERY_KIND_REFERENCE))
 
 	_overlay_neighbor_radius_spin = _new_int_spin(1, 1, 16)
 	_overlay_neighbor_radius_spin.value_changed.connect(_on_option_changed)
@@ -702,15 +624,6 @@ func _build_query_row_controls(mask_query) -> Control:
 
 	_refresh_source_item_options()
 	return box
-
-
-func _new_query_operation_option() -> OptionButton:
-	var option = OptionButton.new()
-	for operation_name in OVERLAY_QUERY_OPERATION_NAMES:
-		option.add_item(operation_name)
-	option.select(0)
-	option.item_selected.connect(_on_option_changed)
-	return option
 
 
 func _build_rectangle_size_controls() -> void:
@@ -1700,10 +1613,8 @@ func _on_adjacency_rules_text_changed(text: String) -> void:
 func _refresh_adjacency_rules_status() -> void:
 	if _overlay_adjacency_rules_status_label == null:
 		return
-	var report = HexAdjacencyRuleSet.parse_rules_text_report(
-		_overlay_adjacency_rules_edit.text,
-		float(_wall_prob_slider.value)
-	)
+	var text = _overlay_adjacency_rules_edit.text if _overlay_adjacency_rules_edit != null else ""
+	var report = HexAdjacencyRuleSet.parse_rules_text_report(text)
 	_overlay_adjacency_rules_status_label.text = _adjacency_rule_status_text(report)
 
 
@@ -1711,8 +1622,6 @@ func _adjacency_rule_status_text(report: Dictionary) -> String:
 	var rules: Dictionary = report.get("rules", {})
 	var invalid_entries: Array = report.get("invalid_entries", [])
 	var text = "Rules: %d" % rules.size()
-	if bool(report.get("used_fallback", false)):
-		text += " (fallback default)"
 	if not invalid_entries.is_empty():
 		text += "  Invalid: %s" % ", ".join(invalid_entries)
 	return text
@@ -2758,43 +2667,22 @@ func _overlay_item_pool_row_name(item_row: Dictionary, index: int) -> String:
 	return item_name
 
 
-func _parse_item_key_list(text: String, default_keys: Array = []) -> Array:
-	var result: Array = []
-	for raw_key in text.split(",", false):
-		var key = String(raw_key).strip_edges()
-		if key != "":
-			result.append(key)
-	if result.is_empty():
-		for key in default_keys:
-			result.append(String(key))
-	return result
-
-
-func _overlay_query_operation(option: OptionButton) -> String:
-	if option == null:
-		return HexOverlayData.ITEM_QUERY_OR
-	var index = clampi(option.selected, 0, OVERLAY_QUERY_OPERATIONS.size() - 1)
-	return OVERLAY_QUERY_OPERATIONS[index]
-
-
 func _query_rows_enabled(mask_query) -> bool:
 	return not _query_rows_for_kind(_query_kind_from_value(mask_query)).is_empty()
 
 
-func _evaluate_query_rows(mask_query, crop_enabled: bool = false) -> Array:
-	var query_kind = _query_kind_from_value(mask_query)
+func _evaluate_query_rows(query_kind, crop_enabled: bool = false) -> Array:
 	var rows = _query_rows_for_kind(query_kind)
 	if rows.is_empty():
+		if query_kind == QUERY_KIND_MASK:
+			return _overlay_shape_universe()  # Any predicate: 全 cell 通過
 		return []
-	var universe = _query_universe(rows, query_kind, crop_enabled)
-	var restrict_to_universe = query_kind == QUERY_KIND_MASK or crop_enabled
-	var universe_set = HexMapData.make_set(universe) if restrict_to_universe else {}
+	var universe = _overlay_shape_universe()
+	var universe_set = HexMapData.make_set(universe)
 	var result: Array = []
 	for index in range(rows.size()):
 		var row = rows[index]
-		var row_cells = _query_row_contain_cells(row)
-		if restrict_to_universe:
-			row_cells = HexMapData.filter_points(row_cells, universe_set)
+		var row_cells = _query_row_contain_cells_in_universe(row, universe)
 		var match_value = _query_row_match(row)
 		if match_value == QUERY_ROW_MATCH_EXCLUDE:
 			row_cells = HexMapData.points_except(universe, row_cells)
@@ -2805,25 +2693,7 @@ func _evaluate_query_rows(mask_query, crop_enabled: bool = false) -> Array:
 			result = _intersect_points(result, row_cells)
 		else:
 			result = HexMapData.unique_points(result + row_cells)
-	if restrict_to_universe:
-		result = HexMapData.filter_points(result, universe_set)
 	return result
-
-
-func _query_universe(rows: Array, mask_query, crop_enabled: bool) -> Array:
-	var query_kind = _query_kind_from_value(mask_query)
-	if query_kind == QUERY_KIND_MASK or crop_enabled:
-		return _overlay_crop_universe()
-	var result: Array = []
-	for row in rows:
-		var entry = _source_entry_by_id(int(row.get("source_id", -1)))
-		if entry.is_empty():
-			continue
-		var data = entry.get("data", null)
-		if data == null:
-			continue
-		result.append_array(_offset_points(data.cells, row.get("offset", HexVector.zero()), int(data.cyclic_size)))
-	return HexMapData.unique_points(result)
 
 
 func _query_row_contain_cells(row: Dictionary) -> Array:
@@ -2850,6 +2720,40 @@ func _offset_points(points: Array, offset, cyclic_size: int = 0) -> Array:
 	return HexMapData.unique_points(result)
 
 
+func _query_row_contain_cells_in_universe(row: Dictionary, universe: Array) -> Array:
+	var entry = _source_entry_by_id(int(row.get("source_id", -1)))
+	if entry.is_empty():
+		return []
+	var data = entry.get("data", null)
+	if data == null:
+		return []
+	var item_cells = data.item_cells(String(row.get("item_key", "")))
+	var offset = row.get("offset", HexVector.zero())
+	var cyclic_size = int(data.cyclic_size)
+	if cyclic_size <= 0:
+		var offset_cells = _offset_points(item_cells, offset, 0)
+		return HexMapData.filter_points(offset_cells, HexMapData.make_set(universe))
+
+	var wrapped_map := {}
+	for u_cell in universe:
+		var wk = HexToricCoordinate.wrap_vector(u_cell, cyclic_size).key()
+		if not wrapped_map.has(wk):
+			wrapped_map[wk] = []
+		wrapped_map[wk].append(u_cell)
+
+	var result: Array = []
+	var seen := {}
+	for item_cell in item_cells:
+		var offset_cell = item_cell.add(offset)
+		var wk = HexToricCoordinate.wrap_vector(offset_cell, cyclic_size).key()
+		if wrapped_map.has(wk):
+			for u_cell in wrapped_map[wk]:
+				if not seen.has(u_cell.key()):
+					seen[u_cell.key()] = true
+					result.append(u_cell)
+	return result
+
+
 func _intersect_points(left: Array, right: Array) -> Array:
 	var right_set = HexMapData.make_set(right)
 	var result: Array = []
@@ -2873,44 +2777,11 @@ func _query_row_match(row: Dictionary) -> String:
 	return QUERY_ROW_MATCHES[clampi(option.selected, 0, QUERY_ROW_MATCHES.size() - 1)]
 
 
-func _overlay_query_cells(
-	primary_enabled: bool,
-	primary_items_text: String,
-	primary_default_items: Array,
-	overlay_enabled: bool,
-	overlay_items_text: String,
-	operation: String
-) -> Array:
-	var selectors: Array = []
-	if primary_enabled and _current_data != null:
-		for item_key in _parse_item_key_list(primary_items_text, primary_default_items):
-			selectors.append(HexOverlayData.item_selector(_current_data, item_key))
-	if overlay_enabled and _current_overlay_data != null:
-		for item_key in _parse_item_key_list(overlay_items_text, _current_overlay_data.item_keys()):
-			selectors.append(HexOverlayData.item_selector(_current_overlay_data, item_key))
-	if selectors.is_empty():
-		return []
-	return HexOverlayData.query_item_cells(selectors, operation)
-
-
 func _overlay_mask_cells_for_snapshot(snapshot: Dictionary) -> Array:
-	if _query_rows_enabled(true):
-		var query_cells = _evaluate_query_rows(true, _overlay_mask_crop_enabled())
-		if query_cells.is_empty():
-			push_warning("Placement Mask query result is empty. Overlay generation will use no candidate cells.")
-		return query_cells
-
-	var query_cells = _overlay_query_cells(
-		_overlay_mask_primary_check == null or _overlay_mask_primary_check.button_pressed,
-		"Floor" if _overlay_mask_primary_items_edit == null else _overlay_mask_primary_items_edit.text,
-		["Floor"],
-		_overlay_mask_overlay_check != null and _overlay_mask_overlay_check.button_pressed,
-		"" if _overlay_mask_overlay_items_edit == null else _overlay_mask_overlay_items_edit.text,
-		_overlay_query_operation(_overlay_mask_operation_option)
-	)
-	if not query_cells.is_empty():
-		return query_cells
-	return _overlay_candidate_cells_for_snapshot(snapshot)
+	var query_cells = _evaluate_query_rows(QUERY_KIND_MASK, false)
+	if _query_rows_enabled(QUERY_KIND_MASK) and query_cells.is_empty():
+		push_warning("Placement Mask query result is empty. Overlay generation will use no candidate cells.")
+	return query_cells
 
 
 func _overlay_deductor_floor_cells_for_snapshot(default_floor_cells: Array) -> Array:
@@ -2941,17 +2812,9 @@ func _set_deductor_floor_status(text: String) -> void:
 
 
 func _overlay_reference_cells_for_snapshot() -> Array:
-	if _query_rows_enabled(false):
-		return _evaluate_query_rows(false, false)
-
-	return _overlay_query_cells(
-		_overlay_reference_primary_check == null or _overlay_reference_primary_check.button_pressed,
-		"Wall" if _overlay_reference_primary_items_edit == null else _overlay_reference_primary_items_edit.text,
-		["Wall"],
-		_overlay_reference_overlay_check != null and _overlay_reference_overlay_check.button_pressed,
-		"" if _overlay_reference_overlay_items_edit == null else _overlay_reference_overlay_items_edit.text,
-		_overlay_query_operation(_overlay_reference_operation_option)
-	)
+	if _query_rows_enabled(QUERY_KIND_REFERENCE):
+		return _evaluate_query_rows(QUERY_KIND_REFERENCE, false)
+	return []
 
 
 func _overlay_adjacency_enabled() -> bool:
@@ -2972,7 +2835,7 @@ func _overlay_adjacency_rules() -> Dictionary:
 	var text = ""
 	if _overlay_adjacency_rules_edit != null:
 		text = _overlay_adjacency_rules_edit.text
-	var report = HexAdjacencyRuleSet.parse_rules_text_report(text, float(_wall_prob_slider.value))
+	var report = HexAdjacencyRuleSet.parse_rules_text_report(text)
 	if _overlay_adjacency_rules_status_label != null:
 		_overlay_adjacency_rules_status_label.text = _adjacency_rule_status_text(report)
 	return report["rules"]
@@ -2993,42 +2856,19 @@ func _overlay_existing_policy() -> String:
 
 
 func _overlay_cyclic_size_for_snapshot() -> int:
-	if _current_data != null:
-		return int(_current_data.cyclic_size)
+	if _uses_symmetric_generation() \
+		and _shape_option_symmetric.selected == SHAPE_RECTANGLE \
+		and _torus_connectivity_check != null \
+		and _torus_connectivity_check.button_pressed:
+		return int(_gen_radius_spin.value) * 2 + 1
 	return 0
-
-
-func _overlay_candidate_cells_for_snapshot(snapshot: Dictionary) -> Array:
-	if _current_data != null:
-		var floor_cells = _current_data.floor_cells()
-		if not floor_cells.is_empty():
-			return floor_cells
-
-	var shape = int(snapshot["shape"])
-	if bool(snapshot["symmetric"]):
-		var radius = int(snapshot["generation_radius"])
-		if shape == SHAPE_HEXAGON:
-			return HexMapData.hexagon(radius).cells
-		return HexMapData.square(radius * 2 + 1, bool(snapshot.get("connect_toric", false))).cells
-
-	match shape:
-		SHAPE_HEXAGON:
-			return HexMapData.hexagon(int(snapshot["hex_radius"])).cells
-		SHAPE_RECTANGLE:
-			return HexMapData.rectangle(
-				int(snapshot["rect_width"]),
-				int(snapshot["rect_height"])
-			).cells
-		SHAPE_TORUS, _:
-			var radius = int(snapshot["generation_radius"])
-			return HexMapData.square(radius * 2 + 1, true).cells
 
 
 func _overlay_mask_crop_enabled() -> bool:
 	return _overlay_mask_crop_check != null and _overlay_mask_crop_check.button_pressed
 
 
-func _overlay_crop_universe() -> Array:
+func _overlay_shape_universe() -> Array:
 	var symmetric = _uses_symmetric_generation()
 	var shape = _shape_option_symmetric.selected if symmetric else _shape_option_simple.selected
 	if symmetric:
@@ -3077,8 +2917,8 @@ func _refresh_mask_crop_count() -> void:
 
 
 func _overlay_crop_result_data():
-	var universe = _overlay_crop_universe()
-	var result_cells = _evaluate_query_rows(true, true)
+	var universe = _overlay_shape_universe()
+	var result_cells = _evaluate_query_rows(QUERY_KIND_MASK, false)
 	var result_set = HexMapData.make_set(result_cells)
 	var items := {}
 	items[HexMapData.ITEM_ANY] = universe
@@ -3153,10 +2993,13 @@ func _generate_overlay_data_from_snapshot(snapshot: Dictionary, interrupt_option
 	if data != null \
 		and bool(snapshot["symmetric"]) \
 		and not bool(snapshot.get("overlay_adjacency_enabled", false)):
+		var deductor_floor = snapshot.get("overlay_deductor_floor_cells", candidates)
+		if not _query_rows_enabled(QUERY_KIND_DEDUCTOR_FLOOR):
+			deductor_floor = HexMapData.points_except(_overlay_shape_universe(), data.occupied_cells())
 		HexMapGenerator.deduct_items_for_connectivity(
 			data,
 			item_name,
-			snapshot.get("overlay_deductor_floor_cells", candidates),
+			deductor_floor,
 			int(snapshot["connect_method"]),
 			seed,
 			interrupt_options
@@ -3450,11 +3293,6 @@ func _set_generation_controls_disabled(disabled: bool) -> void:
 		_overlay_item_limit_check,
 		_overlay_item_limit_spin,
 		_overlay_add_item_button,
-		_overlay_mask_primary_check,
-		_overlay_mask_primary_items_edit,
-		_overlay_mask_overlay_check,
-		_overlay_mask_overlay_items_edit,
-		_overlay_mask_operation_option,
 		_overlay_mask_add_source_option,
 		_overlay_mask_add_button,
 		_overlay_mask_direction_size_spin,
@@ -3463,11 +3301,6 @@ func _set_generation_controls_disabled(disabled: bool) -> void:
 		_overlay_deductor_floor_add_button,
 		_overlay_deductor_floor_direction_size_spin,
 		_overlay_adjacency_check,
-		_overlay_reference_primary_check,
-		_overlay_reference_primary_items_edit,
-		_overlay_reference_overlay_check,
-		_overlay_reference_overlay_items_edit,
-		_overlay_reference_operation_option,
 		_overlay_reference_add_source_option,
 		_overlay_reference_add_button,
 		_overlay_reference_direction_size_spin,

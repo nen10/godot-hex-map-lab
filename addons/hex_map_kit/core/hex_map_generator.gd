@@ -598,15 +598,13 @@ static func _item_pool_entry_name(item) -> String:
 
 
 static func _item_pool_entry_float(item, key: String, default_value: float) -> float:
-	if item is Dictionary:
-		return float(item.get(key, default_value))
-	return default_value
+	assert(item is Dictionary, "item_pool entry must be a Dictionary")
+	return float(item.get(key, default_value))
 
 
 static func _item_pool_entry_int(item, key: String, default_value: int) -> int:
-	if item is Dictionary:
-		return int(item.get(key, default_value))
-	return default_value
+	assert(item is Dictionary, "item_pool entry must be a Dictionary")
+	return int(item.get(key, default_value))
 
 
 static func _item_pool_weight_total(item_pool: Array, weight_key: String) -> float:

@@ -229,8 +229,8 @@ func _test_generation_dock_adjacency_rule_validation() -> void:
 
 	dock._overlay_adjacency_rules_edit.text = "bad"
 	rules = dock._overlay_adjacency_rules()
-	_assert_eq(rules["default"], 0.35, "generation dock adjacency rules use fallback probability")
-	_assert_true(dock._overlay_adjacency_rules_status_label.text.contains("fallback default"), "generation dock adjacency status shows fallback")
+	_assert_eq(rules["default"], 0.0, "generation dock adjacency rules use zero default when no valid rules")
+	_assert_true(dock._overlay_adjacency_rules_status_label.text.contains("Rules: 1"), "generation dock adjacency status shows single default rule on empty input")
 
 	dock.queue_free()
 	await process_frame
@@ -849,7 +849,9 @@ func _test_generation_dock_overlay_uniform_generation_and_apply() -> void:
 
 	var data = HexMapData.rectangle(2, 2)
 	data.set_walls([HexVector.q_axis()])
-	dock._current_data = data
+	dock.register_mapdata_source(HexMapResource.from_map_data(data), "res://overlay_basic.tres")
+	dock._add_query_row(HexMapGenDock.QUERY_KIND_MASK, dock._mapdata_sources[0]["id"], "Floor")
+	dock._refresh_controls()
 
 	var scene_root = Node2D.new()
 	scene_root.name = "SceneRoot"
@@ -864,7 +866,6 @@ func _test_generation_dock_overlay_uniform_generation_and_apply() -> void:
 	_assert_true(dock.setup_sample_tiles_on_tile_map_layer(layer), "overlay apply test configures sample tiles")
 
 	_assert_true(await dock._generate_map(), "generation dock generates overlay data")
-	_assert_true(dock._current_data == data, "overlay generation keeps current primary data")
 	_assert_true(dock._current_overlay_data != null, "overlay generation stores current overlay data")
 	_assert_eq(dock._current_overlay_data.item_cells("Tree").size(), data.floor_cells().size(), "overlay uniform generation uses primary floor cells as candidates")
 	_assert_eq(dock._current_overlay_data.item_cells("Rock").size(), 0, "overlay uniform generation honors item weights")
@@ -889,7 +890,9 @@ func _test_generation_dock_overlay_limit_and_apply_policy() -> void:
 	dock._on_overlay_add_item_pressed()
 	dock._overlay_item_pool_rows[1]["name"].text = "Gem"
 	dock._overlay_item_pool_rows[1]["amount"].value = 1
-	dock._current_data = HexMapData.rectangle(4, 1)
+	var data = HexMapData.rectangle(4, 1)
+	dock.register_mapdata_source(HexMapResource.from_map_data(data), "res://overlay_limit.tres")
+	dock._add_query_row(HexMapGenDock.QUERY_KIND_MASK, dock._mapdata_sources[0]["id"], "Floor")
 	dock._refresh_controls()
 
 	_assert_eq(dock._overlay_item_pool_rows[0]["amount_label"].text, "Limit", "overlay limited uniform mode shows item limits")
@@ -920,10 +923,10 @@ func _test_generation_dock_overlay_placement_mask_filters_candidates() -> void:
 	dock._wall_prob_slider.set_value_no_signal(1.0)
 	dock._overlay_item_pool_rows[0]["name"].text = "Moss"
 	dock._overlay_item_pool_rows[0]["amount"].value = 1.0
-	dock._overlay_mask_primary_items_edit.text = "Wall"
 	var data = HexMapData.rectangle(3, 1)
 	data.set_walls([HexVector.q_axis()])
-	dock._current_data = data
+	var source_id = dock.register_mapdata_source(HexMapResource.from_map_data(data), "res://mask_data.tres")
+	dock._add_query_row(HexMapGenDock.QUERY_KIND_MASK, source_id, "Wall")
 	dock._refresh_controls()
 
 	_assert_true(await dock._generate_map(), "generation dock generates overlay from placement mask")
@@ -941,13 +944,13 @@ func _test_generation_dock_overlay_adjacency_reference_generation() -> void:
 	dock._overlay_adjacency_check.set_pressed_no_signal(true)
 	dock._on_overlay_adjacency_toggled(true)
 	dock._overlay_item_name_edit.text = "NearWall"
-	dock._overlay_mask_primary_items_edit.text = "Floor"
-	dock._overlay_reference_primary_items_edit.text = "Wall"
 	dock._overlay_neighbor_radius_spin.value = 1
 	dock._overlay_adjacency_rules_edit.text = "1=1.0;default=0.0"
 	var data = HexMapData.hexagon(1)
 	data.set_walls([HexVector.q_axis()])
-	dock._current_data = data
+	var source_id = dock.register_mapdata_source(HexMapResource.from_map_data(data), "res://adjacency_data.tres")
+	dock._add_query_row(HexMapGenDock.QUERY_KIND_MASK, source_id, "Floor")
+	dock._add_query_row(HexMapGenDock.QUERY_KIND_REFERENCE, source_id, "Wall")
 	dock._refresh_controls()
 
 	_assert_eq(dock._generate_option.selected, HexMapGenDock.GENERATE_SYMMETRIC, "adjacency reference switches overlay generation to Markov Mesh")
@@ -1053,7 +1056,7 @@ func _test_generation_dock_mapdata_source_registry_load_reload_clear() -> void:
 	_assert_true(map_details.contains("Floor: 1"), "source registry details show primary Floor count")
 	_assert_true(map_details.contains("Wall: 1"), "source registry details show primary Wall count")
 
-	dock._add_query_row(true, source_id, "Rock")
+	dock._add_query_row(HexMapGenDock.QUERY_KIND_MASK, source_id, "Rock")
 	_assert_eq(dock._overlay_mask_query_rows.size(), 1, "query row references loaded source")
 	dock.clear_mapdata_source(source_id)
 	_assert_eq(dock._mapdata_sources.size(), 1, "clear removes only selected source")
@@ -1079,15 +1082,15 @@ func _test_generation_dock_mapdata_query_rows_evaluate_offset_and_toric() -> voi
 	map_data.set_walls([HexVector.q_axis()])
 	var map_id = dock.register_mapdata_source(HexMapResource.from_map_data(map_data), "res://map_query.tres")
 
-	var floor_row = dock._add_query_row(true, map_id, "Floor")
+	var floor_row = dock._add_query_row(HexMapGenDock.QUERY_KIND_MASK, map_id, "Floor")
 	_assert_true(floor_row["row"] is VBoxContainer, "query row uses two-line container")
 	_assert_true(floor_row["direction_control"] is GridContainer, "query row has graphical direction control")
 	_assert_eq(floor_row["direction_control"].columns, 3, "query row direction control uses compact 3-column layout")
 	_assert_eq(floor_row["direction_buttons"].size(), 6, "query row direction control exposes six direction buttons")
-	var wall_row = dock._add_query_row(true, map_id, "Wall")
+	var wall_row = dock._add_query_row(HexMapGenDock.QUERY_KIND_MASK, map_id, "Wall")
 	wall_row["operation"].select(1)
 	_assert_keys_eq(
-		dock._evaluate_query_rows(true, false),
+		dock._evaluate_query_rows(HexMapGenDock.QUERY_KIND_MASK),
 		map_data.cells,
 		"query rows OR selected item cells"
 	)
@@ -1095,7 +1098,7 @@ func _test_generation_dock_mapdata_query_rows_evaluate_offset_and_toric() -> voi
 	wall_row["operation"].select(0)
 	wall_row["match"].select(1)
 	_assert_keys_eq(
-		dock._evaluate_query_rows(true, false),
+		dock._evaluate_query_rows(HexMapGenDock.QUERY_KIND_MASK),
 		map_data.floor_cells(),
 		"query rows apply Exclude as universe complement with AND"
 	)
@@ -1109,24 +1112,24 @@ func _test_generation_dock_mapdata_query_rows_evaluate_offset_and_toric() -> voi
 		{"Outside": [HexVector.q_axis()], "Inside": [HexVector.zero()]}
 	)
 	var outside_id = dock.register_mapdata_source(HexOverlayResource.from_overlay_data(outside_overlay), "res://outside_query.tres")
-	var outside_row = dock._add_query_row(true, outside_id, "Outside")
+	var outside_row = dock._add_query_row(HexMapGenDock.QUERY_KIND_MASK, outside_id, "Outside")
 	_assert_keys_eq(
-		dock._evaluate_query_rows(true, false),
+		dock._evaluate_query_rows(HexMapGenDock.QUERY_KIND_MASK),
 		[],
 		"mask query Crop Off clips Contain cells to current shape universe"
 	)
 	outside_row["match"].select(1)
 	_assert_keys_eq(
-		dock._evaluate_query_rows(true, false),
+		dock._evaluate_query_rows(HexMapGenDock.QUERY_KIND_MASK),
 		[HexVector.zero()],
 		"mask query Crop Off uses current shape universe for Exclude complement"
 	)
 
 	dock._overlay_mask_query_rows.clear()
-	var shifted_row = dock._add_query_row(true, outside_id, "Inside")
+	var shifted_row = dock._add_query_row(HexMapGenDock.QUERY_KIND_MASK, outside_id, "Inside")
 	dock._on_query_row_direction_pressed(0, shifted_row, true)
 	_assert_keys_eq(
-		dock._evaluate_query_rows(true, false),
+		dock._evaluate_query_rows(HexMapGenDock.QUERY_KIND_MASK),
 		[],
 		"mask query Crop Off clips offset results outside current shape universe"
 	)
@@ -1144,14 +1147,17 @@ func _test_generation_dock_mapdata_query_rows_evaluate_offset_and_toric() -> voi
 	)
 	var overlay_id = dock.register_mapdata_source(HexOverlayResource.from_overlay_data(overlay), "res://offset_query.tres")
 	dock._overlay_reference_query_rows.clear()
-	var offset_row = dock._add_query_row(false, overlay_id, "Gem")
+	dock._rect_width_spin.set_value_no_signal(2)
+	dock._rect_height_spin.set_value_no_signal(1)
+	dock._refresh_controls()
+	var offset_row = dock._add_query_row(HexMapGenDock.QUERY_KIND_REFERENCE, overlay_id, "Gem")
 	dock._on_query_direction_size_changed(36.0, false)
 	_assert_eq(offset_row["direction_buttons"][0].custom_minimum_size, Vector2(36, 36), "query direction button size is adjustable")
 	_assert_eq(dock._overlay_mask_direction_size_spin.value, 36.0, "query direction size syncs mask control")
 	_assert_eq(dock._overlay_reference_direction_size_spin.value, 36.0, "query direction size syncs reference control")
 	dock._on_query_row_direction_pressed(0, offset_row, false)
 	_assert_keys_eq(
-		dock._evaluate_query_rows(false, false),
+		dock._evaluate_query_rows(HexMapGenDock.QUERY_KIND_REFERENCE),
 		[HexVector.q_axis()],
 		"query rows offset item cells"
 	)
@@ -1163,10 +1169,10 @@ func _test_generation_dock_mapdata_query_rows_evaluate_offset_and_toric() -> voi
 	)
 	var toric_id = dock.register_mapdata_source(HexOverlayResource.from_overlay_data(toric_data), "res://toric_query.tres")
 	dock._overlay_reference_query_rows.clear()
-	var toric_row = dock._add_query_row(false, toric_id, "Wrap")
+	var toric_row = dock._add_query_row(HexMapGenDock.QUERY_KIND_REFERENCE, toric_id, "Wrap")
 	dock._on_query_row_direction_pressed(0, toric_row, false)
 	_assert_keys_eq(
-		dock._evaluate_query_rows(false, false),
+		dock._evaluate_query_rows(HexMapGenDock.QUERY_KIND_REFERENCE),
 		[HexVector.zero()],
 		"query rows wrap offset cells for toric source"
 	)
@@ -1200,7 +1206,7 @@ func _test_generation_dock_overlay_deductor_floor_source_query() -> void:
 		HexOverlayResource.from_overlay_data(candidate_source),
 		"res://deductor_candidate.tres"
 	)
-	dock._add_query_row(true, candidate_id, "Candidate")
+	dock._add_query_row(HexMapGenDock.QUERY_KIND_MASK, candidate_id, "Candidate")
 
 	var default_snapshot = dock._create_generation_snapshot()
 	_assert_keys_eq(
@@ -1240,11 +1246,17 @@ func _test_generation_dock_overlay_deductor_floor_source_query() -> void:
 
 	var generated = dock._generate_overlay_data_from_snapshot(custom_snapshot, {})
 	_assert_true(
-		generated.has_item(HexVector.q_axis(), "OverlayItem"),
+		generated.has_item(HexVector.q_axis(), "Item1"),
 		"deductor floor source can differ from candidates during generation"
 	)
 
 	dock._on_query_row_remove_pressed(floor_row, HexMapGenDock.QUERY_KIND_DEDUCTOR_FLOOR)
+	dock._gen_radius_spin.set_value_no_signal(0)
+	dock._generate_option.select(HexMapGenDock.GENERATE_SIMPLE)
+	dock._shape_option_simple.select(HexMapGenDock.SHAPE_RECTANGLE)
+	dock._rect_width_spin.set_value_no_signal(1)
+	dock._rect_height_spin.set_value_no_signal(1)
+	dock._refresh_controls()
 	var empty_row = dock._add_query_row(HexMapGenDock.QUERY_KIND_DEDUCTOR_FLOOR, floor_id, "Any")
 	empty_row["match"].select(1)
 	var empty_snapshot = dock._create_generation_snapshot()
@@ -1280,8 +1292,8 @@ func _test_generation_dock_mapdata_crop_result_and_reset_rules() -> void:
 		}
 	)
 	var source_id = dock.register_mapdata_source(HexOverlayResource.from_overlay_data(overlay), "res://crop_query.tres")
-	dock._add_query_row(true, source_id, "Tree")
-	var exclude_row = dock._add_query_row(true, source_id, "Rock")
+	dock._add_query_row(HexMapGenDock.QUERY_KIND_MASK, source_id, "Tree")
+	var exclude_row = dock._add_query_row(HexMapGenDock.QUERY_KIND_MASK, source_id, "Rock")
 	exclude_row["operation"].select(1)
 	exclude_row["match"].select(1)
 	dock._overlay_mask_crop_check.set_pressed_no_signal(true)
@@ -1300,7 +1312,7 @@ func _test_generation_dock_mapdata_crop_result_and_reset_rules() -> void:
 	dock._on_shape_size_changed(2)
 	_assert_true(not dock._overlay_mask_crop_check.button_pressed, "shape size edit turns Crop off")
 	dock._overlay_mask_crop_check.set_pressed_no_signal(true)
-	dock._add_query_row(false, source_id, "Tree")
+	dock._add_query_row(HexMapGenDock.QUERY_KIND_REFERENCE, source_id, "Tree")
 	_assert_true(dock._overlay_mask_crop_check.button_pressed, "reference query edit does not turn Crop off")
 
 	dock.queue_free()

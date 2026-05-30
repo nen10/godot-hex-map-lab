@@ -4,11 +4,11 @@ extends Resource
 @export_multiline var rules_text := "default=0.0"
 
 
-static func parse_rules_text(text: String, fallback_probability: float = 0.0) -> Dictionary:
-	return parse_rules_text_report(text, fallback_probability)["rules"]
+static func parse_rules_text(text: String) -> Dictionary:
+	return parse_rules_text_report(text)["rules"]
 
 
-static func parse_rules_text_report(text: String, fallback_probability: float = 0.0) -> Dictionary:
+static func parse_rules_text_report(text: String) -> Dictionary:
 	var rules := {}
 	var invalid_entries: Array[String] = []
 	for raw_entry in text.split(";", false):
@@ -29,14 +29,11 @@ static func parse_rules_text_report(text: String, fallback_probability: float = 
 			invalid_entries.append(entry)
 			continue
 		rules[key] = clampf(float(value_text), 0.0, 1.0)
-	var used_fallback := false
 	if rules.is_empty():
-		rules["default"] = clampf(fallback_probability, 0.0, 1.0)
-		used_fallback = true
+		rules["default"] = 0.0
 	return {
 		"rules": rules,
 		"invalid_entries": invalid_entries,
-		"used_fallback": used_fallback,
 	}
 
 
@@ -57,5 +54,5 @@ static func _normalized_rule_key(key_text: String) -> Variant:
 	return null
 
 
-func to_probability_rules(fallback_probability: float = 0.0) -> Dictionary:
-	return parse_rules_text(rules_text, fallback_probability)
+func to_probability_rules() -> Dictionary:
+	return parse_rules_text(rules_text)

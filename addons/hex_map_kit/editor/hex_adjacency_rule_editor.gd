@@ -88,7 +88,7 @@ func _on_rules_text_changed(_text: String) -> void:
 func _refresh_rules_status() -> void:
 	if _rules_status_label == null:
 		return
-	var report = HexAdjacencyRuleSet.parse_rules_text_report(_rules_edit.text, 0.0)
+	var report = HexAdjacencyRuleSet.parse_rules_text_report(_rules_edit.text)
 	_rules_status_label.text = _adjacency_rule_status_text(report)
 
 
@@ -96,7 +96,7 @@ func _adjacency_rule_status_text(report: Dictionary) -> String:
 	var rules: Dictionary = report.get("rules", {})
 	var invalid_entries: Array = report.get("invalid_entries", [])
 	var text = "Rules: %d" % rules.size()
-	if bool(report.get("used_fallback", false)):
+	if not invalid_entries.is_empty():
 		text += " (fallback default)"
 	if not invalid_entries.is_empty():
 		text += "  Invalid: %s" % ", ".join(invalid_entries)
