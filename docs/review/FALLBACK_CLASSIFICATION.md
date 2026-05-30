@@ -280,7 +280,7 @@ Shape 外 cellはToricの場合に回収されることで十分である。
 
 ### SPECIFY-4: UI 初期化 race condition の null guard
 
-- **場所**: `_overlay_query_operation()`, `_query_row_operation()`, `_query_row_match()`, `_overlay_write_policy()`, `_overlay_existing_policy()`, `_overlay_neighbor_radius()`, `_overlay_cyclic_size_for_snapshot()` 他多数
+- **場所**: `_overlay_query_operation()`, `_query_row_operation()`, `_query_row_match()`, `_apply_write_policy()`, `_overlay_existing_policy()`, `_overlay_neighbor_radius()`, `_overlay_cyclic_size_for_snapshot()` 他多数
 - **現状**: 各 UI コントロールが null の場合、既定値（OR, Contain, CLEAR_AND_WRITE, MERGE, 1, 0 など）を返す
 - **問題**: これらは `_ready()` 以前の呼び出しを防ぐ防御コード。`_ready()` 完了後は null にならない
 - **要決定**: 防御コードとして残すか、`_ready()` 完了を前提として assert に置き換えるか
@@ -322,4 +322,3 @@ assertします。
 ## ブロック実装方針
 
 ユーザー要望に従い整理する。
-

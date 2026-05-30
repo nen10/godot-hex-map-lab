@@ -74,6 +74,7 @@ func _run() -> void:
 	_test_phase2_edge_area_runs_from_center_for_radius_multiple_of_three()
 	_test_symmetric_generation_matches_unity_source_sequence()
 	_test_symmetric_square_torus_and_hex_shape_outputs_share_source_walls()
+	_test_generated_hexagon_shapes_share_canonical_cells()
 	_test_minimum_radius_symmetric_generation_uses_unified_flow()
 	_test_restore_terminal_connectivity_connects_only_requested_terminals()
 	_test_generate_symmetric_toric_square_can_restore_terminal_connectivity()
@@ -144,6 +145,21 @@ func _line_cells(length: int) -> Array:
 
 func _rect_cell(q: int, r: int):
 	return HexVector.apply_basis(q, 0, r)
+
+
+func _canonical_hexagon_cells(radius: int) -> Array:
+	if radius == 0:
+		return [HexVector.zero()]
+	var rule = HexToricMapSplitRule.new(radius)
+	var trimmed_keys := {}
+	for area_index in [0, 7]:
+		for point in rule.split_canvas[area_index]:
+			trimmed_keys[point.key()] = true
+	var result: Array = []
+	for cell in HexMapData.square(radius * 2 + 1, false).cells:
+		if not trimmed_keys.has(cell.key()):
+			result.append(cell)
+	return result
 
 
 func _ring_bridge_tie_data():
@@ -370,11 +386,8 @@ func _test_hexagon_map_data() -> void:
 
 	_assert_eq(data.cells.size(), 19, "radius 2 hexagon has 1 + 3r(r + 1) cells")
 	_assert_eq(data.cyclic_size, 0, "hexagon map is non-toric")
-	for direction in HexVector.directions():
-		_assert_true(
-			data.has_cell(direction.scaled(2)),
-			"hexagon includes every radius corner"
-		)
+	_assert_keys_eq(data.cells, _canonical_hexagon_cells(2), "radius 2 hexagon uses square with split 0 and 7 trimmed")
+	_assert_keys_eq(HexMapData.hexagon(0).cells, [HexVector.zero()], "radius 0 hexagon is the origin cell")
 
 
 func _test_primary_map_data_exposes_item_keys() -> void:
@@ -1282,18 +1295,11 @@ func _test_symmetric_square_torus_and_hex_shape_outputs_share_source_walls() -> 
 		_assert_keys_eq(square.cells, torus.cells, "radius %d symmetric square and torus share cells" % radius)
 		_assert_keys_eq(square.walls, torus.walls, "radius %d raw symmetric square and torus share source walls" % radius)
 
-		var rule = HexToricMapSplitRule.new(radius)
-		var edge_keys := {}
-		for area_index in [0, 7]:
-			for point in rule.split_canvas[area_index]:
-				edge_keys[point.key()] = true
-		var expected_hex_cells: Array = []
-		for cell in square.cells:
-			if not edge_keys.has(cell.key()):
-				expected_hex_cells.append(cell)
+		var expected_hex_cells = _canonical_hexagon_cells(radius)
+		var expected_hex_cell_set = HexMapData.make_set(expected_hex_cells)
 		var expected_hex_walls: Array = []
 		for wall in square.walls:
-			if not edge_keys.has(wall.key()):
+			if expected_hex_cell_set.has(wall.key()):
 				expected_hex_walls.append(wall)
 		var hexagon = HexMapGenerator.generate_symmetric_hexagon(
 			radius,
@@ -1304,6 +1310,26 @@ func _test_symmetric_square_torus_and_hex_shape_outputs_share_source_walls() -> 
 		)
 		_assert_keys_eq(hexagon.cells, expected_hex_cells, "radius %d symmetric hexagon filters split 0 and 7 cells" % radius)
 		_assert_keys_eq(hexagon.walls, expected_hex_walls, "radius %d symmetric hexagon filters split 0 and 7 walls" % radius)
+
+
+func _test_generated_hexagon_shapes_share_canonical_cells() -> void:
+	for radius in [1, 2, 3]:
+		var simple = HexMapGenerator.generate_hexagon(
+			radius,
+			0.0,
+			4000 + radius,
+			HexMapGenerator.CONNECT_NONE
+		)
+		var symmetric = HexMapGenerator.generate_symmetric_hexagon(
+			radius,
+			0.0,
+			5000 + radius,
+			HexMapGenerator.CONNECT_NONE
+		)
+		var expected = _canonical_hexagon_cells(radius)
+		_assert_keys_eq(simple.cells, expected, "radius %d simple hexagon uses canonical cells" % radius)
+		_assert_keys_eq(symmetric.cells, expected, "radius %d symmetric hexagon uses canonical cells" % radius)
+		_assert_keys_eq(simple.cells, symmetric.cells, "radius %d simple and symmetric hexagon share cells" % radius)
 
 
 func _test_minimum_radius_symmetric_generation_uses_unified_flow() -> void:

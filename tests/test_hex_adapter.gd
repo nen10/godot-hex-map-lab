@@ -507,12 +507,21 @@ func _assert_radius_two_hexagon_matches_godot_layout(flat_top: bool) -> void:
 		entry_by_key[entry["vector"].key()] = entry
 
 	_assert_eq(entries.size(), 19, "radius 2 hexagon emits 19 entries flat_top=%s" % str(flat_top))
-	var origin_entry = entry_by_key[HexVector.zero().key()]
-	var origin_local = layer.map_to_local(origin_entry["map_cell"])
+	var center = HexVector.apply_basis(2, 0, 2)
+	_assert_eq(entry_by_key.has(center.key()), true, "radius 2 canonical hexagon has an interior layout center")
+	if not entry_by_key.has(center.key()):
+		layer.free()
+		return
+	var center_entry = entry_by_key[center.key()]
+	var center_local = layer.map_to_local(center_entry["map_cell"])
 	var directions = HexVector.directions()
 	for direction in directions:
-		var entry = entry_by_key[direction.key()]
-		var actual = layer.map_to_local(entry["map_cell"]) - origin_local
+		var neighbor = center.add(direction)
+		_assert_eq(entry_by_key.has(neighbor.key()), true, "radius 2 canonical hexagon has center neighbor %s" % direction.key())
+		if not entry_by_key.has(neighbor.key()):
+			continue
+		var entry = entry_by_key[neighbor.key()]
+		var actual = layer.map_to_local(entry["map_cell"]) - center_local
 		var expected = _godot_neighbor_delta(direction, flat_top)
 		_assert_vec2_approx(
 			actual,

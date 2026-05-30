@@ -78,14 +78,14 @@ Overlay generation は Placement Mask Query Rows を現在の Shape / サイズ�
 - `Reference Items`: Primary / current Overlay の item keys から参照cellを作る
 - `Neighbor Radius`: Adjacency Reference の参照範囲
 - `Adjacency Rules`: `default=0.2;1=0.8;2,1=0.4` のように、参照item近傍数または `近傍数,連結成分数` ごとの確率を指定する。`2,1` は内部では `Vector2i(2, 1)` keyとして正規化される。不正entryはstatusに表示され、有効ruleがない場合はGenerateを実行しない。`Edit` で専用editorを開く
-- `Apply Write`: `Clear And Write` または `Add Item`
+- `Apply Write`: `Clear And Write` または `Add Item`。Primary / Overlay 共通で、`TileMapLayer` をclearするか、既存cellを残して書くかを決める
 - `Existing Item`: `Merge Existing` / `Replace Existing` / `Skip Existing`
 
 Source Registry では保存済み `HexMapResource` / `HexOverlayResource` を読み込み、Mask / Reference の Query Row に `source / ItemKey` として追加できます。各sourceにはresource pathと `Item: cell数` が表示されます。同じ resource path を再読み込みした場合は既存sourceを更新します。sourceをClearすると、そのsourceを参照するQuery Rowも削除されます。
 
 Mask Query Row は `AND` / `OR`、`Contain` / `Exclude`、offset を持ちます。offset は3列配置の六方向controlで操作し、`Direction Size` でbutton sizeを調整できます。Mask result は Crop On / Off に関わらず現在のShape / サイズを query universe として評価し、Overlay Generateのcandidate cellsにも使います。source が toric square の場合、offset参照はsource本来の `cyclic_size` でwrapします。Crop On中にMask Query RowまたはShape / サイズを編集するとCrop Offに戻ります。
 
-Overlay mode の `Apply Layer` / `Save .tres` はCrop状態で動作が変わります。Crop OnではCrop resultをShow Mask / `HexOverlayResource` 保存に使います。Crop OffではSource Registry内のOverlay sourceを表示順でstackし、`Apply Write` / `Existing Item` policyに従ってcurrent overlayへ反映してからApply / Saveします。stack実行後はSource Registryのstatusにsource数、item数、occupied数、policyが表示されます。Generate後の自動applyは従来通りcurrent overlayをTarget `TileMapLayer` に表示します。Item Pool にある item key は row の `Tile` source / atlas coords を使い、Item Pool にない item key は Dock の `Wall` source / atlas coords を fallback として使います。
+Overlay mode の `Apply Layer` / `Save .tres` はCrop状態で動作が変わります。Crop OnではCrop resultをShow Mask / `HexOverlayResource` 保存に使います。Crop OffではSource Registry内のOverlay sourceを表示順でstackし、`Apply Write` / `Existing Item` policyに従ってcurrent overlayへ反映してからApply / Saveします。`Apply Write = Clear And Write` はcurrent overlayを置換し、`TileMapLayer` をclearしてから書きます。`Apply Write = Add Item` はcurrent overlayへ合成し、`TileMapLayer` の既存cellを残して書きます。stack実行後はSource Registryのstatusにsource数、item数、occupied数、policyが表示されます。Generate後の自動applyは同じ `Apply Write` に従ってcurrent overlayをTarget `TileMapLayer` に表示します。Item Pool にある item key は row の `Tile` source / atlas coords を使い、Item Pool にない item key は Dock の `Wall` source / atlas coords を fallback として使います。
 
 `Generate History` を有効にすると、Generate成功時に `.tres` を保存し、保存済みsourceとしてSource Registryへ追加します。Primaryは生成された `HexMapData` 全体、OverlayはApply Policy反映前の生成差分 `HexOverlayData` を保存します。Generate Combination の履歴ファイル名には `overlay-combination` を使います。生成キャンセル時は保存しません。
 
@@ -121,7 +121,7 @@ Generate 後の自動 apply と `Apply Layer` で使う TileMapLayer 設定を D
 | `Tile Size` | `TileSet.tile_size` に設定する width / height |
 | `Floor` | floor tile の `source_id`, `atlas_x`, `atlas_y` |
 | `Wall` | wall tile の `source_id`, `atlas_x`, `atlas_y` |
-| `Clear Layer` | On の場合はApply前に対象 `TileMapLayer` をclearする。Off の場合は既存cellを残して生成結果を重ね書きする |
+| `Apply Write` | `Clear And Write` はApply前に対象 `TileMapLayer` をclearする。`Add Item` は既存cellを残して生成結果を重ね書きする |
 
 `Orientation` は `HexMapResource` に保存されます。Generate 後の自動 apply と `Apply Layer` はこの orientation を正として、対象 `TileMapLayer.tile_set` と `set_cell()` 用の cell 座標を同時に設定します。
 `Orientation` を切り替えると、flat-top / pointy-top で横長・縦長が入れ替わる前提に合わせて `Tile Size` の width / height も入れ替えます。
@@ -143,7 +143,7 @@ tile_offset_axis = TILE_OFFSET_AXIS_HORIZONTAL  # pointy-top
 
 TileSet が未設定の `TileMapLayer` へ適用した場合は、新しい `TileSet` を作成してから設定します。
 同じ `TileSet` resource を複数 `TileMapLayer` が共有している場合、Dock は設定変更前に選択中レイヤー側の `TileSet` を複製して、他レイヤーへ Tile Size / Orientation / atlas 設定が伝播しないようにします。
-`Clear Layer` Off のApplyでは、既存 `TileMapLayer` cellは維持され、生成結果があるcellだけが上書きされます。
+`Apply Write = Add Item` のApplyでは、既存 `TileMapLayer` cellは維持され、生成結果があるcellだけが上書きされます。
 Apply 後に TileMapLayer Inspector 側だけで `Horizontal Offset` / `Vertical Offset` を手動変更する経路は管理対象外です。
 
 Godot 側の対応 API は公式ドキュメントの `TileMapLayer`、`TileSet`、`TileSetAtlasSource` を参照します。

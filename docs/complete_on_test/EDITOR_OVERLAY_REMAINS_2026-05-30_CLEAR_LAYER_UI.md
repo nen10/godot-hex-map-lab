@@ -1,12 +1,12 @@
-# EDITOR_OVERLAY_REMAINS clear_layer=false Editor UI 実装済み項目
+# EDITOR_OVERLAY_REMAINS Apply Write 統合済み項目
 
-`docs/plan/EDITOR_OVERLAY_REMAINS.md` の 9. clear_layer=false の Editor UI を実装済みとして扱う。
+`docs/plan/EDITOR_OVERLAY_REMAINS.md` の 9. clear_layer=false の Editor UI は、独立した `Clear Layer` checkbox ではなく `Apply Write` に統合した状態を完了扱いとする。
 
 ## 入出力
 
 入力:
 
-- `Clear Layer` checkbox
+- `Apply Write`
 - Apply Layer
 - Generate後のauto apply
 - Target `TileMapLayer`
@@ -14,25 +14,28 @@
 
 出力:
 
-- `clear_layer=true` の置き換えapply
-- `clear_layer=false` の重ね書きapply
+- `Apply Write = Clear And Write` の置き換えapply
+- `Apply Write = Add Item` の重ね書きapply
 
-`Clear Layer` はデフォルトOnで従来挙動を維持する。Offの場合、adapterへ `clear_layer=false` を渡し、既存 `TileMapLayer` cellを残して生成結果のcellだけを上書きする。
+`Clear Layer` checkbox は削除済み。`Apply Write = Clear And Write` の場合は adapter へ `clear_layer=true` を渡し、`Apply Write = Add Item` の場合は adapter へ `clear_layer=false` を渡す。
 
 ## 実装状況
 
-- [x] Tile Settingsに `Clear Layer` checkboxを追加する
-- [x] Primary applyで `clear_layer` 設定を使う
-- [x] Overlay applyで `clear_layer` 設定を使う
-- [x] Crop result applyで `clear_layer` 設定を使う
-- [x] generation中は `Clear Layer` を無効化する
+- [x] `Clear Layer` checkboxを削除する
+- [x] `Apply Write` を Primary / Overlay 共通controlにする
+- [x] Primary applyで `Apply Write` から `clear_layer` を決める
+- [x] Overlay applyで `Apply Write` から `clear_layer` と `_current_overlay_data` 更新方式を決める
+- [x] Crop result applyで `Apply Write` から `clear_layer` と `_current_overlay_data` 更新方式を決める
+- [x] generation中は `Apply Write` を無効化する
 
 ## テスト
 
 - `tests/test_editor_plugin.gd`
-  - `Clear Layer` OnではPrimary applyがtarget layerをclearする
-  - `Clear Layer` OffではPrimary applyがtarget layerをclearしない
-  - `Clear Layer` OffではOverlay applyがtarget layerをclearしない
+  - `Apply Write = Clear And Write` ではPrimary applyがtarget layerをclearする
+  - `Apply Write = Add Item` ではPrimary applyがtarget layerをclearしない
+  - `Apply Write = Clear And Write` ではOverlay applyがtarget layerをclearする
+  - `Apply Write = Add Item` ではOverlay applyがtarget layerをclearしない
+  - Crop result applyが `Apply Write` に従って `_current_overlay_data` を置換または合成する
   - 既存のTarget選択とTileMapLayer apply設定が維持される
 
 確認コマンド:
@@ -40,5 +43,3 @@
 ```sh
 ./tools/test.sh
 ```
-
-実行結果: 全テスト通過。

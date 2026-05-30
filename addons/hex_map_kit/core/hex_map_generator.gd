@@ -172,7 +172,6 @@ static func generate_symmetric_hexagon(
 	interrupt_options: Dictionary = {}
 ):
 	assert(radius > 0)
-	var size: int = radius * 2 + 1
 
 	_prepare_wall_generation_progress(interrupt_options, connect_method)
 	var forced_floor = protected_floor.duplicate()
@@ -190,25 +189,14 @@ static func generate_symmetric_hexagon(
 	)
 	var all_walls = wall_result["walls"]
 
-	var rule = HexToricMapSplitRuleScript.new(radius)
-	var edge_keys := {}
-	for area_index in [0, 7]:
-		for point in rule.split_canvas[area_index]:
-			edge_keys[point.key()] = true
-
-	var square_cells = HexMapDataScript.square(size, false).cells
-	var hex_cells: Array = []
-	for cell in square_cells:
-		if not edge_keys.has(cell.key()):
-			hex_cells.append(cell)
-
+	var data = HexMapDataScript.hexagon(radius)
+	var hex_cell_set = data.cell_set()
 	var hex_walls: Array = []
-	var wall_set = HexMapDataScript.make_set(all_walls)
 	for wall in all_walls:
-		if not edge_keys.has(wall.key()):
+		if hex_cell_set.has(wall.key()):
 			hex_walls.append(wall)
+	data.set_walls(hex_walls)
 
-	var data = HexMapDataScript.from_cells(hex_cells, hex_walls, 0)
 	if wall_result["cancelled"]:
 		_interrupt_clear_progress_range(interrupt_options)
 		_record_generation_result(interrupt_options, data, true)

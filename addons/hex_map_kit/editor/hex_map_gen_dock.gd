@@ -45,11 +45,11 @@ const TILE_TARGET_AUTO_LABEL := "Auto: Selected / first scene layer"
 const TILE_TARGET_ADD_LAYER_LABEL := "Add new layer..."
 const NEW_TILE_LAYER_BASE_NAME := "HexMapLayer"
 const OVERLAY_DEFAULT_ITEM_NAME := "Item1"
-const OVERLAY_WRITE_POLICIES := [
+const APPLY_WRITE_POLICIES := [
 	HexOverlayData.APPLY_CLEAR_AND_WRITE,
 	HexOverlayData.APPLY_ADD_ITEM,
 ]
-const OVERLAY_WRITE_POLICY_NAMES := [
+const APPLY_WRITE_POLICY_NAMES := [
 	"Clear And Write",
 	"Add Item",
 ]
@@ -75,6 +75,7 @@ const QUERY_ROW_MATCH_NAMES := ["Contain", "Exclude"]
 const QUERY_ROW_MATCHES := [QUERY_ROW_MATCH_CONTAIN, QUERY_ROW_MATCH_EXCLUDE]
 const GENERATION_BLOCK_EMPTY_MASK := "Placement Mask query result is empty."
 const GENERATION_BLOCK_EMPTY_ADJACENCY_RULES := "Adjacency Rules has no valid rules."
+const GENERATION_BLOCK_STATUS_PREFIX := "Blocked: "
 const QUERY_DIRECTION_BUTTON_DEFAULT_SIZE := 28.0
 const QUERY_KIND_MASK := "mask"
 const QUERY_KIND_REFERENCE := "reference"
@@ -129,7 +130,6 @@ var _floor_atlas_y_spin: SpinBox
 var _wall_source_spin: SpinBox
 var _wall_atlas_x_spin: SpinBox
 var _wall_atlas_y_spin: SpinBox
-var _clear_layer_check: CheckButton
 var _atlas_image_button: Button
 var _sample_tiles_button: Button
 var _current_atlas_image_path := ""
@@ -178,7 +178,7 @@ var _overlay_neighbor_radius_spin: SpinBox
 var _overlay_adjacency_rules_edit: LineEdit
 var _overlay_adjacency_rules_edit_button: Button
 var _overlay_adjacency_rules_status_label: Label
-var _overlay_write_policy_option: OptionButton
+var _apply_write_policy_option: OptionButton
 var _overlay_existing_policy_option: OptionButton
 var _generate_history_check: CheckButton
 var _generate_history_dir_button: Button
@@ -412,6 +412,7 @@ func _build_ui() -> void:
 
 	root.add_child(_build_overlay_adjacency_controls())
 
+	root.add_child(_build_apply_write_controls())
 
 	root.add_child(_build_separator())
 
@@ -478,13 +479,6 @@ func _build_overlay_controls() -> Control:
 
 	_overlay_controls_container.add_child(_build_overlay_deductor_floor_controls())
 
-	_overlay_write_policy_option = OptionButton.new()
-	for policy_name in OVERLAY_WRITE_POLICY_NAMES:
-		_overlay_write_policy_option.add_item(policy_name)
-	_overlay_write_policy_option.select(0)
-	_overlay_write_policy_option.item_selected.connect(_on_option_changed)
-	_overlay_controls_container.add_child(_wrap_labeled("Apply Write", _overlay_write_policy_option))
-
 	_overlay_existing_policy_option = OptionButton.new()
 	for policy_name in OVERLAY_EXISTING_POLICY_NAMES:
 		_overlay_existing_policy_option.add_item(policy_name)
@@ -493,6 +487,15 @@ func _build_overlay_controls() -> Control:
 	_overlay_controls_container.add_child(_wrap_labeled("Existing Item", _overlay_existing_policy_option))
 
 	return box
+
+
+func _build_apply_write_controls() -> Control:
+	_apply_write_policy_option = OptionButton.new()
+	for policy_name in APPLY_WRITE_POLICY_NAMES:
+		_apply_write_policy_option.add_item(policy_name)
+	_apply_write_policy_option.select(0)
+	_apply_write_policy_option.item_selected.connect(_on_option_changed)
+	return _wrap_labeled("Apply Write", _apply_write_policy_option)
 
 
 func _build_source_registry_controls() -> Control:
@@ -791,12 +794,6 @@ func _build_tile_layer_controls() -> Control:
 	wall_row.add_child(_wall_atlas_x_spin)
 	wall_row.add_child(_wall_atlas_y_spin)
 	box.add_child(wall_row)
-
-	_clear_layer_check = CheckButton.new()
-	_clear_layer_check.text = "Clear Layer"
-	_clear_layer_check.button_pressed = true
-	_clear_layer_check.toggled.connect(_on_option_changed)
-	box.add_child(_clear_layer_check)
 
 	var atlas_row = HBoxContainer.new()
 	_atlas_image_button = Button.new()
@@ -1831,7 +1828,7 @@ func apply_current_overlay_data_to_tile_map_layer(layer) -> bool:
 		layer,
 		_current_overlay_data,
 		_overlay_item_tile_configs(),
-		_clear_layer_enabled(),
+		_apply_write_clears_layer(),
 		flat_top,
 		_current_overlay_data.item_keys()
 	)
@@ -1842,35 +1839,8 @@ func _apply_crop_result_to_tile_map_layer(layer) -> bool:
 	if layer == null:
 		return false
 	var data = _overlay_crop_result_data()
-	_current_orientation = _tile_settings_orientation()
-	var flat_top := _tile_settings_flat_top()
-	if layer is TileMapLayer:
-		_ensure_unique_tile_set_for_layer(layer)
-		HexMapTileAdapter.configure_hex_tile_set(
-			layer.tile_set,
-			flat_top,
-			_tile_settings_tile_size()
-		)
-	var fallback_config = HexOverlayTileAdapter.tile_config(
-		int(_wall_source_spin.value),
-		Vector2i(int(_wall_atlas_x_spin.value), int(_wall_atlas_y_spin.value))
-	)
-	var item_tiles := {}
-	var item_order: Array = []
-	for item_key in data.item_keys():
-		if item_key == HexMapData.ITEM_ANY:
-			continue
-		item_tiles[item_key] = fallback_config
-		item_order.append(item_key)
-	HexOverlayTileAdapter.apply_to_tile_map_layer(
-		layer,
-		data,
-		item_tiles,
-		_clear_layer_enabled(),
-		flat_top,
-		item_order
-	)
-	return true
+	_apply_overlay_data_to_current(data, _apply_write_policy(), _overlay_existing_policy())
+	return apply_current_overlay_data_to_tile_map_layer(layer)
 
 
 func _overlay_source_stack_data():
@@ -1905,12 +1875,9 @@ func _apply_overlay_source_stack_to_current() -> bool:
 	var stack = _overlay_source_stack_data()
 	if stack == null:
 		return false
-	var write_policy = _overlay_write_policy()
+	var write_policy = _apply_write_policy()
 	var existing_policy = _overlay_existing_policy()
-	if write_policy == HexOverlayData.APPLY_ADD_ITEM and _current_overlay_data != null:
-		_current_overlay_data.apply_overlay(stack, HexOverlayData.APPLY_ADD_ITEM, existing_policy)
-	else:
-		_current_overlay_data = stack
+	_apply_overlay_data_to_current(stack, write_policy, existing_policy)
 	_update_stats()
 	_set_source_registry_status(
 		"Stacked %d overlay source(s); items=%d; occupied=%d; write=%s; existing=%s" % [
@@ -1922,6 +1889,15 @@ func _apply_overlay_source_stack_to_current() -> bool:
 		]
 	)
 	return true
+
+
+func _apply_overlay_data_to_current(data, write_policy: String, existing_policy: String) -> void:
+	if data == null:
+		return
+	if _current_overlay_data != null and write_policy == HexOverlayData.APPLY_ADD_ITEM:
+		_current_overlay_data.apply_overlay(data, HexOverlayData.APPLY_ADD_ITEM, existing_policy)
+	else:
+		_current_overlay_data = data
 
 
 func _overlay_item_tile_configs() -> Dictionary:
@@ -2042,14 +2018,14 @@ func apply_current_data_to_tile_map_layer(layer) -> bool:
 		Vector2i(int(_floor_atlas_x_spin.value), int(_floor_atlas_y_spin.value)),
 		int(_wall_source_spin.value),
 		Vector2i(int(_wall_atlas_x_spin.value), int(_wall_atlas_y_spin.value)),
-		_clear_layer_enabled(),
+		_apply_write_clears_layer(),
 		flat_top
 	)
 	return true
 
 
-func _clear_layer_enabled() -> bool:
-	return _clear_layer_check == null or _clear_layer_check.button_pressed
+func _apply_write_clears_layer() -> bool:
+	return _apply_write_policy() == HexOverlayData.APPLY_CLEAR_AND_WRITE
 
 
 func setup_sample_tiles_on_tile_map_layer(layer) -> bool:
@@ -2530,6 +2506,14 @@ func _generation_block_reason_for_snapshot(snapshot: Dictionary) -> String:
 	return ""
 
 
+func _generation_block_status(reason: String) -> String:
+	return "%s%s" % [GENERATION_BLOCK_STATUS_PREFIX, reason]
+
+
+func _is_generation_block_status(status: String) -> bool:
+	return status.begins_with(GENERATION_BLOCK_STATUS_PREFIX)
+
+
 func _refresh_generation_block_state() -> void:
 	if _generate_button == null:
 		return
@@ -2540,9 +2524,8 @@ func _refresh_generation_block_state() -> void:
 	_generate_button.disabled = reason != ""
 	_generate_button.tooltip_text = reason
 	if reason != "":
-		_set_generation_progress(0.0, reason)
-	elif _generation_status == GENERATION_BLOCK_EMPTY_MASK \
-		or _generation_status == GENERATION_BLOCK_EMPTY_ADJACENCY_RULES:
+		_set_generation_progress(0.0, _generation_block_status(reason))
+	elif _is_generation_block_status(_generation_status):
 		_set_generation_progress(0.0, "Ready")
 
 
@@ -2552,7 +2535,7 @@ func _generate_map(show_progress: bool = false) -> bool:
 	var snapshot = _create_generation_snapshot()
 	var block_reason = _generation_block_reason_for_snapshot(snapshot)
 	if block_reason != "":
-		_set_generation_progress(0.0, block_reason)
+		_set_generation_progress(0.0, _generation_block_status(block_reason))
 		push_warning(block_reason)
 		_refresh_generation_block_state()
 		return false
@@ -2620,7 +2603,7 @@ func _create_generation_snapshot() -> Dictionary:
 		"overlay_item_limit_enabled": overlay_limit_enabled,
 		"overlay_item_limit": int(_overlay_item_limit_spin.value),
 		"overlay_item_pool": _overlay_item_pool(overlay_limit_enabled),
-		"overlay_write_policy": _overlay_write_policy(),
+		"apply_write_policy": _apply_write_policy(),
 		"overlay_existing_policy": _overlay_existing_policy(),
 		"overlay_adjacency_enabled": _overlay_adjacency_enabled(),
 		"overlay_neighbor_radius": _overlay_neighbor_radius(),
@@ -2652,8 +2635,8 @@ func _generation_thread_main(snapshot: Dictionary) -> Dictionary:
 		"data": data,
 		"cancelled": bool(interrupt_options.get("cancelled", false)),
 		"overlay_mode": bool(snapshot.get("overlay_mode", false)),
-		"overlay_write_policy": String(snapshot.get(
-			"overlay_write_policy",
+		"apply_write_policy": String(snapshot.get(
+			"apply_write_policy",
 			HexOverlayData.APPLY_CLEAR_AND_WRITE
 		)),
 		"overlay_existing_policy": String(snapshot.get(
@@ -2881,11 +2864,11 @@ func _overlay_adjacency_rules() -> Dictionary:
 	return report["rules"]
 
 
-func _overlay_write_policy() -> String:
-	if _overlay_write_policy_option == null:
+func _apply_write_policy() -> String:
+	if _apply_write_policy_option == null:
 		return HexOverlayData.APPLY_CLEAR_AND_WRITE
-	var index = clampi(_overlay_write_policy_option.selected, 0, OVERLAY_WRITE_POLICIES.size() - 1)
-	return OVERLAY_WRITE_POLICIES[index]
+	var index = clampi(_apply_write_policy_option.selected, 0, APPLY_WRITE_POLICIES.size() - 1)
+	return APPLY_WRITE_POLICIES[index]
 
 
 func _overlay_existing_policy() -> String:
@@ -3210,17 +3193,14 @@ func _complete_generation_from_thread(generation_id: int) -> void:
 		_save_generate_history_data(data, bool(result.get("overlay_mode", false)), result)
 		if bool(result.get("overlay_mode", false)):
 			var write_policy = String(result.get(
-				"overlay_write_policy",
+				"apply_write_policy",
 				HexOverlayData.APPLY_CLEAR_AND_WRITE
 			))
 			var existing_policy = String(result.get(
 				"overlay_existing_policy",
 				HexOverlayData.EXISTING_MERGE
 			))
-			if _current_overlay_data != null and write_policy == HexOverlayData.APPLY_ADD_ITEM:
-				_current_overlay_data.apply_overlay(data, write_policy, existing_policy)
-			else:
-				_current_overlay_data = data
+			_apply_overlay_data_to_current(data, write_policy, existing_policy)
 		else:
 			_current_data = data
 		_update_stats()
@@ -3380,12 +3360,11 @@ func _set_generation_controls_disabled(disabled: bool) -> void:
 		_overlay_neighbor_radius_spin,
 		_overlay_adjacency_rules_edit,
 		_overlay_adjacency_rules_edit_button,
-		_overlay_write_policy_option,
+		_apply_write_policy_option,
 		_overlay_existing_policy_option,
 		_source_load_button,
 		_generate_history_check,
 		_generate_history_dir_button,
-		_clear_layer_check,
 		_generate_button,
 	]:
 		_set_control_disabled(control, disabled)
