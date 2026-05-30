@@ -2,6 +2,14 @@
 
 Hex Map Kit の EditorPlugin は、エディタ上で `HexMapResource` を生成・保存し、シーン内の `TileMapLayer` へ反映するための Dock と Inspector 拡張を提供します。
 
+## 警告
+
+  - manualは仕様書ではない。
+  - 記載する事項はユースケースに基づくものであり、実装した事項に基づくべきではない。
+  - ユースケースをサポートするための手順・情報以外を記載しない。
+
+このマニュアルは上記ポリシーを満たしていません。
+
 ## 1. 有効化
 
 `project.godot` の `[editor_plugins]` に plugin が登録されていることを確認します。
