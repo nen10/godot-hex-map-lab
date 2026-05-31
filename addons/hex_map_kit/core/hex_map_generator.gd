@@ -382,7 +382,8 @@ static func generate_toric_adjacency_items(
 	seed: int = 0,
 	blocked_cells: Array = [],
 	cyclic_size: int = 0,
-	neighbor_radius: int = 1
+	neighbor_radius: int = 1,
+	include_generated_reference: bool = false
 ):
 	return generate_toric_adjacency_items_interruptible(
 		cells,
@@ -392,7 +393,9 @@ static func generate_toric_adjacency_items(
 		seed,
 		blocked_cells,
 		cyclic_size,
-		neighbor_radius
+		neighbor_radius,
+		{},
+		include_generated_reference
 	)["data"]
 
 
@@ -405,7 +408,8 @@ static func generate_toric_adjacency_items_interruptible(
 	blocked_cells: Array = [],
 	cyclic_size: int = 0,
 	neighbor_radius: int = 1,
-	interrupt_options: Dictionary = {}
+	interrupt_options: Dictionary = {},
+	include_generated_reference: bool = false
 ) -> Dictionary:
 	assert(neighbor_radius >= 1)
 	var candidates = _item_generation_candidates(cells, blocked_cells, cyclic_size)
@@ -429,6 +433,8 @@ static func generate_toric_adjacency_items_interruptible(
 		)
 		if rng.randf() < probability:
 			data.add_item_cell(item_name, cell)
+			if include_generated_reference:
+				reference_set[cell.key()] = cell
 		var steps = index + 1
 		if steps % chunk_size == 0 or steps == total:
 			if _interrupt_update(interrupt_options, "toric_adjacency_items", steps, total):

@@ -177,6 +177,7 @@ var _overlay_reference_query_container: VBoxContainer
 var _overlay_reference_add_source_option: OptionButton
 var _overlay_reference_add_button: Button
 var _overlay_reference_query_rows: Array[Dictionary] = []
+var _overlay_generated_reference_check: CheckButton
 var _overlay_neighbor_radius_spin: SpinBox
 var _overlay_adjacency_rules_edit: LineEdit
 var _overlay_adjacency_rules_edit_button: Button
@@ -578,6 +579,12 @@ func _build_overlay_adjacency_controls() -> Control:
 	box.add_child(_overlay_reference_container)
 	_overlay_reference_container.add_child(_build_section_label("Adjacency Items"))
 	_overlay_reference_container.add_child(_build_query_row_controls(QUERY_KIND_REFERENCE))
+
+	_overlay_generated_reference_check = CheckButton.new()
+	_overlay_generated_reference_check.text = "Generated Item Reference"
+	_overlay_generated_reference_check.tooltip_text = "Use generated target item cells as additional adjacency reference while this generation runs."
+	_overlay_generated_reference_check.toggled.connect(_on_option_changed)
+	_overlay_reference_container.add_child(_overlay_generated_reference_check)
 
 	_overlay_neighbor_radius_spin = _new_int_spin(1, 1, 16)
 	_overlay_neighbor_radius_spin.value_changed.connect(_on_option_changed)
@@ -2722,6 +2729,7 @@ func _create_generation_snapshot() -> Dictionary:
 			snapshot["overlay_candidate_cells"]
 		)
 		snapshot["overlay_reference_cells"] = _overlay_reference_cells_for_snapshot()
+		snapshot["overlay_generated_reference_enabled"] = _overlay_generated_reference_enabled()
 		snapshot["overlay_cyclic_size"] = _overlay_cyclic_size_for_snapshot()
 	return snapshot
 
@@ -2952,6 +2960,12 @@ func _overlay_adjacency_enabled() -> bool:
 		and _overlay_adjacency_check.button_pressed
 
 
+func _overlay_generated_reference_enabled() -> bool:
+	return _overlay_adjacency_enabled() \
+		and _overlay_generated_reference_check != null \
+		and _overlay_generated_reference_check.button_pressed
+
+
 func _overlay_neighbor_radius() -> int:
 	if _overlay_neighbor_radius_spin == null:
 		return 1
@@ -3122,7 +3136,8 @@ func _generate_overlay_data_from_snapshot(snapshot: Dictionary, interrupt_option
 			[],
 			int(snapshot.get("overlay_cyclic_size", 0)),
 			int(snapshot.get("overlay_neighbor_radius", 1)),
-			interrupt_options
+			interrupt_options,
+			bool(snapshot.get("overlay_generated_reference_enabled", false))
 		)["data"]
 	elif bool(snapshot["symmetric"]):
 		data = HexMapGenerator.generate_symmetric_toric_items_interruptible(
@@ -3461,6 +3476,7 @@ func _set_generation_controls_disabled(disabled: bool) -> void:
 		_overlay_adjacency_check,
 		_overlay_reference_add_source_option,
 		_overlay_reference_add_button,
+		_overlay_generated_reference_check,
 		_overlay_neighbor_radius_spin,
 		_overlay_adjacency_rules_edit,
 		_overlay_adjacency_rules_edit_button,

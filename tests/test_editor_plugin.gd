@@ -88,6 +88,8 @@ func _run() -> void:
 	await _test_generation_dock_overlay_limit_and_apply_policy()
 	await _test_generation_dock_overlay_placement_mask_filters_candidates()
 	await _test_generation_dock_overlay_adjacency_reference_generation()
+	await _test_generation_dock_adjacency_generated_reference_snapshot()
+	await _test_generation_dock_adjacency_generated_reference_changes_result()
 	await _test_generation_dock_overlay_item_pool_tile_mapping()
 	await _test_generation_dock_mapdata_source_registry_load_reload_clear()
 	await _test_generation_dock_mapdata_query_rows_evaluate_offset_and_toric()
@@ -1296,6 +1298,81 @@ func _test_generation_dock_overlay_adjacency_reference_generation() -> void:
 	_assert_true(await dock._generate_map(), "generation dock generates adjacency overlay")
 	_assert_true(dock._current_overlay_data.has_item(HexVector.zero(), "NearWall"), "adjacency reference generates item next to reference cell")
 	_assert_true(not dock._current_overlay_data.has_item(HexVector.apply_basis(-1, 1, 0), "NearWall"), "adjacency reference leaves cells without matching neighbor rule empty")
+
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_adjacency_generated_reference_snapshot() -> void:
+	var dock = await _new_ready_dock()
+
+	dock._overlay_mode_check.set_pressed_no_signal(true)
+	dock._overlay_adjacency_check.set_pressed_no_signal(true)
+	dock._on_overlay_adjacency_toggled(true)
+	dock._refresh_controls()
+
+	_assert_true(dock._overlay_generated_reference_check.visible, "Generated Item Reference control is visible for adjacency overlay")
+	var static_snapshot = dock._create_generation_snapshot()
+	_assert_true(
+		not bool(static_snapshot.get("overlay_generated_reference_enabled", true)),
+		"Generated Item Reference is disabled in snapshot by default"
+	)
+
+	dock._overlay_generated_reference_check.set_pressed_no_signal(true)
+	var dynamic_snapshot = dock._create_generation_snapshot()
+	_assert_true(
+		bool(dynamic_snapshot.get("overlay_generated_reference_enabled", false)),
+		"Generated Item Reference checkbox is reflected in generation snapshot"
+	)
+
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_adjacency_generated_reference_changes_result() -> void:
+	var dock = await _new_ready_dock()
+
+	dock._overlay_mode_check.set_pressed_no_signal(true)
+	dock._overlay_adjacency_check.set_pressed_no_signal(true)
+	dock._on_overlay_adjacency_toggled(true)
+	dock._shape_option_symmetric.select(HexMapGenDock.SHAPE_RECTANGLE)
+	dock._gen_radius_spin.set_value_no_signal(1)
+	dock._overlay_item_name_edit.text = "Vine"
+	dock._overlay_neighbor_radius_spin.value = 1
+	dock._overlay_adjacency_rules_edit.text = "1=1.0;default=0.0"
+	var first_candidate = HexVector.q_axis()
+	var second_candidate = HexVector.q_axis().scaled(2)
+	var source_data = HexOverlayData.from_cells(
+		HexMapData.square(3, false).cells,
+		{
+			"Candidate": [first_candidate, second_candidate],
+			"Seed": [HexVector.zero()],
+		}
+	)
+	var source_id = dock.register_mapdata_source(
+		HexOverlayResource.from_overlay_data(source_data),
+		"res://generated_reference.tres"
+	)
+	dock._add_query_row(HexMapGenDock.QUERY_KIND_MASK, source_id, "Candidate")
+	dock._add_query_row(HexMapGenDock.QUERY_KIND_REFERENCE, source_id, "Seed")
+	dock._refresh_controls()
+
+	var static_snapshot = dock._create_generation_snapshot()
+	var static_data = dock._generate_overlay_data_from_snapshot(static_snapshot, {})
+	_assert_keys_eq(
+		static_data.item_cells("Vine"),
+		[first_candidate],
+		"adjacency snapshot without Generated Item Reference keeps generated items out of reference stats"
+	)
+
+	dock._overlay_generated_reference_check.set_pressed_no_signal(true)
+	var dynamic_snapshot = dock._create_generation_snapshot()
+	var dynamic_data = dock._generate_overlay_data_from_snapshot(dynamic_snapshot, {})
+	_assert_keys_eq(
+		dynamic_data.item_cells("Vine"),
+		[first_candidate, second_candidate],
+		"adjacency snapshot with Generated Item Reference uses generated target items as later references"
+	)
 
 	dock.queue_free()
 	await process_frame

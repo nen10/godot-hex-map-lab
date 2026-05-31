@@ -50,6 +50,9 @@ func _run() -> void:
 	_test_interruptible_item_generation_reports_progress_and_cancel()
 	_test_toric_adjacency_items_use_count_component_rules()
 	_test_toric_adjacency_items_wrap_reference_neighbors()
+	_test_toric_adjacency_items_can_reference_generated_item()
+	_test_toric_adjacency_generated_reference_wraps()
+	_test_toric_adjacency_generated_reference_preserves_cancel()
 	_test_symmetric_toric_items_respect_target_and_blocked_cells()
 	_test_symmetric_toric_items_are_seeded_and_interruptible()
 	_test_overlay_deductor_restores_item_blocked_connectivity()
@@ -591,6 +594,98 @@ func _test_toric_adjacency_items_wrap_reference_neighbors() -> void:
 	)
 
 	_assert_true(overlay.has_item(candidate, "Portal"), "adjacency item generator wraps toric reference neighbors")
+
+
+func _test_toric_adjacency_items_can_reference_generated_item() -> void:
+	var first_candidate = HexVector.zero()
+	var second_candidate = HexVector.q_axis()
+	var reference = HexVector.q_axis().scaled(-1)
+	var rules = {
+		"default": 0.0,
+		"1,1": 1.0,
+	}
+	var static_only = HexMapGenerator.generate_toric_adjacency_items(
+		[first_candidate, second_candidate],
+		"Vine",
+		[reference],
+		rules,
+		11
+	)
+	var dynamic = HexMapGenerator.generate_toric_adjacency_items(
+		[first_candidate, second_candidate],
+		"Vine",
+		[reference],
+		rules,
+		11,
+		[],
+		0,
+		1,
+		true
+	)
+
+	_assert_keys_eq(static_only.item_cells("Vine"), [first_candidate], "adjacency generated reference defaults to static reference cells")
+	_assert_keys_eq(dynamic.item_cells("Vine"), [first_candidate, second_candidate], "adjacency generated reference adds placed target items to later reference stats")
+
+
+func _test_toric_adjacency_generated_reference_wraps() -> void:
+	var edge_candidate = _rect_cell(2, 0)
+	var wrapped_candidate = HexVector.zero()
+	var reference = edge_candidate.add(HexVector.r_axis())
+	var rules = {
+		"default": 0.0,
+		"1,1": 1.0,
+	}
+	var static_only = HexMapGenerator.generate_toric_adjacency_items(
+		[edge_candidate, wrapped_candidate],
+		"Portal",
+		[reference],
+		rules,
+		12,
+		[],
+		3
+	)
+	var dynamic = HexMapGenerator.generate_toric_adjacency_items(
+		[edge_candidate, wrapped_candidate],
+		"Portal",
+		[reference],
+		rules,
+		12,
+		[],
+		3,
+		1,
+		true
+	)
+
+	_assert_keys_eq(static_only.item_cells("Portal"), [edge_candidate], "toric generated reference starts from static reference cells only")
+	_assert_keys_eq(dynamic.item_cells("Portal"), [edge_candidate, wrapped_candidate], "toric generated reference uses wrapped generated item representatives")
+
+
+func _test_toric_adjacency_generated_reference_preserves_cancel() -> void:
+	var first_candidate = HexVector.zero()
+	var second_candidate = HexVector.q_axis()
+	var third_candidate = HexVector.q_axis().scaled(2)
+	var reference = HexVector.q_axis().scaled(-1)
+	var options = _cancel_interrupt_options(1)
+	var result = HexMapGenerator.generate_toric_adjacency_items_interruptible(
+		[first_candidate, second_candidate, third_candidate],
+		"Vine",
+		[reference],
+		{
+			"default": 0.0,
+			"1,1": 1.0,
+		},
+		13,
+		[],
+		0,
+		1,
+		options,
+		true
+	)
+
+	_assert_true(result["cancelled"], "generated reference adjacency reports cancelled result")
+	_assert_true(options["cancelled"], "generated reference adjacency records cancelled option state")
+	_assert_eq(result["steps"], 1, "generated reference adjacency stops at requested cancel step")
+	_assert_keys_eq(result["data"].item_cells("Vine"), [first_candidate], "generated reference adjacency returns partial data at cancellation")
 
 
 func _test_symmetric_toric_items_respect_target_and_blocked_cells() -> void:
