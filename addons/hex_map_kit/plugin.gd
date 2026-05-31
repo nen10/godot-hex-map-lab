@@ -36,6 +36,16 @@ func _exit_tree() -> void:
 		_inspector_plugin = null
 
 
+func _handles(object: Object) -> bool:
+	if _edit_tool == null or not is_instance_valid(_edit_tool):
+		return false
+	if not _edit_tool.has_method("viewport_input_enabled"):
+		return false
+	if not _edit_tool.viewport_input_enabled():
+		return false
+	return object is CanvasItem
+
+
 func _forward_canvas_gui_input(event: InputEvent) -> bool:
 	if _edit_tool != null and _edit_tool.has_method("forward_canvas_gui_input"):
 		return _edit_tool.forward_canvas_gui_input(event)

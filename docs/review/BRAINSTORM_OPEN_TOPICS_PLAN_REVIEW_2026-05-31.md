@@ -16,10 +16,10 @@
    - `docs/plan/CROP_RETAINED_RECALC_POLICY_2026-05-31.md`
    - `docs/plan/CROP_RETAINED_RECALC_IMPLEMENTATION_PLAN_2026-05-31.md`
 4. Runtime click / loop path / connected component helper
-   - `docs/plan/RUNTIME_INTERACTION_LOOP_PATH_POLICY_2026-05-31.md`
+   - `docs/complete_on_test/RUNTIME_INTERACTION_LOOP_PATH_POLICY_2026-05-31.md`
    - `docs/plan/RUNTIME_INTERACTION_LOOP_PATH_IMPLEMENTATION_PLAN_2026-05-31.md`
 5. マップのマニュアル編集tool
-   - `docs/plan/MANUAL_MAP_EDITING_TOOL_POLICY_2026-05-31.md`
+   - `docs/complete_on_test/MANUAL_MAP_EDITING_TOOL_POLICY_2026-05-31.md`
    - `docs/plan/MANUAL_MAP_EDITING_TOOL_IMPLEMENTATION_PLAN_2026-05-31.md`
 6. 公開用 sample project / API reference / package整備
    - `docs/plan/PUBLIC_SAMPLE_API_PACKAGE_POLICY_2026-05-31.md`

@@ -2,7 +2,7 @@
 
 ## 参照方針
 
-- 方針: `docs/plan/RUNTIME_INTERACTION_LOOP_PATH_POLICY_2026-05-31.md`
+- 方針: `docs/complete_on_test/RUNTIME_INTERACTION_LOOP_PATH_POLICY_2026-05-31.md`
 - 採用案: canonical data + visual representative。
 
 ## 対象ファイル

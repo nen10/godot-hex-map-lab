@@ -2,9 +2,9 @@
 
 ## 参照方針
 
-- 方針: `docs/plan/MANUAL_MAP_EDITING_TOOL_POLICY_2026-05-31.md`
-- runtime 方針: `docs/plan/RUNTIME_INTERACTION_LOOP_PATH_POLICY_2026-05-31.md`
-- runtime 前提 plan: `docs/plan/RUNTIME_INTERACTION_LOOP_DISPLAY_TILE_COPY_IMPLEMENTATION_PLAN_2026-05-31.md`
+- 方針: `docs/complete_on_test/MANUAL_MAP_EDITING_TOOL_POLICY_2026-05-31.md`
+- runtime 方針: `docs/complete_on_test/RUNTIME_INTERACTION_LOOP_PATH_POLICY_2026-05-31.md`
+- runtime 前提 plan: `docs/complete_on_test/RUNTIME_INTERACTION_LOOP_DISPLAY_TILE_COPY_IMPLEMENTATION_PLAN_2026-05-31.md`
 - 採用案: `HexTileMapLayer` の loop-aware hit と visual representative を manual edit 用表示の正とする。
 
 ## 対象範囲

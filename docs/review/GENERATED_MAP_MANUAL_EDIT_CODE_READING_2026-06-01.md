@@ -8,7 +8,7 @@ Result: `superseded_by_analog_result`
 
 - `docs/review/GENERATED_MAP_MANUAL_EDIT_ANALOG_RESULT_2026-06-01.md`
 - `docs/review/GENERATED_MAP_MANUAL_EDIT_FAILURE_ANALYSIS_2026-06-01.md`
-- `docs/plan/MANUAL_MAP_EDITING_TOOL_VIEWPORT_INPUT_IMPLEMENTATION_PLAN_2026-06-01.md`
+- `docs/complete_on_test/MANUAL_MAP_EDITING_TOOL_VIEWPORT_INPUT_IMPLEMENTATION_PLAN_2026-06-01.md`
 
 The missed gap was the real Editor viewport input bridge: `plugin.gd` does not implement `_handles()`, and `HexMapEditTool.forward_canvas_gui_input()` uses `mouse_event.position` as if it were already target-local/canvas-local.
 
@@ -29,7 +29,7 @@ No development plan is required for this primary-map manual editing use case.
 
 - `docs/complete_on_test/MULTI_LAYER.md`
 - `docs/complete_on_test/EDITOR_PLUGIN.md`
-- `docs/plan/MANUAL_MAP_EDITING_TOOL_POLICY_2026-05-31.md`
+- `docs/complete_on_test/MANUAL_MAP_EDITING_TOOL_POLICY_2026-05-31.md`
 - `.test/analog_test/GENERATED_MAP_MANUAL_EDIT_ANALOG_TEST_2026-06-01.md`
 
 This verification does not claim direct manual editing of `HexOverlayResource`. Overlay linkage is verified as "edited primary map exported from manual edit can be reused as a Multi Layer Source Registry input."

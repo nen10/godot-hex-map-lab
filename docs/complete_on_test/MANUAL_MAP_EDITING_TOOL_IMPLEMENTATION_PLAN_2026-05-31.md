@@ -2,7 +2,7 @@
 
 ## 参照方針
 
-- 方針: `docs/plan/MANUAL_MAP_EDITING_TOOL_POLICY_2026-05-31.md`
+- 方針: `docs/complete_on_test/MANUAL_MAP_EDITING_TOOL_POLICY_2026-05-31.md`
 - 採用案: `HexMapDocumentResource` を正とするresource-primary editor tool。
 
 ## 対象ファイル

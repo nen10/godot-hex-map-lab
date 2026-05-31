@@ -2,15 +2,15 @@
 
 ## Metadata
 
-- Status: blocked_by_step_14_viewport_input
+- Status: ready_for_rerun_after_viewport_input_fix
 - Code reading: `docs/review/GENERATED_MAP_MANUAL_EDIT_CODE_READING_2026-06-01.md`
 - Result review: `docs/review/GENERATED_MAP_MANUAL_EDIT_ANALOG_RESULT_2026-06-01.md`
 - Failure analysis: `docs/review/GENERATED_MAP_MANUAL_EDIT_FAILURE_ANALYSIS_2026-06-01.md`
-- Implementation plan: `docs/plan/MANUAL_MAP_EDITING_TOOL_VIEWPORT_INPUT_IMPLEMENTATION_PLAN_2026-06-01.md`
+- Implementation plan: `docs/complete_on_test/MANUAL_MAP_EDITING_TOOL_VIEWPORT_INPUT_IMPLEMENTATION_PLAN_2026-06-01.md`
 - Source plans:
   - `docs/complete_on_test/MULTI_LAYER.md`
   - `docs/complete_on_test/EDITOR_PLUGIN.md`
-  - `docs/plan/MANUAL_MAP_EDITING_TOOL_POLICY_2026-05-31.md`
+  - `docs/complete_on_test/MANUAL_MAP_EDITING_TOOL_POLICY_2026-05-31.md`
 - Target Editor Plugin area: Map Generation Dock, Hex Map Edit Dock, Source Registry
 - Participating features: Primary Generation, `Save .tres`, Target `TileMapLayer` apply, `HexMapResource` import, `HexMapDocumentResource` save/load, wall/floor edit, shape edit, Undo/Redo, edited `HexMapResource` export, edited map Source Registry load
 - Created date: 2026-06-01
@@ -126,7 +126,7 @@
 | --- | --- | --- | --- | --- |
 | 1-7 | Primary generation can become saved `HexMapResource`. | `HexMapGenDock.current_resource()` and save handler. | `code_reading_pass`; see `docs/review/GENERATED_MAP_MANUAL_EDIT_CODE_READING_2026-06-01.md`. | File dialog operation still needs UI observation. |
 | 8-12 | Saved `HexMapResource` imports into `HexMapDocumentResource` and can be saved. | `HexMapEditTool.import_map_resource_from_path()`, `HexMapDocumentAdapter.from_map_resource()`, `save_document()`. | `code_reading_pass`; relevant headless tests passed in `./tools/test.sh`. | None beyond UI path entry. |
-| 13-25 | Manual wall/floor and shape edits mutate the document, redraw target layer, and support Undo/Redo save/load. | `apply_local_position()`, `_apply_mode_to_document()`, `_commit_document_change()`, `HexMapDocumentAdapter`, `EditorPlugin._forward_canvas_gui_input()`. | `blocked_by_missing_editor_viewport_trace`; direct `apply_local_position()` tests pass, but user analog result fails at Step 14. | Requires `docs/plan/MANUAL_MAP_EDITING_TOOL_VIEWPORT_INPUT_IMPLEMENTATION_PLAN_2026-06-01.md`. |
+| 13-25 | Manual wall/floor and shape edits mutate the document, redraw target layer, and support Undo/Redo save/load. | `EditorPlugin._handles()`, `HexMapEditTool.forward_canvas_gui_input()`, `_editor_viewport_event_to_target_local()`, `apply_local_position()`, `_apply_mode_to_document()`, `_commit_document_change()`, `HexMapDocumentAdapter`. | `code_reading_pass`; `tests/test_editor_plugin.gd` covers viewport transform routing, target redraw status, no editable cell status, and loop visual duplicate edit. | Editor viewport forwarding and actual scene selection should be rerun by user observation. |
 | 26-32 | Edited map exports and can be loaded as Multi Layer Source Registry primary data. | `export_map_resource_to_path()`, `HexMapDocumentAdapter.to_map_resource()`, `HexMapGenDock.load_mapdata_source()`. | `code_reading_pass`; Source Registry and Placement Mask tests cover `HexMapResource` item key details and overlay candidate filtering. | Overlay placement result should be observed visually. |
 
 ## ChatGPT Agent Judgement Packet

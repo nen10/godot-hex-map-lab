@@ -58,7 +58,7 @@ runtime input、loop-aware hit、toric visual representative、loop-aware path�
 対応:
 
 - `docs/plan/RUNTIME_INTERACTION_LOOP_PATH_IMPLEMENTATION_PLAN_2026-05-31.md` を `docs/complete_on_test/` へ移動する。
-- `docs/plan/RUNTIME_INTERACTION_LOOP_PATH_POLICY_2026-05-31.md` は次回の loop copy / manual edit 表示候補を含む方針として更新する。
+- `docs/complete_on_test/RUNTIME_INTERACTION_LOOP_PATH_POLICY_2026-05-31.md` は次回の loop copy / manual edit 表示候補を含む方針として更新する。
 
 ### MANUAL_MAP_EDITING_TOOL 初期実装
 
@@ -84,7 +84,7 @@ document resource、adapter、dock、import / export、local click、Undo / Redo
 対応:
 
 - `docs/plan/MANUAL_MAP_EDITING_TOOL_IMPLEMENTATION_PLAN_2026-05-31.md` を `docs/complete_on_test/` へ移動する。
-- `docs/plan/MANUAL_MAP_EDITING_TOOL_POLICY_2026-05-31.md` は runtime loop display を利用する次回方針として更新する。
+- `docs/complete_on_test/MANUAL_MAP_EDITING_TOOL_POLICY_2026-05-31.md` は runtime loop display を利用する次回方針として更新する。
 
 ## 次回計画へ採用する要件
 

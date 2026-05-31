@@ -4,6 +4,7 @@ const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const HexGrid = preload("res://addons/hex_map_kit/core/hex_grid.gd")
 const HexMapData = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
+const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 
 class RuntimeSignalRecorder:
@@ -40,7 +41,11 @@ func _run() -> void:
 	await _test_local_to_cell_hit_wraps_toric_visual_cell()
 	await _test_infinite_loop_mode_keeps_visual_cell_identity()
 	await _test_visual_representatives_for_toric_cell()
+	await _test_visual_cell_entries_for_rect_marks_canonical_and_duplicates()
+	await _test_loop_copy_layer_draws_duplicate_tiles()
+	await _test_loop_copy_layer_updates_after_wall_floor_edit()
 	await _test_visual_path_for_toric_path_uses_nearest_representatives()
+	await _test_visual_path_anchor_selects_first_representative()
 	await _test_connected_component_from_local_matches_core()
 	await _test_apply_map_before_ready_redraws_after_ready()
 
@@ -273,6 +278,95 @@ func _test_visual_representatives_for_toric_cell() -> void:
 	await process_frame
 
 
+func _test_visual_cell_entries_for_rect_marks_canonical_and_duplicates() -> void:
+	var layer = HexTileMapLayer.new()
+	layer.hex_size = 10.0
+	root.add_child(layer)
+	await process_frame
+	layer.loop_display_enabled = true
+	layer.loop_display_mode = HexTileMapLayer.LOOP_DISPLAY_TORIC
+	layer.apply_map(HexMapResource.from_map_data(HexMapData.square(3, true)))
+
+	var canonical_rect = Rect2(layer.hex_to_local(HexVector.zero()) - Vector2.ONE, Vector2(2, 2))
+	var canonical_entries = layer.visual_cell_entries_for_rect(canonical_rect, 0)
+	var canonical_entry = _find_visual_entry(canonical_entries, HexVector.zero(), HexVector.zero())
+	_assert_true(not canonical_entry.is_empty(), "visual cell entries include canonical representative")
+	_assert_true(bool(canonical_entry.get("is_canonical", false)), "canonical representative is marked")
+	_assert_eq(
+		canonical_entry.get("map_cell", Vector2i(999, 999)),
+		HexMapTileAdapter.vector_to_map_cell(HexVector.zero(), true),
+		"canonical visual entry stores map cell"
+	)
+
+	var duplicate_visual = HexVector.apply_basis(-3, 0, 0)
+	var duplicate_rect = Rect2(layer.hex_to_local(duplicate_visual) - Vector2.ONE, Vector2(2, 2))
+	var duplicate_entries = layer.visual_cell_entries_for_rect(duplicate_rect, 0)
+	var duplicate_entry = _find_visual_entry(duplicate_entries, HexVector.zero(), duplicate_visual)
+	_assert_true(not duplicate_entry.is_empty(), "visual cell entries include toric duplicate representative")
+	_assert_true(not bool(duplicate_entry.get("is_canonical", true)), "duplicate representative is not marked canonical")
+	_assert_eq(
+		duplicate_entry.get("map_cell", Vector2i(999, 999)),
+		HexMapTileAdapter.vector_to_map_cell(duplicate_visual, true),
+		"duplicate visual entry stores visual map cell"
+	)
+
+	layer.queue_free()
+	await process_frame
+
+
+func _test_loop_copy_layer_draws_duplicate_tiles() -> void:
+	var layer = HexTileMapLayer.new()
+	layer.hex_size = 10.0
+	root.add_child(layer)
+	await process_frame
+	var duplicate_visual = HexVector.apply_basis(-3, 0, 0)
+	layer.loop_display_enabled = true
+	layer.loop_display_mode = HexTileMapLayer.LOOP_DISPLAY_TORIC
+	layer.loop_display_rect = Rect2(layer.hex_to_local(duplicate_visual) - Vector2.ONE, Vector2(2, 2))
+	layer.apply_map(HexMapResource.from_map_data(HexMapData.square(3, true)))
+	var duplicate_map_cell = HexMapTileAdapter.vector_to_map_cell(duplicate_visual, true)
+
+	_assert_true(layer._loop_tile_map != null, "loop copy layer is created")
+	_assert_eq(
+		layer._loop_tile_map.get_cell_atlas_coords(duplicate_map_cell),
+		layer.floor_atlas_coords,
+		"loop copy layer draws duplicate floor tile"
+	)
+	_assert_eq(layer._loop_tile_map.tile_set, layer._tile_map.tile_set, "loop copy layer shares base TileSet")
+
+	layer.queue_free()
+	await process_frame
+
+
+func _test_loop_copy_layer_updates_after_wall_floor_edit() -> void:
+	var layer = HexTileMapLayer.new()
+	layer.hex_size = 10.0
+	root.add_child(layer)
+	await process_frame
+	var duplicate_visual = HexVector.apply_basis(-3, 0, 0)
+	layer.loop_display_enabled = true
+	layer.loop_display_mode = HexTileMapLayer.LOOP_DISPLAY_TORIC
+	layer.loop_display_rect = Rect2(layer.hex_to_local(duplicate_visual) - Vector2.ONE, Vector2(2, 2))
+	layer.apply_map(HexMapResource.from_map_data(HexMapData.square(3, true)))
+	var duplicate_map_cell = HexMapTileAdapter.vector_to_map_cell(duplicate_visual, true)
+
+	layer.set_wall(HexVector.zero())
+	_assert_eq(
+		layer._loop_tile_map.get_cell_atlas_coords(duplicate_map_cell),
+		layer.wall_atlas_coords,
+		"loop copy layer updates duplicate tile after set_wall"
+	)
+	layer.set_floor(HexVector.zero())
+	_assert_eq(
+		layer._loop_tile_map.get_cell_atlas_coords(duplicate_map_cell),
+		layer.floor_atlas_coords,
+		"loop copy layer updates duplicate tile after set_floor"
+	)
+
+	layer.queue_free()
+	await process_frame
+
+
 func _test_visual_path_for_toric_path_uses_nearest_representatives() -> void:
 	var layer = HexTileMapLayer.new()
 	layer.hex_size = 10.0
@@ -293,6 +387,30 @@ func _test_visual_path_for_toric_path_uses_nearest_representatives() -> void:
 	_assert_true(visual_distance < canonical_distance, "toric visual path is shorter than canonical jump")
 	layer.draw_loop_path(canonical_path)
 	_assert_keys_eq(layer._display_path, visual_path, "draw_loop_path stores visual representatives")
+
+	layer.queue_free()
+	await process_frame
+
+
+func _test_visual_path_anchor_selects_first_representative() -> void:
+	var layer = HexTileMapLayer.new()
+	layer.hex_size = 10.0
+	root.add_child(layer)
+	await process_frame
+	layer.apply_map(HexMapResource.from_map_data(HexMapData.square(3, true)))
+	layer.loop_display_mode = HexTileMapLayer.LOOP_DISPLAY_TORIC
+	var duplicate_visual = HexVector.apply_basis(3, 0, 0)
+	var canonical_path = [
+		HexVector.zero(),
+		HexVector.q_axis(),
+	]
+	var visual_path = layer.visual_path_for_canonical_path(canonical_path, layer.hex_to_local(duplicate_visual))
+
+	_assert_vector_eq(
+		visual_path[0],
+		duplicate_visual,
+		"visual path anchor selects nearest first representative"
+	)
 
 	layer.queue_free()
 	await process_frame
@@ -353,6 +471,13 @@ func _assert_keys_eq(actual: Array, expected: Array, message: String) -> void:
 	var expected_keys = _keys(expected)
 	if actual_keys != expected_keys:
 		_failures.append("%s: expected %s, got %s" % [message, str(expected_keys), str(actual_keys)])
+
+
+func _find_visual_entry(entries: Array, canonical, visual) -> Dictionary:
+	for entry in entries:
+		if entry["hex"].is_equal(canonical) and entry["visual_hex"].is_equal(visual):
+			return entry
+	return {}
 
 
 func _keys(points: Array) -> Array:

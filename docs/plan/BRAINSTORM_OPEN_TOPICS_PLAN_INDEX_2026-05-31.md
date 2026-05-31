@@ -4,18 +4,10 @@
 
 ## 作業範囲
 
-1. Manual map editing viewport input
-   - 詳細: `docs/plan/MANUAL_MAP_EDITING_TOOL_VIEWPORT_INPUT_IMPLEMENTATION_PLAN_2026-06-01.md`
-2. Crop保持再計算モード
+1. Crop保持再計算モード
    - 方針: `docs/plan/CROP_RETAINED_RECALC_POLICY_2026-05-31.md`
    - 詳細: `docs/plan/CROP_RETAINED_RECALC_IMPLEMENTATION_PLAN_2026-05-31.md`
-3. Runtime loop display tile copy
-   - 方針: `docs/plan/RUNTIME_INTERACTION_LOOP_PATH_POLICY_2026-05-31.md`
-   - 詳細: `docs/plan/RUNTIME_INTERACTION_LOOP_DISPLAY_TILE_COPY_IMPLEMENTATION_PLAN_2026-05-31.md`
-4. マップのマニュアル編集tool loop display
-   - 方針: `docs/plan/MANUAL_MAP_EDITING_TOOL_POLICY_2026-05-31.md`
-   - 詳細: `docs/plan/MANUAL_MAP_EDITING_TOOL_LOOP_DISPLAY_IMPLEMENTATION_PLAN_2026-05-31.md`
-5. 公開用 sample project / API reference / package整備
+2. 公開用 sample project / API reference / package整備
    - 方針: `docs/plan/PUBLIC_SAMPLE_API_PACKAGE_POLICY_2026-05-31.md`
    - 詳細: `docs/plan/PUBLIC_SAMPLE_API_PACKAGE_IMPLEMENTATION_PLAN_2026-05-31.md`
 

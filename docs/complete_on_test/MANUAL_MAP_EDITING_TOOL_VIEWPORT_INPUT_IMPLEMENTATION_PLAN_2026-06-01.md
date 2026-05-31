@@ -2,7 +2,7 @@
 
 ## 参照
 
-- Policy: `docs/plan/MANUAL_MAP_EDITING_TOOL_POLICY_2026-05-31.md`
+- Policy: `docs/complete_on_test/MANUAL_MAP_EDITING_TOOL_POLICY_2026-05-31.md`
 - Analog test: `.test/analog_test/GENERATED_MAP_MANUAL_EDIT_ANALOG_TEST_2026-06-01.md`
 - Analog result: `docs/review/GENERATED_MAP_MANUAL_EDIT_ANALOG_RESULT_2026-06-01.md`
 - Failure analysis: `docs/review/GENERATED_MAP_MANUAL_EDIT_FAILURE_ANALYSIS_2026-06-01.md`

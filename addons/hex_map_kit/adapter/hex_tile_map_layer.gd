@@ -17,6 +17,8 @@ signal cell_hit_hovered(hit: Dictionary)
 const LOOP_DISPLAY_NONE := 0
 const LOOP_DISPLAY_TORIC := 1
 const LOOP_DISPLAY_INFINITE := 2
+const BASE_TILE_MAP_NAME := "TileMapLayer"
+const LOOP_TILE_MAP_NAME := "LoopTileMapLayer"
 
 
 @export var hex_map: HexMapResource:
@@ -47,24 +49,29 @@ const LOOP_DISPLAY_INFINITE := 2
 	set(v):
 		loop_display_enabled = v
 		if is_node_ready():
+			refresh_loop_display()
 			queue_redraw()
 @export_enum("None", "Toric", "Infinite") var loop_display_mode: int = LOOP_DISPLAY_NONE:
 	set(v):
 		loop_display_mode = v
 		if is_node_ready():
+			refresh_loop_display()
 			queue_redraw()
 @export var loop_display_margin: int = 1:
 	set(v):
 		loop_display_margin = max(0, v)
 		if is_node_ready():
+			refresh_loop_display()
 			queue_redraw()
 @export var loop_display_rect: Rect2 = Rect2():
 	set(v):
 		loop_display_rect = v
 		if is_node_ready():
+			refresh_loop_display()
 			queue_redraw()
 
 var _tile_map: TileMapLayer
+var _loop_tile_map: TileMapLayer
 var _data = null
 var _highlights: Dictionary = {}
 var _display_path: Array = []
@@ -73,7 +80,7 @@ var _hovered_hit_key := ""
 
 
 func _ready() -> void:
-	_ensure_tile_map_layer()
+	_ensure_tile_map_layers()
 	if hex_map:
 		apply_map(hex_map)
 	elif _data != null:
@@ -318,6 +325,45 @@ func visual_representatives_for_cell(hex: HexVector, rect: Rect2, margin: int = 
 	return result
 
 
+func visual_cell_entries_for_rect(rect: Rect2, margin: int = 1) -> Array:
+	if _data == null:
+		return []
+	var display_rect = rect
+	if display_rect.size == Vector2.ZERO:
+		display_rect = _effective_loop_display_rect()
+	var result: Array = []
+	for cell in _data.cells:
+		var canonical = HexVector.apply_basis(cell.q, cell.s, cell.r)
+		var representatives: Array
+		if loop_display_enabled and _uses_toric_visuals():
+			representatives = visual_representatives_for_cell(canonical, display_rect, margin)
+		else:
+			representatives = [canonical]
+		for visual_hex in representatives:
+			result.append({
+				"hex": canonical,
+				"visual_hex": visual_hex,
+				"map_cell": HexMapTileAdapter.vector_to_map_cell(visual_hex, flat_top),
+				"is_canonical": visual_hex.key() == canonical.key(),
+			})
+	return result
+
+
+func refresh_loop_display() -> void:
+	if _loop_tile_map == null:
+		if not is_node_ready():
+			return
+		_ensure_tile_map_layers()
+	_configure_tile_map()
+	_loop_tile_map.clear()
+	if not loop_display_enabled or not _uses_toric_visuals() or _data == null:
+		return
+	for entry in visual_cell_entries_for_rect(_effective_loop_display_rect(), loop_display_margin):
+		if bool(entry["is_canonical"]):
+			continue
+		_set_tile_cell_for_hex(_loop_tile_map, entry["map_cell"], entry["hex"])
+
+
 func visual_path_for_canonical_path(path: Array, anchor_local: Vector2 = Vector2.ZERO) -> Array:
 	if path.is_empty():
 		return []
@@ -475,10 +521,8 @@ func _redraw() -> void:
 	_configure_tile_map()
 	_tile_map.clear()
 	for entry in HexMapTileAdapter.to_tile_entries(_data, true, true, flat_top):
-		if entry["kind"] == HexMapTileAdapter.KIND_WALL:
-			_tile_map.set_cell(entry["map_cell"], wall_source_id, wall_atlas_coords)
-		else:
-			_tile_map.set_cell(entry["map_cell"], floor_source_id, floor_atlas_coords)
+		_set_tile_cell_for_hex(_tile_map, entry["map_cell"], entry["vector"])
+	refresh_loop_display()
 	queue_redraw()
 
 
@@ -487,27 +531,45 @@ func _update_tile(hex: HexVector) -> void:
 		return
 	var normalized = HexVector.apply_basis(hex.q, hex.s, hex.r)
 	var map_cell = HexMapTileAdapter.vector_to_map_cell(normalized, flat_top)
+	_set_tile_cell_for_hex(_tile_map, map_cell, normalized)
+	refresh_loop_display()
+	queue_redraw()
+
+
+func _set_tile_cell_for_hex(tile_map: TileMapLayer, map_cell: Vector2i, hex: HexVector) -> void:
+	if tile_map == null or _data == null:
+		return
+	var normalized = HexVector.apply_basis(hex.q, hex.s, hex.r)
 	var key = normalized.key()
 	if _data.wall_set().has(key):
-		_tile_map.set_cell(map_cell, wall_source_id, wall_atlas_coords)
+		tile_map.set_cell(map_cell, wall_source_id, wall_atlas_coords)
 	else:
-		_tile_map.set_cell(map_cell, floor_source_id, floor_atlas_coords)
+		tile_map.set_cell(map_cell, floor_source_id, floor_atlas_coords)
 
 
-func _ensure_tile_map_layer() -> void:
+func _ensure_tile_map_layers() -> void:
 	for child in get_children():
-		if child is TileMapLayer:
+		if child is TileMapLayer and child.name == LOOP_TILE_MAP_NAME:
+			_loop_tile_map = child
+		elif child is TileMapLayer and _tile_map == null:
 			_tile_map = child
-			return
-	_tile_map = TileMapLayer.new()
-	_tile_map.name = "TileMapLayer"
-	add_child(_tile_map, false, INTERNAL_MODE_BACK)
+	if _tile_map == null:
+		_tile_map = TileMapLayer.new()
+		_tile_map.name = BASE_TILE_MAP_NAME
+		add_child(_tile_map, false, INTERNAL_MODE_BACK)
+	if _loop_tile_map == null:
+		_loop_tile_map = TileMapLayer.new()
+		_loop_tile_map.name = LOOP_TILE_MAP_NAME
+		add_child(_loop_tile_map, false, INTERNAL_MODE_BACK)
 
 
 func _configure_tile_map() -> void:
 	if _tile_map.tile_set == null:
 		_tile_map.tile_set = TileSet.new()
 	HexMapTileAdapter.configure_hex_tile_set(_tile_map.tile_set, flat_top)
+	if _loop_tile_map != null:
+		_loop_tile_map.tile_set = _tile_map.tile_set
+		_loop_tile_map.position = _tile_map.position
 
 
 static func _normalize_data(data) -> HexMapData:

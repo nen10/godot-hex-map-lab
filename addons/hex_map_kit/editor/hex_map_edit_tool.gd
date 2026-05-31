@@ -32,6 +32,7 @@ const EDIT_MODE_NAMES := [
 ]
 
 @export var hex_size: float = 24.0
+@export var debug_viewport_input: bool = false
 
 var _document: HexMapDocumentResource
 var _document_path := ""
@@ -57,6 +58,13 @@ var _label_payload := {
 	"label_id": "",
 	"text": "",
 }
+var _last_edit_hit: Dictionary = {}
+var _last_edit_status: Dictionary = {}
+var _last_applied_to_target := false
+var _target_selection_sync_request_count := 0
+var _last_selection_sync_target: Node = null
+var _test_viewport_canvas_transform_enabled := false
+var _test_viewport_canvas_transform := Transform2D.IDENTITY
 
 var _document_label: Label
 var _document_resource_picker
@@ -120,6 +128,8 @@ func import_map_resource_from_path(path: String = "") -> bool:
 	import_map_resource(resource)
 	set_import_map_path(actual_path)
 	_apply_document_to_target()
+	if _target_layer != null and is_instance_valid(_target_layer):
+		_select_target_in_editor_if_possible()
 	_set_status("Imported HexMapResource.")
 	return true
 
@@ -132,6 +142,7 @@ func set_target_layer(layer: Node) -> void:
 	_target_layer = layer
 	if _target_option != null:
 		_select_target_layer_option(layer)
+	_select_target_in_editor_if_possible()
 	_refresh_state_labels()
 
 
@@ -141,6 +152,26 @@ func target_layer() -> Node:
 
 func set_undo_redo(undo_redo) -> void:
 	_undo_redo = undo_redo
+
+
+func viewport_input_enabled() -> bool:
+	return _document != null \
+		and _target_layer != null \
+		and is_instance_valid(_target_layer) \
+		and _target_layer is CanvasItem
+
+
+func set_viewport_canvas_transform_for_test(transform: Transform2D) -> void:
+	_test_viewport_canvas_transform_enabled = true
+	_test_viewport_canvas_transform = transform
+
+
+func clear_viewport_canvas_transform_for_test() -> void:
+	_test_viewport_canvas_transform_enabled = false
+
+
+func last_edit_status() -> Dictionary:
+	return _last_edit_status.duplicate(true)
 
 
 func set_object_database(database: Resource) -> void:
@@ -267,12 +298,16 @@ func refresh_target_layer_options(root_node: Node = null) -> void:
 		_target_option.add_item(_target_layer_display_name(node, scan_root))
 
 	var selected_index = TARGET_AUTO_INDEX
+	var should_sync_target := false
 	if previous != null and is_instance_valid(previous):
 		var index = _target_layer_nodes.find(previous)
 		if index >= 0:
 			selected_index = index + TARGET_LAYER_INDEX_OFFSET
+			should_sync_target = true
 	_target_option.select(selected_index)
 	_target_layer = _resolve_target_layer()
+	if should_sync_target and _target_layer != null and is_instance_valid(_target_layer):
+		_select_target_in_editor_if_possible()
 	_refresh_state_labels()
 
 
@@ -280,6 +315,7 @@ func set_edit_mode(mode: int) -> void:
 	_edit_mode = clampi(mode, 0, EDIT_MODE_NAMES.size() - 1)
 	if _mode_option != null:
 		_mode_option.select(_edit_mode)
+	_refresh_payload_controls_visibility()
 
 
 func edit_mode() -> int:
@@ -312,14 +348,38 @@ func set_label_payload(label_id: String, text: String) -> void:
 
 
 func apply_cell(hex) -> bool:
+	return _apply_hit({
+		"hex": hex,
+		"visual_hex": hex,
+		"local": Vector2.ZERO,
+		"exists": _document != null and _document.map != null and _document.map.to_map_data().has_cell(hex),
+	})
+
+
+func _apply_hit(hit: Dictionary) -> bool:
 	if _document == null:
 		_set_status("No document selected.")
 		return false
 	var before = HexMapDocumentAdapter.duplicate_document(_document)
 	var after = HexMapDocumentAdapter.duplicate_document(_document)
+	var hex = hit["hex"]
 	_apply_mode_to_document(after, hex)
 	_commit_document_change(before, after, "Hex map edit %s" % EDIT_MODE_NAMES[_edit_mode])
-	_set_status("Edited %s" % hex.key())
+	_last_edit_hit = hit.duplicate(true)
+	_last_edit_status = {
+		"target_path": _target_path_string(),
+		"mode": _edit_mode,
+		"hex": hex,
+		"visual_hex": hit.get("visual_hex", hex),
+		"exists": bool(hit.get("exists", false)),
+		"applied": _last_applied_to_target,
+	}
+	var visual_hex = hit.get("visual_hex", hex)
+	if visual_hex.key() != hex.key():
+		_set_status("Edited %s via %s" % [hex.key(), visual_hex.key()])
+	else:
+		_set_status("Edited %s" % hex.key())
+	_refresh_last_hit_display()
 	return true
 
 
@@ -331,7 +391,7 @@ func apply_local_position(local_pos: Vector2) -> bool:
 	if _edit_mode != EditMode.SHAPE and not bool(hit.get("exists", false)):
 		_set_status("No editable cell.")
 		return false
-	return apply_cell(hit["hex"])
+	return _apply_hit(hit)
 
 
 func forward_canvas_gui_input(event: InputEvent) -> bool:
@@ -340,9 +400,9 @@ func forward_canvas_gui_input(event: InputEvent) -> bool:
 	var mouse_event := event as InputEventMouseButton
 	if mouse_event.button_index != MOUSE_BUTTON_LEFT or not mouse_event.pressed:
 		return false
-	if _target_layer == null or not (_target_layer is CanvasItem):
+	var local_pos = _editor_viewport_event_to_target_local(mouse_event)
+	if local_pos == null:
 		return false
-	var local_pos = (_target_layer as CanvasItem).to_local(mouse_event.position)
 	return apply_local_position(local_pos)
 
 
@@ -472,6 +532,7 @@ func _build_ui() -> void:
 	_status_label = Label.new()
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	root.add_child(_status_label)
+	_refresh_payload_controls_visibility()
 
 
 func _apply_mode_to_document(document: HexMapDocumentResource, hex) -> void:
@@ -497,6 +558,7 @@ func _apply_mode_to_document(document: HexMapDocumentResource, hex) -> void:
 
 
 func _commit_document_change(before, after, action_name: String) -> void:
+	_last_applied_to_target = false
 	if _undo_redo != null:
 		_undo_redo.create_action(action_name)
 		_undo_redo.add_do_method(Callable(self, "_replace_document_state").bind(after))
@@ -514,13 +576,19 @@ func _replace_document_state(snapshot) -> void:
 	_refresh_state_labels()
 
 
-func _apply_document_to_target() -> void:
+func _apply_document_to_target() -> bool:
 	if _target_layer == null or _document == null:
-		return
+		_last_applied_to_target = false
+		return false
 	if _target_layer is HexTileMapLayer:
 		(_target_layer as HexTileMapLayer).apply_map(HexMapDocumentAdapter.to_map_resource(_document))
-		return
+		(_target_layer as HexTileMapLayer).refresh_loop_display()
+		_refresh_last_hit_display()
+		_last_applied_to_target = true
+		return true
 	HexMapDocumentAdapter.apply_to_tile_map_layer(_document, _target_layer)
+	_last_applied_to_target = true
+	return true
 
 
 func _local_hit(local_pos: Vector2) -> Dictionary:
@@ -628,8 +696,10 @@ func _on_target_refresh_pressed() -> void:
 	refresh_target_layer_options()
 
 
-func _on_target_selected(_index: int) -> void:
+func _on_target_selected(index: int) -> void:
 	_target_layer = _resolve_target_layer()
+	if index != TARGET_AUTO_INDEX:
+		_select_target_in_editor_if_possible()
 	_refresh_state_labels()
 
 
@@ -664,6 +734,33 @@ func _sync_payload_controls() -> void:
 	if _label_id_edit != null:
 		_label_id_edit.text = String(_label_payload.get("label_id", ""))
 		_label_text_edit.text = String(_label_payload.get("text", ""))
+
+
+func _refresh_payload_controls_visibility() -> void:
+	var show_tile = _edit_mode == EditMode.FLOOR_TILE or _edit_mode == EditMode.WALL_TILE
+	var show_object = _edit_mode == EditMode.OBJECT
+	var show_label = _edit_mode == EditMode.LABEL
+	_set_control_row_visible(_tile_source_spin, show_tile)
+	_set_control_row_visible(_tile_atlas_x_spin, show_tile)
+	_set_control_row_visible(_tile_atlas_y_spin, show_tile)
+	_set_control_row_visible(_tile_alternative_spin, show_tile)
+	_set_control_row_visible(_object_id_edit, show_object)
+	_set_control_row_visible(_object_properties_edit, show_object)
+	_set_control_row_visible(_object_database_picker, show_object)
+	_set_control_row_visible(_label_id_edit, show_label)
+	_set_control_row_visible(_label_text_edit, show_label)
+	_set_control_row_visible(_label_database_picker, show_label)
+
+
+func _set_control_row_visible(control, visible: bool) -> void:
+	if control == null:
+		return
+	if control is Control:
+		var parent = (control as Control).get_parent()
+		if parent is Control:
+			(parent as Control).visible = visible
+		else:
+			(control as Control).visible = visible
 
 
 func _sync_resource_pickers() -> void:
@@ -724,6 +821,85 @@ func _target_layer_display_name(node: Node, scan_root: Node) -> String:
 		if path != "":
 			return path
 	return node.name
+
+
+func _select_target_in_editor_if_possible() -> void:
+	if _target_layer == null or not is_instance_valid(_target_layer):
+		return
+	_target_selection_sync_request_count += 1
+	_last_selection_sync_target = _target_layer
+	if not Engine.is_editor_hint():
+		return
+	var selection = EditorInterface.get_selection()
+	if selection == null:
+		return
+	selection.clear()
+	selection.add_node(_target_layer)
+
+
+func _editor_viewport_event_to_target_local(event: InputEventMouseButton):
+	if _target_layer == null or not (_target_layer is CanvasItem):
+		_set_status("No editable target layer.")
+		_debug_viewport_input("target missing", event.position, Vector2.ZERO, Vector2.ZERO, {})
+		return null
+	var scene_pos = _editor_viewport_position_to_scene_position(event.position)
+	if scene_pos == null:
+		_set_status("Cannot resolve editor viewport position.")
+		_debug_viewport_input("scene position missing", event.position, Vector2.ZERO, Vector2.ZERO, {})
+		return null
+	var local_pos = (_target_layer as CanvasItem).to_local(scene_pos)
+	if debug_viewport_input:
+		var hit = _local_hit(local_pos)
+		_debug_viewport_input("resolved", event.position, scene_pos, local_pos, hit)
+	return local_pos
+
+
+func _editor_viewport_position_to_scene_position(viewport_pos: Vector2):
+	if _test_viewport_canvas_transform_enabled:
+		return _test_viewport_canvas_transform.affine_inverse() * viewport_pos
+	if Engine.is_editor_hint() and EditorInterface.has_method("get_editor_viewport_2d"):
+		var viewport = EditorInterface.get_editor_viewport_2d()
+		if viewport != null:
+			var global_canvas_transform = viewport.get("global_canvas_transform")
+			if global_canvas_transform is Transform2D:
+				return (global_canvas_transform as Transform2D).affine_inverse() * viewport_pos
+			var canvas_transform = viewport.get("canvas_transform")
+			if canvas_transform is Transform2D:
+				return (canvas_transform as Transform2D).affine_inverse() * viewport_pos
+			if viewport.has_method("get_canvas_transform"):
+				return viewport.get_canvas_transform().affine_inverse() * viewport_pos
+	return viewport_pos
+
+
+func _debug_viewport_input(stage: String, viewport_pos: Vector2, scene_pos: Vector2, local_pos: Vector2, hit: Dictionary) -> void:
+	if not debug_viewport_input:
+		return
+	var target_path = _target_path_string()
+	var hit_hex = hit["hex"].key() if hit.has("hex") else "<none>"
+	var visual_hex = hit["visual_hex"].key() if hit.has("visual_hex") else "<none>"
+	print(
+		"[HexMapEdit] %s target=%s mode=%d viewport=%s scene=%s local=%s hex=%s visual=%s exists=%s" %
+		[stage, target_path, _edit_mode, viewport_pos, scene_pos, local_pos, hit_hex, visual_hex, str(hit.get("exists", false))]
+	)
+
+
+func _target_path_string() -> String:
+	if _target_layer == null or not is_instance_valid(_target_layer):
+		return ""
+	if _target_layer.is_inside_tree():
+		return str(_target_layer.get_path())
+	return _target_layer.name
+
+
+func _refresh_last_hit_display() -> void:
+	if _target_layer == null or not (_target_layer is HexTileMapLayer):
+		return
+	if _last_edit_hit.is_empty() or not _last_edit_hit.has("hex"):
+		return
+	(_target_layer as HexTileMapLayer).highlight_cell(
+		_last_edit_hit["hex"],
+		Color(0.96, 0.76, 0.18, 0.95)
+	)
 
 
 func _can_use_editor_resource_picker() -> bool:

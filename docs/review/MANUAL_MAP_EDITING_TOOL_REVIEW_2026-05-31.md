@@ -2,7 +2,7 @@
 
 ## 対象
 
-`docs/plan/MANUAL_MAP_EDITING_TOOL_POLICY_2026-05-31.md` および `docs/plan/MANUAL_MAP_EDITING_TOOL_IMPLEMENTATION_PLAN_2026-05-31.md` の要件に対する commit `8c9214c`。
+`docs/complete_on_test/MANUAL_MAP_EDITING_TOOL_POLICY_2026-05-31.md` および `docs/plan/MANUAL_MAP_EDITING_TOOL_IMPLEMENTATION_PLAN_2026-05-31.md` の要件に対する commit `8c9214c`。
 
 ## 総評
 
