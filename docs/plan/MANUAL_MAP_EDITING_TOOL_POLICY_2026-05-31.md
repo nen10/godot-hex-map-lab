@@ -2,85 +2,115 @@
 
 ## 目的
 
-生成Dockとは別のEditor toolとして、Hex座標単位でshape、wall / floor、tile override、object、labelを編集できるmanual map editing toolを計画する。
+生成 Dock とは別の Editor tool として、Hex 座標単位で shape、wall / floor、tile override、object、label を編集できる manual map editing tool を維持し、runtime loop display の実装結果を manual edit 用表示へ接続する。
 
-生成処理は一括生成を目的とし、manual toolはユーザー操作とUndo / Redoを目的にする。両者の責務を分ける。
+生成処理は一括生成を目的とし、manual tool はユーザー操作と Undo / Redo を目的にする。両者の責務を分ける。
 
 ## 現状
 
-- Editor Dockは生成結果、resource、TileMapLayer、distribution、atlas setupを接続している。
-- `HexTileMapLayer.set_wall()` / `set_floor()` はruntime helperとして実装済み。
-- Editor上のWYSIWYG paint、object database、label database、Undo / Redoはまだ独立した仕様が必要。
-- `docs/plan/PENDING.md` に分割仕様がある。
+- `HexMapDocumentResource`、`HexMapDocumentAdapter`、`HexObjectDatabaseResource`、`HexLabelDatabaseResource` は実装済み。
+- `HexMapEditTool` は document load / save、generated map import / export、target layer selection、edit mode、payload controls、Undo / Redo、`forward_canvas_gui_input()` を持つ。
+- `HexMapEditTool` は `HexTileMapLayer.local_to_cell_hit()` を利用でき、toric visual duplicate から canonical cell を編集できることが `tests/test_editor_plugin.gd` で確認済み。
+- `HexTileMapLayer` 側の loop display は outline 表示の段階であり、manual edit 用の実 tile duplicate 表示は次回計画として残る。
+- Dock UI は縦長で、edit mode ごとに関係しない payload controls も同時に表示される。
 
 ## 方針
 
-代表案として、resource-primaryな編集toolを作る。
+代表案として、resource-primary な編集 tool を維持する。
 
-編集の正はresource documentに置き、TileMapLayerは表示結果として同期する。クリック操作はEditor viewportからHex座標へ変換し、UndoRedo actionとしてresourceとTileMapLayerの両方へ反映する。
+編集の正は resource document に置き、TileMapLayer / HexTileMapLayer は表示結果として同期する。クリック操作は Editor viewport から Hex 座標へ変換し、UndoRedo action として resource と表示 layer の両方へ反映する。
+
+loop 表示を使う manual edit では `HexTileMapLayer` を表示対象として優先し、runtime layer が返す hit dictionary を唯一の座標変換結果として扱う。`hit["hex"]` は document 更新対象、`hit["visual_hex"]` は表示上の duplicate / highlight / status 対象である。
 
 ## 比較事項
 
-### 候補A: `HexMapResource` を直接拡張する
+### 候補A: `HexMapDocumentResource` を正とする
 
-- 既存resourceをそのまま編集できる。
-- tile paint / object / labelまで入れると、core map data resourceが肥大化する。
+- primary map、tile overrides、objects、labels、orientation を1つの編集 document として扱える。
+- 既存 `HexMapResource` との import / export が必要。
+- Undo / Redo と保存対象が明確になる。
 
-小規模導入には向くが、長期の代表案にはしない。
+採用済みの基盤案。
 
-### 候補B: `HexMapDocumentResource` を新設する
+### 候補B: `HexMapResource` を直接拡張する
 
-- primary map、tile overrides、objects、labels、orientationを1つの編集documentとして扱える。
-- 既存 `HexMapResource` とのimport / exportが必要。
+- 既存 resource をそのまま編集できる。
+- tile paint / object / label まで入れると、core map data resource が肥大化する。
 
-採用候補。
+小規模導入向けの候補。
 
-### 候補C: TileMapLayerを正として復元する
+### 候補C: TileMapLayer を正として復元する
 
-- Godot標準編集に近い。
-- Hex Map Kit側のresource保存、Undo / Redo、object / label schemaとの整合が難しい。
+- Godot 標準編集に近い。
+- Hex Map Kit 側の resource 保存、Undo / Redo、object / label schema との整合が難しい。
 
-代表案にはしない。
+fallback として扱う。
+
+### 候補D: manual edit 用表示に `HexTileMapLayer` を使う
+
+- `local_to_cell_hit()` により canonical cell と visual representative を同じ hit dictionary で扱える。
+- toric / infinite identity、loop path、connected component helper を runtime と editor で共有できる。
+- manual edit 側は座標変換を再実装せず、document mutation と Undo / Redo に集中できる。
+
+次回実装の代表候補。
+
+### 候補E: manual edit 用に独自 overlay view を作る
+
+- Editor 専用の selection / handle 表示は作りやすい。
+- runtime loop display と座標変換が重複し、目的の一貫性が弱くなる。
+
+highlight や selection 補助の候補に留める。
 
 ## 破壊的変更候補
 
-- Editor DockのGenerate / Apply中心UIから、Map Documentを選択するEditor toolへ分離する。
-- `HexMapResource`だけを保存対象にするflowを、`HexMapDocumentResource`中心へ移す。
-- object / labelをOverlay itemとして扱う暫定案をやめ、専用schemaへ分ける。
+- Editor Dock の Generate / Apply 中心 UI から、Map Document を選択する Editor tool へさらに分離する。
+- `HexMapResource` だけを保存対象にする flow を、`HexMapDocumentResource` 中心へ移す。
+- object / label を Overlay item として扱う暫定案をやめ、専用 schema へ分ける。
+- manual edit の loop 表示対象を plain `TileMapLayer` 互換から `HexTileMapLayer` 優先へ寄せる。
+- payload controls を edit mode ごとに切り替え、Tile / Object / Label の入力を mode ごとの表示に整理する。
 
 ## Fallback扱い
 
-TileMapLayerへ直接paintし、後からmap dataへ復元する方式はfallbackとして扱う。仕様の正はresource documentに置く。
+TileMapLayer へ直接 paint し、後から map data へ復元する方式は fallback として扱う。仕様の正は resource document に置く。
 
-object / labelを単なるOverlay item keyへ詰める方式もfallbackである。object id、label id、property dictionaryを保存できるschemaを用意する。
+object / label を単なる Overlay item key へ詰める方式も fallback である。object id、label id、property dictionary を保存できる schema を用意する。
+
+plain `TileMapLayer` だけで toric visual duplicate を編集対象として扱う方式は fallback である。loop 表示付き manual edit は `HexTileMapLayer.local_to_cell_hit()` と visual representative を利用する。
+
+outline だけの loop duplicate 表示で編集できる状態は暫定 fallback とする。manual edit の目的では、duplicate cell の tile と選択状態が視認できることを優先する。
 
 ## 編集対象
 
-- shape cell追加 / 削除
-- wall / floor切替
+- shape cell 追加 / 削除
+- wall / floor 切替
 - floor tile override
 - wall tile override
-- object配置 / 削除 / property編集
-- label配置 / 削除 / text編集
+- object 配置 / 削除 / property 編集
+- label 配置 / 削除 / text 編集
+- toric visual duplicate からの canonical cell 編集
+- loop 表示上の selected / hovered visual representative 表示
 
 ## 入出力
 
 入力:
 
 - selected `HexMapDocumentResource`
-- selected editable `TileMapLayer`
+- selected editable `TileMapLayer` または `HexTileMapLayer`
 - edit mode
 - cursor local position
+- hit dictionary
 - paint payload
 - object / label database resource
+- loop display settings
 
 出力:
 
 - updated `HexMapDocumentResource`
 - updated `HexMapResource` export
-- updated `TileMapLayer`
+- updated display layer
 - UndoRedo action
 - object / label database resource
+- edited canonical cell と visual representative の status
 
 ## Resource schema候補
 
@@ -97,7 +127,7 @@ extends Resource
 @export var version: int = 1
 ```
 
-補助resource:
+補助 resource:
 
 ```gdscript
 class_name HexObjectDatabaseResource
@@ -113,9 +143,9 @@ extends Resource
 @export var labels: Array[Dictionary]
 ```
 
-object / label databaseはpayload候補の定義を持つ。cellごとの配置結果は `HexMapDocumentResource.objects` / `labels` に保存する。
+object / label database は payload 候補の定義を持つ。cell ごとの配置結果は `HexMapDocumentResource.objects` / `labels` に保存する。
 
-entry例:
+entry 例:
 
 ```gdscript
 {
@@ -145,14 +175,17 @@ entry例:
 
 ## テスト方針
 
-- resource roundtripでshape、wall / floor、tile override、object、labelが維持される。
-- Undo / Redo actionがresourceとTileMapLayerの両方を戻す。
-- Editor viewport clickからHex座標が得られ、edit modeに応じてpayloadが適用される。
-- Generate Dockで作った `HexMapResource` をDocumentへimportできる。
+- resource roundtrip で shape、wall / floor、tile override、object、label が維持される。
+- Undo / Redo action が resource と表示 layer の両方を戻す。
+- Editor viewport click から Hex 座標が得られ、edit mode に応じて payload が適用される。
+- Generate Dock で作った `HexMapResource` を document へ import できる。
+- `HexTileMapLayer` の toric visual duplicate を click したとき、document 上の canonical cell だけが更新される。
+- loop 表示更新後も Undo / Redo と selected visual representative が矛盾しない。
 
 ## 完了条件
 
-- manual editing toolが生成Dockと別責務で動く。
-- 編集結果の正がresource documentに保存される。
-- TileMapLayerはresource documentから再描画できる。
-- headless testとEditor workflow testの両方が記録される。
+- manual editing tool が生成 Dock と別責務で動く。
+- 編集結果の正が resource document に保存される。
+- 表示 layer は resource document から再描画できる。
+- loop 表示付き manual edit は runtime の `local_to_cell_hit()` と visual representative を利用する。
+- headless test と Editor workflow test の両方が記録される。

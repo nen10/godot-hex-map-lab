@@ -2,7 +2,7 @@
 
 ## 参照方針
 
-- 方針: `docs/plan/GENERATIVE_REFERENCE_ITEMKEY_POLICY_2026-05-31.md`
+- 方針: `docs/complete_on_test/GENERATIVE_REFERENCE_ITEMKEY_POLICY_2026-05-31.md`
 - 採用案: Core APIの動的参照オプションとして実装する。
 
 ## 対象ファイル

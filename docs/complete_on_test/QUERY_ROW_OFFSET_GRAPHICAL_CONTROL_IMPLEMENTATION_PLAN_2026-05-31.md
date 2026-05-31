@@ -2,7 +2,7 @@
 
 ## 参照方針
 
-- 方針: `docs/plan/QUERY_ROW_OFFSET_GRAPHICAL_CONTROL_POLICY_2026-05-31.md`
+- 方針: `docs/complete_on_test/QUERY_ROW_OFFSET_GRAPHICAL_CONTROL_POLICY_2026-05-31.md`
 - 採用案: `Control`派生の `HexDirectionOffsetControl` を追加する。
 
 ## 対象ファイル

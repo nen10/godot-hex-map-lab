@@ -1,41 +1,43 @@
 
-
 ### マップのマニュアル編集機能
 
-分類: 仕様分割。
+分類: 次期 loop 表示計画。
 
 理由:
 
-- 現在の EditorPlugin は生成結果、resource、TileMapLayer、distribution、atlas setup を接続する Dock である。
-- マップ形状編集、壁・床・オブジェクトの座標単位 paint、label / object database、Undo / Redo は、Dock の一括生成とは異なる editor tool とデータ schema を必要とする。
-- Godot の既存 `TileMapLayer` 編集機能と Hex Map Kit 側 resource 編集機能のどちらを変更主体にするかを決めないと、Undo / Redo と resource 保存の責務が競合する。
+- `HexMapDocumentResource` / `HexMapDocumentAdapter` / `HexMapEditTool` による resource-primary な初期編集機能は test によって確認済みである。
+- `HexTileMapLayer.local_to_cell_hit()` により、toric visual duplicate から canonical cell を編集する基盤も確認済みである。
+- manual edit 用表示では、RUNTIME_INTERACTION_LOOP_PATH の実装結果を生かし、loop duplicate を tile として視認しながら編集できる必要がある。
+- 現在の outline-only duplicate 表示は fallback として扱い、目的の一貫性を優先して runtime-owned loop copy 表示へ進める。
 
 テスト可能な分割仕様:
 
 - 入力:
-  - selected `HexMapResource`
-  - selected editable layer
+  - selected `HexMapDocumentResource`
+  - selected editable `HexTileMapLayer`
   - edit mode: shape / wall-floor / floor tile / wall tile / object / label
-  - paint target coordinate: `HexVector`
-  - tile paint payload: source id + atlas coords
+  - loop display mode / rect / margin
+  - hit dictionary: canonical `hex` + displayed `visual_hex`
+  - tile paint payload: source id + atlas coords + alternative tile
   - object payload: object id + object property dictionary
   - label payload: label id + label text
 - 出力:
-  - updated `HexMapResource`
-  - updated `TileMapLayer`
+  - updated `HexMapDocumentResource`
+  - updated `HexTileMapLayer`
+  - loop copy display refresh
   - undoable editor command
-  - label database resource
-  - object database resource
+  - edited canonical cell status
+  - selected visual representative status
 - headless test:
-  - wall / floor edit が `HexMapResource` roundtrip 後も維持される
-  - tile paint payload が coordinate ごとに保存される
-  - label / object payload が coordinate ごとに保存される
-  - undo / redo command が resource と TileMapLayer の両方を戻す
+  - visual duplicate click が canonical document cell を更新する
+  - loop copy display が wall / floor edit 後に更新される
+  - Undo / Redo が document と loop duplicate 表示の両方を戻す
+  - edit mode ごとに必要な payload controls だけが表示される
 - editor workflow test:
-  - クリックした hex 座標が Dock の edit mode に従って更新される
-  - 保存した `.tres` を再読み込みして同じ編集状態を復元できる
+  - `HexTileMapLayer` target で loop display を有効にし、duplicate tile を click して canonical cell を編集できる
+  - 保存した `.tres` を再読み込みして canonical document の編集状態を復元できる
 
-既存実装との接点:
+関連計画:
 
-- `HexTileMapLayer.set_wall()` / `set_floor()` は runtime helper として実装済みで、`tests/test_hex_tile_map_layer.gd` が検証する。
-- EditorPlugin 上の WYSIWYG paint / database / Undo / Redo は上記の分割仕様を満たす別計画として扱う。
+- `docs/plan/RUNTIME_INTERACTION_LOOP_DISPLAY_TILE_COPY_IMPLEMENTATION_PLAN_2026-05-31.md`
+- `docs/plan/MANUAL_MAP_EDITING_TOOL_LOOP_DISPLAY_IMPLEMENTATION_PLAN_2026-05-31.md`

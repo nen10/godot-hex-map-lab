@@ -2,55 +2,70 @@
 
 ## 目的
 
-`HexTileMapLayer` を実行時の表示helperから、クリック入力、連結性クエリ、toric / infinite loop表示、視覚的に連続したpath表示を扱えるruntime layerへ拡張する。
+`HexTileMapLayer` を、クリック入力、連結性クエリ、toric / infinite loop 表示、視覚的に連続した path 表示を扱える runtime layer として維持し、manual edit 用表示からも再利用できるようにする。
 
 ## 現状
 
-- `HexTileMapLayer` は `HexMapResource` を適用し、子 `TileMapLayer` にfloor / wallを反映する。
+- `HexTileMapLayer` は `HexMapResource` を適用し、子 `TileMapLayer` に floor / wall を反映する。
 - `local_to_hex()` / `hex_to_local()`、`set_wall()` / `set_floor()`、`find_path()`、`draw_path()`、`highlight_cell()`、`is_map_connected()`、`connected_component()` は実装済み。
-- クリックsignal、hover signal、toric representativeを展開した表示、loop表示上での連続path描画はない。
+- runtime input signal、`local_to_cell_hit()`、toric / infinite の hit identity、visual representative、loop-aware path、`connected_component_from_local()` は実装済みで、`tests/test_hex_tile_map_layer.gd` と `tests/test_debug_scenes.gd` により確認済み。
+- 現在の loop display は canonical TileMapLayer に加えて `_draw_loop_cell_outlines()` の outline を描く段階であり、Tile そのものの loop copy 表示は未実装である。
 
 ## 方針
 
-代表案として、canonical map dataを正とし、表示だけをloop展開する。
+代表案として、canonical map data を正とし、表示だけを loop 展開する。
 
-runtime上のcell identityは常に `HexVector` のcanonical keyで扱う。toric loop表示では、同じcanonical cellに対する複数のvisual representativeを計算し、描画やクリックhit時に「表示上の代表」と「canonical cell」を分けて扱う。
+runtime 上の cell identity は常に `HexVector` の canonical key で扱う。toric loop 表示では、同じ canonical cell に対する複数の visual representative を計算し、描画やクリック hit 時に「表示上の代表」と「canonical cell」を分けて扱う。
+
+manual edit 用表示はこの runtime layer の結果を利用する。manual tool は `hit["hex"]` を document 更新対象、`hit["visual_hex"]` を表示上の選択・status・highlight 対象として扱う。
 
 ## 比較事項
 
 ### 候補A: canonical data + visual representative
 
-- Resource schemaを増やさずにtoric loop表示を扱える。
-- クリックsignalではcanonical cellとvisual cellを両方返せる。
-- TileMapLayer上の複製cellをどう描くかはruntime layer側で制御する。
+- Resource schema を増やさずに toric loop 表示を扱える。
+- クリック signal では canonical cell と visual cell を両方返せる。
+- path、connected component、manual edit の更新対象を canonical に統一できる。
 
-採用候補。
+採用済みの基盤案。
 
-### 候補B: TileMapLayerに複製cellを実際に配置する
+### 候補B: runtime-owned loop copy `TileMapLayer`
 
-- GodotのTileMapLayer表示とhit判定を利用しやすい。
-- 同一canonical cellの複数representativeをresourceへ逆反映しないよう注意が必要。
+- canonical `_tile_map` とは別に copy 用 `TileMapLayer` を持ち、visual representative の offset cell に同じ tile を描く。
+- manual edit 用表示で、outline だけでなく実際の floor / wall tile を見ながら loop duplicate を編集できる。
+- document / resource へは copy cell を保存せず、表示更新時に canonical cell から再構成する。
 
-loop表示が主用途の場合の補助案。
+次回実装の代表候補。
 
-### 候補C: shader / canvas repeatで見た目だけ繰り返す
+### 候補C: custom draw による tile surrogate 表示
+
+- `CanvasItem._draw()` だけで duplicate の見た目を補える。
+- TileSet の atlas / alternative tile / terrain 情報を再現しにくい。
+- hit test と highlight の補助表示には使えるが、manual edit の WYSIWYG 表示としては弱い。
+
+補助候補。
+
+### 候補D: shader / canvas repeat で見た目だけ繰り返す
 
 - 大量表示には向く。
-- cell単位のクリック、highlight、path表示と接続しにくい。
+- cell 単位のクリック、highlight、path 表示、manual edit の canonical 更新と接続しにくい。
 
-初期実装の代表案にはしない。
+補助候補。
 
 ## 破壊的変更候補
 
-- `draw_path(path)` をcanonical path専用から、`draw_path(path, options)` へ拡張する。
-- `local_to_hex()` はcanonical変換のみとし、loop表示のhit testは `local_to_cell_hit()` のような新APIへ分ける。
-- `HexTileMapLayer` の内部 `_tile_map` を1枚固定から、base layer / loop copy layer / overlay draw layerの複数管理へ変える。
+- `HexTileMapLayer` の内部 `_tile_map` を1枚固定から、base layer / loop copy layer / overlay draw layer の複数管理へ変える。
+- `draw_path(path)` を canonical path 専用から、`draw_path(path, options)` へ拡張し、anchor / loop mode / color を明示できるようにする。
+- `local_to_hex()` は canonical 変換のみとし、loop 表示の hit test は `local_to_cell_hit()` を正規 API として扱う。
+- Inspector 上の input 系 export と loop display 系 export をグループ化し、manual edit で必要な表示設定を探しやすくする。
 
 ## Fallback扱い
 
-canonical pathをそのままpolylineで描く現状は、toric loop表示に対してはfallbackとして扱う。toric wrapをまたぐpathが画面上で大きくジャンプする状態は仕様として固定しない。
+canonical path をそのまま polyline で描き、toric wrap をまたぐ path が画面上で大きくジャンプする状態は fallback である。正規の path 表示は visual representative 列を使う。
 
-Infinite mapについて、有限resourceを無限に複製表示するだけの状態はfallbackである。infiniteでは異なる座標を同一cellとして扱わない方針を維持する。
+outline だけの loop duplicate 表示は、manual edit 用表示に対しては fallback として扱う。manual edit では canonical cell の複製が編集対象として見える必要があるため、可能なら tile copy 表示へ破壊的に移行する。
+
+finite resource を infinite map として複製表示し、異なる座標を同一 canonical cell として扱う状態は fallback である。infinite では異なる座標を同一 cell として扱わない方針を維持する。
 
 ## 入出力
 
@@ -58,10 +73,11 @@ Infinite mapについて、有限resourceを無限に複製表示するだけの
 
 - `HexMapResource`
 - local mouse position
-- viewport rectまたは表示範囲
+- viewport rect または表示範囲
 - loop display mode
 - canonical path
 - cyclic_size
+- manual edit target state
 
 出力:
 
@@ -69,8 +85,9 @@ Infinite mapについて、有限resourceを無限に複製表示するだけの
 - clicked visual representative
 - hover canonical cell
 - connected component cells
-- loop表示用representatives
+- loop 表示用 representatives
 - continuous visual path segments
+- loop copy 表示用 tile entries
 
 ## Runtime API候補
 
@@ -90,6 +107,8 @@ func local_to_cell_hit(local_pos: Vector2) -> Dictionary
 func visual_representatives_for_cell(hex, rect: Rect2, margin: int = 1) -> Array
 func visual_path_for_canonical_path(path: Array, anchor_local: Vector2 = Vector2.ZERO) -> Array
 func draw_loop_path(path: Array, color: Color) -> void
+func visual_cell_entries_for_rect(rect: Rect2, margin: int = 1) -> Array
+func refresh_loop_display() -> void
 ```
 
 hit dictionary:
@@ -103,16 +122,30 @@ hit dictionary:
 }
 ```
 
+visual cell entry:
+
+```gdscript
+{
+    "hex": HexVector,          # canonical
+    "visual_hex": HexVector,   # unfolded / visual representative
+    "map_cell": Vector2i,
+    "is_canonical": bool,
+}
+```
+
 ## テスト方針
 
-- headless testではlocal座標からcanonical cell / visual representativeへの変換を検証する。
-- toric pathは、wrapをまたぐ隣接cellが表示上で近いrepresentativeへ展開されることを検証する。
-- connected component helperは既存Core結果との一致を維持する。
-- debug sceneでloop表示とpath表示を目視確認できるようにする。
+- headless test では local 座標から canonical cell / visual representative への変換を検証する。
+- toric path は、wrap をまたぐ隣接 cell が表示上で近い representative へ展開されることを検証する。
+- connected component helper は既存 Core 結果との一致を維持する。
+- loop copy 表示は visual representative ごとの tile entry が canonical cell の floor / wall と一致することを検証する。
+- manual edit 側の test では `HexTileMapLayer.local_to_cell_hit()` の hit dictionary を正として、visual duplicate から canonical document が更新されることを検証する。
+- debug scene で loop 表示、path 表示、cell hit 表示を目視確認できるようにする。
 
 ## 完了条件
 
-- クリックsignalがruntimeで使える。
-- toric pathが視覚的に連続するrepresentative列として描ける。
-- infinite表示では異なる座標を同一canonical cellへ潰さない。
-- `docs/TEST.md` にheadless testとdebug workflowが記録される。
+- クリック signal が runtime で使える。
+- toric path が視覚的に連続する representative 列として描ける。
+- infinite 表示では異なる座標を同一 canonical cell へ潰さない。
+- manual edit 用表示で loop duplicate cell が編集対象として視認できる。
+- `docs/TEST.md` に headless test と debug workflow が記録される。
