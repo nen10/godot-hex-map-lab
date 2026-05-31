@@ -174,6 +174,28 @@ func _run() -> void:
 		true,
 		false,
 		0,
+		false,
+		false,
+		false,
+		false,
+		true,
+		true
+	)
+	_assert_true(scene.is_loop_path_enabled(), "debug torus exposes loop path toggle state")
+	_assert_true(scene.is_cell_hit_display_enabled(), "debug torus exposes cell hit toggle state")
+	_assert_eq(
+		scene.get_current_visual_path().size(),
+		scene.get_current_path().size(),
+		"debug torus loop path keeps path cardinality"
+	)
+
+	scene.configure_for_test(
+		GeneratedMapDebug.SHAPE_TORUS,
+		987,
+		0.45,
+		true,
+		false,
+		0,
 		true,
 		false,
 		true

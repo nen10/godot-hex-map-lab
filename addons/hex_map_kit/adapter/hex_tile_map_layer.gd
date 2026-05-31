@@ -7,6 +7,16 @@ const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile
 const HexGrid = preload("res://addons/hex_map_kit/core/hex_grid.gd")
 const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
+const HexToricCoordinate = preload("res://addons/hex_map_kit/core/hex_toric_coordinate.gd")
+
+signal cell_clicked(hex, event)
+signal cell_hovered(hex)
+signal cell_hit_clicked(hit: Dictionary, event)
+signal cell_hit_hovered(hit: Dictionary)
+
+const LOOP_DISPLAY_NONE := 0
+const LOOP_DISPLAY_TORIC := 1
+const LOOP_DISPLAY_INFINITE := 2
 
 
 @export var hex_map: HexMapResource:
@@ -31,12 +41,35 @@ const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 @export var floor_atlas_coords: Vector2i = Vector2i.ZERO
 @export var wall_source_id: int = 0
 @export var wall_atlas_coords: Vector2i = Vector2i(1, 0)
+@export var input_enabled: bool = true
+@export var emit_hovered_cell: bool = true
+@export var loop_display_enabled: bool = false:
+	set(v):
+		loop_display_enabled = v
+		if is_node_ready():
+			queue_redraw()
+@export_enum("None", "Toric", "Infinite") var loop_display_mode: int = LOOP_DISPLAY_NONE:
+	set(v):
+		loop_display_mode = v
+		if is_node_ready():
+			queue_redraw()
+@export var loop_display_margin: int = 1:
+	set(v):
+		loop_display_margin = max(0, v)
+		if is_node_ready():
+			queue_redraw()
+@export var loop_display_rect: Rect2 = Rect2():
+	set(v):
+		loop_display_rect = v
+		if is_node_ready():
+			queue_redraw()
 
 var _tile_map: TileMapLayer
 var _data = null
 var _highlights: Dictionary = {}
 var _display_path: Array = []
 var _path_color := Color(0.12, 0.48, 0.88, 0.90)
+var _hovered_hit_key := ""
 
 
 func _ready() -> void:
@@ -47,16 +80,31 @@ func _ready() -> void:
 		_redraw()
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	if not input_enabled:
+		return
+	if event is InputEventMouseMotion:
+		_emit_hover_hit(local_to_cell_hit(to_local(event.position)))
+		return
+	if event is InputEventMouseButton:
+		var mouse_event := event as InputEventMouseButton
+		if mouse_event.button_index == MOUSE_BUTTON_LEFT and mouse_event.pressed:
+			_emit_click_hit(local_to_cell_hit(to_local(mouse_event.position)), event)
+
+
 func _draw() -> void:
 	if _tile_map == null:
 		return
 
+	_draw_loop_cell_outlines()
+
 	for key in _highlights:
 		var hex = _highlights[key]["hex"]
 		var color: Color = _highlights[key]["color"]
-		var local = hex_to_local(hex)
-		var tile_center = _tile_map.position + local
-		_draw_hex_highlight(tile_center, color)
+		for visual_hex in _visual_hexes_for_draw(hex):
+			var local = hex_to_local(visual_hex)
+			var tile_center = _tile_map.position + local
+			_draw_hex_highlight(tile_center, color)
 
 	if _display_path.size() > 1:
 		var points := PackedVector2Array()
@@ -103,6 +151,22 @@ func local_to_hex(local_pos: Vector2) -> HexVector:
 		frac_r = (2.0 / 3.0 * local_pos.y) / hex_size
 
 	return _cube_round(frac_q, frac_r)
+
+
+func local_to_cell_hit(local_pos: Vector2) -> Dictionary:
+	var visual_local = local_pos
+	if _tile_map != null:
+		visual_local -= _tile_map.position
+	var visual_hex = local_to_hex(visual_local)
+	var canonical_hex = HexVector.apply_basis(visual_hex.q, visual_hex.s, visual_hex.r)
+	if _uses_toric_loop_identity():
+		canonical_hex = HexToricCoordinate.wrap_vector(visual_hex, int(_data.cyclic_size))
+	return {
+		"hex": canonical_hex,
+		"visual_hex": visual_hex,
+		"local": local_pos,
+		"exists": has_cell(canonical_hex),
+	}
 
 
 func hex_to_local(hex: HexVector) -> Vector2:
@@ -198,6 +262,12 @@ func draw_path(path: Array, color: Color = Color(0.12, 0.48, 0.88, 0.90)) -> voi
 	queue_redraw()
 
 
+func draw_loop_path(path: Array, color: Color = Color(0.12, 0.48, 0.88, 0.90)) -> void:
+	_display_path = visual_path_for_canonical_path(path)
+	_path_color = color
+	queue_redraw()
+
+
 func clear_path() -> void:
 	_display_path.clear()
 	queue_redraw()
@@ -217,6 +287,61 @@ func connected_component(hex: HexVector) -> Array:
 	return HexGrid.connected_area(start, floors, _data.cyclic_size)
 
 
+func connected_component_from_local(local_pos: Vector2) -> Array:
+	var hit = local_to_cell_hit(local_pos)
+	if not bool(hit["exists"]):
+		return []
+	return connected_component(hit["hex"])
+
+
+func highlight_connected_component(hex: HexVector, color: Color) -> void:
+	for cell in connected_component(hex):
+		highlight_cell(cell, color)
+
+
+func visual_representatives_for_cell(hex: HexVector, rect: Rect2, margin: int = 1) -> Array:
+	if not _uses_toric_visuals():
+		return [HexVector.apply_basis(hex.q, hex.s, hex.r)]
+	var canonical = HexToricCoordinate.wrap_vector(hex, int(_data.cyclic_size))
+	var display_rect = rect
+	if display_rect.size == Vector2.ZERO:
+		display_rect = _effective_loop_display_rect()
+	if display_rect.size == Vector2.ZERO:
+		return [canonical]
+	display_rect = display_rect.grow(float(max(0, margin)) * hex_size)
+	var result: Array = []
+	for visual_hex in _toric_period_candidates(canonical, display_rect):
+		if display_rect.has_point(hex_to_local(visual_hex)):
+			result.append(visual_hex)
+	if result.is_empty():
+		result.append(canonical)
+	return result
+
+
+func visual_path_for_canonical_path(path: Array, anchor_local: Vector2 = Vector2.ZERO) -> Array:
+	if path.is_empty():
+		return []
+	if not _uses_toric_visuals():
+		var result: Array = []
+		for point in path:
+			result.append(HexVector.apply_basis(point.q, point.s, point.r))
+		return result
+
+	var visual_path: Array = []
+	var first = path[0]
+	var first_anchor = anchor_local
+	if anchor_local == Vector2.ZERO:
+		first_anchor = hex_to_local(first)
+	var first_visual = _nearest_toric_period_candidate(first, first_anchor)
+	visual_path.append(first_visual)
+	var previous_local = hex_to_local(first_visual)
+	for index in range(1, path.size()):
+		var visual = _nearest_toric_period_candidate(path[index], previous_local)
+		visual_path.append(visual)
+		previous_local = hex_to_local(visual)
+	return visual_path
+
+
 func _cube_round(frac_q: float, frac_r: float) -> HexVector:
 	var frac_s = -frac_q - frac_r
 	var rq = roundi(frac_q)
@@ -234,6 +359,114 @@ func _cube_round(frac_q: float, frac_r: float) -> HexVector:
 
 	# frac_q/frac_r are display axial a/b; HexVector uses q=a+b, r=b.
 	return HexVector.apply_basis(rq + rr, 0, rr)
+
+
+func _emit_click_hit(hit: Dictionary, event: InputEvent) -> void:
+	if not bool(hit["exists"]):
+		return
+	cell_clicked.emit(hit["hex"], event)
+	cell_hit_clicked.emit(hit, event)
+
+
+func _emit_hover_hit(hit: Dictionary) -> void:
+	if not emit_hovered_cell:
+		return
+	var hover_key = ""
+	if bool(hit["exists"]):
+		hover_key = "%s|%s" % [hit["hex"].key(), hit["visual_hex"].key()]
+	if hover_key == _hovered_hit_key:
+		return
+	_hovered_hit_key = hover_key
+	if not bool(hit["exists"]):
+		return
+	cell_hovered.emit(hit["hex"])
+	cell_hit_hovered.emit(hit)
+
+
+func _uses_toric_loop_identity() -> bool:
+	return loop_display_enabled \
+		and loop_display_mode == LOOP_DISPLAY_TORIC \
+		and _data != null \
+		and int(_data.cyclic_size) > 0
+
+
+func _uses_toric_visuals() -> bool:
+	return loop_display_mode == LOOP_DISPLAY_TORIC \
+		and _data != null \
+		and int(_data.cyclic_size) > 0
+
+
+func _visual_hexes_for_draw(hex: HexVector) -> Array:
+	if loop_display_enabled:
+		return visual_representatives_for_cell(hex, _effective_loop_display_rect(), loop_display_margin)
+	return [hex]
+
+
+func _draw_loop_cell_outlines() -> void:
+	if not loop_display_enabled or not _uses_toric_visuals() or _data == null:
+		return
+	var rect = _effective_loop_display_rect()
+	var duplicate_color = Color(0.18, 0.44, 0.82, 0.26)
+	for cell in _data.cells:
+		for visual_hex in visual_representatives_for_cell(cell, rect, loop_display_margin):
+			if visual_hex.key() == cell.key():
+				continue
+			_draw_hex_highlight(_tile_map.position + hex_to_local(visual_hex), duplicate_color)
+
+
+func _effective_loop_display_rect() -> Rect2:
+	if loop_display_rect.size != Vector2.ZERO:
+		return loop_display_rect
+	if _data == null or _data.cells.is_empty():
+		return Rect2()
+	var first = hex_to_local(_data.cells[0])
+	var min_position = first
+	var max_position = first
+	for cell in _data.cells:
+		var local = hex_to_local(cell)
+		min_position.x = minf(min_position.x, local.x)
+		min_position.y = minf(min_position.y, local.y)
+		max_position.x = maxf(max_position.x, local.x)
+		max_position.y = maxf(max_position.y, local.y)
+	return Rect2(min_position, max_position - min_position).grow(hex_size * 2.0)
+
+
+func _nearest_toric_period_candidate(hex: HexVector, target_local: Vector2) -> HexVector:
+	var result = HexToricCoordinate.wrap_vector(hex, int(_data.cyclic_size))
+	var result_distance = INF
+	for candidate in _toric_period_candidates(result):
+		var distance = hex_to_local(candidate).distance_to(target_local)
+		if distance < result_distance:
+			result = candidate
+			result_distance = distance
+	return result
+
+
+func _toric_period_candidates(hex: HexVector, rect: Rect2 = Rect2()) -> Array:
+	var result: Array = []
+	if _data == null or int(_data.cyclic_size) <= 0:
+		return [HexVector.apply_basis(hex.q, hex.s, hex.r)]
+	var seen := {}
+	var canonical = HexToricCoordinate.wrap_vector(hex, int(_data.cyclic_size))
+	var size = int(_data.cyclic_size)
+	var offset_limit = 1
+	if rect.size != Vector2.ZERO:
+		var period_local_q = hex_to_local(HexVector.apply_basis(size, 0, 0)).length()
+		var period_local_r = hex_to_local(HexVector.apply_basis(0, 0, size)).length()
+		var period = maxf(1.0, minf(period_local_q, period_local_r))
+		var rect_extent = maxf(
+			maxf(absf(rect.position.x), absf(rect.position.y)),
+			maxf(absf(rect.end.x), absf(rect.end.y))
+		)
+		offset_limit = max(1, int(ceil((rect_extent + rect.size.length()) / period)) + 1)
+	for r_offset in range(-offset_limit, offset_limit + 1):
+		for q_offset in range(-offset_limit, offset_limit + 1):
+			var candidate = canonical.add(HexVector.apply_basis(q_offset * size, 0, r_offset * size))
+			if seen.has(candidate.key()):
+				continue
+			seen[candidate.key()] = true
+			result.append(candidate)
+	return result
 
 
 func _redraw() -> void:
