@@ -4,12 +4,13 @@
 
 `HexTileMapLayer` を、クリック入力、連結性クエリ、toric / infinite loop 表示、視覚的に連続した path 表示を扱える runtime layer として維持し、manual edit 用表示からも再利用できるようにする。
 
-## 現状
+## 対象範囲
 
-- `HexTileMapLayer` は `HexMapResource` を適用し、子 `TileMapLayer` に floor / wall を反映する。
-- `local_to_hex()` / `hex_to_local()`、`set_wall()` / `set_floor()`、`find_path()`、`draw_path()`、`highlight_cell()`、`is_map_connected()`、`connected_component()` は実装済み。
-- runtime input signal、`local_to_cell_hit()`、toric / infinite の hit identity、visual representative、loop-aware path、`connected_component_from_local()` は実装済みで、`tests/test_hex_tile_map_layer.gd` と `tests/test_debug_scenes.gd` により確認済み。
-- 現在の loop display は canonical TileMapLayer に加えて `_draw_loop_cell_outlines()` の outline を描く段階であり、Tile そのものの loop copy 表示は未実装である。
+- `HexTileMapLayer` の canonical data と visual representative を分離する。
+- `local_to_cell_hit()` を manual edit 用表示の座標変換の正とする。
+- toric / infinite loop 表示で、クリック対象と表示上の代表を区別する。
+- loop duplicate を tile copy として表示する。
+- path / connected component / highlight は canonical cell を正とし、表示時だけ representative を使う。
 
 ## 方針
 
@@ -35,7 +36,7 @@ manual edit 用表示はこの runtime layer の結果を利用する。manual t
 - manual edit 用表示で、outline だけでなく実際の floor / wall tile を見ながら loop duplicate を編集できる。
 - document / resource へは copy cell を保存せず、表示更新時に canonical cell から再構成する。
 
-次回実装の代表候補。
+2. RUNTIME_INTERACTION_LOOP_DISPLAY_TILE_COPY の代表候補。
 
 ### 候補C: custom draw による tile surrogate 表示
 

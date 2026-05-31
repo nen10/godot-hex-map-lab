@@ -7,7 +7,7 @@
 
 ## 対象範囲
 
-`RUNTIME_INTERACTION_LOOP_PATH` の初期実装は test 確認済みとして `docs/complete_on_test/` へ移動済みである。本計画では、manual edit 用表示へ渡せる loop duplicate の tile 表示だけを対象にする。
+本計画では、manual edit 用表示へ渡せる loop duplicate の tile 表示だけを対象にする。
 
 ## 対象ファイル
 

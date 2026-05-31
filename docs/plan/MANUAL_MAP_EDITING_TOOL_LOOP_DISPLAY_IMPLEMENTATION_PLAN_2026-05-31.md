@@ -9,7 +9,7 @@
 
 ## 対象範囲
 
-`MANUAL_MAP_EDITING_TOOL` の document / adapter / dock / Undo / Redo 初期実装は test 確認済みとして `docs/complete_on_test/` へ移動済みである。本計画では、manual edit 用表示で loop duplicate を視認し、visual duplicate から canonical document を編集する workflow を対象にする。
+本計画では、manual edit 用表示で loop duplicate を視認し、visual duplicate から canonical document を編集する workflow を対象にする。
 
 ## 対象ファイル
 
@@ -95,7 +95,7 @@ review で指摘された縦長 UI を整理する。
 - Label mode: label payload controls を表示する。
 - Shape / Wall-Floor mode: payload controls を畳む。
 
-これは loop 表示と独立して実装可能だが、manual edit 用表示の操作性を保つため同じ次回計画に含める。
+これは loop 表示と独立して実装可能だが、manual edit 用表示の操作性を保つため本計画の範囲に含める。
 
 ## Resource schema
 

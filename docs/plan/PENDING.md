@@ -1,14 +1,12 @@
 
 ### マップのマニュアル編集機能
 
-分類: 次期 loop 表示計画。
+分類: 2. MANUAL_MAP_EDITING_TOOL_LOOP_DISPLAY。
 
 理由:
 
-- `HexMapDocumentResource` / `HexMapDocumentAdapter` / `HexMapEditTool` による resource-primary な初期編集機能は test によって確認済みである。
-- `HexTileMapLayer.local_to_cell_hit()` により、toric visual duplicate から canonical cell を編集する基盤も確認済みである。
 - manual edit 用表示では、RUNTIME_INTERACTION_LOOP_PATH の実装結果を生かし、loop duplicate を tile として視認しながら編集できる必要がある。
-- 現在の outline-only duplicate 表示は fallback として扱い、目的の一貫性を優先して runtime-owned loop copy 表示へ進める。
+- outline-only duplicate 表示は fallback として扱い、目的の一貫性を優先して runtime-owned loop copy 表示へ進める。
 
 テスト可能な分割仕様:
 
@@ -41,3 +39,17 @@
 
 - `docs/plan/RUNTIME_INTERACTION_LOOP_DISPLAY_TILE_COPY_IMPLEMENTATION_PLAN_2026-05-31.md`
 - `docs/plan/MANUAL_MAP_EDITING_TOOL_LOOP_DISPLAY_IMPLEMENTATION_PLAN_2026-05-31.md`
+
+### 4. CROP_RETAINED_RECALC
+
+Mask Crop On中にquery / shape / sourceを変更した場合の再計算モードを実装する。
+
+`docs/plan/CROP_RETAINED_RECALC_POLICY_2026-05-31.md`
+`docs/plan/CROP_RETAINED_RECALC_IMPLEMENTATION_PLAN_2026-05-31.md`
+
+### 5. PUBLIC_SAMPLE_API_PACKAGE
+
+公開用 sample project、API reference、package生成を整備する。
+
+`docs/plan/PUBLIC_SAMPLE_API_PACKAGE_POLICY_2026-05-31.md`
+`docs/plan/PUBLIC_SAMPLE_API_PACKAGE_IMPLEMENTATION_PLAN_2026-05-31.md`

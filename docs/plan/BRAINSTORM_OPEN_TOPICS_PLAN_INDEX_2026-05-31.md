@@ -2,26 +2,20 @@
 
 この文書は `docs/review/BRAINSTORM_OPEN_TOPICS_2026-05-30.md` の「大きめの候補」を、実装計画へ分割するためのindexである。
 
-## 作成順
+## 作業範囲
 
-1. Generative Reference ItemKey
-   - 方針: `docs/complete_on_test/GENERATIVE_REFERENCE_ITEMKEY_POLICY_2026-05-31.md`
-   - 詳細: `docs/complete_on_test/GENERATIVE_REFERENCE_ITEMKEY_IMPLEMENTATION_PLAN_2026-05-31.md`
-2. Query Row offset graphical control
-   - 方針: `docs/complete_on_test/QUERY_ROW_OFFSET_GRAPHICAL_CONTROL_POLICY_2026-05-31.md`
-   - 詳細: `docs/complete_on_test/QUERY_ROW_OFFSET_GRAPHICAL_CONTROL_IMPLEMENTATION_PLAN_2026-05-31.md`
-3. Crop保持再計算モード
+1. Manual map editing viewport input
+   - 詳細: `docs/plan/MANUAL_MAP_EDITING_TOOL_VIEWPORT_INPUT_IMPLEMENTATION_PLAN_2026-06-01.md`
+2. Crop保持再計算モード
    - 方針: `docs/plan/CROP_RETAINED_RECALC_POLICY_2026-05-31.md`
    - 詳細: `docs/plan/CROP_RETAINED_RECALC_IMPLEMENTATION_PLAN_2026-05-31.md`
-4. Runtime click / loop path / connected component helper
+3. Runtime loop display tile copy
    - 方針: `docs/plan/RUNTIME_INTERACTION_LOOP_PATH_POLICY_2026-05-31.md`
-   - 完了済み詳細: `docs/complete_on_test/RUNTIME_INTERACTION_LOOP_PATH_IMPLEMENTATION_PLAN_2026-05-31.md`
-   - 次回詳細: `docs/plan/RUNTIME_INTERACTION_LOOP_DISPLAY_TILE_COPY_IMPLEMENTATION_PLAN_2026-05-31.md`
-5. マップのマニュアル編集tool
+   - 詳細: `docs/plan/RUNTIME_INTERACTION_LOOP_DISPLAY_TILE_COPY_IMPLEMENTATION_PLAN_2026-05-31.md`
+4. マップのマニュアル編集tool loop display
    - 方針: `docs/plan/MANUAL_MAP_EDITING_TOOL_POLICY_2026-05-31.md`
-   - 完了済み詳細: `docs/complete_on_test/MANUAL_MAP_EDITING_TOOL_IMPLEMENTATION_PLAN_2026-05-31.md`
-   - 次回詳細: `docs/plan/MANUAL_MAP_EDITING_TOOL_LOOP_DISPLAY_IMPLEMENTATION_PLAN_2026-05-31.md`
-6. 公開用 sample project / API reference / package整備
+   - 詳細: `docs/plan/MANUAL_MAP_EDITING_TOOL_LOOP_DISPLAY_IMPLEMENTATION_PLAN_2026-05-31.md`
+5. 公開用 sample project / API reference / package整備
    - 方針: `docs/plan/PUBLIC_SAMPLE_API_PACKAGE_POLICY_2026-05-31.md`
    - 詳細: `docs/plan/PUBLIC_SAMPLE_API_PACKAGE_IMPLEMENTATION_PLAN_2026-05-31.md`
 

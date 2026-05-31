@@ -6,13 +6,14 @@
 
 生成処理は一括生成を目的とし、manual tool はユーザー操作と Undo / Redo を目的にする。両者の責務を分ける。
 
-## 現状
+## 対象範囲
 
-- `HexMapDocumentResource`、`HexMapDocumentAdapter`、`HexObjectDatabaseResource`、`HexLabelDatabaseResource` は実装済み。
-- `HexMapEditTool` は document load / save、generated map import / export、target layer selection、edit mode、payload controls、Undo / Redo、`forward_canvas_gui_input()` を持つ。
-- `HexMapEditTool` は `HexTileMapLayer.local_to_cell_hit()` を利用でき、toric visual duplicate から canonical cell を編集できることが `tests/test_editor_plugin.gd` で確認済み。
-- `HexTileMapLayer` 側の loop display は outline 表示の段階であり、manual edit 用の実 tile duplicate 表示は次回計画として残る。
-- Dock UI は縦長で、edit mode ごとに関係しない payload controls も同時に表示される。
+- `HexMapDocumentResource` を編集結果の正とする。
+- `HexMapResource` import / export を generated map と manual edit document の接続点にする。
+- Editor viewport click を document mutation と Undo / Redo に接続する。
+- loop 表示付き manual edit では `HexTileMapLayer.local_to_cell_hit()` を座標変換の正とする。
+- manual edit 用表示では duplicate cell の tile と選択状態が視認できる状態を目標にする。
+- Dock UI は edit mode ごとに必要な payload controls だけを表示する。
 
 ## 方針
 
@@ -52,7 +53,7 @@ fallback として扱う。
 - toric / infinite identity、loop path、connected component helper を runtime と editor で共有できる。
 - manual edit 側は座標変換を再実装せず、document mutation と Undo / Redo に集中できる。
 
-次回実装の代表候補。
+2. MANUAL_MAP_EDITING_TOOL_LOOP_DISPLAY の代表候補。
 
 ### 候補E: manual edit 用に独自 overlay view を作る
 
