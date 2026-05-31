@@ -9,11 +9,16 @@ const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resourc
 const HexOverlayData = preload("res://addons/hex_map_kit/core/hex_overlay_data.gd")
 const HexOverlayResource = preload("res://addons/hex_map_kit/adapter/hex_overlay_resource.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
+const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
+const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
+const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
 const HexMapGenDock = preload("res://addons/hex_map_kit/editor/hex_map_gen_dock.gd")
+const HexMapEditTool = preload("res://addons/hex_map_kit/editor/hex_map_edit_tool.gd")
 const HexDistEditor = preload("res://addons/hex_map_kit/editor/hex_dist_editor.gd")
 const HexAdjacencyRuleEditor = preload("res://addons/hex_map_kit/editor/hex_adjacency_rule_editor.gd")
 const HexCellButtonLayout = preload("res://addons/hex_map_kit/editor/hex_cell_button_layout.gd")
 const HexCellButtonPanel = preload("res://addons/hex_map_kit/editor/hex_cell_button_panel.gd")
+const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 
 class FakeTileLayer:
 	var cleared := false
@@ -47,6 +52,10 @@ func _init() -> void:
 
 func _run() -> void:
 	_test_plugin_registration_files()
+	await _test_map_edit_tool_builds_dock_controls()
+	await _test_map_edit_tool_imports_generated_map_resource()
+	await _test_map_edit_tool_click_updates_document_with_undo_redo()
+	await _test_map_edit_tool_local_hit_uses_hex_tile_map_layer()
 	_test_hex_cell_button_layout_direction_cells_flat_top()
 	_test_hex_cell_button_layout_direction_cells_pointy_top()
 	_test_hex_cell_button_layout_minimum_size_uses_padding()
@@ -115,6 +124,152 @@ func _test_plugin_registration_files() -> void:
 	_assert_eq(config.get_value("plugin", "name", ""), "Hex Map Kit", "plugin.cfg has addon name")
 	var script_path = "res://addons/hex_map_kit/%s" % config.get_value("plugin", "script", "")
 	_assert_true(load(script_path) != null, "plugin.cfg script can be loaded")
+
+
+func _test_map_edit_tool_builds_dock_controls() -> void:
+	var scene_root = Node2D.new()
+	scene_root.name = "SceneRoot"
+	root.add_child(scene_root)
+	var tile_layer = TileMapLayer.new()
+	tile_layer.name = "PaintLayer"
+	scene_root.add_child(tile_layer)
+
+	var tool = await _new_ready_edit_tool()
+	tool.refresh_target_layer_options(scene_root)
+
+	_assert_eq(tool.name, "Hex Map Edit", "map edit tool has separate dock name")
+	_assert_true(tool._document_path_edit != null, "map edit tool exposes document path control")
+	_assert_true(tool._document_load_button != null, "map edit tool exposes document load button")
+	_assert_true(tool._document_save_button != null, "map edit tool exposes document save button")
+	_assert_true(tool._import_map_path_edit != null, "map edit tool exposes HexMapResource import path control")
+	_assert_true(tool._import_map_button != null, "map edit tool exposes HexMapResource import button")
+	_assert_true(tool._export_button != null, "map edit tool exposes map export button")
+	_assert_eq(tool._mode_option.item_count, HexMapEditTool.EDIT_MODE_NAMES.size(), "map edit tool lists edit modes")
+	_assert_true(tool._object_properties_edit != null, "map edit tool exposes object properties payload control")
+	_assert_true(tool._target_option.item_count >= 2, "map edit tool lists target TileMapLayer options")
+	_assert_eq(tool.target_layer(), tile_layer, "map edit tool resolves Auto target to first editable layer")
+	var object_db = HexObjectDatabaseResource.new()
+	var label_db = HexLabelDatabaseResource.new()
+	tool.set_object_database(object_db)
+	tool.set_label_database(label_db)
+	_assert_eq(tool.object_database(), object_db, "map edit tool stores object database resource")
+	_assert_eq(tool.label_database(), label_db, "map edit tool stores label database resource")
+
+	scene_root.queue_free()
+	tool.queue_free()
+	await process_frame
+
+
+func _test_map_edit_tool_imports_generated_map_resource() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	data.set_walls([HexVector.q_axis()])
+	var resource = HexMapResource.from_map_data(data, HexMapResource.ORIENTATION_POINTY_TOP)
+	var tool = await _new_ready_edit_tool()
+
+	var document = tool.import_map_resource(resource)
+	var exported = tool.export_map_resource()
+
+	_assert_true(document != null, "map edit tool imports generated HexMapResource into a document")
+	_assert_eq(exported.orientation, HexMapResource.ORIENTATION_POINTY_TOP, "map edit tool export preserves orientation")
+	_assert_keys_eq(exported.to_map_data().cells, data.cells, "map edit tool export preserves cells")
+	_assert_keys_eq(exported.to_map_data().walls, data.walls, "map edit tool export preserves walls")
+
+	var document_path = "res://.godot_user/test_map_edit_tool_document.tres"
+	var export_path = "res://.godot_user/test_map_edit_tool_export.tres"
+	var import_path = "res://.godot_user/test_map_edit_tool_import_source.tres"
+	_save_resource(import_path, resource)
+	_assert_true(tool.save_document(document_path), "map edit tool saves document resource")
+	_assert_true(tool.export_map_resource_to_path(export_path), "map edit tool saves exported HexMapResource")
+	_assert_true(tool.import_map_resource_from_path(import_path), "map edit tool imports HexMapResource from path")
+	_assert_true(load(document_path) != null, "map edit tool saved document can be loaded")
+	_assert_true(load(export_path) is HexMapResource, "map edit tool exported map can be loaded")
+
+	tool.queue_free()
+	await process_frame
+
+
+func _test_map_edit_tool_click_updates_document_with_undo_redo() -> void:
+	var document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(2, 1))
+	)
+	var layer = TileMapLayer.new()
+	layer.tile_set = TileSet.new()
+	HexMapTileAdapter.configure_hex_tile_set(layer.tile_set, true, Vector2i(64, 64))
+	var undo_redo = UndoRedo.new()
+	var tool = await _new_ready_edit_tool()
+	tool.set_document(document)
+	tool.set_target_layer(layer)
+	tool.set_undo_redo(undo_redo)
+	tool.set_edit_mode(HexMapEditTool.EditMode.WALL_FLOOR)
+
+	var origin_local = layer.map_to_local(HexMapTileAdapter.vector_to_map_cell(HexVector.zero(), true))
+	_assert_true(tool.apply_local_position(origin_local), "map edit tool applies local click to document")
+	_assert_true(document.map.to_map_data().has_wall(HexVector.zero()), "map edit tool click toggles wall in document")
+	_assert_eq(layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(1, 0), "map edit tool click redraws wall tile")
+
+	undo_redo.undo()
+	_assert_true(not document.map.to_map_data().has_wall(HexVector.zero()), "map edit tool undo restores document")
+	_assert_eq(layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i.ZERO, "map edit tool undo redraws floor tile")
+
+	undo_redo.redo()
+	_assert_true(document.map.to_map_data().has_wall(HexVector.zero()), "map edit tool redo restores document edit")
+	_assert_eq(layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(1, 0), "map edit tool redo redraws wall tile")
+
+	tool.set_edit_mode(HexMapEditTool.EditMode.SHAPE)
+	var added = HexVector.q_axis().scaled(2)
+	var added_local = layer.map_to_local(HexMapTileAdapter.vector_to_map_cell(added, true))
+	_assert_true(tool.apply_local_position(added_local), "map edit tool shape mode can add a missing cell from local click")
+	_assert_true(document.map.to_map_data().has_cell(added), "map edit tool shape mode adds cell")
+
+	tool.set_edit_mode(HexMapEditTool.EditMode.FLOOR_TILE)
+	tool.set_tile_payload(9, Vector2i(2, 3), 1)
+	_assert_true(tool.apply_cell(HexVector.zero()), "map edit tool applies floor tile override")
+	_assert_eq(document.tile_overrides[0]["source_id"], 9, "map edit tool stores tile override source")
+	_assert_eq(document.tile_overrides[0]["atlas_coords"], Vector2i(2, 3), "map edit tool stores tile override atlas")
+
+	tool.set_edit_mode(HexMapEditTool.EditMode.OBJECT)
+	tool.set_object_payload("door", {"locked": true})
+	_assert_true(tool.apply_cell(HexVector.zero()), "map edit tool applies object payload")
+	_assert_eq(document.objects[0]["object_id"], "door", "map edit tool stores object payload")
+	_assert_eq(document.objects[0]["properties"]["locked"], true, "map edit tool stores object properties")
+
+	tool.set_edit_mode(HexMapEditTool.EditMode.LABEL)
+	tool.set_label_payload("room", "Entry")
+	_assert_true(tool.apply_cell(HexVector.zero()), "map edit tool applies label payload")
+	_assert_eq(document.labels[0]["label_id"], "room", "map edit tool stores label payload")
+	_assert_eq(document.labels[0]["text"], "Entry", "map edit tool stores label text")
+
+	undo_redo.clear_history()
+	undo_redo.free()
+	layer.free()
+	tool.queue_free()
+	await process_frame
+
+
+func _test_map_edit_tool_local_hit_uses_hex_tile_map_layer() -> void:
+	var data = HexMapData.square(3, true)
+	var resource = HexMapResource.from_map_data(data)
+	var document = HexMapDocumentAdapter.from_map_resource(resource)
+	var layer = HexTileMapLayer.new()
+	root.add_child(layer)
+	layer.loop_display_enabled = true
+	layer.loop_display_mode = HexTileMapLayer.LOOP_DISPLAY_TORIC
+	layer.apply_map(resource)
+	await process_frame
+
+	var tool = await _new_ready_edit_tool()
+	tool.set_document(document)
+	tool.set_target_layer(layer)
+	tool.set_edit_mode(HexMapEditTool.EditMode.WALL_FLOOR)
+	var wrapped_visual = HexVector.apply_basis(3, 0, 0)
+	var hit_local = layer.hex_to_local(wrapped_visual)
+
+	_assert_true(tool.apply_local_position(hit_local), "map edit tool uses HexTileMapLayer loop-aware hit")
+	_assert_true(document.map.to_map_data().has_wall(HexVector.zero()), "map edit tool edits canonical toric cell from visual duplicate")
+
+	layer.queue_free()
+	tool.queue_free()
+	await process_frame
 
 
 func _test_hex_cell_button_layout_direction_cells_flat_top() -> void:
@@ -1975,6 +2130,13 @@ func _new_ready_dock():
 	root.add_child(dock)
 	await process_frame
 	return dock
+
+
+func _new_ready_edit_tool():
+	var tool = HexMapEditTool.new()
+	root.add_child(tool)
+	await process_frame
+	return tool
 
 
 func _begin_manual_generation(dock: HexMapGenDock, show_progress: bool = false) -> void:

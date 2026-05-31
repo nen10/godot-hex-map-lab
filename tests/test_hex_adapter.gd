@@ -6,6 +6,10 @@ const HexMapData = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
 const HexOverlayData = preload("res://addons/hex_map_kit/core/hex_overlay_data.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
+const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
+const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
+const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
+const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
 const HexOverlayResource = preload("res://addons/hex_map_kit/adapter/hex_overlay_resource.gd")
 const HexOverlayTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_overlay_tile_adapter.gd")
 const HexAdjacencyRuleSet = preload("res://addons/hex_map_kit/adapter/hex_adjacency_rule_set.gd")
@@ -20,6 +24,7 @@ func _init() -> void:
 func _run() -> void:
 	_test_vector_to_map_cell_matches_flat_top_offset()
 	_test_vector_to_map_cell_matches_pointy_top_offset()
+	_test_map_cell_to_vector_roundtrips_offset_cells()
 	_test_to_tile_entries_marks_floor_and_wall()
 	_test_entries_are_sorted_for_stable_scene_generation()
 	_test_radius_two_hexagon_matches_godot_flat_top_layout()
@@ -37,6 +42,9 @@ func _run() -> void:
 	_test_configure_sample_tile_set_creates_atlas_source()
 	_test_map_resource_stores_map_data()
 	_test_map_resource_roundtrips_to_map_data()
+	_test_hex_map_document_roundtrips_map_and_payloads()
+	_test_hex_map_document_adapter_updates_wall_floor()
+	_test_hex_map_document_adapter_applies_tile_overrides()
 	_test_overlay_resource_roundtrips_to_overlay_data()
 	_test_adjacency_rule_set_parses_probability_rules()
 	_test_overlay_data_apply_policy_merge_replace_skip()
@@ -110,6 +118,22 @@ func _test_vector_to_map_cell_matches_pointy_top_offset() -> void:
 		Vector2i(1, 0),
 		"pointy-top Q axis maps to horizontal offset"
 	)
+
+
+func _test_map_cell_to_vector_roundtrips_offset_cells() -> void:
+	var cells = [
+		HexVector.zero(),
+		HexVector.q_axis(),
+		HexVector.r_axis(),
+		HexVector.s_axis(),
+		HexVector.q_axis().negated(),
+		HexVector.r_axis().negated(),
+	]
+	for cell in cells:
+		var flat_map_cell = HexMapTileAdapter.vector_to_map_cell(cell, true)
+		var pointy_map_cell = HexMapTileAdapter.vector_to_map_cell(cell, false)
+		_assert_eq(HexMapTileAdapter.map_cell_to_vector(flat_map_cell, true).key(), cell.key(), "flat-top map cell roundtrips %s" % cell.key())
+		_assert_eq(HexMapTileAdapter.map_cell_to_vector(pointy_map_cell, false).key(), cell.key(), "pointy-top map cell roundtrips %s" % cell.key())
 
 
 func _test_to_tile_entries_marks_floor_and_wall() -> void:
@@ -353,6 +377,120 @@ func _test_map_resource_roundtrips_to_map_data() -> void:
 	_assert_eq(resource.orientation, HexMapResource.ORIENTATION_POINTY_TOP, "resource stores pointy-top orientation")
 	resource.set_from_map_data(data, 99)
 	_assert_eq(resource.orientation, HexMapResource.ORIENTATION_FLAT_TOP, "resource normalizes unknown orientation to flat-top")
+
+
+func _test_hex_map_document_roundtrips_map_and_payloads() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	data.set_walls([HexVector.q_axis()])
+	var document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(data, HexMapResource.ORIENTATION_POINTY_TOP)
+	)
+	HexMapDocumentAdapter.set_tile_override(document, HexVector.zero(), {
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"source_id": 3,
+		"atlas_coords": Vector2i(4, 5),
+		"alternative_tile": 2,
+	})
+	HexMapDocumentAdapter.set_object(document, HexVector.q_axis(), {
+		"object_id": "chest",
+		"properties": {"gold": 2},
+	})
+	HexMapDocumentAdapter.set_label(document, HexVector.zero(), {
+		"label_id": "area",
+		"text": "North Gate",
+	})
+	var object_db = HexObjectDatabaseResource.new()
+	object_db.objects = [{"object_id": "chest", "display_name": "Chest"}]
+	var label_db = HexLabelDatabaseResource.new()
+	label_db.labels = [{"label_id": "area", "display_name": "Area"}]
+
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://.godot_user"))
+	var path = "res://.godot_user/test_hex_map_document.tres"
+	var error = ResourceSaver.save(document, path)
+	var loaded = load(path)
+	var roundtrip = HexMapDocumentAdapter.to_map_resource(loaded).to_map_data()
+
+	_assert_eq(error, OK, "hex map document resource saves")
+	_assert_keys_eq(roundtrip.cells, data.cells, "hex map document preserves cells")
+	_assert_keys_eq(roundtrip.walls, data.walls, "hex map document preserves walls")
+	_assert_eq(loaded.map.orientation, HexMapResource.ORIENTATION_POINTY_TOP, "hex map document preserves orientation")
+	_assert_eq(loaded.tile_overrides[0]["atlas_coords"], Vector2i(4, 5), "hex map document preserves tile override")
+	_assert_eq(loaded.objects[0]["properties"]["gold"], 2, "hex map document preserves object properties")
+	_assert_eq(loaded.labels[0]["text"], "North Gate", "hex map document preserves labels")
+	_assert_eq(object_db.objects[0]["object_id"], "chest", "object database stores object definitions")
+	_assert_eq(label_db.labels[0]["label_id"], "area", "label database stores label definitions")
+
+
+func _test_hex_map_document_adapter_updates_wall_floor() -> void:
+	var document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(2, 1))
+	)
+
+	HexMapDocumentAdapter.set_wall(document, HexVector.zero(), true)
+	_assert_eq(document.map.to_map_data().has_wall(HexVector.zero()), true, "document adapter sets wall")
+	HexMapDocumentAdapter.set_wall(document, HexVector.zero(), false)
+	_assert_eq(document.map.to_map_data().has_wall(HexVector.zero()), false, "document adapter clears wall")
+
+	var new_cell = HexVector.q_axis().scaled(2)
+	HexMapDocumentAdapter.set_cell_exists(document, new_cell, true)
+	_assert_eq(document.map.to_map_data().has_cell(new_cell), true, "document adapter adds shape cell")
+	HexMapDocumentAdapter.set_tile_override(document, HexVector.q_axis(), {
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"source_id": 8,
+		"atlas_coords": Vector2i(4, 5),
+	})
+	HexMapDocumentAdapter.set_object(document, HexVector.q_axis(), {"object_id": "chest"})
+	HexMapDocumentAdapter.set_label(document, HexVector.q_axis(), {
+		"label_id": "area",
+		"text": "North Gate",
+	})
+	HexMapDocumentAdapter.set_cell_exists(document, HexVector.q_axis(), false)
+	_assert_eq(document.map.to_map_data().has_cell(HexVector.q_axis()), false, "document adapter removes shape cell")
+	_assert_eq(document.tile_overrides.size(), 0, "document adapter removes tile overrides for deleted shape cell")
+	_assert_eq(document.objects.size(), 0, "document adapter removes objects for deleted shape cell")
+	_assert_eq(document.labels.size(), 0, "document adapter removes labels for deleted shape cell")
+
+
+func _test_hex_map_document_adapter_applies_tile_overrides() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	data.set_walls([HexVector.q_axis()])
+	var document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(data))
+	HexMapDocumentAdapter.set_tile_override(document, HexVector.zero(), {
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"source_id": 8,
+		"atlas_coords": Vector2i(4, 5),
+		"alternative_tile": 2,
+	})
+	HexMapDocumentAdapter.set_tile_override(document, HexVector.zero(), {
+		"kind": HexMapDocumentAdapter.KIND_WALL,
+		"source_id": 9,
+		"atlas_coords": Vector2i(6, 7),
+	})
+	HexMapDocumentAdapter.set_tile_override(document, HexVector.q_axis(), {
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"source_id": 10,
+		"atlas_coords": Vector2i(8, 9),
+	})
+	HexMapDocumentAdapter.set_tile_override(document, HexVector.q_axis(), {
+		"kind": HexMapDocumentAdapter.KIND_WALL,
+		"source_id": 11,
+		"atlas_coords": Vector2i(12, 13),
+	})
+	var layer = TileMapLayer.new()
+
+	HexMapDocumentAdapter.apply_to_tile_map_layer(document, layer, {
+		"floor_source_id": 1,
+		"floor_atlas_coords": Vector2i.ZERO,
+		"wall_source_id": 2,
+		"wall_atlas_coords": Vector2i(1, 0),
+	})
+
+	_assert_eq(layer.get_cell_source_id(Vector2i.ZERO), 8, "document adapter applies floor tile override source")
+	_assert_eq(layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(4, 5), "document adapter applies floor tile override atlas")
+	_assert_eq(layer.get_cell_alternative_tile(Vector2i.ZERO), 2, "document adapter applies floor tile override alternative")
+	_assert_eq(layer.get_cell_source_id(Vector2i(1, 0)), 11, "document adapter applies wall tile override source")
+	_assert_eq(layer.get_cell_atlas_coords(Vector2i(1, 0)), Vector2i(12, 13), "document adapter applies wall tile override atlas")
+	layer.free()
 
 
 func _test_overlay_resource_roundtrips_to_overlay_data() -> void:
