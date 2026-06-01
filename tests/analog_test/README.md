@@ -2,7 +2,7 @@
 
 このディレクトリは、ユーザー依頼時に作成するアナログテストの操作手順マニュアルと検証記録を置く場所です。
 
-アナログテストの policy は `docs/plan/ANALOG_TEST_POLICY.md` を参照します。
+アナログテストの policy は `docs/plan/policy/ANALOG_TEST_POLICY.md` を参照します。
 
 ファイル名:
 

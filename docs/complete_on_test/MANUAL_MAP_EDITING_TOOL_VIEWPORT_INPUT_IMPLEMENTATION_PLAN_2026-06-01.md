@@ -3,7 +3,7 @@
 ## 参照
 
 - Policy: `docs/complete_on_test/MANUAL_MAP_EDITING_TOOL_POLICY_2026-05-31.md`
-- Analog test: `.test/analog_test/GENERATED_MAP_MANUAL_EDIT_ANALOG_TEST_2026-06-01.md`
+- Analog test: `tests/analog_test/GENERATED_MAP_MANUAL_EDIT_ANALOG_TEST_2026-06-01.md`
 - Analog result: `docs/review/GENERATED_MAP_MANUAL_EDIT_ANALOG_RESULT_2026-06-01.md`
 - Failure analysis: `docs/review/GENERATED_MAP_MANUAL_EDIT_FAILURE_ANALYSIS_2026-06-01.md`
 - Plan review: `docs/review/MANUAL_MAP_EDITING_TOOL_VIEWPORT_INPUT_PLAN_REVIEW_2026-06-01.md`
@@ -29,7 +29,7 @@ Operation Steps は変更しない。
 - `addons/hex_map_kit/editor/hex_map_edit_tool.gd`
 - `tests/test_editor_plugin.gd`
 - `docs/TEST.md`
-- `.test/analog_test/GENERATED_MAP_MANUAL_EDIT_ANALOG_TEST_2026-06-01.md`
+- `tests/analog_test/GENERATED_MAP_MANUAL_EDIT_ANALOG_TEST_2026-06-01.md`
 - `docs/review/GENERATED_MAP_MANUAL_EDIT_ANALOG_RESULT_2026-06-01.md`
 
 ## 入出力インターフェース

@@ -6,7 +6,7 @@
 
 (コマンド実行のみで完了する)テスト作成時、`tools/test.sh` を合わせて更新する
 interactiveなテスト作成時、実行方法を簡潔にdocumentationする
-Editor Plugin 操作で複数機能の結合性を確認する任意検証は、アナログテストとして `docs/plan/ANALOG_TEST_POLICY.md` に従い、操作手順マニュアルを `.test/analog_test/` 以下に作成する。アナログテスト文書は Test path の代替ではなく、ユーザー依頼時の追加検証記録として扱う。
+Editor Plugin 操作で複数機能の結合性を確認する任意検証は、アナログテストとして `docs/plan/policy/ANALOG_TEST_POLICY.md` に従い、操作手順マニュアルを `tests/analog_test/` 以下に作成する。アナログテスト文書は Test path の代替ではなく、ユーザー依頼時の追加検証記録として扱う。
 
 ### Test path
 

@@ -30,7 +30,7 @@ No development plan is required for this primary-map manual editing use case.
 - `docs/complete_on_test/MULTI_LAYER.md`
 - `docs/complete_on_test/EDITOR_PLUGIN.md`
 - `docs/complete_on_test/MANUAL_MAP_EDITING_TOOL_POLICY_2026-05-31.md`
-- `.test/analog_test/GENERATED_MAP_MANUAL_EDIT_ANALOG_TEST_2026-06-01.md`
+- `tests/analog_test/GENERATED_MAP_MANUAL_EDIT_ANALOG_TEST_2026-06-01.md`
 
 This verification does not claim direct manual editing of `HexOverlayResource`. Overlay linkage is verified as "edited primary map exported from manual edit can be reused as a Multi Layer Source Registry input."
 

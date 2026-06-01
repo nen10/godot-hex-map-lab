@@ -73,7 +73,7 @@ Create and execute:
 
 - `docs/complete_on_test/MANUAL_MAP_EDITING_TOOL_VIEWPORT_INPUT_IMPLEMENTATION_PLAN_2026-06-01.md`
 
-The plan must keep `.test/analog_test/GENERATED_MAP_MANUAL_EDIT_ANALOG_TEST_2026-06-01.md` Operation Steps unchanged and make Step 14/15 pass through implementation.
+The plan must keep `tests/analog_test/GENERATED_MAP_MANUAL_EDIT_ANALOG_TEST_2026-06-01.md` Operation Steps unchanged and make Step 14/15 pass through implementation.
 
 ## Follow-up Verification
 
