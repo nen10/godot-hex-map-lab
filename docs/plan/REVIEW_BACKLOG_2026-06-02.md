@@ -19,6 +19,13 @@ Use case:
 
 Godot Editor上で生成済みmapをHex Map Editへimportし、viewport上のcellをclickしたとき、document mutation、target layer redraw、保存・exportの成否がユーザーに明確に見える。
 
+Planning Flow:
+
+- UX: `docs/plan/MANUAL_MAP_EDITING_EDITOR_VISIBILITY_UX_2026-06-02.md`
+- 方針: `docs/plan/MANUAL_MAP_EDITING_EDITOR_VISIBILITY_POLICY_2026-06-02.md`
+- 詳細: `docs/plan/MANUAL_MAP_EDITING_EDITOR_VISIBILITY_IMPLEMENTATION_PLAN_2026-06-02.md`
+- Review: `docs/plan/MANUAL_MAP_EDITING_EDITOR_VISIBILITY_PLAN_REVIEW_2026-06-02.md`
+
 抽出候補:
 
 1. Viewport click後の表示反映を実Editorで切り分ける。
