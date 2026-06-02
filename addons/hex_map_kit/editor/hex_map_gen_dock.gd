@@ -8,6 +8,7 @@ const HexMapData = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
 const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
+const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 const HexOverlayData = preload("res://addons/hex_map_kit/core/hex_overlay_data.gd")
 const HexOverlayResource = preload("res://addons/hex_map_kit/adapter/hex_overlay_resource.gd")
 const HexOverlayTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_overlay_tile_adapter.gd")
@@ -1825,16 +1826,16 @@ func _on_cancel_generation_pressed() -> void:
 func _on_sample_tiles_pressed() -> void:
 	var layer = _find_editor_selected_tile_map_layer()
 	if layer == null:
-		push_error("No selected TileMapLayer found in the scene. Select one first.")
+		push_error("No selected TileMapLayer or HexTileMapLayer found in the scene. Select one first.")
 		return
 	if setup_sample_tiles_on_tile_map_layer(layer):
-		print("Configured sample hex tiles on TileMapLayer: %s" % layer.name)
+		print("Configured sample hex tiles on target layer: %s" % layer.name)
 
 
 func _on_atlas_image_pressed() -> void:
 	var layer = _find_editor_selected_tile_map_layer()
 	if layer == null:
-		push_error("No selected TileMapLayer found in the scene. Select one first.")
+		push_error("No selected TileMapLayer or HexTileMapLayer found in the scene. Select one first.")
 		return
 
 	var dialog = EditorFileDialog.new()
@@ -1855,7 +1856,7 @@ func _on_atlas_image_selected(path: String, layer) -> void:
 		Vector2i(int(_floor_atlas_x_spin.value), int(_floor_atlas_y_spin.value)),
 		Vector2i(int(_wall_atlas_x_spin.value), int(_wall_atlas_y_spin.value))
 	):
-		print("Configured hex atlas on TileMapLayer: %s" % layer.name)
+		print("Configured hex atlas on target layer: %s" % layer.name)
 
 
 func _on_save_pressed() -> void:
@@ -1895,7 +1896,7 @@ func _on_apply_layer_pressed() -> void:
 
 	var layer = _find_target_tile_map_layer()
 	if layer == null:
-		push_error("No TileMapLayer found in the scene. Add one first.")
+		push_error("No TileMapLayer or HexTileMapLayer found in the scene. Add one first.")
 		return
 
 	if _overlay_mode_enabled():
@@ -1905,7 +1906,7 @@ func _on_apply_layer_pressed() -> void:
 			apply_current_overlay_data_to_tile_map_layer(layer)
 	else:
 		apply_current_data_to_tile_map_layer(layer)
-	print("Applied hex map to TileMapLayer: %s" % layer.name)
+	print("Applied hex map to target layer: %s" % layer.name)
 
 
 func _apply_tile_settings_to_current_layer() -> bool:
@@ -1923,6 +1924,9 @@ func _apply_tile_settings_to_current_layer() -> bool:
 
 func apply_current_overlay_data_to_tile_map_layer(layer) -> bool:
 	if _current_overlay_data == null or layer == null:
+		return false
+	if layer is HexTileMapLayer:
+		push_warning("Overlay apply currently requires a plain TileMapLayer target.")
 		return false
 
 	_current_orientation = _tile_settings_orientation()
@@ -2114,6 +2118,8 @@ func apply_current_data_to_tile_map_layer(layer) -> bool:
 
 	_current_orientation = _tile_settings_orientation()
 	var flat_top := _tile_settings_flat_top()
+	if layer is HexTileMapLayer:
+		return _apply_current_data_to_hex_tile_map_layer(layer as HexTileMapLayer)
 	if layer is TileMapLayer:
 		_ensure_unique_tile_set_for_layer(layer)
 		HexMapTileAdapter.configure_hex_tile_set(
@@ -2132,6 +2138,42 @@ func apply_current_data_to_tile_map_layer(layer) -> bool:
 		_apply_write_clears_layer(),
 		flat_top
 	)
+	return true
+
+
+func _apply_current_data_to_hex_tile_map_layer(layer: HexTileMapLayer) -> bool:
+	if layer == null:
+		return false
+	var flat_top := _tile_settings_flat_top()
+	var tile_size := _tile_settings_tile_size()
+	var floor_source := int(_floor_source_spin.value)
+	var floor_atlas := Vector2i(int(_floor_atlas_x_spin.value), int(_floor_atlas_y_spin.value))
+	var wall_source := int(_wall_source_spin.value)
+	var wall_atlas := Vector2i(int(_wall_atlas_x_spin.value), int(_wall_atlas_y_spin.value))
+	layer.flat_top = flat_top
+	var texture := HexMapTileAdapter.load_sample_tile_texture()
+	if _current_atlas_image_path != "":
+		texture = HexMapTileAdapter.load_tile_texture(_current_atlas_image_path)
+	var ok = layer.configure_display_tiles_from_texture(
+		texture,
+		floor_source,
+		wall_source,
+		tile_size,
+		floor_atlas,
+		wall_atlas
+	)
+	if not ok:
+		ok = layer.ensure_display_tiles(
+			tile_size,
+			floor_source,
+			floor_atlas,
+			wall_source,
+			wall_atlas
+		)
+	if not ok:
+		return false
+	layer.hex_map = HexMapResource.from_map_data(_current_data, _current_orientation)
+	layer.refresh_loop_display()
 	return true
 
 
@@ -2159,21 +2201,33 @@ func setup_atlas_tiles_on_tile_map_layer(
 	floor_atlas_coords: Vector2i = Vector2i(0, 0),
 	wall_atlas_coords: Vector2i = Vector2i(1, 0)
 ) -> bool:
-	if not layer is TileMapLayer:
+	if not (layer is TileMapLayer or layer is HexTileMapLayer):
 		return false
 
 	_current_orientation = _tile_settings_orientation()
-	_ensure_unique_tile_set_for_layer(layer)
-
 	var texture := HexMapTileAdapter.load_tile_texture(atlas_path)
-	var ok = HexMapTileAdapter.configure_atlas_tile_set(
-		layer.tile_set,
-		texture,
-		_tile_settings_flat_top(),
-		tile_size,
-		source_id,
-		[floor_atlas_coords, wall_atlas_coords]
-	)
+	var ok := false
+	if layer is HexTileMapLayer:
+		var hex_layer := layer as HexTileMapLayer
+		hex_layer.flat_top = _tile_settings_flat_top()
+		ok = hex_layer.configure_display_tiles_from_texture(
+			texture,
+			source_id,
+			source_id,
+			tile_size,
+			floor_atlas_coords,
+			wall_atlas_coords
+		)
+	else:
+		_ensure_unique_tile_set_for_layer(layer)
+		ok = HexMapTileAdapter.configure_atlas_tile_set(
+			layer.tile_set,
+			texture,
+			_tile_settings_flat_top(),
+			tile_size,
+			source_id,
+			[floor_atlas_coords, wall_atlas_coords]
+		)
 	if not ok:
 		return false
 
@@ -2380,7 +2434,7 @@ func _find_editor_selected_tile_map_layer():
 	var selection = EditorInterface.get_selection()
 	var selected = selection.get_selected_nodes()
 	for node in selected:
-		if node is TileMapLayer:
+		if node is HexTileMapLayer or node is TileMapLayer:
 			return node
 	return null
 
@@ -2399,11 +2453,11 @@ func add_new_tile_map_layer(root_node: Node = null):
 		push_error("No edited scene root found. Open a scene first.")
 		return null
 
-	var layer = TileMapLayer.new()
+	var layer = HexTileMapLayer.new()
 	layer.name = _unique_tile_layer_name(root, NEW_TILE_LAYER_BASE_NAME)
 	if Engine.is_editor_hint():
 		var undo_redo = EditorInterface.get_editor_undo_redo()
-		undo_redo.create_action("Add HexMapLayer")
+		undo_redo.create_action("Add HexTileMapLayer")
 		undo_redo.add_do_method(root, "add_child", layer)
 		undo_redo.add_do_method(layer, "set_owner", root)
 		undo_redo.add_do_reference(layer)
@@ -2454,7 +2508,7 @@ func _unique_tile_layer_name(root: Node, base_name: String) -> String:
 
 
 func _find_tile_map_layer_recursive(node: Node):
-	if node is TileMapLayer:
+	if node is HexTileMapLayer or node is TileMapLayer:
 		return node
 	for child in node.get_children():
 		var found = _find_tile_map_layer_recursive(child)
@@ -2464,7 +2518,7 @@ func _find_tile_map_layer_recursive(node: Node):
 
 
 func _collect_tile_map_layers_recursive(node: Node, result: Array[Node]) -> void:
-	if node is TileMapLayer:
+	if node is HexTileMapLayer or node is TileMapLayer:
 		result.append(node)
 	for child in node.get_children():
 		_collect_tile_map_layers_recursive(child, result)
@@ -2483,10 +2537,16 @@ func _tile_layer_display_name(node: Node, root_node: Node, name_counts: Dictiona
 		return ""
 	var node_name = String(node.name)
 	if int(name_counts.get(node_name, 0)) <= 1:
-		return node_name
+		return "%s%s" % [node_name, _tile_layer_class_suffix(node)]
 	if root_node != null and is_instance_valid(root_node) and _is_ancestor_of(root_node, node):
-		return String(root_node.get_path_to(node))
-	return node.name
+		return "%s%s" % [String(root_node.get_path_to(node)), _tile_layer_class_suffix(node)]
+	return "%s%s" % [node.name, _tile_layer_class_suffix(node)]
+
+
+func _tile_layer_class_suffix(node: Node) -> String:
+	if node is HexTileMapLayer:
+		return " (HexTileMapLayer)"
+	return ""
 
 
 func _is_ancestor_of(ancestor: Node, node: Node) -> bool:

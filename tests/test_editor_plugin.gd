@@ -61,6 +61,7 @@ func _run() -> void:
 	await _test_map_edit_tool_forward_canvas_gui_input_reports_no_editable_cell()
 	await _test_map_edit_tool_target_readiness_reports_plain_tile_map_layer()
 	await _test_map_edit_tool_target_readiness_reports_hex_tile_map_layer_loop_state()
+	await _test_map_edit_tool_preserves_plain_target_tile_settings_when_redrawing()
 	await _test_map_edit_tool_last_edit_trace_distinguishes_document_and_redraw()
 	await _test_map_edit_tool_last_edit_trace_reports_target_apply_failure()
 	await _test_map_edit_tool_persistence_checkpoint_reports_save_and_export_counts()
@@ -97,7 +98,9 @@ func _run() -> void:
 	await _test_generation_dock_applies_orientation_to_tile_entries()
 	await _test_generation_dock_resource_stores_orientation()
 	await _test_generation_dock_configures_tile_map_layer_tileset()
+	await _test_generation_dock_applies_primary_map_to_hex_tile_map_layer()
 	await _test_generation_dock_swaps_tile_size_on_orientation_change()
+	await _test_generation_dock_lists_hex_tile_map_layer_common_target()
 	await _test_generation_dock_lists_and_auto_applies_selected_tile_layer()
 	await _test_generation_dock_disambiguates_duplicate_target_names()
 	await _test_generation_dock_adds_new_target_layer()
@@ -105,6 +108,7 @@ func _run() -> void:
 	await _test_generation_dock_sets_up_sample_tiles()
 	await _test_generation_dock_selects_atlas_image()
 	await _test_generation_dock_generate_auto_applies_current_map()
+	await _test_generation_dock_generate_auto_applies_hex_tile_map_layer()
 	await _test_generation_dock_overlay_uniform_generation_and_apply()
 	await _test_generation_dock_overlay_limit_and_apply_policy()
 	await _test_generation_dock_overlay_placement_mask_filters_candidates()
@@ -439,6 +443,61 @@ func _test_map_edit_tool_target_readiness_reports_hex_tile_map_layer_loop_state(
 	await process_frame
 
 
+func _test_map_edit_tool_preserves_plain_target_tile_settings_when_redrawing() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	data.set_walls([HexVector.q_axis()])
+	var document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(data))
+	var layer = TileMapLayer.new()
+	layer.tile_set = TileSet.new()
+	var image = Image.create(256, 64, false, Image.FORMAT_RGBA8)
+	image.fill(Color.WHITE)
+	var texture = ImageTexture.create_from_image(image)
+	HexMapTileAdapter.configure_atlas_tile_set(
+		layer.tile_set,
+		texture,
+		true,
+		Vector2i(64, 64),
+		0,
+		[Vector2i(2, 0), Vector2i(3, 0)]
+	)
+	HexMapTileAdapter.apply_to_tile_map_layer(
+		layer,
+		data,
+		0,
+		Vector2i(2, 0),
+		0,
+		Vector2i(3, 0),
+		true,
+		true
+	)
+	root.add_child(layer)
+	var tool = await _new_ready_edit_tool()
+	tool.set_document(document)
+	tool.set_target_layer(layer)
+	tool.set_edit_mode(HexMapEditTool.EditMode.WALL_FLOOR)
+
+	var readiness = tool.target_readiness_status()
+	_assert_eq(readiness["floor_atlas_coords"], Vector2i(2, 0), "map edit infers plain target floor atlas")
+	_assert_eq(readiness["wall_atlas_coords"], Vector2i(3, 0), "map edit infers plain target wall atlas")
+	var origin_map_cell = HexMapTileAdapter.vector_to_map_cell(HexVector.zero(), true)
+	var origin_local = layer.map_to_local(origin_map_cell)
+
+	_assert_true(tool.apply_local_position(origin_local), "map edit redraws using inferred target tile settings")
+	_assert_eq(
+		layer.get_cell_atlas_coords(origin_map_cell),
+		Vector2i(3, 0),
+		"map edit redraw changes clicked floor to target wall atlas"
+	)
+	var trace = tool.last_edit_status()
+	_assert_eq(trace["display_atlas_before"], Vector2i(2, 0), "last edit trace records inferred floor atlas before edit")
+	_assert_eq(trace["display_atlas_after"], Vector2i(3, 0), "last edit trace records inferred wall atlas after edit")
+	_assert_true(bool(trace["display_changed"]), "last edit trace detects display change with inferred tile settings")
+
+	layer.queue_free()
+	tool.queue_free()
+	await process_frame
+
+
 func _test_map_edit_tool_last_edit_trace_distinguishes_document_and_redraw() -> void:
 	var document = HexMapDocumentAdapter.from_map_resource(
 		HexMapResource.from_map_data(HexMapData.rectangle(2, 1))
@@ -549,6 +608,7 @@ func _test_map_edit_tool_local_hit_uses_hex_tile_map_layer() -> void:
 
 	_assert_true(tool.apply_local_position(hit_local), "map edit tool uses HexTileMapLayer loop-aware hit")
 	_assert_true(document.map.to_map_data().has_wall(HexVector.zero()), "map edit tool edits canonical toric cell from visual duplicate")
+	_assert_true(layer.hex_map.to_map_data().has_wall(HexVector.zero()), "map edit tool updates HexTileMapLayer hex_map resource")
 
 	layer.queue_free()
 	tool.queue_free()
@@ -1470,6 +1530,43 @@ func _test_generation_dock_configures_tile_map_layer_tileset() -> void:
 	await process_frame
 
 
+func _test_generation_dock_applies_primary_map_to_hex_tile_map_layer() -> void:
+	var dock = await _new_ready_dock()
+
+	var data = HexMapData.rectangle(2, 1)
+	data.set_walls([HexVector.q_axis()])
+	dock._current_data = data
+	dock._tile_orientation_option.select(1)
+	dock._tile_width_spin.value = HexMapTileAdapter.SAMPLE_TILE_SIZE.x
+	dock._tile_height_spin.value = HexMapTileAdapter.SAMPLE_TILE_SIZE.y
+	dock._floor_source_spin.value = 4
+	dock._floor_atlas_x_spin.value = 0
+	dock._floor_atlas_y_spin.value = 0
+	dock._wall_source_spin.value = 5
+	dock._wall_atlas_x_spin.value = 1
+	dock._wall_atlas_y_spin.value = 0
+	var layer = HexTileMapLayer.new()
+	root.add_child(layer)
+	await process_frame
+
+	_assert_true(dock.apply_current_data_to_tile_map_layer(layer), "generation dock applies primary data to HexTileMapLayer")
+	_assert_true(layer.hex_map is HexMapResource, "HexTileMapLayer primary apply stores hex_map resource")
+	_assert_eq(layer.hex_map.orientation, HexMapResource.ORIENTATION_POINTY_TOP, "HexTileMapLayer primary apply stores orientation")
+	_assert_eq(layer.display_used_cell_count(), 2, "HexTileMapLayer primary apply redraws display cells")
+	_assert_eq(layer.floor_source_id, 4, "HexTileMapLayer primary apply stores floor source")
+	_assert_eq(layer.wall_source_id, 5, "HexTileMapLayer primary apply stores wall source")
+	_assert_eq(layer.display_atlas_coords_for_hex(HexVector.zero()), Vector2i(0, 0), "HexTileMapLayer primary apply uses floor atlas")
+	_assert_eq(layer.display_atlas_coords_for_hex(HexVector.q_axis()), Vector2i(1, 0), "HexTileMapLayer primary apply uses wall atlas")
+	var tile_set = layer.display_tile_set()
+	_assert_true(tile_set.has_source(4), "HexTileMapLayer primary apply creates floor source")
+	_assert_true(tile_set.has_source(5), "HexTileMapLayer primary apply creates wall source")
+	_assert_eq(tile_set.tile_offset_axis, TileSet.TILE_OFFSET_AXIS_HORIZONTAL, "HexTileMapLayer primary apply configures pointy-top axis")
+
+	layer.queue_free()
+	dock.queue_free()
+	await process_frame
+
+
 func _test_generation_dock_swaps_tile_size_on_orientation_change() -> void:
 	var dock = await _new_ready_dock()
 
@@ -1483,6 +1580,34 @@ func _test_generation_dock_swaps_tile_size_on_orientation_change() -> void:
 	dock._on_tile_orientation_changed(0)
 	_assert_eq(Vector2i(int(dock._tile_width_spin.value), int(dock._tile_height_spin.value)), Vector2i(80, 72), "flat-top switch swaps tile size controls back")
 
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_lists_hex_tile_map_layer_common_target() -> void:
+	var dock = await _new_ready_dock()
+
+	var scene_root = Node2D.new()
+	scene_root.name = "SceneRoot"
+	root.add_child(scene_root)
+	var plain_layer = TileMapLayer.new()
+	plain_layer.name = "PlainLayer"
+	scene_root.add_child(plain_layer)
+	var hex_layer = HexTileMapLayer.new()
+	hex_layer.name = "RuntimeMap"
+	scene_root.add_child(hex_layer)
+	await process_frame
+
+	dock.refresh_tile_layer_options(scene_root)
+	_assert_eq(dock._tile_layer_option.item_count, 4, "generation dock lists Auto, plain target, HexTileMapLayer, and add new layer")
+	_assert_eq(dock._tile_layer_option.get_item_text(1), "PlainLayer", "generation dock keeps plain target label")
+	_assert_eq(dock._tile_layer_option.get_item_text(2), "RuntimeMap (HexTileMapLayer)", "generation dock identifies HexTileMapLayer target")
+	dock._tile_layer_option.select(2)
+	_assert_eq(dock.selected_tile_map_layer(), hex_layer, "generation dock returns selected HexTileMapLayer")
+	dock._set_editor_selected_tile_map_layer_for_test(hex_layer)
+	_assert_eq(dock._find_editor_selected_tile_map_layer(), hex_layer, "generation dock accepts editor-selected HexTileMapLayer")
+
+	scene_root.queue_free()
 	dock.queue_free()
 	await process_frame
 
@@ -1581,11 +1706,11 @@ func _test_generation_dock_adds_new_target_layer() -> void:
 	await process_frame
 
 	var added_layer = dock.selected_tile_map_layer()
-	_assert_true(added_layer is TileMapLayer, "add new layer creates a TileMapLayer")
-	_assert_eq(added_layer.get_parent(), scene_root, "add new layer places TileMapLayer under scene root")
+	_assert_true(added_layer is HexTileMapLayer, "add new layer creates a HexTileMapLayer")
+	_assert_eq(added_layer.get_parent(), scene_root, "add new layer places HexTileMapLayer under scene root")
 	_assert_true(String(added_layer.name).begins_with("HexMapLayer"), "add new layer uses HexMapLayer base name")
 	_assert_eq(dock._tile_layer_option.selected, 1, "add new layer selects the created Target")
-	_assert_eq(dock._find_editor_selected_tile_map_layer(), added_layer, "add new layer selects the created TileMapLayer")
+	_assert_eq(dock._find_editor_selected_tile_map_layer(), added_layer, "add new layer selects the created HexTileMapLayer")
 
 	scene_root.queue_free()
 	dock.queue_free()
@@ -1643,7 +1768,19 @@ func _test_generation_dock_sets_up_sample_tiles() -> void:
 	_assert_eq(int(dock._wall_source_spin.value), 0, "sample tile setup sets wall source")
 	_assert_eq(Vector2i(int(dock._wall_atlas_x_spin.value), int(dock._wall_atlas_y_spin.value)), Vector2i(1, 0), "sample tile setup sets wall atlas")
 
+	var hex_layer = HexTileMapLayer.new()
+	root.add_child(hex_layer)
+	await process_frame
+	_assert_true(dock.setup_sample_tiles_on_tile_map_layer(hex_layer), "generation dock configures sample tiles on HexTileMapLayer")
+	var hex_tile_set = hex_layer.display_tile_set()
+	_assert_true(hex_tile_set != null, "HexTileMapLayer sample tile setup creates display TileSet")
+	_assert_eq(hex_tile_set.tile_offset_axis, TileSet.TILE_OFFSET_AXIS_HORIZONTAL, "HexTileMapLayer sample tile setup follows dock orientation")
+	_assert_true(hex_tile_set.has_source(0), "HexTileMapLayer sample tile setup creates source 0")
+	_assert_eq(hex_layer.floor_atlas_coords, Vector2i.ZERO, "HexTileMapLayer sample tile setup stores floor atlas")
+	_assert_eq(hex_layer.wall_atlas_coords, Vector2i(1, 0), "HexTileMapLayer sample tile setup stores wall atlas")
+
 	layer.free()
+	hex_layer.queue_free()
 	dock.queue_free()
 	await process_frame
 
@@ -1718,6 +1855,44 @@ func _test_generation_dock_generate_auto_applies_current_map() -> void:
 	_assert_eq(layer.get_used_cells().size(), 2, "generation dock auto applies regenerated cells")
 	_assert_eq(layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i.ZERO, "auto apply writes floor tile atlas")
 	_assert_eq(layer.get_cell_atlas_coords(Vector2i(1, 0)), Vector2i.ZERO, "auto apply writes every generated floor cell")
+
+	scene_root.queue_free()
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_generate_auto_applies_hex_tile_map_layer() -> void:
+	var dock = await _new_ready_dock()
+
+	dock._generate_option.select(HexMapGenDock.GENERATE_SIMPLE)
+	dock._shape_option_simple.select(HexMapGenDock.SHAPE_RECTANGLE)
+	dock._rect_width_spin.set_value_no_signal(2)
+	dock._rect_height_spin.set_value_no_signal(1)
+	dock._wall_prob_slider.set_value_no_signal(0.0)
+	dock._refresh_controls()
+
+	var scene_root = Node2D.new()
+	scene_root.name = "SceneRoot"
+	root.add_child(scene_root)
+	var layer = HexTileMapLayer.new()
+	layer.name = "HexAutoApplyLayer"
+	scene_root.add_child(layer)
+	await process_frame
+
+	dock.refresh_tile_layer_options(scene_root)
+	_assert_eq(dock._tile_layer_option.item_count, 3, "generation dock lists Auto, HexTileMapLayer target, and add new layer")
+	_assert_eq(dock._tile_layer_option.get_item_text(1), "HexAutoApplyLayer (HexTileMapLayer)", "generation dock labels HexTileMapLayer auto apply target")
+	dock._tile_layer_option.select(1)
+
+	var generation_id = dock._generation_id
+	dock._on_generate_pressed()
+	await _wait_for_progress_controls(dock, "HexTileMapLayer auto apply Generate button generation")
+	await _wait_for_generation(dock, "HexTileMapLayer auto apply Generate button generation")
+	_assert_eq(dock._generation_id, generation_id + 1, "generation dock auto apply HexTileMapLayer generation succeeds")
+	_assert_true(layer.hex_map is HexMapResource, "generation dock auto apply stores HexTileMapLayer resource")
+	_assert_eq(layer.display_used_cell_count(), 2, "generation dock auto applies regenerated cells to HexTileMapLayer")
+	_assert_eq(layer.display_atlas_coords_for_hex(HexVector.zero()), Vector2i.ZERO, "HexTileMapLayer auto apply writes floor tile atlas")
+	_assert_eq(layer.display_atlas_coords_for_hex(HexVector.q_axis()), Vector2i.ZERO, "HexTileMapLayer auto apply writes every generated floor cell")
 
 	scene_root.queue_free()
 	dock.queue_free()

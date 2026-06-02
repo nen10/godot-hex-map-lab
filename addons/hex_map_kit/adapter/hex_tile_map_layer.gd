@@ -263,6 +263,76 @@ func display_tile_set_present() -> bool:
 	return _tile_map != null and _tile_map.tile_set != null
 
 
+func display_tile_set() -> TileSet:
+	_ensure_tile_map_layers()
+	_configure_tile_map()
+	return _tile_map.tile_set if _tile_map != null else null
+
+
+func ensure_display_tiles(
+	tile_size: Vector2i = HexMapTileAdapter.SAMPLE_TILE_SIZE,
+	floor_source: int = 0,
+	floor_atlas: Vector2i = Vector2i.ZERO,
+	wall_source: int = 0,
+	wall_atlas: Vector2i = Vector2i(1, 0)
+) -> bool:
+	floor_source_id = floor_source
+	floor_atlas_coords = floor_atlas
+	wall_source_id = wall_source
+	wall_atlas_coords = wall_atlas
+	_ensure_tile_map_layers()
+	if _tile_map.tile_set == null:
+		_tile_map.tile_set = TileSet.new()
+	HexMapTileAdapter.configure_hex_tile_set(_tile_map.tile_set, flat_top, tile_size)
+	var ok = _ensure_display_tiles_available(tile_size)
+	_sync_loop_tile_map()
+	if ok and _data != null:
+		_redraw()
+	return ok
+
+
+func configure_atlas_display_tiles(
+	atlas_path: String,
+	source_id: int = 0,
+	tile_size: Vector2i = HexMapTileAdapter.SAMPLE_TILE_SIZE,
+	floor_atlas: Vector2i = Vector2i.ZERO,
+	wall_atlas: Vector2i = Vector2i(1, 0)
+) -> bool:
+	return configure_display_tiles_from_texture(
+		HexMapTileAdapter.load_tile_texture(atlas_path),
+		source_id,
+		source_id,
+		tile_size,
+		floor_atlas,
+		wall_atlas
+	)
+
+
+func configure_display_tiles_from_texture(
+	texture: Texture2D,
+	floor_source: int = 0,
+	wall_source: int = 0,
+	tile_size: Vector2i = HexMapTileAdapter.SAMPLE_TILE_SIZE,
+	floor_atlas: Vector2i = Vector2i.ZERO,
+	wall_atlas: Vector2i = Vector2i(1, 0)
+) -> bool:
+	if texture == null:
+		return false
+	floor_source_id = floor_source
+	floor_atlas_coords = floor_atlas
+	wall_source_id = wall_source
+	wall_atlas_coords = wall_atlas
+	_ensure_tile_map_layers()
+	if _tile_map.tile_set == null:
+		_tile_map.tile_set = TileSet.new()
+	HexMapTileAdapter.configure_hex_tile_set(_tile_map.tile_set, flat_top, tile_size)
+	var ok = _configure_display_tile_sources(texture, tile_size)
+	_sync_loop_tile_map()
+	if ok and _data != null:
+		_redraw()
+	return ok
+
+
 func display_used_cell_count() -> int:
 	var count := 0
 	if _tile_map != null:
@@ -579,7 +649,7 @@ func _set_tile_cell_for_hex(tile_map: TileMapLayer, map_cell: Vector2i, hex: Hex
 
 
 func _ensure_tile_map_layers() -> void:
-	for child in get_children():
+	for child in get_children(true):
 		if child is TileMapLayer and child.name == LOOP_TILE_MAP_NAME:
 			_loop_tile_map = child
 		elif child is TileMapLayer and _tile_map == null:
@@ -598,9 +668,88 @@ func _configure_tile_map() -> void:
 	if _tile_map.tile_set == null:
 		_tile_map.tile_set = TileSet.new()
 	HexMapTileAdapter.configure_hex_tile_set(_tile_map.tile_set, flat_top)
+	_ensure_display_tiles_available()
+	_sync_loop_tile_map()
+
+
+func _sync_loop_tile_map() -> void:
 	if _loop_tile_map != null:
 		_loop_tile_map.tile_set = _tile_map.tile_set
 		_loop_tile_map.position = _tile_map.position
+
+
+func _ensure_display_tiles_available(tile_size: Vector2i = HexMapTileAdapter.SAMPLE_TILE_SIZE) -> bool:
+	if _tile_map == null:
+		return false
+	if _tile_map.tile_set == null:
+		_tile_map.tile_set = TileSet.new()
+	if _display_tiles_available(_tile_map.tile_set):
+		return true
+	var texture := HexMapTileAdapter.load_sample_tile_texture()
+	if texture == null:
+		return false
+	if tile_size.x <= 0 or tile_size.y <= 0:
+		tile_size = HexMapTileAdapter.SAMPLE_TILE_SIZE
+	return _configure_display_tile_sources(texture, tile_size)
+
+
+func _display_tiles_available(tile_set: TileSet) -> bool:
+	return _tile_set_has_display_tile(tile_set, floor_source_id, floor_atlas_coords) \
+		and _tile_set_has_display_tile(tile_set, wall_source_id, wall_atlas_coords)
+
+
+func _tile_set_has_display_tile(tile_set: TileSet, source_id: int, atlas_coords: Vector2i) -> bool:
+	if tile_set == null or source_id < 0 or not tile_set.has_source(source_id):
+		return false
+	var source = tile_set.get_source(source_id)
+	if source is TileSetAtlasSource:
+		return (source as TileSetAtlasSource).has_tile(atlas_coords)
+	return true
+
+
+func _configure_display_tile_sources(texture: Texture2D, tile_size: Vector2i) -> bool:
+	if _tile_map == null or _tile_map.tile_set == null or texture == null:
+		return false
+	if not _texture_supports_atlas_tile(texture, tile_size, floor_atlas_coords) \
+		or not _texture_supports_atlas_tile(texture, tile_size, wall_atlas_coords):
+		return false
+	var ok := true
+	if floor_source_id == wall_source_id:
+		ok = HexMapTileAdapter.configure_atlas_tile_set(
+			_tile_map.tile_set,
+			texture,
+			flat_top,
+			tile_size,
+			floor_source_id,
+			[floor_atlas_coords, wall_atlas_coords]
+		)
+	else:
+		ok = HexMapTileAdapter.configure_atlas_tile_set(
+			_tile_map.tile_set,
+			texture,
+			flat_top,
+			tile_size,
+			floor_source_id,
+			[floor_atlas_coords]
+		)
+		ok = HexMapTileAdapter.configure_atlas_tile_set(
+			_tile_map.tile_set,
+			texture,
+			flat_top,
+			tile_size,
+			wall_source_id,
+			[wall_atlas_coords]
+		) and ok
+	return ok
+
+
+func _texture_supports_atlas_tile(texture: Texture2D, tile_size: Vector2i, atlas_coords: Vector2i) -> bool:
+	if texture == null or tile_size.x <= 0 or tile_size.y <= 0:
+		return false
+	if atlas_coords.x < 0 or atlas_coords.y < 0:
+		return false
+	return (atlas_coords.x + 1) * tile_size.x <= texture.get_width() \
+		and (atlas_coords.y + 1) * tile_size.y <= texture.get_height()
 
 
 static func _normalize_data(data) -> HexMapData:

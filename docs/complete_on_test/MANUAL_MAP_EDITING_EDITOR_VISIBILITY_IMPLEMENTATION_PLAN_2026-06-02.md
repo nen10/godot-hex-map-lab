@@ -221,15 +221,19 @@ func remove_highlight(hex: HexVector) -> void
 2. `_test_map_edit_tool_target_readiness_reports_hex_tile_map_layer_loop_state()`
    - `HexTileMapLayer` target を設定し、loop display mode と floor / wall atlas を検証する。
 
-3. `_test_map_edit_tool_last_edit_trace_distinguishes_document_and_redraw()`
+3. `_test_map_edit_tool_preserves_plain_target_tile_settings_when_redrawing()`
+   - plain `TileMapLayer` target に既存の floor / wall atlas を描画してから manual edit を行う。
+   - Hex Map Edit の redraw が既存 target の floor / wall atlas を保持し、click後の実 cell atlas が wall atlas へ変わることを検証する。
+
+4. `_test_map_edit_tool_last_edit_trace_distinguishes_document_and_redraw()`
    - viewport input route から wall / floor click を行う。
    - `document_changed == true`、`target_applied == true`、`display_changed == true`、before / after wall state を検証する。
 
-4. `_test_map_edit_tool_last_edit_trace_reports_target_apply_failure()`
+5. `_test_map_edit_tool_last_edit_trace_reports_target_apply_failure()`
    - document はあるが target が invalid になる fixture を作る。
    - mutation と apply failure の表示境界を検証する。
 
-5. `_test_map_edit_tool_persistence_checkpoint_reports_save_and_export_counts()`
+6. `_test_map_edit_tool_persistence_checkpoint_reports_save_and_export_counts()`
    - save document と export map を実行し、path、resource class、cell count、wall count を検証する。
 
 ### `tests/test_hex_tile_map_layer.gd`

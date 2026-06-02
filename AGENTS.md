@@ -15,6 +15,7 @@
 
 作業の一貫性ではなく目的の一貫性をとる。
 作業の効率化のために簡単にできることがあれば記録したりtoolを作成してよい。
+Godot開発におけるノウハウを随時 `docs/knowledge/DEV_GODOT.md` にdocumentationしてください。
 
 ## 実行メモ
 

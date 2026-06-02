@@ -64,6 +64,7 @@ var _target_status_detail: Dictionary = {}
 var _last_persistence_status: Dictionary = {}
 var _pending_viewport_trace: Dictionary = {}
 var _last_highlight_hex = null
+var _plain_target_tile_options: Dictionary = {}
 var _last_applied_to_target := false
 var _target_selection_sync_request_count := 0
 var _last_selection_sync_target: Node = null
@@ -108,6 +109,7 @@ func _ready() -> void:
 
 func set_document(document: HexMapDocumentResource) -> void:
 	_document = document
+	_refresh_plain_target_tile_options_from_document(_document)
 	_sync_resource_pickers()
 	_refresh_state_labels()
 
@@ -118,6 +120,7 @@ func document() -> HexMapDocumentResource:
 
 func import_map_resource(resource: HexMapResource) -> HexMapDocumentResource:
 	_document = HexMapDocumentAdapter.from_map_resource(resource)
+	_refresh_plain_target_tile_options_from_document(_document)
 	_sync_resource_pickers()
 	_refresh_state_labels()
 	return _document
@@ -147,6 +150,7 @@ func export_map_resource() -> HexMapResource:
 
 func set_target_layer(layer: Node) -> void:
 	_target_layer = layer
+	_refresh_plain_target_tile_options_from_document(_document)
 	if _target_option != null:
 		_select_target_layer_option(layer)
 	_select_target_in_editor_if_possible()
@@ -250,6 +254,7 @@ func load_document(path: String = "") -> bool:
 	_document = resource
 	set_document_path(actual_path)
 	_sync_resource_pickers()
+	_refresh_plain_target_tile_options_from_document(_document)
 	_apply_document_to_target()
 	_refresh_state_labels()
 	_set_status("Loaded document.")
@@ -330,6 +335,7 @@ func refresh_target_layer_options(root_node: Node = null) -> void:
 			should_sync_target = true
 	_target_option.select(selected_index)
 	_target_layer = _resolve_target_layer()
+	_refresh_plain_target_tile_options_from_document(_document)
 	if should_sync_target and _target_layer != null and is_instance_valid(_target_layer):
 		_select_target_in_editor_if_possible()
 	_refresh_state_labels()
@@ -388,6 +394,7 @@ func _apply_hit(hit: Dictionary) -> bool:
 	var after = HexMapDocumentAdapter.duplicate_document(_document)
 	var hex = hit["hex"]
 	var visual_hex = hit.get("visual_hex", hex)
+	_refresh_plain_target_tile_options_from_document(before)
 	var target_used_cells_before = _target_used_cell_count()
 	var display_before = _target_display_state(hex, visual_hex)
 	_apply_mode_to_document(after, hex)
@@ -623,13 +630,18 @@ func _apply_document_to_target() -> bool:
 		_refresh_target_status_detail()
 		return false
 	if _target_layer is HexTileMapLayer:
-		(_target_layer as HexTileMapLayer).apply_map(HexMapDocumentAdapter.to_map_resource(_document))
-		(_target_layer as HexTileMapLayer).refresh_loop_display()
+		var hex_layer := _target_layer as HexTileMapLayer
+		hex_layer.hex_map = HexMapDocumentAdapter.to_map_resource(_document)
+		hex_layer.refresh_loop_display()
 		_refresh_last_hit_display()
 		_last_applied_to_target = true
 		_refresh_target_status_detail()
 		return true
-	HexMapDocumentAdapter.apply_to_tile_map_layer(_document, _target_layer)
+	HexMapDocumentAdapter.apply_to_tile_map_layer(
+		_document,
+		_target_layer,
+		_plain_target_tile_options_for_apply()
+	)
 	_last_applied_to_target = true
 	_refresh_target_status_detail()
 	return true
@@ -934,6 +946,52 @@ func _debug_viewport_input(stage: String, viewport_pos: Vector2, scene_pos: Vect
 	)
 
 
+func _plain_target_tile_options_for_apply() -> Dictionary:
+	var options = {
+		"floor_source_id": 0,
+		"floor_atlas_coords": Vector2i.ZERO,
+		"wall_source_id": 0,
+		"wall_atlas_coords": Vector2i(1, 0),
+		"clear_layer": true,
+	}
+	for key in _plain_target_tile_options:
+		options[key] = _plain_target_tile_options[key]
+	return options
+
+
+func _refresh_plain_target_tile_options_from_document(document) -> void:
+	if _target_layer == null or not is_instance_valid(_target_layer):
+		return
+	if not (_target_layer is TileMapLayer) or _target_layer is HexTileMapLayer:
+		return
+	if document == null or document.map == null:
+		return
+	var tile_layer := _target_layer as TileMapLayer
+	var data = document.map.to_map_data()
+	var flat_top = document.map.is_flat_top()
+	var floor_entry = _first_display_tile_entry_for_hexes(tile_layer, data.floor_cells(), flat_top)
+	if not floor_entry.is_empty():
+		_plain_target_tile_options["floor_source_id"] = int(floor_entry["source_id"])
+		_plain_target_tile_options["floor_atlas_coords"] = floor_entry["atlas_coords"]
+	var wall_entry = _first_display_tile_entry_for_hexes(tile_layer, data.walls, flat_top)
+	if not wall_entry.is_empty():
+		_plain_target_tile_options["wall_source_id"] = int(wall_entry["source_id"])
+		_plain_target_tile_options["wall_atlas_coords"] = wall_entry["atlas_coords"]
+
+
+func _first_display_tile_entry_for_hexes(tile_layer: TileMapLayer, hexes: Array, flat_top: bool) -> Dictionary:
+	for hex in hexes:
+		var map_cell = HexMapTileAdapter.vector_to_map_cell(hex, flat_top)
+		var source_id = tile_layer.get_cell_source_id(map_cell)
+		if source_id < 0:
+			continue
+		return {
+			"source_id": source_id,
+			"atlas_coords": tile_layer.get_cell_atlas_coords(map_cell),
+		}
+	return {}
+
+
 func _refresh_target_status_detail() -> void:
 	_target_status_detail = _build_target_readiness_status()
 	if _target_status_label != null:
@@ -968,7 +1026,12 @@ func _build_target_readiness_status() -> Dictionary:
 		status["loop_display_mode"] = hex_layer.loop_display_mode
 	elif _target_layer is TileMapLayer:
 		var tile_layer := _target_layer as TileMapLayer
+		var options = _plain_target_tile_options_for_apply()
 		status["tile_set_present"] = tile_layer.tile_set != null
+		status["floor_source_id"] = int(options.get("floor_source_id", 0))
+		status["floor_atlas_coords"] = options.get("floor_atlas_coords", Vector2i.ZERO)
+		status["wall_source_id"] = int(options.get("wall_source_id", 0))
+		status["wall_atlas_coords"] = options.get("wall_atlas_coords", Vector2i(1, 0))
 		status["used_cell_count"] = tile_layer.get_used_cells().size()
 	else:
 		status["message"] = "Target is not a TileMapLayer."

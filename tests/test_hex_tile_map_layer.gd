@@ -34,6 +34,8 @@ func _init() -> void:
 
 func _run() -> void:
 	await _test_apply_map_and_cell_editing()
+	await _test_hex_map_resource_assignment_creates_visible_tiles()
+	await _test_ensure_display_tiles_uses_custom_floor_wall_sources()
 	await _test_apply_map_uses_resource_orientation()
 	await _test_coordinate_roundtrips()
 	await _test_path_highlight_and_connectivity_helpers()
@@ -81,6 +83,58 @@ func _test_apply_map_and_cell_editing() -> void:
 	_assert_true(layer.is_wall(HexVector.zero()), "set_wall changes a floor to wall")
 	layer.set_wall(HexVector.apply_basis(9, 0, 9))
 	_assert_eq(layer.get_floor_cells().size(), 5, "editing ignores cells outside the map")
+
+	layer.queue_free()
+	await process_frame
+
+
+func _test_hex_map_resource_assignment_creates_visible_tiles() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	data.set_walls([HexVector.q_axis()])
+	var layer = HexTileMapLayer.new()
+	layer.hex_map = HexMapResource.from_map_data(data)
+	root.add_child(layer)
+	await process_frame
+
+	var tile_set = layer.display_tile_set()
+	_assert_true(layer.display_tile_set_present(), "hex_map assignment creates display TileSet")
+	_assert_true(tile_set.has_source(0), "hex_map assignment creates sample atlas source")
+	var source = tile_set.get_source(0)
+	_assert_true(source is TileSetAtlasSource, "hex_map assignment creates atlas source")
+	_assert_true((source as TileSetAtlasSource).has_tile(Vector2i.ZERO), "hex_map assignment creates floor atlas tile")
+	_assert_true((source as TileSetAtlasSource).has_tile(Vector2i(1, 0)), "hex_map assignment creates wall atlas tile")
+	_assert_eq(layer.display_used_cell_count(), 2, "hex_map assignment redraws display cells")
+	_assert_eq(layer.display_atlas_coords_for_hex(HexVector.zero()), Vector2i.ZERO, "hex_map assignment displays floor atlas")
+	_assert_eq(layer.display_atlas_coords_for_hex(HexVector.q_axis()), Vector2i(1, 0), "hex_map assignment displays wall atlas")
+
+	layer.queue_free()
+	await process_frame
+
+
+func _test_ensure_display_tiles_uses_custom_floor_wall_sources() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	data.set_walls([HexVector.q_axis()])
+	var layer = HexTileMapLayer.new()
+	root.add_child(layer)
+	await process_frame
+
+	_assert_true(
+		layer.ensure_display_tiles(
+			HexMapTileAdapter.SAMPLE_TILE_SIZE,
+			4,
+			Vector2i(0, 0),
+			5,
+			Vector2i(1, 0)
+		),
+		"ensure_display_tiles creates custom display tiles"
+	)
+	layer.apply_map(HexMapResource.from_map_data(data, HexMapResource.ORIENTATION_POINTY_TOP))
+	var tile_set = layer.display_tile_set()
+	_assert_true(tile_set.has_source(4), "ensure_display_tiles creates floor source")
+	_assert_true(tile_set.has_source(5), "ensure_display_tiles creates wall source")
+	_assert_eq(tile_set.tile_offset_axis, TileSet.TILE_OFFSET_AXIS_HORIZONTAL, "custom display tiles follow resource orientation")
+	_assert_eq(layer.display_atlas_coords_for_hex(HexVector.zero()), Vector2i(0, 0), "custom display tiles use floor atlas")
+	_assert_eq(layer.display_atlas_coords_for_hex(HexVector.q_axis()), Vector2i(1, 0), "custom display tiles use wall atlas")
 
 	layer.queue_free()
 	await process_frame
