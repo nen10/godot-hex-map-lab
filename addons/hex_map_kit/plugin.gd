@@ -13,8 +13,6 @@ func _enter_tree() -> void:
 
 	_edit_tool = preload("res://addons/hex_map_kit/editor/hex_map_edit_tool.gd").new()
 	_edit_tool.name = "Hex Map Edit"
-	if _edit_tool.has_method("set_undo_redo"):
-		_edit_tool.set_undo_redo(EditorInterface.get_editor_undo_redo())
 	add_control_to_dock(DOCK_SLOT_LEFT_BL, _edit_tool)
 
 	_inspector_plugin = preload("res://addons/hex_map_kit/editor/hex_map_resource_inspector.gd").new()

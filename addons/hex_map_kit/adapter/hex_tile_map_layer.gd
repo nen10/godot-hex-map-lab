@@ -20,6 +20,17 @@ const LOOP_DISPLAY_TORIC := 1
 const LOOP_DISPLAY_INFINITE := 2
 const BASE_TILE_MAP_NAME := "TileMapLayer"
 const LOOP_TILE_MAP_NAME := "LoopTileMapLayer"
+const OVERLAY_NAME := "OverlayLayer"
+
+
+class OverlayCanvas:
+	extends Node2D
+
+	var layer: Node = null
+
+	func _draw() -> void:
+		if layer != null and is_instance_valid(layer) and layer.has_method("_draw_overlay"):
+			layer._draw_overlay(self)
 
 
 @export var hex_map: HexMapResource:
@@ -53,28 +64,29 @@ const LOOP_TILE_MAP_NAME := "LoopTileMapLayer"
 		loop_display_enabled = v
 		if is_node_ready():
 			refresh_loop_display()
-			queue_redraw()
+			_queue_visual_redraw()
 @export_enum("None", "Toric", "Infinite") var loop_display_mode: int = LOOP_DISPLAY_NONE:
 	set(v):
 		loop_display_mode = v
 		if is_node_ready():
 			refresh_loop_display()
-			queue_redraw()
+			_queue_visual_redraw()
 @export var loop_display_margin: int = 1:
 	set(v):
 		loop_display_margin = max(0, v)
 		if is_node_ready():
 			refresh_loop_display()
-			queue_redraw()
+			_queue_visual_redraw()
 @export var loop_display_rect: Rect2 = Rect2():
 	set(v):
 		loop_display_rect = v
 		if is_node_ready():
 			refresh_loop_display()
-			queue_redraw()
+			_queue_visual_redraw()
 
 var _tile_map: TileMapLayer
 var _loop_tile_map: TileMapLayer
+var _overlay: OverlayCanvas
 var _data = null
 var _highlights: Dictionary = {}
 var _display_path: Array = []
@@ -111,10 +123,16 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _draw() -> void:
+	if _overlay != null:
+		return
+	_draw_overlay(self)
+
+
+func _draw_overlay(canvas: Node2D) -> void:
 	if _tile_map == null:
 		return
 
-	_draw_loop_cell_outlines()
+	_draw_loop_cell_outlines(canvas)
 
 	for key in _highlights:
 		var hex = _highlights[key]["hex"]
@@ -122,21 +140,21 @@ func _draw() -> void:
 		for visual_hex in _visual_hexes_for_draw(hex):
 			var local = hex_to_local(visual_hex)
 			var tile_center = _tile_map.position + local
-			_draw_hex_highlight(tile_center, color)
+			_draw_hex_highlight(canvas, tile_center, color)
 
-	_draw_document_payload_markers()
+	_draw_document_payload_markers(canvas)
 
 	if _display_path.size() > 1:
 		var points := PackedVector2Array()
 		for hex in _display_path:
 			points.append(_tile_map.position + hex_to_local(hex))
-		draw_polyline(points, _path_color, 4.0, true)
+		canvas.draw_polyline(points, _path_color, 4.0, true)
 		if points.size() > 0:
-			draw_circle(points[0], 5.0, Color(0.12, 0.62, 0.42))
-			draw_circle(points[points.size() - 1], 5.0, Color(0.88, 0.24, 0.24))
+			canvas.draw_circle(points[0], 5.0, Color(0.12, 0.62, 0.42))
+			canvas.draw_circle(points[points.size() - 1], 5.0, Color(0.88, 0.24, 0.24))
 
 
-func _draw_hex_highlight(center: Vector2, color: Color) -> void:
+func _draw_hex_highlight(canvas: Node2D, center: Vector2, color: Color) -> void:
 	var points: PackedVector2Array = []
 	var rotation = 0.0 if flat_top else 30.0
 	for index in range(6):
@@ -144,13 +162,14 @@ func _draw_hex_highlight(center: Vector2, color: Color) -> void:
 		points.append(center + Vector2(cos(angle), sin(angle)) * hex_size)
 	var outline = points
 	outline.append(points[0])
-	draw_polyline(outline, color, 2.5)
+	canvas.draw_polyline(outline, color, 2.5)
 
 
 func apply_map(resource: HexMapResource) -> void:
 	if resource == null:
 		return
 	flat_top = resource.is_flat_top()
+	_sync_hex_size_for_current_display()
 	_data = resource.to_map_data()
 	_data = _normalize_data(_data)
 	_clear_document_payload_display()
@@ -275,17 +294,17 @@ func highlight_cell(hex: HexVector, color: Color) -> void:
 	if _data == null or not has_cell(hex):
 		return
 	_highlights[hex.key()] = {"hex": hex, "color": color}
-	queue_redraw()
+	_queue_visual_redraw()
 
 
 func remove_highlight(hex: HexVector) -> void:
 	if _highlights.erase(hex.key()):
-		queue_redraw()
+		_queue_visual_redraw()
 
 
 func clear_highlights() -> void:
 	_highlights.clear()
-	queue_redraw()
+	_queue_visual_redraw()
 
 
 func display_tile_set_present() -> bool:
@@ -305,6 +324,7 @@ func ensure_display_tiles(
 	wall_source: int = 0,
 	wall_atlas: Vector2i = Vector2i(1, 0)
 ) -> bool:
+	_sync_hex_size_from_tile_size(tile_size)
 	floor_source_id = floor_source
 	floor_atlas_coords = floor_atlas
 	wall_source_id = wall_source
@@ -347,6 +367,7 @@ func configure_display_tiles_from_texture(
 ) -> bool:
 	if texture == null:
 		return false
+	_sync_hex_size_from_tile_size(tile_size)
 	floor_source_id = floor_source
 	floor_atlas_coords = floor_atlas
 	wall_source_id = wall_source
@@ -447,18 +468,18 @@ func find_path(start: HexVector, goal: HexVector) -> Array:
 func draw_path(path: Array, color: Color = Color(0.12, 0.48, 0.88, 0.90)) -> void:
 	_display_path = path
 	_path_color = color
-	queue_redraw()
+	_queue_visual_redraw()
 
 
 func draw_loop_path(path: Array, color: Color = Color(0.12, 0.48, 0.88, 0.90)) -> void:
 	_display_path = visual_path_for_canonical_path(path)
 	_path_color = color
-	queue_redraw()
+	_queue_visual_redraw()
 
 
 func clear_path() -> void:
 	_display_path.clear()
-	queue_redraw()
+	_queue_visual_redraw()
 
 
 func is_map_connected() -> bool:
@@ -629,7 +650,7 @@ func _visual_hexes_for_draw(hex: HexVector) -> Array:
 	return [hex]
 
 
-func _draw_loop_cell_outlines() -> void:
+func _draw_loop_cell_outlines(canvas: Node2D) -> void:
 	if not loop_display_enabled or not _uses_toric_visuals() or _data == null:
 		return
 	var rect = _effective_loop_display_rect()
@@ -638,10 +659,10 @@ func _draw_loop_cell_outlines() -> void:
 		for visual_hex in visual_representatives_for_cell(cell, rect, loop_display_margin):
 			if visual_hex.key() == cell.key():
 				continue
-			_draw_hex_highlight(_tile_map.position + hex_to_local(visual_hex), duplicate_color)
+			_draw_hex_highlight(canvas, _tile_map.position + hex_to_local(visual_hex), duplicate_color)
 
 
-func _draw_document_payload_markers() -> void:
+func _draw_document_payload_markers(canvas: Node2D) -> void:
 	if _data == null:
 		return
 	var object_color := Color(0.10, 0.60, 0.82, 0.92)
@@ -653,7 +674,7 @@ func _draw_document_payload_markers() -> void:
 			continue
 		for visual_hex in _visual_hexes_for_draw(hex):
 			var center = _tile_map.position + hex_to_local(visual_hex)
-			draw_circle(center + Vector2(0.0, -hex_size * 0.24), maxf(3.0, hex_size * 0.13), object_color)
+			canvas.draw_circle(center + Vector2(0.0, -hex_size * 0.24), maxf(3.0, hex_size * 0.13), object_color)
 	for key in _label_markers_by_key:
 		var bucket: Dictionary = _label_markers_by_key[key]
 		var hex = bucket.get("hex", null)
@@ -662,7 +683,7 @@ func _draw_document_payload_markers() -> void:
 		for visual_hex in _visual_hexes_for_draw(hex):
 			var center = _tile_map.position + hex_to_local(visual_hex)
 			var marker_size = Vector2(maxf(7.0, hex_size * 0.42), maxf(3.0, hex_size * 0.12))
-			draw_rect(Rect2(center + Vector2(-marker_size.x * 0.5, hex_size * 0.18), marker_size), label_color)
+			canvas.draw_rect(Rect2(center + Vector2(-marker_size.x * 0.5, hex_size * 0.18), marker_size), label_color)
 
 
 func _effective_loop_display_rect() -> Rect2:
@@ -728,7 +749,7 @@ func _redraw() -> void:
 	for entry in HexMapTileAdapter.to_tile_entries(_data, true, true, flat_top):
 		_set_tile_cell_for_hex(_tile_map, entry["map_cell"], entry["vector"])
 	refresh_loop_display()
-	queue_redraw()
+	_queue_visual_redraw()
 
 
 func _update_tile(hex: HexVector) -> void:
@@ -738,7 +759,7 @@ func _update_tile(hex: HexVector) -> void:
 	var map_cell = HexMapTileAdapter.vector_to_map_cell(normalized, flat_top)
 	_set_tile_cell_for_hex(_tile_map, map_cell, normalized)
 	refresh_loop_display()
-	queue_redraw()
+	_queue_visual_redraw()
 
 
 func _set_tile_cell_for_hex(tile_map: TileMapLayer, map_cell: Vector2i, hex: HexVector) -> void:
@@ -839,10 +860,37 @@ func _hex_from_entry_cell(entry: Dictionary) -> HexVector:
 	return HexVector.zero()
 
 
+func _sync_hex_size_from_tile_size(tile_size: Vector2i) -> void:
+	if tile_size.x <= 0 or tile_size.y <= 0:
+		return
+	var next_hex_size = float(tile_size.x) * 0.5 if flat_top else float(tile_size.y) * 0.5
+	if is_equal_approx(hex_size, next_hex_size):
+		return
+	hex_size = next_hex_size
+
+
+func _sync_hex_size_for_current_display() -> void:
+	var tile_size := HexMapTileAdapter.SAMPLE_TILE_SIZE
+	if _tile_map != null \
+		and _tile_map.tile_set != null \
+		and _tile_map.tile_set.tile_size.x > 0 \
+		and _tile_map.tile_set.tile_size.y > 0:
+		tile_size = _tile_map.tile_set.tile_size
+	_sync_hex_size_from_tile_size(tile_size)
+
+
+func _queue_visual_redraw() -> void:
+	queue_redraw()
+	if _overlay != null and is_instance_valid(_overlay):
+		_overlay.queue_redraw()
+
+
 func _ensure_tile_map_layers() -> void:
 	for child in get_children(true):
 		if child is TileMapLayer and child.name == LOOP_TILE_MAP_NAME:
 			_loop_tile_map = child
+		elif child is OverlayCanvas and child.name == OVERLAY_NAME:
+			_overlay = child
 		elif child is TileMapLayer and _tile_map == null:
 			_tile_map = child
 	if _tile_map == null:
@@ -853,6 +901,13 @@ func _ensure_tile_map_layers() -> void:
 		_loop_tile_map = TileMapLayer.new()
 		_loop_tile_map.name = LOOP_TILE_MAP_NAME
 		add_child(_loop_tile_map, false, INTERNAL_MODE_BACK)
+	if _overlay == null:
+		_overlay = OverlayCanvas.new()
+		_overlay.name = OVERLAY_NAME
+		add_child(_overlay, false, INTERNAL_MODE_FRONT)
+	_overlay.layer = self
+	_overlay.z_index = 100
+	_overlay.position = Vector2.ZERO
 
 
 func _configure_tile_map() -> void:
@@ -881,6 +936,7 @@ func _ensure_display_tiles_available(tile_size: Vector2i = HexMapTileAdapter.SAM
 		return false
 	if tile_size.x <= 0 or tile_size.y <= 0:
 		tile_size = HexMapTileAdapter.SAMPLE_TILE_SIZE
+	_sync_hex_size_from_tile_size(tile_size)
 	return _configure_display_tile_sources(texture, tile_size)
 
 

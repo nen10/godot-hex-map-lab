@@ -38,6 +38,7 @@ func _run() -> void:
 	await _test_hex_map_resource_assignment_creates_visible_tiles()
 	await _test_apply_document_payloads_create_visible_tile_and_markers()
 	await _test_ensure_display_tiles_uses_custom_floor_wall_sources()
+	await _test_display_tile_size_syncs_hex_size_and_overlay()
 	await _test_apply_map_uses_resource_orientation()
 	await _test_coordinate_roundtrips()
 	await _test_path_highlight_and_connectivity_helpers()
@@ -108,6 +109,7 @@ func _test_hex_map_resource_assignment_creates_visible_tiles() -> void:
 	_assert_eq(layer.display_used_cell_count(), 2, "hex_map assignment redraws display cells")
 	_assert_eq(layer.display_atlas_coords_for_hex(HexVector.zero()), Vector2i.ZERO, "hex_map assignment displays floor atlas")
 	_assert_eq(layer.display_atlas_coords_for_hex(HexVector.q_axis()), Vector2i(1, 0), "hex_map assignment displays wall atlas")
+	_assert_eq(layer.hex_size, float(HexMapTileAdapter.SAMPLE_TILE_SIZE.x) * 0.5, "hex_map assignment syncs flat-top sample tile size")
 
 	layer.queue_free()
 	await process_frame
@@ -177,6 +179,46 @@ func _test_ensure_display_tiles_uses_custom_floor_wall_sources() -> void:
 	await process_frame
 
 
+func _test_display_tile_size_syncs_hex_size_and_overlay() -> void:
+	var layer = HexTileMapLayer.new()
+	root.add_child(layer)
+	await process_frame
+
+	_assert_true(layer._overlay != null, "HexTileMapLayer creates a foreground overlay child")
+	_assert_eq(layer._overlay.name, HexTileMapLayer.OVERLAY_NAME, "foreground overlay has stable internal name")
+	_assert_eq(layer._overlay.layer, layer, "foreground overlay delegates drawing to HexTileMapLayer")
+	_assert_true(layer._overlay.z_index > layer._tile_map.z_index, "foreground overlay draws above base TileMapLayer")
+	var flat_image = Image.create(160, 64, false, Image.FORMAT_RGBA8)
+	flat_image.fill(Color.WHITE)
+	var flat_texture = ImageTexture.create_from_image(flat_image)
+	_assert_true(
+		layer.configure_display_tiles_from_texture(flat_texture, 0, 0, Vector2i(80, 64), Vector2i.ZERO, Vector2i(1, 0)),
+		"flat-top display tiles can be configured for size sync"
+	)
+	_assert_eq(layer.hex_size, 40.0, "flat-top display tile width syncs hex_size")
+	layer.apply_map(HexMapResource.from_map_data(HexMapData.rectangle(2, 1)))
+	var flat_target = HexVector.q_axis()
+	var flat_hit = layer.local_to_cell_hit(layer._tile_map.position + layer.hex_to_local(flat_target))
+	_assert_vector_eq(flat_hit["hex"], flat_target, "flat-top hit follows synced display hex size")
+	layer.highlight_cell(flat_target, Color(1.0, 0.0, 0.0))
+	_assert_true(layer._highlights.has(flat_target.key()), "highlight storage remains canonical with overlay drawing")
+
+	layer.flat_top = false
+	var pointy_image = Image.create(128, 72, false, Image.FORMAT_RGBA8)
+	pointy_image.fill(Color.WHITE)
+	var pointy_texture = ImageTexture.create_from_image(pointy_image)
+	_assert_true(
+		layer.configure_display_tiles_from_texture(pointy_texture, 0, 0, Vector2i(64, 72), Vector2i.ZERO, Vector2i(1, 0)),
+		"pointy-top display tiles can be configured for size sync"
+	)
+	_assert_eq(layer.hex_size, 36.0, "pointy-top display tile height syncs hex_size")
+	var pointy_hit = layer.local_to_cell_hit(layer._tile_map.position + layer.hex_to_local(flat_target))
+	_assert_vector_eq(pointy_hit["hex"], flat_target, "pointy-top hit follows synced display hex size")
+
+	layer.queue_free()
+	await process_frame
+
+
 func _test_apply_map_uses_resource_orientation() -> void:
 	var data = HexMapData.from_cells([
 		HexVector.zero(),
@@ -188,11 +230,13 @@ func _test_apply_map_uses_resource_orientation() -> void:
 
 	layer.apply_map(HexMapResource.from_map_data(data, HexMapResource.ORIENTATION_POINTY_TOP))
 	_assert_true(not layer.flat_top, "layer adopts pointy-top resource orientation")
+	_assert_eq(layer.hex_size, float(HexMapTileAdapter.SAMPLE_TILE_SIZE.y) * 0.5, "pointy-top resource syncs sample tile height")
 	_assert_eq(layer._tile_map.tile_set.tile_offset_axis, TileSet.TILE_OFFSET_AXIS_HORIZONTAL, "layer configures pointy-top TileSet axis")
 	_assert_true(layer._tile_map.get_used_cells().has(Vector2i(0, -1)), "layer uses pointy-top map cell")
 
 	layer.apply_map(HexMapResource.from_map_data(data, HexMapResource.ORIENTATION_FLAT_TOP))
 	_assert_true(layer.flat_top, "layer adopts flat-top resource orientation")
+	_assert_eq(layer.hex_size, float(HexMapTileAdapter.SAMPLE_TILE_SIZE.x) * 0.5, "flat-top resource syncs sample tile width")
 	_assert_eq(layer._tile_map.tile_set.tile_offset_axis, TileSet.TILE_OFFSET_AXIS_VERTICAL, "layer configures flat-top TileSet axis")
 	_assert_true(layer._tile_map.get_used_cells().has(Vector2i(1, -1)), "layer uses flat-top map cell")
 

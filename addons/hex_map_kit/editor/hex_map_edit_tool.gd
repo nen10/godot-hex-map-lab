@@ -114,6 +114,8 @@ var _status_label: Label
 var _target_status_label: Label
 var _last_edit_detail_label: Label
 var _persistence_detail_label: Label
+var _copy_debug_report_button: Button
+var _last_copied_debug_report := ""
 
 
 func _ready() -> void:
@@ -479,7 +481,8 @@ func forward_canvas_gui_input(event: InputEvent) -> bool:
 	var local_pos = _editor_viewport_event_to_target_local(mouse_event)
 	if local_pos == null:
 		return false
-	return apply_local_position(local_pos)
+	apply_local_position(local_pos)
+	return true
 
 
 func _build_ui() -> void:
@@ -664,6 +667,10 @@ func _build_ui() -> void:
 	root.add_child(_wrap_labeled("Last Edit", _last_edit_detail_label))
 	_persistence_detail_label = _new_detail_label()
 	root.add_child(_wrap_labeled("Save / Export", _persistence_detail_label))
+	_copy_debug_report_button = Button.new()
+	_copy_debug_report_button.text = "Copy Debug Report"
+	_copy_debug_report_button.pressed.connect(_on_copy_debug_report_pressed)
+	root.add_child(_copy_debug_report_button)
 	_refresh_target_status_detail()
 	_refresh_last_edit_detail()
 	_refresh_persistence_detail()
@@ -887,6 +894,50 @@ func _on_apply_default_tiles_pressed() -> void:
 		_set_status("No editable target layer.")
 
 
+func _on_copy_debug_report_pressed() -> void:
+	if copy_debug_report_to_clipboard():
+		_set_status("Copied debug report.")
+	else:
+		_set_status("Debug report is empty.")
+
+
+func copy_debug_report_to_clipboard() -> bool:
+	_last_copied_debug_report = debug_report_text()
+	if _last_copied_debug_report == "":
+		return false
+	DisplayServer.clipboard_set(_last_copied_debug_report)
+	return true
+
+
+func debug_report_text() -> String:
+	_refresh_target_status_detail()
+	_refresh_last_edit_detail()
+	_refresh_persistence_detail()
+	var lines := PackedStringArray()
+	lines.append("Hex Map Edit Debug Report")
+	lines.append("status: %s" % (_status_label.text if _status_label != null else ""))
+	lines.append("document: %s" % ("selected" if _document != null else "none"))
+	lines.append("target: %s" % _target_path_string())
+	lines.append("target_status: %s" % (_target_status_label.text if _target_status_label != null else ""))
+	lines.append("last_edit: %s" % (_last_edit_detail_label.text if _last_edit_detail_label != null else ""))
+	lines.append("save_export: %s" % (_persistence_detail_label.text if _persistence_detail_label != null else ""))
+	lines.append("target_readiness_status: %s" % var_to_str(_target_status_detail))
+	lines.append("last_edit_status: %s" % var_to_str(_last_edit_status))
+	lines.append("persistence_status: %s" % var_to_str(_last_persistence_status))
+	lines.append("target_resolution_reason: %s" % _last_target_resolution_reason)
+	lines.append("target_apply_reason: %s" % _last_target_apply_reason)
+	return _join_lines(lines)
+
+
+func _join_lines(lines: PackedStringArray) -> String:
+	var result := ""
+	for index in range(lines.size()):
+		if index > 0:
+			result += "\n"
+		result += lines[index]
+	return result
+
+
 func _on_object_payload_changed(_text: String) -> void:
 	_object_payload["object_id"] = _object_id_edit.text
 	var parsed = JSON.parse_string(_object_properties_edit.text)
@@ -988,16 +1039,40 @@ func _resolve_target_layer():
 
 func _find_editor_selected_target_layer():
 	if _test_editor_selected_target_layer != null and is_instance_valid(_test_editor_selected_target_layer):
-		return _test_editor_selected_target_layer
+		return _editable_target_from_node(_test_editor_selected_target_layer)
 	if not Engine.is_editor_hint():
 		return null
 	var selection = EditorInterface.get_selection()
 	if selection == null or not selection.has_method("get_selected_nodes"):
 		return null
 	for node in selection.get_selected_nodes():
-		if node is TileMapLayer or node is HexTileMapLayer:
-			return node
+		var target = _editable_target_from_node(node)
+		if target != null:
+			return target
 	return null
+
+
+func _editable_target_from_node(node):
+	if node == null or not is_instance_valid(node):
+		return null
+	if node is HexTileMapLayer:
+		return node
+	if node is TileMapLayer:
+		if _is_hex_tile_map_internal_layer(node):
+			var parent = node.get_parent()
+			return parent if parent is HexTileMapLayer else null
+		return node
+	return null
+
+
+func _is_hex_tile_map_internal_layer(node: Node) -> bool:
+	if node == null or not (node is TileMapLayer):
+		return false
+	var parent = node.get_parent()
+	if not (parent is HexTileMapLayer):
+		return false
+	return node.name == HexTileMapLayer.BASE_TILE_MAP_NAME \
+		or node.name == HexTileMapLayer.LOOP_TILE_MAP_NAME
 
 
 func _select_target_layer_option(layer: Node) -> void:
@@ -1010,7 +1085,10 @@ func _select_target_layer_option(layer: Node) -> void:
 
 
 func _collect_target_layers_recursive(node: Node, result: Array[Node]) -> void:
-	if node is TileMapLayer or node is HexTileMapLayer:
+	if node is HexTileMapLayer:
+		result.append(node)
+		return
+	if node is TileMapLayer and not _is_hex_tile_map_internal_layer(node):
 		result.append(node)
 	for child in node.get_children():
 		_collect_target_layers_recursive(child, result)

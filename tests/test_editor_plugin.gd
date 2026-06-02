@@ -55,8 +55,10 @@ func _run() -> void:
 	await _test_map_edit_tool_builds_dock_controls()
 	await _test_plugin_handles_canvas_item_when_map_edit_ready()
 	await _test_map_edit_tool_auto_target_uses_selected_layer()
+	await _test_map_edit_tool_auto_target_maps_hex_internal_layer_selection()
 	await _test_map_edit_tool_imports_generated_map_resource()
 	await _test_map_edit_tool_click_updates_document_with_undo_redo()
+	await _test_map_edit_tool_debug_report_copy_includes_reportable_state()
 	await _test_map_edit_tool_forward_canvas_gui_input_uses_viewport_transform()
 	await _test_map_edit_tool_target_selection_sync_for_explicit_target()
 	await _test_map_edit_tool_forward_canvas_gui_input_reports_no_editable_cell()
@@ -174,6 +176,7 @@ func _test_map_edit_tool_builds_dock_controls() -> void:
 	_assert_true(tool._import_map_path_edit != null, "map edit tool exposes HexMapResource import path control")
 	_assert_true(tool._import_map_button != null, "map edit tool exposes HexMapResource import button")
 	_assert_true(tool._export_button != null, "map edit tool exposes map export button")
+	_assert_true(tool._copy_debug_report_button != null, "map edit tool exposes debug report copy button")
 	_assert_eq(tool._mode_option.item_count, HexMapEditTool.EDIT_MODE_NAMES.size(), "map edit tool lists edit modes")
 	_assert_true(tool._object_properties_edit != null, "map edit tool exposes object properties payload control")
 	_assert_true(tool._default_floor_source_spin != null, "map edit tool exposes default floor source control")
@@ -204,6 +207,10 @@ func _test_plugin_handles_canvas_item_when_map_edit_ready() -> void:
 	_assert_true(
 		edit_tool_source.contains("global_canvas_transform"),
 		"map edit viewport conversion uses editor viewport global canvas transform"
+	)
+	_assert_true(
+		not plugin_source.contains("get_editor_undo_redo"),
+		"plugin does not wire EditorUndoRedoManager into the edit tool"
 	)
 
 	var tool = await _new_ready_edit_tool()
@@ -260,6 +267,38 @@ func _test_map_edit_tool_auto_target_uses_selected_layer() -> void:
 	await process_frame
 
 
+func _test_map_edit_tool_auto_target_maps_hex_internal_layer_selection() -> void:
+	var scene_root = Node2D.new()
+	scene_root.name = "SceneRoot"
+	root.add_child(scene_root)
+	var hex_layer = HexTileMapLayer.new()
+	hex_layer.name = "HexLayer"
+	scene_root.add_child(hex_layer)
+	await process_frame
+	var document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(2, 1))
+	)
+	var tool = await _new_ready_edit_tool()
+	tool.set_document(document)
+	tool.refresh_target_layer_options(scene_root)
+
+	_assert_eq(tool._target_option.item_count, 2, "target list exposes wrapper HexTileMapLayer only")
+	_assert_eq(tool._target_option.get_item_text(1), "HexLayer", "target list labels HexTileMapLayer wrapper")
+	tool.set_editor_selected_target_layer_for_test(hex_layer._tile_map)
+	_assert_eq(tool.target_layer(), hex_layer, "Auto target maps selected internal TileMapLayer to HexTileMapLayer")
+	_assert_eq(tool.last_edit_status().get("target_resolution_reason", ""), "", "fixture has no edit trace yet")
+	_assert_true(tool.viewport_input_enabled(), "Auto target remains input-enabled through HexTileMapLayer wrapper")
+	_assert_eq(
+		tool.target_readiness_status()["target_class"],
+		"HexTileMapLayer",
+		"internal TileMapLayer selection reports wrapper target readiness"
+	)
+
+	scene_root.queue_free()
+	tool.queue_free()
+	await process_frame
+
+
 func _test_map_edit_tool_imports_generated_map_resource() -> void:
 	var data = HexMapData.rectangle(2, 1)
 	data.set_walls([HexVector.q_axis()])
@@ -284,6 +323,36 @@ func _test_map_edit_tool_imports_generated_map_resource() -> void:
 	_assert_true(load(document_path) != null, "map edit tool saved document can be loaded")
 	_assert_true(load(export_path) is HexMapResource, "map edit tool exported map can be loaded")
 
+	tool.queue_free()
+	await process_frame
+
+
+func _test_map_edit_tool_debug_report_copy_includes_reportable_state() -> void:
+	var document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(2, 1))
+	)
+	var layer = TileMapLayer.new()
+	layer.name = "ReportLayer"
+	layer.tile_set = TileSet.new()
+	HexMapTileAdapter.configure_hex_tile_set(layer.tile_set, true, Vector2i(64, 64))
+	root.add_child(layer)
+	var tool = await _new_ready_edit_tool()
+	tool.set_document(document)
+	tool.set_target_layer(layer)
+	tool.set_edit_mode(HexMapEditTool.EditMode.WALL_FLOOR)
+	var origin_local = layer.map_to_local(HexMapTileAdapter.vector_to_map_cell(HexVector.zero(), true))
+
+	_assert_true(tool.apply_local_position(origin_local), "debug report fixture records an edit")
+	var report = tool.debug_report_text()
+	_assert_true(report.contains("Hex Map Edit Debug Report"), "debug report has a stable header")
+	_assert_true(report.contains("target_status:"), "debug report includes target status")
+	_assert_true(report.contains("last_edit_status:"), "debug report includes raw last edit status")
+	_assert_true(report.contains("target_resolution_reason:"), "debug report includes target resolution reason")
+	_assert_true(report.contains("ReportLayer"), "debug report includes target path/name context")
+	_assert_true(tool.copy_debug_report_to_clipboard(), "copy debug report produces clipboard text")
+	_assert_eq(tool._last_copied_debug_report, report, "copy debug report stores the exact generated report")
+
+	layer.queue_free()
 	tool.queue_free()
 	await process_frame
 
@@ -431,8 +500,15 @@ func _test_map_edit_tool_forward_canvas_gui_input_reports_no_editable_cell() -> 
 	press.pressed = true
 	press.position = layer.to_global(outside_local)
 
-	_assert_true(not tool.forward_canvas_gui_input(press), "viewport click outside document is rejected")
+	_assert_true(tool.forward_canvas_gui_input(press), "viewport click outside document is consumed by edit tool")
 	_assert_eq(tool._status_label.text, "No editable cell.", "viewport click reports no editable cell")
+	var origin_local = layer.map_to_local(HexMapTileAdapter.vector_to_map_cell(HexVector.zero(), true))
+	var valid_press = InputEventMouseButton.new()
+	valid_press.button_index = MOUSE_BUTTON_LEFT
+	valid_press.pressed = true
+	valid_press.position = layer.to_global(origin_local)
+	_assert_true(tool.forward_canvas_gui_input(valid_press), "valid viewport click still works after an invalid click")
+	_assert_true(document.map.to_map_data().has_wall(HexVector.zero()), "valid click after invalid click edits document")
 
 	layer.queue_free()
 	tool.queue_free()

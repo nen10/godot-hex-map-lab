@@ -20,6 +20,8 @@ Godotでの開発ノウハウを随時追加します。
 - Edit Dock の default tile settings は atlas自動読み取りだけに依存させない。Floor / Wall の source id、atlas coords、alternative tileをUIから明示設定できるようにし、`Read Target Tiles` は現在targetの状態を読む操作、`Apply Target Tiles` はtargetとredraw optionsへ設定を反映する操作として分ける。
 - `HexTileMapLayer` を manual edit target にする場合、`HexMapDocumentResource` から map本体だけを `HexMapResource` に変換すると tile override / object / label の表示が落ちる。`apply_document()` のような helperで map apply 後に document payload display state を反映する。
 - Dock上でユーザーがDebug報告する文字列は、通常の `Label` だけに置くとdrag選択できず転記が難しい。status / Last Edit / Target Status / Save Exportのような報告用textは、selectable Labelが使えるか確認し、安定しない場合はread-only `TextEdit` / `LineEdit` またはCopy buttonを使う。
+- Debug情報を一括報告させたい場合、`DisplayServer.clipboard_set(text)` でCopy buttonを作れる。headless testではOS clipboardの実内容を読むより、生成したreport textと直近copy用に保持した文字列を照合する方が安定する。
+- Godot 4.6.2では `PackedStringArray.join()` を使えないため、複数行debug reportを作る場合は手動join helperか利用可能なString側APIを確認してから使う。
 - `EditorUndoRedoManager` は `UndoRedo` と `add_do_method()` のAPIが異なる。headless testで `UndoRedo.new()` が通っても、Editor Pluginで `EditorInterface.get_editor_undo_redo()` に `Callable` を渡すとerrorになる。Editor UndoRedo連携を使う場合はAPI adapterを作り、不要なら直接applyへ戻す。
 - `CanvasItem` の親 `_draw()` はchild `TileMapLayer` の背面に出る。TileMap上のhighlightやmarkerを確実に見せたい場合、親 `_draw()` ではなく前面overlay child、z index、またはchild orderを使う。
 - `HexTileMapLayer` の表示tileはGodot `TileMapLayer` / `TileSet.tile_size` に従い、click hitやhighlightは `hex_size` に従う。両者を別々に更新すると、見えているcellとhit対象がずれる。display tile size変更時は `hex_size` を同期するか、hit / overlayの中心座標を内部 `TileMapLayer.map_to_local()` から取得する。
