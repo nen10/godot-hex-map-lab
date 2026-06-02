@@ -60,7 +60,9 @@ static func apply_to_tile_map_layer(document, layer, options: Dictionary = {}) -
 		int(options.get("wall_source_id", 0)),
 		options.get("wall_atlas_coords", Vector2i(1, 0)),
 		bool(options.get("clear_layer", true)),
-		flat_top
+		flat_top,
+		int(options.get("floor_alternative_tile", 0)),
+		int(options.get("wall_alternative_tile", 0))
 	)
 	var data = document.map.to_map_data()
 	var cell_set = data.cell_set()

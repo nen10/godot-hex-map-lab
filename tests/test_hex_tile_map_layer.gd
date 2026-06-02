@@ -4,6 +4,7 @@ const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const HexGrid = preload("res://addons/hex_map_kit/core/hex_grid.gd")
 const HexMapData = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
+const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 
@@ -35,6 +36,7 @@ func _init() -> void:
 func _run() -> void:
 	await _test_apply_map_and_cell_editing()
 	await _test_hex_map_resource_assignment_creates_visible_tiles()
+	await _test_apply_document_payloads_create_visible_tile_and_markers()
 	await _test_ensure_display_tiles_uses_custom_floor_wall_sources()
 	await _test_apply_map_uses_resource_orientation()
 	await _test_coordinate_roundtrips()
@@ -106,6 +108,41 @@ func _test_hex_map_resource_assignment_creates_visible_tiles() -> void:
 	_assert_eq(layer.display_used_cell_count(), 2, "hex_map assignment redraws display cells")
 	_assert_eq(layer.display_atlas_coords_for_hex(HexVector.zero()), Vector2i.ZERO, "hex_map assignment displays floor atlas")
 	_assert_eq(layer.display_atlas_coords_for_hex(HexVector.q_axis()), Vector2i(1, 0), "hex_map assignment displays wall atlas")
+
+	layer.queue_free()
+	await process_frame
+
+
+func _test_apply_document_payloads_create_visible_tile_and_markers() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	data.set_walls([HexVector.q_axis()])
+	var document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(data))
+	HexMapDocumentAdapter.set_tile_override(document, HexVector.zero(), {
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"source_id": 0,
+		"atlas_coords": Vector2i(1, 0),
+	})
+	HexMapDocumentAdapter.set_tile_override(document, HexVector.q_axis(), {
+		"kind": HexMapDocumentAdapter.KIND_WALL,
+		"source_id": 0,
+		"atlas_coords": Vector2i(0, 0),
+	})
+	HexMapDocumentAdapter.set_object(document, HexVector.zero(), {"object_id": "chest"})
+	HexMapDocumentAdapter.set_label(document, HexVector.zero(), {"label_id": "area", "text": "North"})
+	var layer = HexTileMapLayer.new()
+	root.add_child(layer)
+	await process_frame
+
+	layer.apply_document(document)
+	var floor_state = layer.display_state_for_hex(HexVector.zero())
+	var wall_state = layer.display_state_for_hex(HexVector.q_axis())
+
+	_assert_eq(layer.hex_map.to_map_data().walls.size(), 1, "apply_document stores the primary map resource")
+	_assert_eq(floor_state["atlas_coords"], Vector2i(1, 0), "apply_document displays floor tile override")
+	_assert_eq(floor_state["object_count"], 1, "apply_document exposes object marker state")
+	_assert_eq(floor_state["label_count"], 1, "apply_document exposes label marker state")
+	_assert_eq(floor_state["marker_count"], 2, "apply_document exposes aggregate marker state")
+	_assert_eq(wall_state["atlas_coords"], Vector2i(0, 0), "apply_document displays wall tile override")
 
 	layer.queue_free()
 	await process_frame

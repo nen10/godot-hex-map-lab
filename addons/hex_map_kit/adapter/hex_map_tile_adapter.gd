@@ -73,16 +73,18 @@ static func apply_to_tile_map_layer(
 	wall_source_id: int = 0,
 	wall_atlas_coords: Vector2i = Vector2i(1, 0),
 	clear_layer: bool = true,
-	flat_top: bool = true
+	flat_top: bool = true,
+	floor_alternative_tile: int = 0,
+	wall_alternative_tile: int = 0
 ) -> void:
 	if clear_layer and layer.has_method("clear"):
 		layer.clear()
 
 	for entry in to_tile_entries(data, true, true, flat_top):
 		if entry["kind"] == KIND_WALL:
-			layer.set_cell(entry["map_cell"], wall_source_id, wall_atlas_coords)
+			layer.set_cell(entry["map_cell"], wall_source_id, wall_atlas_coords, wall_alternative_tile)
 		else:
-			layer.set_cell(entry["map_cell"], floor_source_id, floor_atlas_coords)
+			layer.set_cell(entry["map_cell"], floor_source_id, floor_atlas_coords, floor_alternative_tile)
 
 
 static func configure_hex_tile_set(

@@ -65,9 +65,15 @@ var _last_persistence_status: Dictionary = {}
 var _pending_viewport_trace: Dictionary = {}
 var _last_highlight_hex = null
 var _plain_target_tile_options: Dictionary = {}
+var _target_selection_explicit := false
+var _default_target_tile_settings_explicit := false
 var _last_applied_to_target := false
+var _last_target_apply_reason := ""
+var _last_target_resolution_reason := ""
+var _last_default_tile_settings_target: Node = null
 var _target_selection_sync_request_count := 0
 var _last_selection_sync_target: Node = null
+var _test_editor_selected_target_layer: Node = null
 var _test_viewport_canvas_transform_enabled := false
 var _test_viewport_canvas_transform := Transform2D.IDENTITY
 
@@ -90,6 +96,16 @@ var _tile_source_spin: SpinBox
 var _tile_atlas_x_spin: SpinBox
 var _tile_atlas_y_spin: SpinBox
 var _tile_alternative_spin: SpinBox
+var _default_floor_source_spin: SpinBox
+var _default_floor_atlas_x_spin: SpinBox
+var _default_floor_atlas_y_spin: SpinBox
+var _default_floor_alternative_spin: SpinBox
+var _default_wall_source_spin: SpinBox
+var _default_wall_atlas_x_spin: SpinBox
+var _default_wall_atlas_y_spin: SpinBox
+var _default_wall_alternative_spin: SpinBox
+var _default_tile_read_button: Button
+var _default_tile_apply_button: Button
 var _object_id_edit: LineEdit
 var _object_properties_edit: LineEdit
 var _label_id_edit: LineEdit
@@ -110,6 +126,7 @@ func _ready() -> void:
 func set_document(document: HexMapDocumentResource) -> void:
 	_document = document
 	_refresh_plain_target_tile_options_from_document(_document)
+	_read_target_tile_settings(false)
 	_sync_resource_pickers()
 	_refresh_state_labels()
 
@@ -121,6 +138,7 @@ func document() -> HexMapDocumentResource:
 func import_map_resource(resource: HexMapResource) -> HexMapDocumentResource:
 	_document = HexMapDocumentAdapter.from_map_resource(resource)
 	_refresh_plain_target_tile_options_from_document(_document)
+	_read_target_tile_settings(false)
 	_sync_resource_pickers()
 	_refresh_state_labels()
 	return _document
@@ -150,7 +168,13 @@ func export_map_resource() -> HexMapResource:
 
 func set_target_layer(layer: Node) -> void:
 	_target_layer = layer
+	_target_selection_explicit = layer != null
+	if _target_selection_explicit:
+		_last_target_resolution_reason = "explicit target"
+	else:
+		_last_target_resolution_reason = "auto target"
 	_refresh_plain_target_tile_options_from_document(_document)
+	_read_target_tile_settings(false)
 	if _target_option != null:
 		_select_target_layer_option(layer)
 	_select_target_in_editor_if_possible()
@@ -166,6 +190,7 @@ func set_undo_redo(undo_redo) -> void:
 
 
 func viewport_input_enabled() -> bool:
+	_target_layer = _resolve_target_layer()
 	return _document != null \
 		and _target_layer != null \
 		and is_instance_valid(_target_layer) \
@@ -179,6 +204,17 @@ func set_viewport_canvas_transform_for_test(transform: Transform2D) -> void:
 
 func clear_viewport_canvas_transform_for_test() -> void:
 	_test_viewport_canvas_transform_enabled = false
+
+
+func set_editor_selected_target_layer_for_test(layer: Node) -> void:
+	_test_editor_selected_target_layer = layer
+	_target_selection_explicit = false
+	if _target_option != null:
+		_target_option.select(TARGET_AUTO_INDEX)
+	_target_layer = _resolve_target_layer()
+	_refresh_plain_target_tile_options_from_document(_document)
+	_read_target_tile_settings(false)
+	_refresh_state_labels()
 
 
 func last_edit_status() -> Dictionary:
@@ -255,6 +291,7 @@ func load_document(path: String = "") -> bool:
 	set_document_path(actual_path)
 	_sync_resource_pickers()
 	_refresh_plain_target_tile_options_from_document(_document)
+	_read_target_tile_settings(false)
 	_apply_document_to_target()
 	_refresh_state_labels()
 	_set_status("Loaded document.")
@@ -328,7 +365,7 @@ func refresh_target_layer_options(root_node: Node = null) -> void:
 
 	var selected_index = TARGET_AUTO_INDEX
 	var should_sync_target := false
-	if previous != null and is_instance_valid(previous):
+	if _target_selection_explicit and previous != null and is_instance_valid(previous):
 		var index = _target_layer_nodes.find(previous)
 		if index >= 0:
 			selected_index = index + TARGET_LAYER_INDEX_OFFSET
@@ -336,6 +373,7 @@ func refresh_target_layer_options(root_node: Node = null) -> void:
 	_target_option.select(selected_index)
 	_target_layer = _resolve_target_layer()
 	_refresh_plain_target_tile_options_from_document(_document)
+	_read_target_tile_settings(false)
 	if should_sync_target and _target_layer != null and is_instance_valid(_target_layer):
 		_select_target_in_editor_if_possible()
 	_refresh_state_labels()
@@ -447,10 +485,16 @@ func forward_canvas_gui_input(event: InputEvent) -> bool:
 func _build_ui() -> void:
 	if _mode_option != null:
 		return
+	var scroll = ScrollContainer.new()
+	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	add_child(scroll)
+
 	var root = VBoxContainer.new()
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	add_child(root)
+	root.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	scroll.add_child(root)
 
 	var title = Label.new()
 	title.text = "Hex Map Edit"
@@ -522,6 +566,50 @@ func _build_ui() -> void:
 	_mode_option.select(_edit_mode)
 	_mode_option.item_selected.connect(_on_mode_selected)
 	root.add_child(_wrap_labeled("Edit Mode", _mode_option))
+
+	var default_tiles_title = Label.new()
+	default_tiles_title.text = "Default Target Tiles"
+	root.add_child(default_tiles_title)
+	var default_floor_row = HBoxContainer.new()
+	_default_floor_source_spin = _new_int_spin(0, -1, 4096)
+	_default_floor_atlas_x_spin = _new_int_spin(0, -1, 4096)
+	_default_floor_atlas_y_spin = _new_int_spin(0, -1, 4096)
+	_default_floor_alternative_spin = _new_int_spin(0, 0, 4096)
+	_default_floor_source_spin.value_changed.connect(_on_default_tile_setting_changed)
+	_default_floor_atlas_x_spin.value_changed.connect(_on_default_tile_setting_changed)
+	_default_floor_atlas_y_spin.value_changed.connect(_on_default_tile_setting_changed)
+	_default_floor_alternative_spin.value_changed.connect(_on_default_tile_setting_changed)
+	default_floor_row.add_child(_wrap_labeled("Floor Src", _default_floor_source_spin))
+	default_floor_row.add_child(_wrap_labeled("Atlas X", _default_floor_atlas_x_spin))
+	default_floor_row.add_child(_wrap_labeled("Atlas Y", _default_floor_atlas_y_spin))
+	default_floor_row.add_child(_wrap_labeled("Alt", _default_floor_alternative_spin))
+	root.add_child(default_floor_row)
+
+	var default_wall_row = HBoxContainer.new()
+	_default_wall_source_spin = _new_int_spin(0, -1, 4096)
+	_default_wall_atlas_x_spin = _new_int_spin(1, -1, 4096)
+	_default_wall_atlas_y_spin = _new_int_spin(0, -1, 4096)
+	_default_wall_alternative_spin = _new_int_spin(0, 0, 4096)
+	_default_wall_source_spin.value_changed.connect(_on_default_tile_setting_changed)
+	_default_wall_atlas_x_spin.value_changed.connect(_on_default_tile_setting_changed)
+	_default_wall_atlas_y_spin.value_changed.connect(_on_default_tile_setting_changed)
+	_default_wall_alternative_spin.value_changed.connect(_on_default_tile_setting_changed)
+	default_wall_row.add_child(_wrap_labeled("Wall Src", _default_wall_source_spin))
+	default_wall_row.add_child(_wrap_labeled("Atlas X", _default_wall_atlas_x_spin))
+	default_wall_row.add_child(_wrap_labeled("Atlas Y", _default_wall_atlas_y_spin))
+	default_wall_row.add_child(_wrap_labeled("Alt", _default_wall_alternative_spin))
+	root.add_child(default_wall_row)
+
+	var default_tile_action_row = HBoxContainer.new()
+	_default_tile_read_button = Button.new()
+	_default_tile_read_button.text = "Read Target Tiles"
+	_default_tile_read_button.pressed.connect(_on_read_default_tiles_pressed)
+	default_tile_action_row.add_child(_default_tile_read_button)
+	_default_tile_apply_button = Button.new()
+	_default_tile_apply_button.text = "Apply Target Tiles"
+	_default_tile_apply_button.pressed.connect(_on_apply_default_tiles_pressed)
+	default_tile_action_row.add_child(_default_tile_apply_button)
+	root.add_child(default_tile_action_row)
 
 	_tile_source_spin = _new_int_spin(0, -1, 4096)
 	_tile_source_spin.value_changed.connect(_on_tile_payload_changed)
@@ -625,16 +713,21 @@ func _replace_document_state(snapshot) -> void:
 
 
 func _apply_document_to_target() -> bool:
+	_target_layer = _resolve_target_layer()
 	if _target_layer == null or _document == null or not is_instance_valid(_target_layer):
 		_last_applied_to_target = false
+		_last_target_apply_reason = "No editable target layer."
 		_refresh_target_status_detail()
 		return false
+	_sync_default_tile_settings_for_target_if_needed()
 	if _target_layer is HexTileMapLayer:
 		var hex_layer := _target_layer as HexTileMapLayer
-		hex_layer.hex_map = HexMapDocumentAdapter.to_map_resource(_document)
-		hex_layer.refresh_loop_display()
+		if _default_target_tile_settings_explicit:
+			_apply_default_tile_settings_to_target(false)
+		hex_layer.apply_document(_document)
 		_refresh_last_hit_display()
 		_last_applied_to_target = true
+		_last_target_apply_reason = "Applied document to HexTileMapLayer."
 		_refresh_target_status_detail()
 		return true
 	HexMapDocumentAdapter.apply_to_tile_map_layer(
@@ -643,6 +736,7 @@ func _apply_document_to_target() -> bool:
 		_plain_target_tile_options_for_apply()
 	)
 	_last_applied_to_target = true
+	_last_target_apply_reason = "Applied document to TileMapLayer."
 	_refresh_target_status_detail()
 	return true
 
@@ -753,8 +847,11 @@ func _on_target_refresh_pressed() -> void:
 
 
 func _on_target_selected(index: int) -> void:
+	_target_selection_explicit = index != TARGET_AUTO_INDEX
 	_target_layer = _resolve_target_layer()
-	if index != TARGET_AUTO_INDEX:
+	_refresh_plain_target_tile_options_from_document(_document)
+	_read_target_tile_settings(false)
+	if _target_selection_explicit:
 		_select_target_in_editor_if_possible()
 	_refresh_state_labels()
 
@@ -765,6 +862,29 @@ func _on_tile_payload_changed(_value: float) -> void:
 		"atlas_coords": Vector2i(int(_tile_atlas_x_spin.value), int(_tile_atlas_y_spin.value)),
 		"alternative_tile": int(_tile_alternative_spin.value),
 	}
+
+
+func _on_default_tile_setting_changed(_value: float) -> void:
+	_default_target_tile_settings_explicit = true
+	_plain_target_tile_options = _default_tile_settings_from_controls()
+	_refresh_target_status_detail()
+
+
+func _on_read_default_tiles_pressed() -> void:
+	if _read_target_tile_settings(true):
+		_set_status("Read target tile settings.")
+	else:
+		_set_status("No target tile settings to read.")
+
+
+func _on_apply_default_tiles_pressed() -> void:
+	_default_target_tile_settings_explicit = true
+	_plain_target_tile_options = _default_tile_settings_from_controls()
+	if _apply_default_tile_settings_to_target(true):
+		_apply_document_to_target()
+		_set_status("Applied target tile settings.")
+	else:
+		_set_status("No editable target layer.")
 
 
 func _on_object_payload_changed(_text: String) -> void:
@@ -829,6 +949,7 @@ func _sync_resource_pickers() -> void:
 
 
 func _refresh_state_labels() -> void:
+	_target_layer = _resolve_target_layer()
 	if _document_label != null:
 		_document_label.text = "Document: %s" % ("selected" if _document != null else "none")
 	if _target_label != null:
@@ -845,11 +966,36 @@ func _resolve_target_layer():
 	var node_index = _target_option.selected - TARGET_LAYER_INDEX_OFFSET
 	if node_index >= 0 and node_index < _target_layer_nodes.size():
 		var node = _target_layer_nodes[node_index]
-		return node if is_instance_valid(node) else null
-	if _target_layer != null and is_instance_valid(_target_layer):
+		if is_instance_valid(node):
+			_last_target_resolution_reason = "explicit target option"
+			return node
+		_last_target_resolution_reason = "explicit target invalid"
+		return null
+	if _target_selection_explicit and _target_layer != null and is_instance_valid(_target_layer):
+		_last_target_resolution_reason = "explicit cached target"
 		return _target_layer
+	var selected_layer = _find_editor_selected_target_layer()
+	if selected_layer != null:
+		_last_target_resolution_reason = "auto editor selection"
+		return selected_layer
 	for node in _target_layer_nodes:
 		if is_instance_valid(node):
+			_last_target_resolution_reason = "auto first scene layer"
+			return node
+	_last_target_resolution_reason = "auto target missing"
+	return null
+
+
+func _find_editor_selected_target_layer():
+	if _test_editor_selected_target_layer != null and is_instance_valid(_test_editor_selected_target_layer):
+		return _test_editor_selected_target_layer
+	if not Engine.is_editor_hint():
+		return null
+	var selection = EditorInterface.get_selection()
+	if selection == null or not selection.has_method("get_selected_nodes"):
+		return null
+	for node in selection.get_selected_nodes():
+		if node is TileMapLayer or node is HexTileMapLayer:
 			return node
 	return null
 
@@ -896,6 +1042,7 @@ func _select_target_in_editor_if_possible() -> void:
 
 func _editor_viewport_event_to_target_local(event: InputEventMouseButton):
 	_pending_viewport_trace = {}
+	_target_layer = _resolve_target_layer()
 	if _target_layer == null or not (_target_layer is CanvasItem):
 		_set_status("No editable target layer.")
 		_debug_viewport_input("target missing", event.position, Vector2.ZERO, Vector2.ZERO, {})
@@ -946,12 +1093,114 @@ func _debug_viewport_input(stage: String, viewport_pos: Vector2, scene_pos: Vect
 	)
 
 
+func _default_tile_settings_from_controls() -> Dictionary:
+	if _default_floor_source_spin == null:
+		return _plain_target_tile_options_for_apply()
+	return {
+		"floor_source_id": int(_default_floor_source_spin.value),
+		"floor_atlas_coords": Vector2i(
+			int(_default_floor_atlas_x_spin.value),
+			int(_default_floor_atlas_y_spin.value)
+		),
+		"floor_alternative_tile": int(_default_floor_alternative_spin.value),
+		"wall_source_id": int(_default_wall_source_spin.value),
+		"wall_atlas_coords": Vector2i(
+			int(_default_wall_atlas_x_spin.value),
+			int(_default_wall_atlas_y_spin.value)
+		),
+		"wall_alternative_tile": int(_default_wall_alternative_spin.value),
+		"clear_layer": true,
+	}
+
+
+func _sync_default_tile_controls_from_options(options: Dictionary) -> void:
+	if _default_floor_source_spin == null:
+		return
+	_default_floor_source_spin.set_value_no_signal(int(options.get("floor_source_id", 0)))
+	var floor_atlas = options.get("floor_atlas_coords", Vector2i.ZERO)
+	_default_floor_atlas_x_spin.set_value_no_signal(int(floor_atlas.x))
+	_default_floor_atlas_y_spin.set_value_no_signal(int(floor_atlas.y))
+	_default_floor_alternative_spin.set_value_no_signal(int(options.get("floor_alternative_tile", 0)))
+	_default_wall_source_spin.set_value_no_signal(int(options.get("wall_source_id", 0)))
+	var wall_atlas = options.get("wall_atlas_coords", Vector2i(1, 0))
+	_default_wall_atlas_x_spin.set_value_no_signal(int(wall_atlas.x))
+	_default_wall_atlas_y_spin.set_value_no_signal(int(wall_atlas.y))
+	_default_wall_alternative_spin.set_value_no_signal(int(options.get("wall_alternative_tile", 0)))
+
+
+func _read_target_tile_settings(mark_explicit: bool = true) -> bool:
+	if _default_target_tile_settings_explicit and not mark_explicit:
+		_sync_default_tile_controls_from_options(_plain_target_tile_options_for_apply())
+		return true
+	_target_layer = _resolve_target_layer()
+	if _target_layer == null or not is_instance_valid(_target_layer):
+		_last_default_tile_settings_target = null
+		_sync_default_tile_controls_from_options(_plain_target_tile_options_for_apply())
+		return false
+	if _target_layer is HexTileMapLayer:
+		var hex_layer := _target_layer as HexTileMapLayer
+		_plain_target_tile_options = {
+			"floor_source_id": hex_layer.floor_source_id,
+			"floor_atlas_coords": hex_layer.floor_atlas_coords,
+			"floor_alternative_tile": hex_layer.floor_alternative_tile,
+			"wall_source_id": hex_layer.wall_source_id,
+			"wall_atlas_coords": hex_layer.wall_atlas_coords,
+			"wall_alternative_tile": hex_layer.wall_alternative_tile,
+			"clear_layer": true,
+		}
+	elif _target_layer is TileMapLayer:
+		_refresh_plain_target_tile_options_from_document(_document, true)
+	else:
+		_sync_default_tile_controls_from_options(_plain_target_tile_options_for_apply())
+		return false
+	if mark_explicit:
+		_default_target_tile_settings_explicit = true
+	_last_default_tile_settings_target = _target_layer
+	_sync_default_tile_controls_from_options(_plain_target_tile_options_for_apply())
+	_refresh_target_status_detail()
+	return true
+
+
+func _sync_default_tile_settings_for_target_if_needed() -> void:
+	if _default_target_tile_settings_explicit:
+		return
+	if _target_layer == null or not is_instance_valid(_target_layer):
+		return
+	if _last_default_tile_settings_target == null \
+		or not is_instance_valid(_last_default_tile_settings_target) \
+		or _last_default_tile_settings_target != _target_layer:
+		_read_target_tile_settings(false)
+
+
+func _apply_default_tile_settings_to_target(update_status: bool = true) -> bool:
+	_target_layer = _resolve_target_layer()
+	if _target_layer == null or not is_instance_valid(_target_layer):
+		if update_status:
+			_refresh_target_status_detail()
+		return false
+	var options = _default_tile_settings_from_controls()
+	_plain_target_tile_options = options.duplicate(true)
+	if _target_layer is HexTileMapLayer:
+		var hex_layer := _target_layer as HexTileMapLayer
+		hex_layer.floor_source_id = int(options.get("floor_source_id", 0))
+		hex_layer.floor_atlas_coords = options.get("floor_atlas_coords", Vector2i.ZERO)
+		hex_layer.floor_alternative_tile = int(options.get("floor_alternative_tile", 0))
+		hex_layer.wall_source_id = int(options.get("wall_source_id", 0))
+		hex_layer.wall_atlas_coords = options.get("wall_atlas_coords", Vector2i(1, 0))
+		hex_layer.wall_alternative_tile = int(options.get("wall_alternative_tile", 0))
+	if update_status:
+		_refresh_target_status_detail()
+	return true
+
+
 func _plain_target_tile_options_for_apply() -> Dictionary:
 	var options = {
 		"floor_source_id": 0,
 		"floor_atlas_coords": Vector2i.ZERO,
+		"floor_alternative_tile": 0,
 		"wall_source_id": 0,
 		"wall_atlas_coords": Vector2i(1, 0),
+		"wall_alternative_tile": 0,
 		"clear_layer": true,
 	}
 	for key in _plain_target_tile_options:
@@ -959,12 +1208,18 @@ func _plain_target_tile_options_for_apply() -> Dictionary:
 	return options
 
 
-func _refresh_plain_target_tile_options_from_document(document) -> void:
+func _refresh_plain_target_tile_options_from_document(document, force: bool = false) -> void:
+	if _default_target_tile_settings_explicit and not force:
+		_sync_default_tile_controls_from_options(_plain_target_tile_options_for_apply())
+		return
 	if _target_layer == null or not is_instance_valid(_target_layer):
+		_sync_default_tile_controls_from_options(_plain_target_tile_options_for_apply())
 		return
 	if not (_target_layer is TileMapLayer) or _target_layer is HexTileMapLayer:
+		_sync_default_tile_controls_from_options(_plain_target_tile_options_for_apply())
 		return
 	if document == null or document.map == null:
+		_sync_default_tile_controls_from_options(_plain_target_tile_options_for_apply())
 		return
 	var tile_layer := _target_layer as TileMapLayer
 	var data = document.map.to_map_data()
@@ -973,10 +1228,13 @@ func _refresh_plain_target_tile_options_from_document(document) -> void:
 	if not floor_entry.is_empty():
 		_plain_target_tile_options["floor_source_id"] = int(floor_entry["source_id"])
 		_plain_target_tile_options["floor_atlas_coords"] = floor_entry["atlas_coords"]
+		_plain_target_tile_options["floor_alternative_tile"] = int(floor_entry.get("alternative_tile", 0))
 	var wall_entry = _first_display_tile_entry_for_hexes(tile_layer, data.walls, flat_top)
 	if not wall_entry.is_empty():
 		_plain_target_tile_options["wall_source_id"] = int(wall_entry["source_id"])
 		_plain_target_tile_options["wall_atlas_coords"] = wall_entry["atlas_coords"]
+		_plain_target_tile_options["wall_alternative_tile"] = int(wall_entry.get("alternative_tile", 0))
+	_sync_default_tile_controls_from_options(_plain_target_tile_options_for_apply())
 
 
 func _first_display_tile_entry_for_hexes(tile_layer: TileMapLayer, hexes: Array, flat_top: bool) -> Dictionary:
@@ -988,11 +1246,13 @@ func _first_display_tile_entry_for_hexes(tile_layer: TileMapLayer, hexes: Array,
 		return {
 			"source_id": source_id,
 			"atlas_coords": tile_layer.get_cell_atlas_coords(map_cell),
+			"alternative_tile": tile_layer.get_cell_alternative_tile(map_cell),
 		}
 	return {}
 
 
 func _refresh_target_status_detail() -> void:
+	_target_layer = _resolve_target_layer()
 	_target_status_detail = _build_target_readiness_status()
 	if _target_status_label != null:
 		_target_status_label.text = _format_target_status_detail(_target_status_detail)
@@ -1006,10 +1266,13 @@ func _build_target_readiness_status() -> Dictionary:
 		"tile_set_present": false,
 		"floor_source_id": 0,
 		"floor_atlas_coords": Vector2i.ZERO,
+		"floor_alternative_tile": 0,
 		"wall_source_id": 0,
 		"wall_atlas_coords": Vector2i(1, 0),
+		"wall_alternative_tile": 0,
 		"used_cell_count": 0,
 		"loop_display_mode": HexTileMapLayer.LOOP_DISPLAY_NONE,
+		"target_resolution_reason": _last_target_resolution_reason,
 		"ready": false,
 		"message": "No editable target layer.",
 	}
@@ -1020,8 +1283,10 @@ func _build_target_readiness_status() -> Dictionary:
 		status["tile_set_present"] = hex_layer.display_tile_set_present()
 		status["floor_source_id"] = hex_layer.floor_source_id
 		status["floor_atlas_coords"] = hex_layer.floor_atlas_coords
+		status["floor_alternative_tile"] = hex_layer.floor_alternative_tile
 		status["wall_source_id"] = hex_layer.wall_source_id
 		status["wall_atlas_coords"] = hex_layer.wall_atlas_coords
+		status["wall_alternative_tile"] = hex_layer.wall_alternative_tile
 		status["used_cell_count"] = hex_layer.display_used_cell_count()
 		status["loop_display_mode"] = hex_layer.loop_display_mode
 	elif _target_layer is TileMapLayer:
@@ -1030,8 +1295,10 @@ func _build_target_readiness_status() -> Dictionary:
 		status["tile_set_present"] = tile_layer.tile_set != null
 		status["floor_source_id"] = int(options.get("floor_source_id", 0))
 		status["floor_atlas_coords"] = options.get("floor_atlas_coords", Vector2i.ZERO)
+		status["floor_alternative_tile"] = int(options.get("floor_alternative_tile", 0))
 		status["wall_source_id"] = int(options.get("wall_source_id", 0))
 		status["wall_atlas_coords"] = options.get("wall_atlas_coords", Vector2i(1, 0))
+		status["wall_alternative_tile"] = int(options.get("wall_alternative_tile", 0))
 		status["used_cell_count"] = tile_layer.get_used_cells().size()
 	else:
 		status["message"] = "Target is not a TileMapLayer."
@@ -1048,16 +1315,19 @@ func _format_target_status_detail(status: Dictionary) -> String:
 	var loop_text = ""
 	if bool(status.get("is_hex_tile_map_layer", false)):
 		loop_text = " loop=%s" % _loop_mode_name(int(status.get("loop_display_mode", 0)))
-	return "%s %s tiles=%s floor=%d:%s wall=%d:%s used=%d%s %s" % [
+	return "%s %s tiles=%s floor=%d:%s:%d wall=%d:%s:%d used=%d%s %s %s" % [
 		String(status.get("target_class", "")),
 		String(status.get("target_path", "")),
 		tile_state,
 		int(status.get("floor_source_id", 0)),
 		_atlas_text(status.get("floor_atlas_coords", Vector2i.ZERO)),
+		int(status.get("floor_alternative_tile", 0)),
 		int(status.get("wall_source_id", 0)),
 		_atlas_text(status.get("wall_atlas_coords", Vector2i(1, 0))),
+		int(status.get("wall_alternative_tile", 0)),
 		int(status.get("used_cell_count", 0)),
 		loop_text,
+		String(status.get("target_resolution_reason", "")),
 		String(status.get("message", "")),
 	]
 
@@ -1098,12 +1368,14 @@ func _build_last_edit_trace(
 	var display_atlas_before = display_before.get("atlas_coords", Vector2i(-1, -1))
 	var display_atlas_after = display_after.get("atlas_coords", Vector2i(-1, -1))
 	var document_changed = var_to_str(before_state) != var_to_str(after_state)
-	var display_changed = display_atlas_before != display_atlas_after \
-		or int(display_before.get("source_id", -1)) != int(display_after.get("source_id", -1))
+	var display_signature_before = String(display_before.get("signature", var_to_str(display_before)))
+	var display_signature_after = String(display_after.get("signature", var_to_str(display_after)))
+	var display_changed = display_signature_before != display_signature_after
 	var trace = {
 		"target_path": _target_path_string(),
 		"target_class": _target_class_string(),
 		"mode": _edit_mode,
+		"payload": _edit_payload_summary(),
 		"viewport_position": viewport_position,
 		"scene_position": scene_position,
 		"local_position": local_position,
@@ -1121,6 +1393,18 @@ func _build_last_edit_trace(
 		"target_used_cells_after": target_used_cells_after,
 		"display_atlas_before": display_atlas_before,
 		"display_atlas_after": display_atlas_after,
+		"display_source_before": int(display_before.get("source_id", -1)),
+		"display_source_after": int(display_after.get("source_id", -1)),
+		"display_alternative_before": int(display_before.get("alternative_tile", -1)),
+		"display_alternative_after": int(display_after.get("alternative_tile", -1)),
+		"display_renderer_before": String(display_before.get("renderer", "none")),
+		"display_renderer_after": String(display_after.get("renderer", "none")),
+		"display_marker_count_before": int(display_before.get("marker_count", 0)),
+		"display_marker_count_after": int(display_after.get("marker_count", 0)),
+		"display_signature_before": display_signature_before,
+		"display_signature_after": display_signature_after,
+		"target_apply_reason": _last_target_apply_reason,
+		"target_resolution_reason": _last_target_resolution_reason,
 		"display_changed": display_changed,
 	}
 	trace["message"] = _format_last_edit_detail(trace)
@@ -1138,7 +1422,7 @@ func _format_last_edit_detail(trace: Dictionary) -> String:
 	var hex_text = trace["hex"].key() if trace.has("hex") else "<none>"
 	var visual_text = trace["visual_hex"].key() if trace.has("visual_hex") else hex_text
 	var visual_suffix = " via %s" % visual_text if visual_text != hex_text else ""
-	return "%s%s %s->%s document=%s target=%s display=%s tile=%s->%s used=%d->%d" % [
+	return "%s%s %s->%s document=%s target=%s display=%s renderer=%s->%s source=%d->%d tile=%s->%s alt=%d->%d markers=%d->%d used=%d->%d reason=%s resolution=%s payload=%s" % [
 		hex_text,
 		visual_suffix,
 		"wall" if bool(trace.get("wall_before", false)) else "floor",
@@ -1146,11 +1430,41 @@ func _format_last_edit_detail(trace: Dictionary) -> String:
 		_bool_text(bool(trace.get("document_changed", false))),
 		_bool_text(bool(trace.get("target_applied", false))),
 		_bool_text(bool(trace.get("display_changed", false))),
+		String(trace.get("display_renderer_before", "none")),
+		String(trace.get("display_renderer_after", "none")),
+		int(trace.get("display_source_before", -1)),
+		int(trace.get("display_source_after", -1)),
 		_atlas_text(trace.get("display_atlas_before", Vector2i(-1, -1))),
 		_atlas_text(trace.get("display_atlas_after", Vector2i(-1, -1))),
+		int(trace.get("display_alternative_before", -1)),
+		int(trace.get("display_alternative_after", -1)),
+		int(trace.get("display_marker_count_before", 0)),
+		int(trace.get("display_marker_count_after", 0)),
 		int(trace.get("target_used_cells_before", 0)),
 		int(trace.get("target_used_cells_after", 0)),
+		String(trace.get("target_apply_reason", "")),
+		String(trace.get("target_resolution_reason", "")),
+		String(trace.get("payload", "")),
 	]
+
+
+func _edit_payload_summary() -> String:
+	match _edit_mode:
+		EditMode.FLOOR_TILE, EditMode.WALL_TILE:
+			return "%d:%s:%d" % [
+				int(_tile_payload.get("source_id", 0)),
+				_atlas_text(_tile_payload.get("atlas_coords", Vector2i.ZERO)),
+				int(_tile_payload.get("alternative_tile", 0)),
+			]
+		EditMode.OBJECT:
+			return "object=%s" % String(_object_payload.get("object_id", ""))
+		EditMode.LABEL:
+			return "label=%s text=%s" % [
+				String(_label_payload.get("label_id", "")),
+				String(_label_payload.get("text", "")),
+			]
+		_:
+			return EDIT_MODE_NAMES[_edit_mode]
 
 
 func _document_cell_state(document, hex) -> Dictionary:
@@ -1194,21 +1508,33 @@ func _entry_cell_key(entry: Dictionary) -> String:
 
 func _target_display_state(hex, visual_hex) -> Dictionary:
 	var state = {
+		"renderer": "none",
 		"source_id": -1,
 		"atlas_coords": Vector2i(-1, -1),
+		"alternative_tile": -1,
+		"marker_count": 0,
+		"signature": "none:-1:(-1,-1):-1:0",
 	}
 	if _target_layer == null or not is_instance_valid(_target_layer):
 		return state
 	if _target_layer is HexTileMapLayer:
-		state["atlas_coords"] = (_target_layer as HexTileMapLayer).display_atlas_coords_for_hex(hex, visual_hex)
-		return state
+		return (_target_layer as HexTileMapLayer).display_state_for_hex(hex, visual_hex)
 	if _target_layer is TileMapLayer:
 		var flat_top = true
 		if _document != null and _document.map != null:
 			flat_top = _document.map.is_flat_top()
 		var map_cell = HexMapTileAdapter.vector_to_map_cell(visual_hex, flat_top)
+		state["renderer"] = "TileMapLayer"
 		state["source_id"] = (_target_layer as TileMapLayer).get_cell_source_id(map_cell)
 		state["atlas_coords"] = (_target_layer as TileMapLayer).get_cell_atlas_coords(map_cell)
+		state["alternative_tile"] = (_target_layer as TileMapLayer).get_cell_alternative_tile(map_cell)
+		state["signature"] = "%s:%d:%s:%d:%d" % [
+			String(state["renderer"]),
+			int(state["source_id"]),
+			str(state["atlas_coords"]),
+			int(state["alternative_tile"]),
+			int(state["marker_count"]),
+		]
 	return state
 
 

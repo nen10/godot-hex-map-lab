@@ -3,6 +3,7 @@ class_name HexTileMapLayer
 extends Node2D
 
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
+const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexGrid = preload("res://addons/hex_map_kit/core/hex_grid.gd")
 const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
@@ -24,7 +25,7 @@ const LOOP_TILE_MAP_NAME := "LoopTileMapLayer"
 @export var hex_map: HexMapResource:
 	set(v):
 		hex_map = v
-		if v and is_node_ready():
+		if v and is_node_ready() and not _hex_map_setter_suppressed:
 			apply_map(v)
 
 @export var hex_size: float = 24.0:
@@ -41,8 +42,10 @@ const LOOP_TILE_MAP_NAME := "LoopTileMapLayer"
 
 @export var floor_source_id: int = 0
 @export var floor_atlas_coords: Vector2i = Vector2i.ZERO
+@export var floor_alternative_tile: int = 0
 @export var wall_source_id: int = 0
 @export var wall_atlas_coords: Vector2i = Vector2i(1, 0)
+@export var wall_alternative_tile: int = 0
 @export var input_enabled: bool = true
 @export var emit_hovered_cell: bool = true
 @export var loop_display_enabled: bool = false:
@@ -77,6 +80,11 @@ var _highlights: Dictionary = {}
 var _display_path: Array = []
 var _path_color := Color(0.12, 0.48, 0.88, 0.90)
 var _hovered_hit_key := ""
+var _hex_map_setter_suppressed := false
+var _pending_document_payloads = null
+var _tile_overrides_by_key: Dictionary = {}
+var _object_markers_by_key: Dictionary = {}
+var _label_markers_by_key: Dictionary = {}
 
 
 func _ready() -> void:
@@ -85,6 +93,9 @@ func _ready() -> void:
 		apply_map(hex_map)
 	elif _data != null:
 		_redraw()
+	if _pending_document_payloads != null:
+		_apply_document_payloads(_pending_document_payloads)
+		_pending_document_payloads = null
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -113,6 +124,8 @@ func _draw() -> void:
 			var tile_center = _tile_map.position + local
 			_draw_hex_highlight(tile_center, color)
 
+	_draw_document_payload_markers()
+
 	if _display_path.size() > 1:
 		var points := PackedVector2Array()
 		for hex in _display_path:
@@ -140,9 +153,25 @@ func apply_map(resource: HexMapResource) -> void:
 	flat_top = resource.is_flat_top()
 	_data = resource.to_map_data()
 	_data = _normalize_data(_data)
+	_clear_document_payload_display()
 	_highlights.clear()
 	_display_path.clear()
 	_redraw()
+
+
+func apply_document(document) -> void:
+	if document == null or document.map == null:
+		return
+	var snapshot = HexMapDocumentAdapter.duplicate_document(document)
+	var resource = HexMapDocumentAdapter.to_map_resource(snapshot)
+	_hex_map_setter_suppressed = true
+	hex_map = resource
+	_hex_map_setter_suppressed = false
+	if not is_node_ready():
+		_pending_document_payloads = snapshot
+		return
+	apply_map(resource)
+	_apply_document_payloads(snapshot)
 
 
 func local_to_hex(local_pos: Vector2) -> HexVector:
@@ -355,6 +384,57 @@ func display_atlas_coords_for_hex(hex: HexVector, visual_hex = null) -> Vector2i
 	return _tile_map.get_cell_atlas_coords(map_cell)
 
 
+func display_source_id_for_hex(hex: HexVector, visual_hex = null) -> int:
+	var target_hex = visual_hex if visual_hex != null else hex
+	if visual_hex != null and visual_hex.key() != hex.key() and _loop_tile_map != null:
+		var visual_map_cell = HexMapTileAdapter.vector_to_map_cell(target_hex, flat_top)
+		var loop_source_id = _loop_tile_map.get_cell_source_id(visual_map_cell)
+		if loop_source_id >= 0:
+			return loop_source_id
+	if _tile_map == null:
+		return -1
+	var canonical = HexVector.apply_basis(hex.q, hex.s, hex.r)
+	var map_cell = HexMapTileAdapter.vector_to_map_cell(canonical, flat_top)
+	return _tile_map.get_cell_source_id(map_cell)
+
+
+func display_alternative_tile_for_hex(hex: HexVector, visual_hex = null) -> int:
+	var target_hex = visual_hex if visual_hex != null else hex
+	if visual_hex != null and visual_hex.key() != hex.key() and _loop_tile_map != null:
+		var visual_map_cell = HexMapTileAdapter.vector_to_map_cell(target_hex, flat_top)
+		if _loop_tile_map.get_cell_source_id(visual_map_cell) >= 0:
+			return _loop_tile_map.get_cell_alternative_tile(visual_map_cell)
+	if _tile_map == null:
+		return -1
+	var canonical = HexVector.apply_basis(hex.q, hex.s, hex.r)
+	var map_cell = HexMapTileAdapter.vector_to_map_cell(canonical, flat_top)
+	return _tile_map.get_cell_alternative_tile(map_cell)
+
+
+func display_state_for_hex(hex: HexVector, visual_hex = null) -> Dictionary:
+	var canonical = HexVector.apply_basis(hex.q, hex.s, hex.r)
+	var object_count = _payload_marker_count(_object_markers_by_key, canonical.key())
+	var label_count = _payload_marker_count(_label_markers_by_key, canonical.key())
+	var state = {
+		"renderer": "HexTileMapLayer",
+		"source_id": display_source_id_for_hex(canonical, visual_hex),
+		"atlas_coords": display_atlas_coords_for_hex(canonical, visual_hex),
+		"alternative_tile": display_alternative_tile_for_hex(canonical, visual_hex),
+		"object_count": object_count,
+		"label_count": label_count,
+		"marker_count": object_count + label_count,
+	}
+	state["signature"] = "%s:%d:%s:%d:%d:%d" % [
+		String(state["renderer"]),
+		int(state["source_id"]),
+		str(state["atlas_coords"]),
+		int(state["alternative_tile"]),
+		object_count,
+		label_count,
+	]
+	return state
+
+
 func find_path(start: HexVector, goal: HexVector) -> Array:
 	if _data == null:
 		return []
@@ -561,6 +641,30 @@ func _draw_loop_cell_outlines() -> void:
 			_draw_hex_highlight(_tile_map.position + hex_to_local(visual_hex), duplicate_color)
 
 
+func _draw_document_payload_markers() -> void:
+	if _data == null:
+		return
+	var object_color := Color(0.10, 0.60, 0.82, 0.92)
+	var label_color := Color(0.94, 0.74, 0.18, 0.92)
+	for key in _object_markers_by_key:
+		var bucket: Dictionary = _object_markers_by_key[key]
+		var hex = bucket.get("hex", null)
+		if hex == null:
+			continue
+		for visual_hex in _visual_hexes_for_draw(hex):
+			var center = _tile_map.position + hex_to_local(visual_hex)
+			draw_circle(center + Vector2(0.0, -hex_size * 0.24), maxf(3.0, hex_size * 0.13), object_color)
+	for key in _label_markers_by_key:
+		var bucket: Dictionary = _label_markers_by_key[key]
+		var hex = bucket.get("hex", null)
+		if hex == null:
+			continue
+		for visual_hex in _visual_hexes_for_draw(hex):
+			var center = _tile_map.position + hex_to_local(visual_hex)
+			var marker_size = Vector2(maxf(7.0, hex_size * 0.42), maxf(3.0, hex_size * 0.12))
+			draw_rect(Rect2(center + Vector2(-marker_size.x * 0.5, hex_size * 0.18), marker_size), label_color)
+
+
 func _effective_loop_display_rect() -> Rect2:
 	if loop_display_rect.size != Vector2.ZERO:
 		return loop_display_rect
@@ -642,10 +746,97 @@ func _set_tile_cell_for_hex(tile_map: TileMapLayer, map_cell: Vector2i, hex: Hex
 		return
 	var normalized = HexVector.apply_basis(hex.q, hex.s, hex.r)
 	var key = normalized.key()
-	if _data.wall_set().has(key):
-		tile_map.set_cell(map_cell, wall_source_id, wall_atlas_coords)
+	var is_wall_cell = _data.wall_set().has(key)
+	var override = _tile_override_for_hex(normalized, is_wall_cell)
+	if not override.is_empty():
+		tile_map.set_cell(
+			map_cell,
+			int(override.get("source_id", 0)),
+			override.get("atlas_coords", Vector2i.ZERO),
+			int(override.get("alternative_tile", 0))
+		)
+	elif is_wall_cell:
+		tile_map.set_cell(map_cell, wall_source_id, wall_atlas_coords, wall_alternative_tile)
 	else:
-		tile_map.set_cell(map_cell, floor_source_id, floor_atlas_coords)
+		tile_map.set_cell(map_cell, floor_source_id, floor_atlas_coords, floor_alternative_tile)
+
+
+func _clear_document_payload_display() -> void:
+	_tile_overrides_by_key.clear()
+	_object_markers_by_key.clear()
+	_label_markers_by_key.clear()
+
+
+func _apply_document_payloads(document) -> void:
+	_clear_document_payload_display()
+	if document == null or document.map == null or _data == null:
+		_redraw()
+		return
+	var cell_set = _data.cell_set()
+	var wall_set = _data.wall_set()
+	for raw_entry in document.tile_overrides:
+		if not raw_entry is Dictionary:
+			continue
+		var entry: Dictionary = (raw_entry as Dictionary).duplicate(true)
+		var hex = _hex_from_entry_cell(entry)
+		var key = hex.key()
+		if not cell_set.has(key):
+			continue
+		var entry_kind = String(entry.get("kind", HexMapDocumentAdapter.KIND_FLOOR))
+		var is_wall_cell = wall_set.has(key)
+		if entry_kind == HexMapDocumentAdapter.KIND_FLOOR and is_wall_cell:
+			continue
+		if entry_kind == HexMapDocumentAdapter.KIND_WALL and not is_wall_cell:
+			continue
+		_tile_overrides_by_key[_tile_override_key(key, entry_kind)] = entry
+	for raw_entry in document.objects:
+		if raw_entry is Dictionary:
+			_store_payload_marker(_object_markers_by_key, raw_entry as Dictionary, cell_set)
+	for raw_entry in document.labels:
+		if raw_entry is Dictionary:
+			_store_payload_marker(_label_markers_by_key, raw_entry as Dictionary, cell_set)
+	_redraw()
+
+
+func _store_payload_marker(store: Dictionary, entry: Dictionary, cell_set: Dictionary) -> void:
+	var hex = _hex_from_entry_cell(entry)
+	var key = hex.key()
+	if not cell_set.has(key):
+		return
+	if not store.has(key):
+		store[key] = {
+			"hex": hex,
+			"entries": [],
+		}
+	store[key]["entries"].append(entry.duplicate(true))
+
+
+func _tile_override_for_hex(hex: HexVector, is_wall_cell: bool) -> Dictionary:
+	var kind = HexMapDocumentAdapter.KIND_WALL if is_wall_cell else HexMapDocumentAdapter.KIND_FLOOR
+	var key = _tile_override_key(hex.key(), kind)
+	if _tile_overrides_by_key.has(key):
+		return _tile_overrides_by_key[key]
+	return {}
+
+
+func _tile_override_key(hex_key: String, kind: String) -> String:
+	return "%s|%s" % [hex_key, kind]
+
+
+func _payload_marker_count(store: Dictionary, key: String) -> int:
+	if not store.has(key):
+		return 0
+	var bucket: Dictionary = store[key]
+	return (bucket.get("entries", []) as Array).size()
+
+
+func _hex_from_entry_cell(entry: Dictionary) -> HexVector:
+	var cell = entry.get("cell", Vector3i.ZERO)
+	if typeof(cell) == TYPE_VECTOR3I:
+		return HexVector.apply_basis(cell.x, cell.y, cell.z)
+	if cell is HexVector:
+		return HexVector.apply_basis(cell.q, cell.s, cell.r)
+	return HexVector.zero()
 
 
 func _ensure_tile_map_layers() -> void:

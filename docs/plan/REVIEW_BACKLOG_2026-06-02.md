@@ -21,22 +21,17 @@ Use case:
 
 抽出候補:
 
-1. floor / wall default tile apply設定をHex Map Edit Dockに接続する。
-   - 説明: documentのtile override payload controlsはあるが、target redraw時のdefault floor / wall source_id / atlas_coordsはDock UIから指定しにくい。
-   - Evidence: `MANUAL_MAP_EDITING_TOOL_REVIEW_2026-05-31.md`
-   - Test候補: Dockでdefault floor/wall tileを変更し、manual wall/floor edit後のtarget tileに反映する。
-
-2. object / label databaseのdefinitionとplacement命名を分ける。
+1. object / label databaseのdefinitionとplacement命名を分ける。
    - 説明: `HexMapDocumentResource.objects` は配置結果、`HexObjectDatabaseResource.objects` は定義候補であり、同じ名前だと用途が混同しやすい。
    - Evidence: `MANUAL_MAP_EDITING_TOOL_REVIEW_2026-05-31.md`, `ADDITIONAL_REVIEW_NEXT_REQUIREMENTS_2026-05-31.md`
    - Test候補: database definitionからplacement payloadを選び、document保存後もplacementとして復元する。
 
-3. `tile_overrides.item_key` の扱いを決める。
+2. `tile_overrides.item_key` の扱いを決める。
    - 説明: 現状はfloor / wall kindでapplyされ、`item_key` はoverlay itemとの将来連携候補として残っている。schema revisionで分離するか、用途を定義するかを決める。
    - Evidence: `MANUAL_MAP_EDITING_TOOL_REVIEW_2026-05-31.md`, `ADDITIONAL_REVIEW_NEXT_REQUIREMENTS_2026-05-31.md`
    - Test候補: floor/wall overrideとoverlay item overrideを同じcellに持つ場合の保存・apply。
 
-4. Resource load失敗時のstatusを具体化する。
+3. Resource load失敗時のstatusを具体化する。
    - 説明: `load()` がnullを返す場合も型不一致として扱われる。ファイル未存在、型違い、保存失敗を区別すると操作ミスを報告しやすい。
    - Evidence: `MANUAL_MAP_EDITING_TOOL_REVIEW_2026-05-31.md`
    - Test候補: missing path、wrong resource type、invalid save directoryのstatus。
@@ -214,6 +209,7 @@ Use case:
 - Manual Map Editing の実Editor可視化: `docs/complete_on_test/MANUAL_MAP_EDITING_EDITOR_VISIBILITY_IMPLEMENTATION_PLAN_2026-06-02.md` の範囲として完了扱い。scene roundtripはU3に残す。
 - Runtime loop copy display / manual loop displayの主要要件: `docs/complete_on_test/実施順序_2026-06-01.md` の範囲として完了扱い。scene roundtripはU3に残す。
 - Hex Cell Button Editor UIの主要要件: Codex対応結果とテスト通過により完了扱い。theme追従やdense panel境界hitなど用途依存の改善だけ残す。
+- floor / wall default tile apply設定: `docs/complete_on_test/HEX_TILE_MAP_LAYER_EDIT_DOCK_FOLLOWUP_IMPLEMENTATION_PLAN_2026-06-02.md` と `tests/test_editor_plugin.gd` の default tile settings確認により完了扱い。
 
 ## 抽出元レビューと扱い
 

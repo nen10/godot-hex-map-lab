@@ -8,6 +8,7 @@ var _inspector_plugin: EditorInspectorPlugin
 
 func _enter_tree() -> void:
 	_dock = preload("res://addons/hex_map_kit/editor/hex_map_gen_dock.gd").new()
+	_dock.name = "Hex Map Generate"
 	add_control_to_dock(DOCK_SLOT_LEFT_BL, _dock)
 
 	_edit_tool = preload("res://addons/hex_map_kit/editor/hex_map_edit_tool.gd").new()

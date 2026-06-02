@@ -54,6 +54,7 @@ func _run() -> void:
 	_test_plugin_registration_files()
 	await _test_map_edit_tool_builds_dock_controls()
 	await _test_plugin_handles_canvas_item_when_map_edit_ready()
+	await _test_map_edit_tool_auto_target_uses_selected_layer()
 	await _test_map_edit_tool_imports_generated_map_resource()
 	await _test_map_edit_tool_click_updates_document_with_undo_redo()
 	await _test_map_edit_tool_forward_canvas_gui_input_uses_viewport_transform()
@@ -62,10 +63,13 @@ func _run() -> void:
 	await _test_map_edit_tool_target_readiness_reports_plain_tile_map_layer()
 	await _test_map_edit_tool_target_readiness_reports_hex_tile_map_layer_loop_state()
 	await _test_map_edit_tool_preserves_plain_target_tile_settings_when_redrawing()
+	await _test_map_edit_tool_applies_explicit_default_tile_settings()
 	await _test_map_edit_tool_last_edit_trace_distinguishes_document_and_redraw()
 	await _test_map_edit_tool_last_edit_trace_reports_target_apply_failure()
 	await _test_map_edit_tool_persistence_checkpoint_reports_save_and_export_counts()
 	await _test_map_edit_tool_local_hit_uses_hex_tile_map_layer()
+	await _test_map_edit_tool_hex_tile_payload_modes_change_display()
+	await _test_map_edit_tool_object_and_label_payloads_change_hex_display()
 	await _test_map_edit_tool_forward_canvas_gui_input_edits_loop_visual_duplicate()
 	await _test_map_edit_tool_undo_redo_preserves_loop_visual_identity()
 	await _test_map_edit_tool_mode_specific_payload_controls()
@@ -154,6 +158,16 @@ func _test_map_edit_tool_builds_dock_controls() -> void:
 	tool.refresh_target_layer_options(scene_root)
 
 	_assert_eq(tool.name, "Hex Map Edit", "map edit tool has separate dock name")
+	var scroll = tool.get_child(0) as ScrollContainer
+	_assert_true(scroll != null, "map edit tool wraps dock controls in a ScrollContainer")
+	_assert_eq(scroll.anchor_right, 1.0, "map edit tool ScrollContainer fills dock width")
+	_assert_eq(scroll.anchor_bottom, 1.0, "map edit tool ScrollContainer fills dock height")
+	_assert_true(scroll.get_child(0) is VBoxContainer, "map edit tool ScrollContainer owns the controls container")
+	_assert_eq(
+		(scroll.get_child(0) as VBoxContainer).size_flags_vertical,
+		Control.SIZE_SHRINK_BEGIN,
+		"map edit tool controls keep vertical minimum size inside ScrollContainer"
+	)
 	_assert_true(tool._document_path_edit != null, "map edit tool exposes document path control")
 	_assert_true(tool._document_load_button != null, "map edit tool exposes document load button")
 	_assert_true(tool._document_save_button != null, "map edit tool exposes document save button")
@@ -162,6 +176,10 @@ func _test_map_edit_tool_builds_dock_controls() -> void:
 	_assert_true(tool._export_button != null, "map edit tool exposes map export button")
 	_assert_eq(tool._mode_option.item_count, HexMapEditTool.EDIT_MODE_NAMES.size(), "map edit tool lists edit modes")
 	_assert_true(tool._object_properties_edit != null, "map edit tool exposes object properties payload control")
+	_assert_true(tool._default_floor_source_spin != null, "map edit tool exposes default floor source control")
+	_assert_true(tool._default_wall_atlas_x_spin != null, "map edit tool exposes default wall atlas control")
+	_assert_true(tool._default_tile_read_button != null, "map edit tool exposes default tile read button")
+	_assert_true(tool._default_tile_apply_button != null, "map edit tool exposes default tile apply button")
 	_assert_true(tool._target_option.item_count >= 2, "map edit tool lists target TileMapLayer options")
 	_assert_eq(tool.target_layer(), tile_layer, "map edit tool resolves Auto target to first editable layer")
 	var object_db = HexObjectDatabaseResource.new()
@@ -180,6 +198,7 @@ func _test_plugin_handles_canvas_item_when_map_edit_ready() -> void:
 	var plugin_source = FileAccess.get_file_as_string("res://addons/hex_map_kit/plugin.gd")
 	var edit_tool_source = FileAccess.get_file_as_string("res://addons/hex_map_kit/editor/hex_map_edit_tool.gd")
 	_assert_true(plugin_source.contains("func _handles(object: Object) -> bool:"), "plugin defines _handles for 2D viewport input")
+	_assert_true(plugin_source.contains("_dock.name = \"Hex Map Generate\""), "plugin gives generation dock a stable tab name")
 	_assert_true(plugin_source.contains("viewport_input_enabled"), "plugin gates viewport input through map edit tool")
 	_assert_true(plugin_source.contains("object is CanvasItem"), "plugin handles CanvasItem viewport objects")
 	_assert_true(
@@ -201,6 +220,42 @@ func _test_plugin_handles_canvas_item_when_map_edit_ready() -> void:
 	_assert_true(not tool.viewport_input_enabled(), "map edit tool disables viewport input without document")
 
 	layer.queue_free()
+	tool.queue_free()
+	await process_frame
+
+
+func _test_map_edit_tool_auto_target_uses_selected_layer() -> void:
+	var scene_root = Node2D.new()
+	scene_root.name = "SceneRoot"
+	root.add_child(scene_root)
+	var first_layer = TileMapLayer.new()
+	first_layer.name = "FirstLayer"
+	first_layer.tile_set = TileSet.new()
+	HexMapTileAdapter.configure_hex_tile_set(first_layer.tile_set, true, Vector2i(64, 64))
+	scene_root.add_child(first_layer)
+	var selected_layer = TileMapLayer.new()
+	selected_layer.name = "SelectedLayer"
+	selected_layer.tile_set = TileSet.new()
+	HexMapTileAdapter.configure_hex_tile_set(selected_layer.tile_set, true, Vector2i(64, 64))
+	scene_root.add_child(selected_layer)
+	var document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	var tool = await _new_ready_edit_tool()
+	tool.set_document(document)
+	tool.refresh_target_layer_options(scene_root)
+	tool.set_editor_selected_target_layer_for_test(selected_layer)
+	tool.set_edit_mode(HexMapEditTool.EditMode.WALL_FLOOR)
+
+	_assert_eq(tool.target_layer(), selected_layer, "Auto target resolves to the editor-selected layer")
+	_assert_true(tool.viewport_input_enabled(), "Auto target enables viewport input for the selected layer")
+	var origin_local = selected_layer.map_to_local(HexMapTileAdapter.vector_to_map_cell(HexVector.zero(), true))
+	_assert_true(tool.apply_local_position(origin_local), "Auto target edit applies to the selected layer")
+	_assert_eq(selected_layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(1, 0), "Auto target redraws selected layer")
+	_assert_eq(first_layer.get_used_cells().size(), 0, "Auto target does not redraw the first layer when selection exists")
+	_assert_eq(tool.last_edit_status()["target_resolution_reason"], "auto editor selection", "Last Edit records Auto selection reason")
+
+	scene_root.queue_free()
 	tool.queue_free()
 	await process_frame
 
@@ -498,6 +553,50 @@ func _test_map_edit_tool_preserves_plain_target_tile_settings_when_redrawing() -
 	await process_frame
 
 
+func _test_map_edit_tool_applies_explicit_default_tile_settings() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	data.set_walls([HexVector.q_axis()])
+	var document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(data))
+	var plain_layer = TileMapLayer.new()
+	plain_layer.tile_set = TileSet.new()
+	HexMapTileAdapter.configure_hex_tile_set(plain_layer.tile_set, true, Vector2i(64, 64))
+	var plain_tool = await _new_ready_edit_tool()
+	plain_tool.set_document(document)
+	plain_tool.set_target_layer(plain_layer)
+	plain_tool._default_floor_atlas_x_spin.value = 1
+	plain_tool._default_floor_atlas_y_spin.value = 0
+	plain_tool._default_wall_atlas_x_spin.value = 0
+	plain_tool._default_wall_atlas_y_spin.value = 0
+	plain_tool._on_apply_default_tiles_pressed()
+
+	_assert_eq(plain_layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(1, 0), "explicit default settings draw plain floor atlas")
+	_assert_eq(plain_layer.get_cell_atlas_coords(Vector2i(1, 0)), Vector2i(0, 0), "explicit default settings draw plain wall atlas")
+	_assert_eq(plain_tool.target_readiness_status()["floor_atlas_coords"], Vector2i(1, 0), "explicit plain floor atlas appears in readiness")
+
+	var hex_layer = HexTileMapLayer.new()
+	root.add_child(hex_layer)
+	await process_frame
+	var hex_tool = await _new_ready_edit_tool()
+	hex_tool.set_document(document)
+	hex_tool.set_target_layer(hex_layer)
+	hex_tool._default_floor_atlas_x_spin.value = 1
+	hex_tool._default_floor_atlas_y_spin.value = 0
+	hex_tool._default_wall_atlas_x_spin.value = 0
+	hex_tool._default_wall_atlas_y_spin.value = 0
+	hex_tool._on_apply_default_tiles_pressed()
+
+	_assert_eq(hex_layer.floor_atlas_coords, Vector2i(1, 0), "explicit default settings store HexTileMapLayer floor atlas")
+	_assert_eq(hex_layer.wall_atlas_coords, Vector2i(0, 0), "explicit default settings store HexTileMapLayer wall atlas")
+	_assert_eq(hex_layer.display_atlas_coords_for_hex(HexVector.zero()), Vector2i(1, 0), "explicit default settings draw Hex floor atlas")
+	_assert_eq(hex_layer.display_atlas_coords_for_hex(HexVector.q_axis()), Vector2i(0, 0), "explicit default settings draw Hex wall atlas")
+
+	plain_layer.free()
+	plain_tool.queue_free()
+	hex_layer.queue_free()
+	hex_tool.queue_free()
+	await process_frame
+
+
 func _test_map_edit_tool_last_edit_trace_distinguishes_document_and_redraw() -> void:
 	var document = HexMapDocumentAdapter.from_map_resource(
 		HexMapResource.from_map_data(HexMapData.rectangle(2, 1))
@@ -609,6 +708,68 @@ func _test_map_edit_tool_local_hit_uses_hex_tile_map_layer() -> void:
 	_assert_true(tool.apply_local_position(hit_local), "map edit tool uses HexTileMapLayer loop-aware hit")
 	_assert_true(document.map.to_map_data().has_wall(HexVector.zero()), "map edit tool edits canonical toric cell from visual duplicate")
 	_assert_true(layer.hex_map.to_map_data().has_wall(HexVector.zero()), "map edit tool updates HexTileMapLayer hex_map resource")
+
+	layer.queue_free()
+	tool.queue_free()
+	await process_frame
+
+
+func _test_map_edit_tool_hex_tile_payload_modes_change_display() -> void:
+	var document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	var layer = HexTileMapLayer.new()
+	root.add_child(layer)
+	await process_frame
+	var tool = await _new_ready_edit_tool()
+	tool.set_document(document)
+	tool.set_target_layer(layer)
+	tool._apply_document_to_target()
+	tool.set_edit_mode(HexMapEditTool.EditMode.FLOOR_TILE)
+	tool.set_tile_payload(0, Vector2i(1, 0), 0)
+
+	_assert_true(tool.apply_cell(HexVector.zero()), "floor tile mode applies payload to HexTileMapLayer")
+	_assert_eq(document.tile_overrides.size(), 1, "floor tile mode stores a document tile override")
+	_assert_eq(layer.display_atlas_coords_for_hex(HexVector.zero()), Vector2i(1, 0), "floor tile mode redraws HexTileMapLayer tile")
+	var trace = tool.last_edit_status()
+	_assert_true(bool(trace["display_changed"]), "floor tile mode Last Edit records display change")
+	_assert_eq(trace["display_renderer_after"], "HexTileMapLayer", "floor tile mode Last Edit records Hex renderer")
+	_assert_true(tool._last_edit_detail_label.text.contains("payload=0:(1,0):0"), "floor tile mode Last Edit includes payload")
+
+	layer.queue_free()
+	tool.queue_free()
+	await process_frame
+
+
+func _test_map_edit_tool_object_and_label_payloads_change_hex_display() -> void:
+	var document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	var layer = HexTileMapLayer.new()
+	root.add_child(layer)
+	await process_frame
+	var tool = await _new_ready_edit_tool()
+	tool.set_document(document)
+	tool.set_target_layer(layer)
+	tool._apply_document_to_target()
+	tool.set_edit_mode(HexMapEditTool.EditMode.OBJECT)
+	tool.set_object_payload("chest")
+
+	_assert_true(tool.apply_cell(HexVector.zero()), "object mode applies payload to HexTileMapLayer")
+	var object_state = layer.display_state_for_hex(HexVector.zero())
+	_assert_eq(object_state["object_count"], 1, "object mode exposes Hex object marker state")
+	_assert_true(bool(tool.last_edit_status()["display_changed"]), "object mode Last Edit records marker display change")
+	_assert_eq(tool.last_edit_status()["display_marker_count_after"], 1, "object mode Last Edit records marker count")
+
+	tool.set_edit_mode(HexMapEditTool.EditMode.LABEL)
+	tool.set_label_payload("area", "North")
+	_assert_true(tool.apply_cell(HexVector.zero()), "label mode applies payload to HexTileMapLayer")
+	var label_state = layer.display_state_for_hex(HexVector.zero())
+	_assert_eq(label_state["label_count"], 1, "label mode exposes Hex label marker state")
+	_assert_eq(label_state["marker_count"], 2, "label mode keeps object and label markers visible")
+	_assert_true(bool(tool.last_edit_status()["display_changed"]), "label mode Last Edit records marker display change")
+	_assert_eq(tool.last_edit_status()["display_marker_count_before"], 1, "label mode Last Edit records marker count before")
+	_assert_eq(tool.last_edit_status()["display_marker_count_after"], 2, "label mode Last Edit records marker count after")
 
 	layer.queue_free()
 	tool.queue_free()

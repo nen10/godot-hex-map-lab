@@ -2,7 +2,7 @@
 
 ## 目標 UX
 
-- `docs/plan/HEX_TILE_MAP_LAYER_EDIT_DOCK_FOLLOWUP_UX_2026-06-02.md`
+- `docs/complete_on_test/HEX_TILE_MAP_LAYER_EDIT_DOCK_FOLLOWUP_UX_2026-06-02.md`
 
 ## 採用候補
 
