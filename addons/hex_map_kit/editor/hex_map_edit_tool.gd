@@ -60,6 +60,10 @@ var _label_payload := {
 }
 var _last_edit_hit: Dictionary = {}
 var _last_edit_status: Dictionary = {}
+var _target_status_detail: Dictionary = {}
+var _last_persistence_status: Dictionary = {}
+var _pending_viewport_trace: Dictionary = {}
+var _last_highlight_hex = null
 var _last_applied_to_target := false
 var _target_selection_sync_request_count := 0
 var _last_selection_sync_target: Node = null
@@ -90,6 +94,9 @@ var _object_properties_edit: LineEdit
 var _label_id_edit: LineEdit
 var _label_text_edit: LineEdit
 var _status_label: Label
+var _target_status_label: Label
+var _last_edit_detail_label: Label
+var _persistence_detail_label: Label
 
 
 func _ready() -> void:
@@ -174,6 +181,15 @@ func last_edit_status() -> Dictionary:
 	return _last_edit_status.duplicate(true)
 
 
+func target_readiness_status() -> Dictionary:
+	_refresh_target_status_detail()
+	return _target_status_detail.duplicate(true)
+
+
+func persistence_status() -> Dictionary:
+	return _last_persistence_status.duplicate(true)
+
+
 func set_object_database(database: Resource) -> void:
 	_object_database = database
 	_sync_resource_pickers()
@@ -242,36 +258,44 @@ func load_document(path: String = "") -> bool:
 
 func save_document(path: String = "") -> bool:
 	if _document == null:
+		_set_persistence_status("save_document", path, false, ERR_DOES_NOT_EXIST, "HexMapDocumentResource")
 		_set_status("No document selected.")
 		return false
 	var actual_path = path if path != "" else _document_path
 	if actual_path == "":
+		_set_persistence_status("save_document", actual_path, false, ERR_INVALID_PARAMETER, "HexMapDocumentResource")
 		_set_status("Document path is empty.")
 		return false
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(actual_path.get_base_dir()))
 	var error = ResourceSaver.save(_document, actual_path)
 	if error != OK:
+		_set_persistence_status("save_document", actual_path, false, error, "HexMapDocumentResource")
 		_set_status("Failed to save document: %d" % error)
 		return false
 	set_document_path(actual_path)
+	_set_persistence_status("save_document", actual_path, true, OK, "HexMapDocumentResource")
 	_set_status("Saved document.")
 	return true
 
 
 func export_map_resource_to_path(path: String = "") -> bool:
 	if _document == null:
+		_set_persistence_status("export_map", path, false, ERR_DOES_NOT_EXIST, "HexMapResource")
 		_set_status("No document selected.")
 		return false
 	var actual_path = path if path != "" else _export_path
 	if actual_path == "":
+		_set_persistence_status("export_map", actual_path, false, ERR_INVALID_PARAMETER, "HexMapResource")
 		_set_status("Export path is empty.")
 		return false
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(actual_path.get_base_dir()))
 	var error = ResourceSaver.save(export_map_resource(), actual_path)
 	if error != OK:
+		_set_persistence_status("export_map", actual_path, false, error, "HexMapResource")
 		_set_status("Failed to export map: %d" % error)
 		return false
 	set_export_path(actual_path)
+	_set_persistence_status("export_map", actual_path, true, OK, "HexMapResource")
 	_set_status("Exported HexMapResource.")
 	return true
 
@@ -363,23 +387,30 @@ func _apply_hit(hit: Dictionary) -> bool:
 	var before = HexMapDocumentAdapter.duplicate_document(_document)
 	var after = HexMapDocumentAdapter.duplicate_document(_document)
 	var hex = hit["hex"]
-	_apply_mode_to_document(after, hex)
-	_commit_document_change(before, after, "Hex map edit %s" % EDIT_MODE_NAMES[_edit_mode])
-	_last_edit_hit = hit.duplicate(true)
-	_last_edit_status = {
-		"target_path": _target_path_string(),
-		"mode": _edit_mode,
-		"hex": hex,
-		"visual_hex": hit.get("visual_hex", hex),
-		"exists": bool(hit.get("exists", false)),
-		"applied": _last_applied_to_target,
-	}
 	var visual_hex = hit.get("visual_hex", hex)
+	var target_used_cells_before = _target_used_cell_count()
+	var display_before = _target_display_state(hex, visual_hex)
+	_apply_mode_to_document(after, hex)
+	var applied = _commit_document_change(before, after, "Hex map edit %s" % EDIT_MODE_NAMES[_edit_mode])
+	var target_used_cells_after = _target_used_cell_count()
+	var display_after = _target_display_state(hex, visual_hex)
+	_last_edit_hit = hit.duplicate(true)
+	_last_edit_status = _build_last_edit_trace(
+		hit,
+		before,
+		after,
+		applied,
+		target_used_cells_before,
+		target_used_cells_after,
+		display_before,
+		display_after
+	)
 	if visual_hex.key() != hex.key():
 		_set_status("Edited %s via %s" % [hex.key(), visual_hex.key()])
 	else:
 		_set_status("Edited %s" % hex.key())
 	_refresh_last_hit_display()
+	_refresh_last_edit_detail()
 	return true
 
 
@@ -532,6 +563,15 @@ func _build_ui() -> void:
 	_status_label = Label.new()
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	root.add_child(_status_label)
+	_target_status_label = _new_detail_label()
+	root.add_child(_wrap_labeled("Target Status", _target_status_label))
+	_last_edit_detail_label = _new_detail_label()
+	root.add_child(_wrap_labeled("Last Edit", _last_edit_detail_label))
+	_persistence_detail_label = _new_detail_label()
+	root.add_child(_wrap_labeled("Save / Export", _persistence_detail_label))
+	_refresh_target_status_detail()
+	_refresh_last_edit_detail()
+	_refresh_persistence_detail()
 	_refresh_payload_controls_visibility()
 
 
@@ -557,7 +597,7 @@ func _apply_mode_to_document(document: HexMapDocumentResource, hex) -> void:
 			HexMapDocumentAdapter.set_label(document, hex, _label_payload)
 
 
-func _commit_document_change(before, after, action_name: String) -> void:
+func _commit_document_change(before, after, action_name: String) -> bool:
 	_last_applied_to_target = false
 	if _undo_redo != null:
 		_undo_redo.create_action(action_name)
@@ -569,6 +609,7 @@ func _commit_document_change(before, after, action_name: String) -> void:
 	else:
 		_replace_document_state(after)
 		_apply_document_to_target()
+	return _last_applied_to_target
 
 
 func _replace_document_state(snapshot) -> void:
@@ -577,17 +618,20 @@ func _replace_document_state(snapshot) -> void:
 
 
 func _apply_document_to_target() -> bool:
-	if _target_layer == null or _document == null:
+	if _target_layer == null or _document == null or not is_instance_valid(_target_layer):
 		_last_applied_to_target = false
+		_refresh_target_status_detail()
 		return false
 	if _target_layer is HexTileMapLayer:
 		(_target_layer as HexTileMapLayer).apply_map(HexMapDocumentAdapter.to_map_resource(_document))
 		(_target_layer as HexTileMapLayer).refresh_loop_display()
 		_refresh_last_hit_display()
 		_last_applied_to_target = true
+		_refresh_target_status_detail()
 		return true
 	HexMapDocumentAdapter.apply_to_tile_map_layer(_document, _target_layer)
 	_last_applied_to_target = true
+	_refresh_target_status_detail()
 	return true
 
 
@@ -780,6 +824,7 @@ func _refresh_state_labels() -> void:
 		if _target_layer != null and is_instance_valid(_target_layer):
 			target_name = _target_layer.name
 		_target_label.text = "Target: %s" % target_name
+	_refresh_target_status_detail()
 
 
 func _resolve_target_layer():
@@ -838,6 +883,7 @@ func _select_target_in_editor_if_possible() -> void:
 
 
 func _editor_viewport_event_to_target_local(event: InputEventMouseButton):
+	_pending_viewport_trace = {}
 	if _target_layer == null or not (_target_layer is CanvasItem):
 		_set_status("No editable target layer.")
 		_debug_viewport_input("target missing", event.position, Vector2.ZERO, Vector2.ZERO, {})
@@ -848,6 +894,11 @@ func _editor_viewport_event_to_target_local(event: InputEventMouseButton):
 		_debug_viewport_input("scene position missing", event.position, Vector2.ZERO, Vector2.ZERO, {})
 		return null
 	var local_pos = (_target_layer as CanvasItem).to_local(scene_pos)
+	_pending_viewport_trace = {
+		"viewport_position": event.position,
+		"scene_position": scene_pos,
+		"local_position": local_pos,
+	}
 	if debug_viewport_input:
 		var hit = _local_hit(local_pos)
 		_debug_viewport_input("resolved", event.position, scene_pos, local_pos, hit)
@@ -883,6 +934,280 @@ func _debug_viewport_input(stage: String, viewport_pos: Vector2, scene_pos: Vect
 	)
 
 
+func _refresh_target_status_detail() -> void:
+	_target_status_detail = _build_target_readiness_status()
+	if _target_status_label != null:
+		_target_status_label.text = _format_target_status_detail(_target_status_detail)
+
+
+func _build_target_readiness_status() -> Dictionary:
+	var status = {
+		"target_path": _target_path_string(),
+		"target_class": _target_class_string(),
+		"is_hex_tile_map_layer": _target_layer is HexTileMapLayer,
+		"tile_set_present": false,
+		"floor_source_id": 0,
+		"floor_atlas_coords": Vector2i.ZERO,
+		"wall_source_id": 0,
+		"wall_atlas_coords": Vector2i(1, 0),
+		"used_cell_count": 0,
+		"loop_display_mode": HexTileMapLayer.LOOP_DISPLAY_NONE,
+		"ready": false,
+		"message": "No editable target layer.",
+	}
+	if _target_layer == null or not is_instance_valid(_target_layer):
+		return status
+	if _target_layer is HexTileMapLayer:
+		var hex_layer := _target_layer as HexTileMapLayer
+		status["tile_set_present"] = hex_layer.display_tile_set_present()
+		status["floor_source_id"] = hex_layer.floor_source_id
+		status["floor_atlas_coords"] = hex_layer.floor_atlas_coords
+		status["wall_source_id"] = hex_layer.wall_source_id
+		status["wall_atlas_coords"] = hex_layer.wall_atlas_coords
+		status["used_cell_count"] = hex_layer.display_used_cell_count()
+		status["loop_display_mode"] = hex_layer.loop_display_mode
+	elif _target_layer is TileMapLayer:
+		var tile_layer := _target_layer as TileMapLayer
+		status["tile_set_present"] = tile_layer.tile_set != null
+		status["used_cell_count"] = tile_layer.get_used_cells().size()
+	else:
+		status["message"] = "Target is not a TileMapLayer."
+		return status
+	status["ready"] = bool(status["tile_set_present"])
+	status["message"] = "ready" if bool(status["ready"]) else "TileSet missing."
+	return status
+
+
+func _format_target_status_detail(status: Dictionary) -> String:
+	if status.is_empty():
+		return "none"
+	var tile_state = "ready" if bool(status.get("tile_set_present", false)) else "missing"
+	var loop_text = ""
+	if bool(status.get("is_hex_tile_map_layer", false)):
+		loop_text = " loop=%s" % _loop_mode_name(int(status.get("loop_display_mode", 0)))
+	return "%s %s tiles=%s floor=%d:%s wall=%d:%s used=%d%s %s" % [
+		String(status.get("target_class", "")),
+		String(status.get("target_path", "")),
+		tile_state,
+		int(status.get("floor_source_id", 0)),
+		_atlas_text(status.get("floor_atlas_coords", Vector2i.ZERO)),
+		int(status.get("wall_source_id", 0)),
+		_atlas_text(status.get("wall_atlas_coords", Vector2i(1, 0))),
+		int(status.get("used_cell_count", 0)),
+		loop_text,
+		String(status.get("message", "")),
+	]
+
+
+func _target_class_string() -> String:
+	if _target_layer == null:
+		return "none"
+	if not is_instance_valid(_target_layer):
+		return "invalid"
+	if _target_layer is HexTileMapLayer:
+		return "HexTileMapLayer"
+	if _target_layer is TileMapLayer:
+		return "TileMapLayer"
+	return _target_layer.get_class()
+
+
+func _build_last_edit_trace(
+	hit: Dictionary,
+	before,
+	after,
+	applied: bool,
+	target_used_cells_before: int,
+	target_used_cells_after: int,
+	display_before: Dictionary,
+	display_after: Dictionary
+) -> Dictionary:
+	var hex = hit["hex"]
+	var visual_hex = hit.get("visual_hex", hex)
+	var before_state = _document_cell_state(before, hex)
+	var after_state = _document_cell_state(after, hex)
+	var viewport_trace = _pending_viewport_trace.duplicate(true)
+	_pending_viewport_trace = {}
+	var local_position = hit.get("local", Vector2.ZERO)
+	var viewport_position = viewport_trace.get("viewport_position", Vector2.ZERO)
+	var scene_position = viewport_trace.get("scene_position", Vector2.ZERO)
+	if viewport_trace.has("local_position"):
+		local_position = viewport_trace["local_position"]
+	var display_atlas_before = display_before.get("atlas_coords", Vector2i(-1, -1))
+	var display_atlas_after = display_after.get("atlas_coords", Vector2i(-1, -1))
+	var document_changed = var_to_str(before_state) != var_to_str(after_state)
+	var display_changed = display_atlas_before != display_atlas_after \
+		or int(display_before.get("source_id", -1)) != int(display_after.get("source_id", -1))
+	var trace = {
+		"target_path": _target_path_string(),
+		"target_class": _target_class_string(),
+		"mode": _edit_mode,
+		"viewport_position": viewport_position,
+		"scene_position": scene_position,
+		"local_position": local_position,
+		"hex": hex,
+		"visual_hex": visual_hex,
+		"exists": bool(hit.get("exists", false)),
+		"exists_before": bool(before_state.get("exists", false)),
+		"exists_after": bool(after_state.get("exists", false)),
+		"wall_before": bool(before_state.get("wall", false)),
+		"wall_after": bool(after_state.get("wall", false)),
+		"document_changed": document_changed,
+		"target_applied": applied,
+		"applied": applied,
+		"target_used_cells_before": target_used_cells_before,
+		"target_used_cells_after": target_used_cells_after,
+		"display_atlas_before": display_atlas_before,
+		"display_atlas_after": display_atlas_after,
+		"display_changed": display_changed,
+	}
+	trace["message"] = _format_last_edit_detail(trace)
+	return trace
+
+
+func _refresh_last_edit_detail() -> void:
+	if _last_edit_detail_label != null:
+		_last_edit_detail_label.text = _format_last_edit_detail(_last_edit_status)
+
+
+func _format_last_edit_detail(trace: Dictionary) -> String:
+	if trace.is_empty():
+		return "none"
+	var hex_text = trace["hex"].key() if trace.has("hex") else "<none>"
+	var visual_text = trace["visual_hex"].key() if trace.has("visual_hex") else hex_text
+	var visual_suffix = " via %s" % visual_text if visual_text != hex_text else ""
+	return "%s%s %s->%s document=%s target=%s display=%s tile=%s->%s used=%d->%d" % [
+		hex_text,
+		visual_suffix,
+		"wall" if bool(trace.get("wall_before", false)) else "floor",
+		"wall" if bool(trace.get("wall_after", false)) else "floor",
+		_bool_text(bool(trace.get("document_changed", false))),
+		_bool_text(bool(trace.get("target_applied", false))),
+		_bool_text(bool(trace.get("display_changed", false))),
+		_atlas_text(trace.get("display_atlas_before", Vector2i(-1, -1))),
+		_atlas_text(trace.get("display_atlas_after", Vector2i(-1, -1))),
+		int(trace.get("target_used_cells_before", 0)),
+		int(trace.get("target_used_cells_after", 0)),
+	]
+
+
+func _document_cell_state(document, hex) -> Dictionary:
+	var state = {
+		"exists": false,
+		"wall": false,
+		"tile_overrides": [],
+		"objects": [],
+		"labels": [],
+	}
+	if document == null or document.map == null:
+		return state
+	var data = document.map.to_map_data()
+	state["exists"] = data.has_cell(hex)
+	state["wall"] = data.has_wall(hex)
+	state["tile_overrides"] = _entries_for_cell(document.tile_overrides, hex)
+	state["objects"] = _entries_for_cell(document.objects, hex)
+	state["labels"] = _entries_for_cell(document.labels, hex)
+	return state
+
+
+func _entries_for_cell(entries: Array, hex) -> Array:
+	var result: Array = []
+	var target_key = hex.key()
+	for entry in entries:
+		if not entry is Dictionary:
+			continue
+		if _entry_cell_key(entry) == target_key:
+			result.append((entry as Dictionary).duplicate(true))
+	return result
+
+
+func _entry_cell_key(entry: Dictionary) -> String:
+	var cell = entry.get("cell", Vector3i.ZERO)
+	if typeof(cell) == TYPE_VECTOR3I:
+		return HexVector.apply_basis(cell.x, cell.y, cell.z).key()
+	if cell is HexVector:
+		return HexVector.apply_basis(cell.q, cell.s, cell.r).key()
+	return ""
+
+
+func _target_display_state(hex, visual_hex) -> Dictionary:
+	var state = {
+		"source_id": -1,
+		"atlas_coords": Vector2i(-1, -1),
+	}
+	if _target_layer == null or not is_instance_valid(_target_layer):
+		return state
+	if _target_layer is HexTileMapLayer:
+		state["atlas_coords"] = (_target_layer as HexTileMapLayer).display_atlas_coords_for_hex(hex, visual_hex)
+		return state
+	if _target_layer is TileMapLayer:
+		var flat_top = true
+		if _document != null and _document.map != null:
+			flat_top = _document.map.is_flat_top()
+		var map_cell = HexMapTileAdapter.vector_to_map_cell(visual_hex, flat_top)
+		state["source_id"] = (_target_layer as TileMapLayer).get_cell_source_id(map_cell)
+		state["atlas_coords"] = (_target_layer as TileMapLayer).get_cell_atlas_coords(map_cell)
+	return state
+
+
+func _target_used_cell_count() -> int:
+	if _target_layer == null or not is_instance_valid(_target_layer):
+		return 0
+	if _target_layer is HexTileMapLayer:
+		return (_target_layer as HexTileMapLayer).display_used_cell_count()
+	if _target_layer is TileMapLayer:
+		return (_target_layer as TileMapLayer).get_used_cells().size()
+	return 0
+
+
+func _set_persistence_status(
+	operation: String,
+	path: String,
+	ok: bool,
+	error: int = OK,
+	resource_class: String = ""
+) -> void:
+	var summary = _document_summary(_document)
+	_last_persistence_status = {
+		"operation": operation,
+		"path": path,
+		"ok": ok,
+		"error": error,
+		"resource_class": resource_class,
+		"cell_count": int(summary.get("cell_count", 0)),
+		"wall_count": int(summary.get("wall_count", 0)),
+	}
+	_last_persistence_status["message"] = _format_persistence_detail(_last_persistence_status)
+	_refresh_persistence_detail()
+
+
+func _document_summary(document) -> Dictionary:
+	if document == null or document.map == null:
+		return {"cell_count": 0, "wall_count": 0}
+	var data = document.map.to_map_data()
+	return {
+		"cell_count": data.cells.size(),
+		"wall_count": data.walls.size(),
+	}
+
+
+func _refresh_persistence_detail() -> void:
+	if _persistence_detail_label != null:
+		_persistence_detail_label.text = _format_persistence_detail(_last_persistence_status)
+
+
+func _format_persistence_detail(status: Dictionary) -> String:
+	if status.is_empty():
+		return "none"
+	return "%s %s %s cells=%d walls=%d %s" % [
+		String(status.get("operation", "")),
+		String(status.get("path", "")),
+		String(status.get("resource_class", "")),
+		int(status.get("cell_count", 0)),
+		int(status.get("wall_count", 0)),
+		"ok" if bool(status.get("ok", false)) else "error=%d" % int(status.get("error", ERR_UNAVAILABLE)),
+	]
+
+
 func _target_path_string() -> String:
 	if _target_layer == null or not is_instance_valid(_target_layer):
 		return ""
@@ -896,10 +1221,11 @@ func _refresh_last_hit_display() -> void:
 		return
 	if _last_edit_hit.is_empty() or not _last_edit_hit.has("hex"):
 		return
-	(_target_layer as HexTileMapLayer).highlight_cell(
-		_last_edit_hit["hex"],
-		Color(0.96, 0.76, 0.18, 0.95)
-	)
+	var hex_layer := _target_layer as HexTileMapLayer
+	if _last_highlight_hex != null:
+		hex_layer.remove_highlight(_last_highlight_hex)
+	_last_highlight_hex = _last_edit_hit["hex"]
+	hex_layer.highlight_cell(_last_highlight_hex, Color(0.96, 0.76, 0.18, 0.95))
 
 
 func _can_use_editor_resource_picker() -> bool:
@@ -909,6 +1235,33 @@ func _can_use_editor_resource_picker() -> bool:
 func _set_status(text: String) -> void:
 	if _status_label != null:
 		_status_label.text = text
+
+
+func _new_detail_label() -> Label:
+	var label = Label.new()
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	return label
+
+
+func _bool_text(value: bool) -> String:
+	return "yes" if value else "no"
+
+
+func _atlas_text(value) -> String:
+	if value is Vector2i:
+		return "(%d,%d)" % [value.x, value.y]
+	return str(value)
+
+
+func _loop_mode_name(mode: int) -> String:
+	match mode:
+		HexTileMapLayer.LOOP_DISPLAY_TORIC:
+			return "toric"
+		HexTileMapLayer.LOOP_DISPLAY_INFINITE:
+			return "infinite"
+		_:
+			return "none"
 
 
 func _new_int_spin(value: int, min_value: int, max_value: int) -> SpinBox:

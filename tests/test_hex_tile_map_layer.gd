@@ -37,6 +37,7 @@ func _run() -> void:
 	await _test_apply_map_uses_resource_orientation()
 	await _test_coordinate_roundtrips()
 	await _test_path_highlight_and_connectivity_helpers()
+	await _test_remove_highlight_removes_single_cell()
 	await _test_runtime_input_signals_use_cell_hit()
 	await _test_local_to_cell_hit_wraps_toric_visual_cell()
 	await _test_infinite_loop_mode_keeps_visual_cell_identity()
@@ -181,6 +182,24 @@ func _test_path_highlight_and_connectivity_helpers() -> void:
 	_assert_eq(layer._display_path.size(), 4, "draw_path stores display path")
 	layer.clear_path()
 	_assert_eq(layer._display_path.size(), 0, "clear_path clears display path")
+
+	layer.queue_free()
+	await process_frame
+
+
+func _test_remove_highlight_removes_single_cell() -> void:
+	var layer = HexTileMapLayer.new()
+	root.add_child(layer)
+	await process_frame
+	layer.apply_map(HexMapResource.from_map_data(HexMapData.rectangle(2, 1)))
+	layer.highlight_cell(HexVector.zero(), Color(1.0, 0.0, 0.0))
+	layer.highlight_cell(HexVector.q_axis(), Color(0.0, 1.0, 0.0))
+
+	_assert_eq(layer._highlights.size(), 2, "remove_highlight fixture starts with two highlights")
+	layer.remove_highlight(HexVector.zero())
+	_assert_eq(layer._highlights.size(), 1, "remove_highlight removes one highlight")
+	_assert_true(not layer._highlights.has(HexVector.zero().key()), "remove_highlight removes requested cell")
+	_assert_true(layer._highlights.has(HexVector.q_axis().key()), "remove_highlight preserves other cell")
 
 	layer.queue_free()
 	await process_frame

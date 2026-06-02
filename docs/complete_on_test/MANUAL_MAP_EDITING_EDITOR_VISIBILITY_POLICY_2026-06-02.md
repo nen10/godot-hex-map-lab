@@ -2,7 +2,7 @@
 
 ## 目的
 
-`docs/plan/MANUAL_MAP_EDITING_EDITOR_VISIBILITY_UX_2026-06-02.md` の UX を実現するため、Hex Map Edit Dock に target readiness と edit trace を追加する。
+`docs/complete_on_test/MANUAL_MAP_EDITING_EDITOR_VISIBILITY_UX_2026-06-02.md` の UX を実現するため、Hex Map Edit Dock に target readiness と edit trace を追加する。
 
 ## 現状
 

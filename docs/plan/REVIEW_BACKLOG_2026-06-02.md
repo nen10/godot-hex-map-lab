@@ -13,46 +13,6 @@
 - ユーザーが「優先度低い」と判断した項目は低優先候補として残す。
 - fallback 記述は仕様根拠にせず、正規仕様へ置き換える必要がある場合だけ候補にする。
 
-## U1. Manual Map Editing の実Editor可視化
-
-Use case:
-
-Godot Editor上で生成済みmapをHex Map Editへimportし、viewport上のcellをclickしたとき、document mutation、target layer redraw、保存・exportの成否がユーザーに明確に見える。
-
-Planning Flow:
-
-- UX: `docs/plan/MANUAL_MAP_EDITING_EDITOR_VISIBILITY_UX_2026-06-02.md`
-- 方針: `docs/plan/MANUAL_MAP_EDITING_EDITOR_VISIBILITY_POLICY_2026-06-02.md`
-- 詳細: `docs/plan/MANUAL_MAP_EDITING_EDITOR_VISIBILITY_IMPLEMENTATION_PLAN_2026-06-02.md`
-- Review: `docs/plan/MANUAL_MAP_EDITING_EDITOR_VISIBILITY_PLAN_REVIEW_2026-06-02.md`
-
-抽出候補:
-
-1. Viewport click後の表示反映を実Editorで切り分ける。
-   - 説明: ユーザーレビューでは `Edited <clicked-coordinate>` がDockに表示される一方、editor viewport上のtile変化が見えない。documentが更新されたのか、target layer redrawが失敗したのか、TileSet / target class / apply設定の問題なのかを判別する必要がある。
-   - Evidence: `MANUAL_RUNTIME_LOOP_DISPLAY_IMPLEMENTATION_REVIEW_2026-06-01.md`
-   - Test候補: analog rerun、クリック後のdocument wall count、target layer used cells、atlas coords、save/export後resource stateを確認する。
-
-2. Plain `TileMapLayer` target と `HexTileMapLayer` target の表示要件を明確にする。
-   - 説明: manual editはplain `TileMapLayer` fallbackと`HexTileMapLayer` loop-aware targetの両方を扱う。ユーザーがGodot標準 `TileMapLayer` を使ってよいか、Sample TileSet / floor-wall atlas / orientation applyが必要かをDock statusで判断できるようにする。
-   - Evidence: `GENERATED_MAP_MANUAL_EDIT_ANALOG_RESULT_2026-06-01.md`, `GENERATED_MAP_MANUAL_EDIT_FAILURE_ANALYSIS_2026-06-01.md`, `MANUAL_RUNTIME_LOOP_DISPLAY_IMPLEMENTATION_REVIEW_2026-06-01.md`
-   - Test候補: plain `TileMapLayer` と `HexTileMapLayer` の2ケースでviewport edit後のredrawを比較する。
-
-3. Editor viewport input routingの実機確認をanalog testへ残す。
-   - 説明: headlessでは`EditorPlugin._handles()`を直接実行できないため、`_handles()`とEditor selection syncの実挙動は実Editor観察が必要。
-   - Evidence: `MANUAL_RUNTIME_LOOP_DISPLAY_IMPLEMENTATION_REVIEW_2026-06-01.md`, `MANUAL_MAP_EDITING_TOOL_VIEWPORT_INPUT_PLAN_REVIEW_2026-06-01.md`
-   - Test候補: pan / zoom済み2D viewport、Scene Tree selectionがtarget以外、Target Refresh後、explicit Target選択後のclick。
-
-4. viewport debug情報をDock上で見える形にする。
-   - 説明: `debug_viewport_input` はOutput panelへの `print()` であり、analog test中に見落とされやすい。target path、mode、viewport/scene/local position、canonical/visual hex、exists、appliedをDock内statusまたはdebug detailとして見られると失敗境界を報告しやすい。
-   - Evidence: `GENERATED_MAP_MANUAL_EDIT_ANALOG_RESULT_2026-06-01.md`, `MANUAL_RUNTIME_LOOP_DISPLAY_IMPLEMENTATION_REVIEW_2026-06-01.md`
-   - Test候補: outside cell、target missing、document missing、redraw applied false のstatus表示。
-
-5. last edit highlightの扱いを決める。
-   - 説明: 現状は最後に編集したcanonical cellをhighlightするが、前回highlightを消さないため編集済みcellが増える。履歴表示として残すか、last-only selectionとして更新するかを決める必要がある。
-   - Evidence: `MANUAL_RUNTIME_LOOP_DISPLAY_IMPLEMENTATION_REVIEW_2026-06-01.md`
-   - Test候補: 連続2cell編集後のhighlight数とstatus。
-
 ## U2. Manual Edit Document / Payload Schema
 
 Use case:
@@ -251,7 +211,8 @@ Use case:
 
 - Reference Query Row空結果時の警告: ユーザーが不要と判断したため除外。
 - Generative Reference ItemKeyの実装不足: レビュー上不足なし。関連計画は完了扱い。
-- Runtime loop copy display / manual loop displayの主要要件: `docs/complete_on_test/実施順序_2026-06-01.md` の範囲として完了扱い。ただし実Editor可視化とscene roundtripはこのbacklogに残す。
+- Manual Map Editing の実Editor可視化: `docs/complete_on_test/MANUAL_MAP_EDITING_EDITOR_VISIBILITY_IMPLEMENTATION_PLAN_2026-06-02.md` の範囲として完了扱い。scene roundtripはU3に残す。
+- Runtime loop copy display / manual loop displayの主要要件: `docs/complete_on_test/実施順序_2026-06-01.md` の範囲として完了扱い。scene roundtripはU3に残す。
 - Hex Cell Button Editor UIの主要要件: Codex対応結果とテスト通過により完了扱い。theme追従やdense panel境界hitなど用途依存の改善だけ残す。
 
 ## 抽出元レビューと扱い
@@ -260,15 +221,15 @@ Use case:
 | --- | --- |
 | `docs/review/_history/BRAINSTORM_OPEN_TOPICS_2026-05-30.md` | U4-U9へ抽出 |
 | `docs/review/_history/BRAINSTORM_OPEN_TOPICS_PLAN_REVIEW_2026-05-31.md` | U6-U7と計画化時の注意へ抽出 |
-| `docs/review/_history/ADDITIONAL_REVIEW_NEXT_REQUIREMENTS_2026-05-31.md` | U1-U3、U8へ抽出。完了済みloop/manual主要要件は除外 |
+| `docs/review/_history/ADDITIONAL_REVIEW_NEXT_REQUIREMENTS_2026-05-31.md` | U2-U3、U8へ抽出。完了済み実Editor可視化とloop/manual主要要件は除外 |
 | `docs/review/_history/GENERATIVE_REFERENCE_ITEMKEY_REVIEW_2026-05-31.md` | U8へ抽出 |
 | `docs/review/_history/RUNTIME_INTERACTION_LOOP_PATH_REVIEW_2026-05-31.md` | U3へ抽出 |
 | `docs/review/_history/RUNTIME_MANUAL_LOOP_DISPLAY_PLAN_REVIEW_2026-05-31.md` | 完了済みloop/manual主要要件として整理済み |
 | `docs/review/_history/MANUAL_MAP_EDITING_TOOL_REVIEW_2026-05-31.md` | U2へ抽出。viewport inputは完了済みとして除外 |
-| `docs/review/_history/MANUAL_MAP_EDITING_TOOL_VIEWPORT_INPUT_PLAN_REVIEW_2026-06-01.md` | U1へ抽出 |
-| `docs/review/_history/MANUAL_RUNTIME_LOOP_DISPLAY_IMPLEMENTATION_REVIEW_2026-06-01.md` | U1-U3へ抽出 |
-| `docs/review/_history/GENERATED_MAP_MANUAL_EDIT_ANALOG_RESULT_2026-06-01.md` | U1とU9へ抽出 |
-| `docs/review/_history/GENERATED_MAP_MANUAL_EDIT_FAILURE_ANALYSIS_2026-06-01.md` | U1へ抽出 |
+| `docs/review/_history/MANUAL_MAP_EDITING_TOOL_VIEWPORT_INPUT_PLAN_REVIEW_2026-06-01.md` | 完了済み実Editor可視化として整理済み |
+| `docs/review/_history/MANUAL_RUNTIME_LOOP_DISPLAY_IMPLEMENTATION_REVIEW_2026-06-01.md` | U2-U3へ抽出。実Editor可視化は完了済みとして除外 |
+| `docs/review/_history/GENERATED_MAP_MANUAL_EDIT_ANALOG_RESULT_2026-06-01.md` | U9へ抽出。実Editor可視化は完了済みとして除外 |
+| `docs/review/_history/GENERATED_MAP_MANUAL_EDIT_FAILURE_ANALYSIS_2026-06-01.md` | 完了済み実Editor可視化として整理済み |
 | `docs/review/_history/GENERATED_MAP_MANUAL_EDIT_CODE_READING_2026-06-01.md` | U9へ抽出 |
 | `docs/review/_history/HEX_CELL_BUTTON_EDITOR_UI_PLAN_REVIEW_2026-05-31.md` | U4へ抽出 |
 | `docs/review/_history/HEX_CELL_BUTTON_EDITOR_UI_REVIEW_2026-05-31.md` | U4へ抽出 |

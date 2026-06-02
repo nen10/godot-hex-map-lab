@@ -249,9 +249,40 @@ func highlight_cell(hex: HexVector, color: Color) -> void:
 	queue_redraw()
 
 
+func remove_highlight(hex: HexVector) -> void:
+	if _highlights.erase(hex.key()):
+		queue_redraw()
+
+
 func clear_highlights() -> void:
 	_highlights.clear()
 	queue_redraw()
+
+
+func display_tile_set_present() -> bool:
+	return _tile_map != null and _tile_map.tile_set != null
+
+
+func display_used_cell_count() -> int:
+	var count := 0
+	if _tile_map != null:
+		count += _tile_map.get_used_cells().size()
+	if _loop_tile_map != null:
+		count += _loop_tile_map.get_used_cells().size()
+	return count
+
+
+func display_atlas_coords_for_hex(hex: HexVector, visual_hex = null) -> Vector2i:
+	var target_hex = visual_hex if visual_hex != null else hex
+	if visual_hex != null and visual_hex.key() != hex.key() and _loop_tile_map != null:
+		var visual_map_cell = HexMapTileAdapter.vector_to_map_cell(target_hex, flat_top)
+		if _loop_tile_map.get_cell_source_id(visual_map_cell) >= 0:
+			return _loop_tile_map.get_cell_atlas_coords(visual_map_cell)
+	if _tile_map == null:
+		return Vector2i(-1, -1)
+	var canonical = HexVector.apply_basis(hex.q, hex.s, hex.r)
+	var map_cell = HexMapTileAdapter.vector_to_map_cell(canonical, flat_top)
+	return _tile_map.get_cell_atlas_coords(map_cell)
 
 
 func find_path(start: HexVector, goal: HexVector) -> Array:

@@ -2,9 +2,9 @@
 
 ## Review Target
 
-- UX: `docs/plan/MANUAL_MAP_EDITING_EDITOR_VISIBILITY_UX_2026-06-02.md`
-- Policy: `docs/plan/MANUAL_MAP_EDITING_EDITOR_VISIBILITY_POLICY_2026-06-02.md`
-- Implementation plan: `docs/plan/MANUAL_MAP_EDITING_EDITOR_VISIBILITY_IMPLEMENTATION_PLAN_2026-06-02.md`
+- UX: `docs/complete_on_test/MANUAL_MAP_EDITING_EDITOR_VISIBILITY_UX_2026-06-02.md`
+- Policy: `docs/complete_on_test/MANUAL_MAP_EDITING_EDITOR_VISIBILITY_POLICY_2026-06-02.md`
+- Implementation plan: `docs/complete_on_test/MANUAL_MAP_EDITING_EDITOR_VISIBILITY_IMPLEMENTATION_PLAN_2026-06-02.md`
 - Backlog source: `docs/plan/REVIEW_BACKLOG_2026-06-02.md` U1
 
 ## Judgement
@@ -76,4 +76,4 @@ Interactive / analog:
 
 ## Review Result
 
-Planning Flow は完了している。実装へ進める場合は `docs/plan/MANUAL_MAP_EDITING_EDITOR_VISIBILITY_IMPLEMENTATION_PLAN_2026-06-02.md` の実装手順 1 から開始できる。
+Planning Flow と実装は `docs/complete_on_test/MANUAL_MAP_EDITING_EDITOR_VISIBILITY_IMPLEMENTATION_PLAN_2026-06-02.md` の範囲として完了している。

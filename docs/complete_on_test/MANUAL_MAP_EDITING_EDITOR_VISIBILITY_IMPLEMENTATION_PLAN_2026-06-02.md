@@ -2,8 +2,8 @@
 
 ## 参照方針
 
-- UX: `docs/plan/MANUAL_MAP_EDITING_EDITOR_VISIBILITY_UX_2026-06-02.md`
-- 方針: `docs/plan/MANUAL_MAP_EDITING_EDITOR_VISIBILITY_POLICY_2026-06-02.md`
+- UX: `docs/complete_on_test/MANUAL_MAP_EDITING_EDITOR_VISIBILITY_UX_2026-06-02.md`
+- 方針: `docs/complete_on_test/MANUAL_MAP_EDITING_EDITOR_VISIBILITY_POLICY_2026-06-02.md`
 - 採用案: Dock 内の target readiness detail、last edit trace、save/export checkpoint、last-only highlight。
 
 ## 対象ファイル

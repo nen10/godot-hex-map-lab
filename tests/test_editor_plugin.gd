@@ -59,6 +59,11 @@ func _run() -> void:
 	await _test_map_edit_tool_forward_canvas_gui_input_uses_viewport_transform()
 	await _test_map_edit_tool_target_selection_sync_for_explicit_target()
 	await _test_map_edit_tool_forward_canvas_gui_input_reports_no_editable_cell()
+	await _test_map_edit_tool_target_readiness_reports_plain_tile_map_layer()
+	await _test_map_edit_tool_target_readiness_reports_hex_tile_map_layer_loop_state()
+	await _test_map_edit_tool_last_edit_trace_distinguishes_document_and_redraw()
+	await _test_map_edit_tool_last_edit_trace_reports_target_apply_failure()
+	await _test_map_edit_tool_persistence_checkpoint_reports_save_and_export_counts()
 	await _test_map_edit_tool_local_hit_uses_hex_tile_map_layer()
 	await _test_map_edit_tool_forward_canvas_gui_input_edits_loop_visual_duplicate()
 	await _test_map_edit_tool_undo_redo_preserves_loop_visual_identity()
@@ -375,6 +380,155 @@ func _test_map_edit_tool_forward_canvas_gui_input_reports_no_editable_cell() -> 
 	await process_frame
 
 
+func _test_map_edit_tool_target_readiness_reports_plain_tile_map_layer() -> void:
+	var document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(2, 1))
+	)
+	var layer = TileMapLayer.new()
+	layer.tile_set = TileSet.new()
+	HexMapTileAdapter.configure_hex_tile_set(layer.tile_set, true, Vector2i(64, 64))
+	var tool = await _new_ready_edit_tool()
+	tool.set_document(document)
+	tool.set_target_layer(layer)
+	tool._apply_document_to_target()
+
+	var status = tool.target_readiness_status()
+	_assert_eq(status["target_class"], "TileMapLayer", "plain target readiness reports TileMapLayer class")
+	_assert_true(bool(status["tile_set_present"]), "plain target readiness reports TileSet presence")
+	_assert_true(bool(status["ready"]), "plain target readiness is ready with a TileSet")
+	_assert_eq(status["used_cell_count"], 2, "plain target readiness reports used cell count")
+	_assert_eq(status["floor_atlas_coords"], Vector2i.ZERO, "plain target readiness reports default floor atlas")
+	_assert_eq(status["wall_atlas_coords"], Vector2i(1, 0), "plain target readiness reports default wall atlas")
+	_assert_true(tool._target_status_label.text.contains("TileMapLayer"), "plain target readiness appears in Dock detail")
+
+	layer.free()
+	tool.queue_free()
+	await process_frame
+
+
+func _test_map_edit_tool_target_readiness_reports_hex_tile_map_layer_loop_state() -> void:
+	var resource = HexMapResource.from_map_data(HexMapData.square(3, true))
+	var document = HexMapDocumentAdapter.from_map_resource(resource)
+	var layer = HexTileMapLayer.new()
+	root.add_child(layer)
+	await process_frame
+	layer.floor_source_id = 4
+	layer.floor_atlas_coords = Vector2i(2, 0)
+	layer.wall_source_id = 5
+	layer.wall_atlas_coords = Vector2i(3, 0)
+	layer.loop_display_enabled = true
+	layer.loop_display_mode = HexTileMapLayer.LOOP_DISPLAY_TORIC
+	layer.apply_map(resource)
+	var tool = await _new_ready_edit_tool()
+	tool.set_document(document)
+	tool.set_target_layer(layer)
+
+	var status = tool.target_readiness_status()
+	_assert_eq(status["target_class"], "HexTileMapLayer", "hex target readiness reports HexTileMapLayer class")
+	_assert_true(bool(status["is_hex_tile_map_layer"]), "hex target readiness marks HexTileMapLayer")
+	_assert_true(bool(status["tile_set_present"]), "hex target readiness reports internal TileSet presence")
+	_assert_eq(status["floor_source_id"], 4, "hex target readiness reports floor source id")
+	_assert_eq(status["floor_atlas_coords"], Vector2i(2, 0), "hex target readiness reports floor atlas")
+	_assert_eq(status["wall_source_id"], 5, "hex target readiness reports wall source id")
+	_assert_eq(status["wall_atlas_coords"], Vector2i(3, 0), "hex target readiness reports wall atlas")
+	_assert_eq(status["loop_display_mode"], HexTileMapLayer.LOOP_DISPLAY_TORIC, "hex target readiness reports loop mode")
+	_assert_true(tool._target_status_label.text.contains("loop=toric"), "hex target readiness appears in Dock detail")
+
+	layer.queue_free()
+	tool.queue_free()
+	await process_frame
+
+
+func _test_map_edit_tool_last_edit_trace_distinguishes_document_and_redraw() -> void:
+	var document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(2, 1))
+	)
+	var layer = TileMapLayer.new()
+	layer.tile_set = TileSet.new()
+	HexMapTileAdapter.configure_hex_tile_set(layer.tile_set, true, Vector2i(64, 64))
+	root.add_child(layer)
+	var tool = await _new_ready_edit_tool()
+	tool.set_document(document)
+	tool.set_target_layer(layer)
+	tool.set_edit_mode(HexMapEditTool.EditMode.WALL_FLOOR)
+	tool._apply_document_to_target()
+	var origin_local = layer.map_to_local(HexMapTileAdapter.vector_to_map_cell(HexVector.zero(), true))
+	var press = InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.pressed = true
+	press.position = layer.to_global(origin_local)
+
+	_assert_true(tool.forward_canvas_gui_input(press), "last edit trace accepts viewport click")
+	var trace = tool.last_edit_status()
+	_assert_true(bool(trace["document_changed"]), "last edit trace records document mutation")
+	_assert_true(bool(trace["target_applied"]), "last edit trace records target apply")
+	_assert_true(bool(trace["display_changed"]), "last edit trace records display tile change")
+	_assert_true(not bool(trace["wall_before"]), "last edit trace records previous floor state")
+	_assert_true(bool(trace["wall_after"]), "last edit trace records next wall state")
+	_assert_eq(trace["display_atlas_before"], Vector2i.ZERO, "last edit trace records floor atlas before edit")
+	_assert_eq(trace["display_atlas_after"], Vector2i(1, 0), "last edit trace records wall atlas after edit")
+	_assert_eq(trace["target_used_cells_before"], 2, "last edit trace records used cells before edit")
+	_assert_eq(trace["target_used_cells_after"], 2, "last edit trace records used cells after edit")
+	_assert_true(tool._last_edit_detail_label.text.contains("document=yes"), "last edit trace appears in Dock detail")
+
+	layer.queue_free()
+	tool.queue_free()
+	await process_frame
+
+
+func _test_map_edit_tool_last_edit_trace_reports_target_apply_failure() -> void:
+	var document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	var tool = await _new_ready_edit_tool()
+	tool.set_document(document)
+	tool.set_edit_mode(HexMapEditTool.EditMode.WALL_FLOOR)
+
+	_assert_true(tool.apply_cell(HexVector.zero()), "last edit trace mutates document without a target")
+	var trace = tool.last_edit_status()
+	_assert_true(bool(trace["document_changed"]), "target failure trace records document mutation")
+	_assert_true(not bool(trace["target_applied"]), "target failure trace records target apply failure")
+	_assert_true(not bool(trace["display_changed"]), "target failure trace keeps display unchanged")
+	_assert_eq(trace["display_atlas_before"], Vector2i(-1, -1), "target failure trace has no display atlas before")
+	_assert_eq(trace["display_atlas_after"], Vector2i(-1, -1), "target failure trace has no display atlas after")
+	_assert_true(tool._last_edit_detail_label.text.contains("target=no"), "target failure trace appears in Dock detail")
+
+	tool.queue_free()
+	await process_frame
+
+
+func _test_map_edit_tool_persistence_checkpoint_reports_save_and_export_counts() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	data.set_walls([HexVector.q_axis()])
+	var document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(data))
+	var tool = await _new_ready_edit_tool()
+	tool.set_document(document)
+	var document_path = "res://.godot_user/test_map_edit_visibility_document.tres"
+	var export_path = "res://.godot_user/test_map_edit_visibility_export.tres"
+
+	_assert_true(tool.save_document(document_path), "persistence checkpoint saves document")
+	var save_status = tool.persistence_status()
+	_assert_eq(save_status["operation"], "save_document", "persistence checkpoint records save operation")
+	_assert_eq(save_status["path"], document_path, "persistence checkpoint records save path")
+	_assert_true(bool(save_status["ok"]), "persistence checkpoint records save success")
+	_assert_eq(save_status["resource_class"], "HexMapDocumentResource", "persistence checkpoint records document class")
+	_assert_eq(save_status["cell_count"], 2, "persistence checkpoint records save cell count")
+	_assert_eq(save_status["wall_count"], 1, "persistence checkpoint records save wall count")
+
+	_assert_true(tool.export_map_resource_to_path(export_path), "persistence checkpoint exports map")
+	var export_status = tool.persistence_status()
+	_assert_eq(export_status["operation"], "export_map", "persistence checkpoint records export operation")
+	_assert_eq(export_status["path"], export_path, "persistence checkpoint records export path")
+	_assert_true(bool(export_status["ok"]), "persistence checkpoint records export success")
+	_assert_eq(export_status["resource_class"], "HexMapResource", "persistence checkpoint records export class")
+	_assert_eq(export_status["cell_count"], 2, "persistence checkpoint records export cell count")
+	_assert_eq(export_status["wall_count"], 1, "persistence checkpoint records export wall count")
+	_assert_true(tool._persistence_detail_label.text.contains("HexMapResource"), "persistence checkpoint appears in Dock detail")
+
+	tool.queue_free()
+	await process_frame
+
+
 func _test_map_edit_tool_local_hit_uses_hex_tile_map_layer() -> void:
 	var data = HexMapData.square(3, true)
 	var resource = HexMapResource.from_map_data(data)
@@ -434,6 +588,13 @@ func _test_map_edit_tool_forward_canvas_gui_input_edits_loop_visual_duplicate() 
 	_assert_true(layer._highlights.has(HexVector.zero().key()), "map edit tool highlights last edited canonical cell")
 	_assert_vector_eq(tool.last_edit_status()["hex"], HexVector.zero(), "last edit status stores canonical hex")
 	_assert_vector_eq(tool.last_edit_status()["visual_hex"], duplicate_visual, "last edit status stores visual hex")
+	_assert_true(
+		tool.apply_local_position(layer.hex_to_local(HexVector.q_axis())),
+		"map edit tool accepts a second loop target edit"
+	)
+	_assert_eq(layer._highlights.size(), 1, "map edit tool keeps only one last-edit highlight")
+	_assert_true(not layer._highlights.has(HexVector.zero().key()), "map edit tool clears previous last-edit highlight")
+	_assert_true(layer._highlights.has(HexVector.q_axis().key()), "map edit tool highlights the newest canonical cell")
 
 	layer.queue_free()
 	tool.queue_free()
