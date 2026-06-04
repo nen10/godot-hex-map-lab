@@ -30,3 +30,25 @@ Godotでの開発ノウハウを随時追加します。
 - `HexMapDocumentResource` を1clickごとにbefore / after全量複製し、さらに `HexTileMapLayer.apply_document()` で全量redrawすると、大きいmapではEditor操作が重くなる。`Wall / Floor` やtile overrideのような単一cell変更は、document state更新と内部 `TileMapLayer.set_cell()` のincremental applyを優先する。
 - `HexTileMapLayer` を `TileMapLayer` 継承にするとGodot標準TileMap editorの選択・paint対象とaddon独自manual edit targetが同じnodeになり、入力責務が混ざりやすい。GodotのTileMap機能を使う目的には、`Node2D` wrapperが内部 `TileMapLayer` と前面overlay childを管理するcompositionの方が扱いやすい。
 - Image生成モデルで作ったsprite sheetは、最終的にGodot `TileSetAtlasSource.texture_region_size` に合う厳密なpixel寸法へ整形する。ImageMagickやPillowがない環境でも、Godot headlessの `Image` APIでchroma key透明化、subject bbox検出、resize、atlas保存ができる。今回の再利用toolは `tools/process_generated_tactics_assets.gd`。
+
+## TileSet / TileMap editor と asset 選択
+
+- このprojectは `project.godot` でGodot `4.6` featureを指定している。TileSet / TileMap editor連携を調査する場合はGodot 4.6公式docsを基準にする。
+- Godot標準TileMap editorは、`TileMapLayer` nodeを選択してからbottom panelのTileMap panelを開く流れで使う。addonのユーザー向けTargetを `HexTileMapLayer` wrapperに寄せる場合、内部 `TileMapLayer` を標準TileMap panel対象として選択させる操作と、wrapperをmanual edit targetにする操作が衝突しないか確認する。
+- Godot標準TileSet editorでは、tilesheet画像から `TileSetAtlasSource` を作り、TileSetのtile sizeに基づいてtileを自動作成できる。複数画像を1つのTileSetに使う場合は追加atlasを作る方針が公式docs上の自然な経路である。
+- `TileSetAtlasSource` はtexture、margins、separation、`texture_region_size`、alternative tile、TileDataを持つ。addon側でatlas画像を選択する場合も、source id、atlas coords、alternative tileだけでなく、TileSet側のsource構成とregion sizeを明示的に扱う必要がある。
+- `TileMapLayer.set_cell()` は `source_id`、`atlas_coords`、`alternative_tile` をcellに保存する。asset選択UXではTarget / TileSet境界を採用し、documentはこの3値をpayloadとして持ち、asset path / TileSet referenceは持たない。
+- `EditorPlugin._handles()` がtrueを返す対象では `_edit()` / `_make_visible()` / `_forward_canvas_gui_input()` が呼ばれる。標準TileMap editorとaddon manual editの入力が同じ2D viewportで競合する場合、addon側はeventを消費する条件を限定する必要がある。
+- addonは標準TileMap panelの現在選択tileに依存せず、Target TileSet resourceと `source_id` / `atlas_coords` / `alternative_tile` を境界にする。標準TileMap画面はTileSet編集の補助操作として開き、manual edit payloadはDock側の明示設定から作る。
+- 現在のaddon実装では、Generation Dockに `Select Atlas Image` / `Use Sample Tiles` があり、選択画像を `HexTileMapLayer` またはplain `TileMapLayer` のTileSetへ反映する経路がある。Edit Dockはsource id / atlas coords / alternative tileの数値設定と `Read Target Tiles` / `Apply Target Tiles` を持つが、画像atlas選択UIはまだ持たない。
+- Edit Dockへasset選択UIを足す場合、Generation Dockの画像選択処理を再利用できる。選択assetはTarget `HexTileMapLayer` の内部 `TileMapLayer.tile_set` へ設定し、documentへasset pathを保存しない。
+- 生成済みtactics atlasは固定defaultではなく、ユーザーが選択できるsample / preset assetとして扱う。Object用画像atlasはTile / Overlay asset計画から外し、Node / scene配置の検討としてreview側へ分離する。
+
+参照:
+
+- Godot 4.6 Using TileSets: https://docs.godotengine.org/en/4.6/tutorials/2d/using_tilesets.html
+- Godot 4.6 Using TileMaps: https://docs.godotengine.org/en/4.6/tutorials/2d/using_tilemaps.html
+- Godot 4.6 TileMapLayer: https://docs.godotengine.org/en/4.6/classes/class_tilemaplayer.html
+- Godot 4.6 TileSetAtlasSource: https://docs.godotengine.org/en/4.6/classes/class_tilesetatlassource.html
+- Godot 4.6 EditorPlugin: https://docs.godotengine.org/en/4.6/classes/class_editorplugin.html
+- Godot 4.6 EditorInterface: https://docs.godotengine.org/en/4.6/classes/class_editorinterface.html
