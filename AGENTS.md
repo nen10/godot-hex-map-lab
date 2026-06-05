@@ -3,13 +3,15 @@
 ## 参照
 
 必要な作業を発見・承認する。
-基本方針は `README.md` と `docs/plan/policy/` 以下を確認する。
+基本方針は `README.md` と `docs/policy/` 以下を確認する。
 
-- 計画作成: `docs/plan/policy/PLANNING_POLICY.md`
-- 実装・検証・完了整理: `docs/plan/policy/IMPLEMENTATION_POLICY.md`
-- UX / 仕様 / 詳細設計間の判断: `docs/plan/policy/INTER_SCALE_POLICY.md`
-- アナログテスト: `docs/plan/policy/ANALOG_TEST_POLICY.md`
+- 計画作成: `docs/policy/PLANNING_POLICY.md`
+- 開発領域ごとの設計判断: `docs/policy/DOMAIN_POLICY.md`
+- 実装・検証・完了整理: `docs/policy/IMPLEMENTATION_POLICY.md`
+
 - テスト実行と Test path: `docs/TEST.md`
+- 自動テスト設計: `docs/policy/TEST_DESIGN_POLICY.md`
+- アナログテスト: `docs/policy/ANALOG_TEST_POLICY.md`
 
 ## 作業方針
 

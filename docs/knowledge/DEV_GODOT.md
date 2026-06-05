@@ -32,6 +32,8 @@ Godotでの開発ノウハウを随時追加します。
 - `Hex Map Edit` のviewport入力はTargetだけでなく編集対象documentにも依存する。`HexTileMapLayer` が `hex_map` を持ってreadyでも、Edit Dock側の `_document` が空ならviewport editは始まらない。Target Reloadを編集開始操作にする場合、選択中 `HexTileMapLayer.hex_map` から未保存 `HexMapDocumentResource` を作る入口が必要。
 - `TileMapLayer.local_to_map()` / `map_to_local()` はGodot側のmap cellとlocal座標の基準APIである。`TileSet.tile_shape = HEXAGON`、`TILE_LAYOUT_STACKED`、`tile_offset_axis`、`tile_size` を使う表示では、独自hex数式だけをhit / overlay中心の根拠にすると遠端cellでずれが蓄積しやすい。Editor上で見えているcell操作は内部 `TileMapLayer` の変換APIに寄せる。
 - `HexMapDocumentResource` を1clickごとにbefore / after全量複製し、さらに `HexTileMapLayer.apply_document()` で全量redrawすると、大きいmapではEditor操作が重くなる。`Wall / Floor` やtile overrideのような単一cell変更は、document state更新と内部 `TileMapLayer.set_cell()` のincremental applyを優先する。
+- `HexTileMapLayer` の通常manual edit経路は、`HexMapDocumentResource` 全体を表示transportにせず、Target側のcommand before / after stateを `apply_edit_command()` へ渡す方が安定する。Undo / Redoもdocument全量snapshotではなくcommand / inverse commandにすると、loop duplicateやoverlay表示をcell単位で戻せる。
+- `./tools/test.sh` は `TEST_JOBS` で複数test scriptを並列実行できる。Godot integration testでresourceを書き込む場合は、`HEX_MAP_TEST_RUN_ID` を使って `.godot_user/test-runs/<run-id>/<script-name>/` 配下に保存し、`.godot_user` 直下の固定名 `.tres` を共有しない。
 - `HexTileMapLayer` を `TileMapLayer` 継承にするとGodot標準TileMap editorの選択・paint対象とaddon独自manual edit targetが同じnodeになり、入力責務が混ざりやすい。GodotのTileMap機能を使う目的には、`Node2D` wrapperが内部 `TileMapLayer` と前面overlay childを管理するcompositionの方が扱いやすい。
 - Image生成モデルで作ったsprite sheetは、最終的にGodot `TileSetAtlasSource.texture_region_size` に合う厳密なpixel寸法へ整形する。ImageMagickやPillowがない環境でも、Godot headlessの `Image` APIでchroma key透明化、subject bbox検出、resize、atlas保存ができる。今回の再利用toolは `tools/process_generated_tactics_assets.gd`。
 

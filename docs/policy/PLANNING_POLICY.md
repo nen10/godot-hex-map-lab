@@ -5,9 +5,9 @@
 `docs/plan/<date>_<plan-name>/` 以下へ計画を追加・整理する作成単位を与える。計画は、UX、実装方針、詳細な実装計画、検証方針を接続し、実装時に判断を再利用できる状態にする。
 `docs/review/plan/` 以下に作成する計画評価の観点を定める。
 
-計画全体にわたる方針として `docs/plan/policy/INTER_SCALE_POLICY.md` を参照する。実装へ進める際は `docs/plan/policy/IMPLEMENTATION_POLICY.md` を参照する。
+計画全体にわたる方針として `docs/policy/DOMAIN_POLICY.md` を参照する。実装へ進める際は `docs/policy/IMPLEMENTATION_POLICY.md` を参照する。
 
-## Planning Flow
+## Design Flow
 
 一つの計画は以下を番号順に整理する。
 
@@ -78,4 +78,3 @@ UX 文書はユースケースを実現するための複数の手続きから�
 既存 UX との干渉は正常な開発プロセスであり、発見した干渉は目標 UX 文書に記載する。重大な機能が損なわれない限り、既存 UX との干渉は実装を妨げない。
 
 レビューで見つかった不足は、修正するもの、無視できるもの、後続計画に残すものへ分類し、修正には対応する。
-

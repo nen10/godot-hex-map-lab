@@ -6,10 +6,11 @@
 
 ## 参照する方針
 
-- 計画作成: `docs/plan/policy/PLANNING_POLICY.md`
-- 計画スケール間の判断: `docs/plan/policy/INTER_SCALE_POLICY.md`
+- 計画作成: `docs/policy/PLANNING_POLICY.md`
+- 開発領域ごとの設計判断: `docs/policy/DOMAIN_POLICY.md`
 - テスト実行と Test path: `docs/TEST.md`
-- アナログテスト: `docs/plan/policy/ANALOG_TEST_POLICY.md`
+- 自動テスト設計: `docs/policy/TEST_DESIGN_POLICY.md`
+- アナログテスト: `docs/policy/ANALOG_TEST_POLICY.md`
 
 ## 実装単位
 
@@ -36,6 +37,7 @@
 
 - `docs/plan/` 以下で計画されている意味のある機能には、原則として自動テストまたは明示された interactive test を作成する。
 - 実装有無の主な根拠は `docs/TEST.md` に記録された Test path と `tools/test.sh` の実行結果とする。
+- 自動テストの追加・変更時は `docs/policy/TEST_DESIGN_POLICY.md` に従い、並列実行時に固定resourceや共有ログへ書き込まない。
 
 ## レビューと完了整理
 
@@ -45,7 +47,7 @@
 
 ## Up scaling for next planning
 
-完了要件とは独立に、実装項目に関連するユースケース及びアナログテストを作成できる。
+完了要件とは独立に、実装項目に関連するユースケース及びアナログテストを作成し、開発イテレーションを進めることができる。
 
 - Editor Plugin 操作など、自動テストでは観察しにくい結合ユースケースは `tests/analog_test/` のアナログテストとして扱える。
 - アナログテストは実装完了要件の代替ではなく、要件抽出と改善計画の材料として扱う。
