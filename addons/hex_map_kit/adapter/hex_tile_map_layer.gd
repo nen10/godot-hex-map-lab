@@ -52,6 +52,12 @@ class OverlayCanvas:
 		if is_node_ready():
 			_redraw()
 
+@export var display_tile_set_resource: TileSet:
+	set(v):
+		display_tile_set_resource = v
+		if is_node_ready():
+			_apply_display_tile_set_resource()
+
 @export var floor_source_id: int = 0
 @export var floor_atlas_coords: Vector2i = Vector2i.ZERO
 @export var floor_alternative_tile: int = 0
@@ -104,6 +110,8 @@ var _label_markers_by_key: Dictionary = {}
 
 func _ready() -> void:
 	_ensure_tile_map_layers()
+	if display_tile_set_resource != null:
+		_apply_display_tile_set_resource()
 	if hex_map:
 		apply_map(hex_map)
 	elif _data != null:
@@ -273,12 +281,24 @@ func display_tile_map_layer() -> TileMapLayer:
 
 func set_display_tile_set(tile_set: TileSet) -> void:
 	_ensure_tile_map_layers()
-	_tile_map.tile_set = tile_set
-	_sync_hex_size_for_current_display()
-	_sync_loop_tile_map()
-	_sync_overlay_tile_map()
-	if _data != null:
-		_redraw()
+	display_tile_set_resource = tile_set
+	_apply_display_tile_set_resource()
+
+
+func display_layer_status() -> Dictionary:
+	_ensure_tile_map_layers()
+	var tile_set := _tile_map.tile_set if _tile_map != null else null
+	return {
+		"tile_set_resource_path": tile_set.resource_path if tile_set != null else "",
+		"tile_set_source_count": tile_set.get_source_count() if tile_set != null else 0,
+		"tile_size": tile_set.tile_size if tile_set != null else Vector2i.ZERO,
+		"base_visible": _tile_map.visible if _tile_map != null else false,
+		"base_z_index": _tile_map.z_index if _tile_map != null else 0,
+		"overlay_tile_visible": _overlay_tile_map.visible if _overlay_tile_map != null else false,
+		"overlay_tile_z_index": _overlay_tile_map.z_index if _overlay_tile_map != null else 0,
+		"overlay_canvas_visible": _overlay.visible if _overlay != null else false,
+		"overlay_canvas_z_index": _overlay.z_index if _overlay != null else 0,
+	}
 
 
 func is_wall(hex: HexVector) -> bool:
@@ -385,7 +405,9 @@ func ensure_display_tiles(
 	_ensure_tile_map_layers()
 	if _tile_map.tile_set == null:
 		_tile_map.tile_set = TileSet.new()
+	display_tile_set_resource = _tile_map.tile_set
 	HexMapTileAdapter.configure_hex_tile_set(_tile_map.tile_set, flat_top, tile_size)
+	_sync_hex_size_from_tile_size(tile_size)
 	var ok = _ensure_display_tiles_available(tile_size)
 	_sync_loop_tile_map()
 	_sync_overlay_tile_map()
@@ -429,7 +451,9 @@ func configure_display_tiles_from_texture(
 	_ensure_tile_map_layers()
 	if _tile_map.tile_set == null:
 		_tile_map.tile_set = TileSet.new()
+	display_tile_set_resource = _tile_map.tile_set
 	HexMapTileAdapter.configure_hex_tile_set(_tile_map.tile_set, flat_top, tile_size)
+	_sync_hex_size_from_tile_size(tile_size)
 	var ok = _configure_display_tile_sources(texture, tile_size)
 	_sync_loop_tile_map()
 	_sync_overlay_tile_map()
@@ -1133,8 +1157,11 @@ func _ensure_tile_map_layers() -> void:
 
 
 func _configure_tile_map() -> void:
+	if display_tile_set_resource != null:
+		_tile_map.tile_set = display_tile_set_resource
 	if _tile_map.tile_set == null:
 		_tile_map.tile_set = TileSet.new()
+		display_tile_set_resource = _tile_map.tile_set
 	HexMapTileAdapter.configure_hex_tile_set(_tile_map.tile_set, flat_top)
 	_ensure_display_tiles_available()
 	_sync_loop_tile_map()
@@ -1153,11 +1180,24 @@ func _sync_overlay_tile_map() -> void:
 		_overlay_tile_map.position = _tile_map.position
 
 
+func _apply_display_tile_set_resource() -> void:
+	_ensure_tile_map_layers()
+	if _tile_map == null:
+		return
+	_tile_map.tile_set = display_tile_set_resource
+	_sync_hex_size_for_current_display()
+	_sync_loop_tile_map()
+	_sync_overlay_tile_map()
+	if _data != null:
+		_redraw()
+
+
 func _ensure_display_tiles_available(tile_size: Vector2i = HexMapTileAdapter.SAMPLE_TILE_SIZE) -> bool:
 	if _tile_map == null:
 		return false
 	if _tile_map.tile_set == null:
 		_tile_map.tile_set = TileSet.new()
+		display_tile_set_resource = _tile_map.tile_set
 	if _display_tiles_available(_tile_map.tile_set):
 		return true
 	var texture := HexMapTileAdapter.load_sample_tile_texture()
@@ -1166,7 +1206,9 @@ func _ensure_display_tiles_available(tile_size: Vector2i = HexMapTileAdapter.SAM
 	if tile_size.x <= 0 or tile_size.y <= 0:
 		tile_size = HexMapTileAdapter.SAMPLE_TILE_SIZE
 	_sync_hex_size_from_tile_size(tile_size)
-	return _configure_display_tile_sources(texture, tile_size)
+	var ok = _configure_display_tile_sources(texture, tile_size)
+	_sync_hex_size_from_tile_size(tile_size)
+	return ok
 
 
 func _display_tiles_available(tile_set: TileSet) -> bool:

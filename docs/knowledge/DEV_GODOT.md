@@ -11,6 +11,7 @@ Godotでの開発ノウハウを随時追加します。
 - `@tool` nodeでresourceをready前に受け取る場合、setterではresourceを保持し、`_ready()` でinternal child作成後にredrawする。redraw時にはTileSet shapeだけでなくvisible atlas sourceの存在も確認する。
 - `HexTileMapLayer.apply_map()` は表示用にmap dataを反映するhelperであり、`hex_map` export propertyを必ず更新する入口ではない。Editor DockなどがTarget resourceとして `HexTileMapLayer.hex_map` を読む場合、fixtureや実装では `hex_layer.hex_map = resource` を使う。
 - `Node.add_child(..., INTERNAL_MODE_BACK)` で作るinternal childを後で再検出する場合、`get_children(true)` を使う。defaultの `get_children()` だけだとinternal childを走査できない。
+- `INTERNAL_MODE_BACK` / `INTERNAL_MODE_FRONT` で作る内部 `TileMapLayer` のresource状態をscene保存へ依存させる場合、wrapper node側にもexport resourceを持たせて同期する方が安定する。`PackedScene.pack()` / instantiateで、内部childの `tile_set` だけでなくwrapperのexport propertyから復元できることをheadless testにする。
 
 ## Editor Dock UI と target 解決
 
@@ -24,6 +25,7 @@ Godotでの開発ノウハウを随時追加します。
 - Debug情報を一括報告させたい場合、`DisplayServer.clipboard_set(text)` でCopy buttonを作れる。headless testではOS clipboardの実内容を読むより、生成したreport textと直近copy用に保持した文字列を照合する方が安定する。
 - Godot 4.6.2では `PackedStringArray.join()` を使えないため、複数行debug reportを作る場合は手動join helperか利用可能なString側APIを確認してから使う。
 - `EditorUndoRedoManager` は `UndoRedo` と `add_do_method()` のAPIが異なる。headless testで `UndoRedo.new()` が通っても、Editor Pluginで `EditorInterface.get_editor_undo_redo()` に `Callable` を渡すとerrorになる。Editor UndoRedo連携を使う場合はAPI adapterを作り、不要なら直接applyへ戻す。
+- `EditorFileDialog` の実際のpopup操作はheadless testでは観察できない。DockのBrowse / Save Asは、dialogを作るhelperと `file_selected` / `dir_selected` handlerを分け、headless testではhandlerを直接呼んでpath同期、resource validation、status更新を検証する。
 - `CanvasItem` の親 `_draw()` はchild `TileMapLayer` の背面に出る。TileMap上のhighlightやmarkerを確実に見せたい場合、親 `_draw()` ではなく前面overlay child、z index、またはchild orderを使う。
 - `HexTileMapLayer` の表示tileはGodot `TileMapLayer` / `TileSet.tile_size` に従い、click hitやhighlightは `hex_size` に従う。両者を別々に更新すると、見えているcellとhit対象がずれる。display tile size変更時は `hex_size` を同期するか、hit / overlayの中心座標を内部 `TileMapLayer.map_to_local()` から取得する。
 - `TileMapLayer.map_to_local()` / `local_to_map()` によるhex表示座標をテストする場合、対象 `TileMapLayer.tile_set` に `TILE_SHAPE_HEXAGON`、`TILE_LAYOUT_STACKED`、orientationに合った `tile_offset_axis` と `tile_size` を先に設定する。TileSet未設定時は独自helperのfallback値とGodot側変換値を同列に比較しない。
@@ -42,7 +44,8 @@ Godotでの開発ノウハウを随時追加します。
 - `TileMapLayer.set_cell()` は `source_id`、`atlas_coords`、`alternative_tile` をcellに保存する。asset選択UXではTarget / TileSet境界を採用し、documentはこの3値をpayloadとして持ち、asset path / TileSet referenceは持たない。
 - `EditorPlugin._handles()` がtrueを返す対象では `_edit()` / `_make_visible()` / `_forward_canvas_gui_input()` が呼ばれる。標準TileMap editorとaddon manual editの入力が同じ2D viewportで競合する場合、addon側はeventを消費する条件を限定する必要がある。
 - addonは標準TileMap panelの現在選択tileに依存せず、Target TileSet resourceと `source_id` / `atlas_coords` / `alternative_tile` を境界にする。標準TileMap画面はTileSet編集の補助操作として開き、manual edit payloadはDock側の明示設定から作る。
-- 現在のaddon実装では、Generation Dockに `Select Atlas Image` / `Use Sample Tiles` があり、Edit DockにもTarget TileSet / Atlas Image / Sample presetの入口がある。どちらの入口でも選択assetはTarget `HexTileMapLayer` の内部 `TileMapLayer.tile_set` へ設定し、documentへasset pathを保存しない。
+- 現在のaddon実装では、Generation Dockに `Browse Atlas Image` / `Use Sample Tiles` があり、Edit DockにもTarget TileSet / Atlas Image / Sample presetの入口がある。どちらの入口でも選択assetはTarget `HexTileMapLayer` の内部 `TileMapLayer.tile_set` へ設定し、documentへasset pathを保存しない。
+- Edit DockとGeneration Dockでpath選択UXを揃える場合、通常操作は `EditorFileDialog` / `EditorResourcePicker`、direct path `LineEdit` は既知path貼り付け用のadvanced操作として残す。button disabledやtooltipは押す前の原因表示に使い、失敗後のStatusだけを仕様根拠にしない。
 - 生成済みtactics atlasは固定defaultではなく、ユーザーが選択できるsample / preset assetとして扱う。Object用画像atlasはTile / Overlay asset計画から外し、Node / scene配置の検討としてreview側へ分離する。
 
 参照:

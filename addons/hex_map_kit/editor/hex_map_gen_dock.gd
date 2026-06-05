@@ -15,6 +15,7 @@ const HexOverlayTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_over
 const HexAdjacencyRuleSet = preload("res://addons/hex_map_kit/adapter/hex_adjacency_rule_set.gd")
 const HexAdjacencyRuleEditor = preload("res://addons/hex_map_kit/editor/hex_adjacency_rule_editor.gd")
 const HexCellButtonPanel = preload("res://addons/hex_map_kit/editor/hex_cell_button_panel.gd")
+const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const HexToricCoordinate = preload("res://addons/hex_map_kit/core/hex_toric_coordinate.gd")
 const HexRandomizer = preload("res://addons/hex_map_kit/core/hex_randomizer.gd")
@@ -431,7 +432,7 @@ func _build_ui() -> void:
 	button_row.add_child(_apply_layer_button)
 
 	_save_button = Button.new()
-	_save_button.text = "Save .tres"
+	_save_button.text = "Save As .tres"
 	_save_button.pressed.connect(_on_save_pressed)
 	button_row.add_child(_save_button)
 
@@ -515,7 +516,7 @@ func _build_source_registry_controls() -> Control:
 
 	var row = HBoxContainer.new()
 	_source_load_button = Button.new()
-	_source_load_button.text = "Load .tres"
+	_source_load_button.text = "Browse .tres"
 	_source_load_button.pressed.connect(_on_source_load_pressed)
 	row.add_child(_source_load_button)
 
@@ -768,7 +769,7 @@ func _build_seed_controls() -> Control:
 	row.add_child(_generate_history_check)
 
 	_generate_history_dir_button = Button.new()
-	_generate_history_dir_button.text = "Dir"
+	_generate_history_dir_button.text = "History Dir"
 	_generate_history_dir_button.pressed.connect(_on_generate_history_dir_pressed)
 	row.add_child(_generate_history_dir_button)
 	return row
@@ -823,7 +824,7 @@ func _build_tile_layer_controls() -> Control:
 
 	var atlas_row = HBoxContainer.new()
 	_atlas_image_button = Button.new()
-	_atlas_image_button.text = "Select Atlas Image"
+	_atlas_image_button.text = "Browse Atlas Image"
 	_atlas_image_button.pressed.connect(_on_atlas_image_pressed)
 	atlas_row.add_child(_atlas_image_button)
 
@@ -922,6 +923,8 @@ func _build_separator() -> HSeparator:
 
 
 func load_mapdata_source(path: String) -> int:
+	if not ResourceLoader.exists(path):
+		return -1
 	var resource = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
 	return register_mapdata_source(resource, path)
 
@@ -1190,23 +1193,25 @@ func _refresh_query_row_source_option(row: Dictionary) -> void:
 
 
 func _on_source_load_pressed() -> void:
-	var dialog = EditorFileDialog.new()
-	dialog.file_mode = EditorFileDialog.FILE_MODE_OPEN_FILE
-	dialog.access = EditorFileDialog.ACCESS_RESOURCES
-	dialog.add_filter("*.tres", "Hex Map Data Resource")
+	var dialog = HexMapEditorPathSelector.new_dialog(
+		EditorFileDialog.FILE_MODE_OPEN_FILE,
+		HexMapEditorPathSelector.TRES_FILTERS
+	)
 	dialog.file_selected.connect(_on_source_file_selected)
-	EditorInterface.get_base_control().add_child(dialog)
-	dialog.popup_centered_ratio(0.5)
+	if not HexMapEditorPathSelector.popup_dialog(dialog):
+		_set_source_registry_status("Source browse is available in the editor.")
 
 
 func _on_source_file_selected(path: String) -> void:
 	if load_mapdata_source(path) < 0:
-		push_error("Failed to load mapdata source: %s" % path)
+		_set_source_registry_status("Failed to load mapdata source: %s" % path)
+		push_warning("Failed to load mapdata source: %s" % path)
 
 
 func _on_source_reload_pressed(source_id: int) -> void:
 	if not reload_mapdata_source(source_id):
-		push_error("Failed to reload mapdata source: %d" % source_id)
+		_set_source_registry_status("Failed to reload mapdata source: %d" % source_id)
+		push_warning("Failed to reload mapdata source: %d" % source_id)
 
 
 func _on_source_clear_pressed(source_id: int) -> void:
@@ -1754,13 +1759,14 @@ func _on_generate_history_toggled(enabled: bool) -> void:
 
 
 func _on_generate_history_dir_pressed() -> void:
-	var dialog = EditorFileDialog.new()
-	dialog.file_mode = EditorFileDialog.FILE_MODE_OPEN_DIR
-	dialog.access = EditorFileDialog.ACCESS_RESOURCES
+	var dialog = HexMapEditorPathSelector.new_dialog(
+		EditorFileDialog.FILE_MODE_OPEN_DIR,
+		[]
+	)
 	dialog.dir_selected.connect(_on_generate_history_dir_selected)
 	dialog.canceled.connect(_on_generate_history_dir_cancelled)
-	EditorInterface.get_base_control().add_child(dialog)
-	dialog.popup_centered_ratio(0.5)
+	if not HexMapEditorPathSelector.popup_dialog(dialog):
+		_set_source_registry_status("History directory selection is available in the editor.")
 
 
 func _on_generate_history_dir_selected(path: String) -> void:
@@ -1781,6 +1787,8 @@ func _refresh_generate_history_label() -> void:
 		return
 	if _generate_history_check == null or not _generate_history_check.button_pressed:
 		_generate_history_dir_label.text = "History: off"
+	elif _generate_history_dir == "":
+		_generate_history_dir_label.text = "History: choose directory"
 	else:
 		_generate_history_dir_label.text = "History: %s" % _generate_history_dir
 
@@ -1838,13 +1846,13 @@ func _on_atlas_image_pressed() -> void:
 		push_error("No selected TileMapLayer or HexTileMapLayer found in the scene. Select one first.")
 		return
 
-	var dialog = EditorFileDialog.new()
-	dialog.file_mode = EditorFileDialog.FILE_MODE_OPEN_FILE
-	dialog.access = EditorFileDialog.ACCESS_RESOURCES
-	dialog.add_filter("*.png, *.jpg, *.jpeg, *.webp", "Image atlas")
+	var dialog = HexMapEditorPathSelector.new_dialog(
+		EditorFileDialog.FILE_MODE_OPEN_FILE,
+		HexMapEditorPathSelector.IMAGE_FILTERS
+	)
 	dialog.file_selected.connect(_on_atlas_image_selected.bind(layer))
-	EditorInterface.get_base_control().add_child(dialog)
-	dialog.popup_centered_ratio(0.5)
+	if not HexMapEditorPathSelector.popup_dialog(dialog):
+		push_error("Atlas image browse is available in the editor.")
 
 
 func _on_atlas_image_selected(path: String, layer) -> void:
@@ -1864,14 +1872,14 @@ func _on_save_pressed() -> void:
 	if resource == null:
 		return
 
-	var dialog = EditorFileDialog.new()
-	dialog.file_mode = EditorFileDialog.FILE_MODE_SAVE_FILE
-	dialog.access = EditorFileDialog.ACCESS_RESOURCES
-	dialog.add_filter("*.tres", "Hex Map Resource")
+	var dialog = HexMapEditorPathSelector.new_dialog(
+		EditorFileDialog.FILE_MODE_SAVE_FILE,
+		HexMapEditorPathSelector.TRES_FILTERS
+	)
 	dialog.current_file = "hex_map.tres"
 	dialog.file_selected.connect(_on_save_file_selected.bind(resource))
-	EditorInterface.get_base_control().add_child(dialog)
-	dialog.popup_centered_ratio(0.5)
+	if not HexMapEditorPathSelector.popup_dialog(dialog):
+		push_error("Save As is available in the editor.")
 
 
 func _on_save_file_selected(path: String, resource: Resource) -> void:

@@ -58,6 +58,7 @@ func _run() -> void:
 	await _test_map_edit_tool_auto_target_maps_hex_internal_layer_selection()
 	await _test_map_edit_tool_initializes_document_from_hex_target()
 	await _test_map_edit_tool_imports_generated_map_resource()
+	await _test_map_edit_tool_path_file_handlers_and_action_states()
 	await _test_map_edit_tool_click_updates_document_with_undo_redo()
 	await _test_map_edit_tool_debug_report_copy_includes_reportable_state()
 	await _test_map_edit_tool_forward_canvas_gui_input_uses_viewport_transform()
@@ -68,12 +69,14 @@ func _run() -> void:
 	await _test_map_edit_tool_preserves_plain_target_tile_settings_when_redrawing()
 	await _test_map_edit_tool_applies_explicit_default_tile_settings()
 	await _test_map_edit_tool_target_atlas_settings_use_target_tileset()
+	await _test_map_edit_tool_target_status_reports_tileset_and_overlay_payload()
 	await _test_map_edit_tool_last_edit_trace_distinguishes_document_and_redraw()
 	await _test_map_edit_tool_last_edit_trace_reports_target_apply_failure()
 	await _test_map_edit_tool_persistence_checkpoint_reports_save_and_export_counts()
 	await _test_map_edit_tool_local_hit_uses_hex_tile_map_layer()
 	await _test_map_edit_tool_hex_tile_payload_modes_change_display()
 	await _test_map_edit_tool_overlay_tile_payload_changes_hex_display()
+	await _test_map_edit_tool_keeps_tile_payloads_per_mode()
 	await _test_map_edit_tool_object_and_label_payloads_change_hex_display()
 	await _test_map_edit_tool_forward_canvas_gui_input_edits_loop_visual_duplicate()
 	await _test_map_edit_tool_undo_redo_preserves_loop_visual_identity()
@@ -126,6 +129,7 @@ func _run() -> void:
 	await _test_generation_dock_adjacency_generated_reference_changes_result()
 	await _test_generation_dock_overlay_item_pool_tile_mapping()
 	await _test_generation_dock_mapdata_source_registry_load_reload_clear()
+	await _test_generation_dock_path_action_labels_and_failure_status()
 	await _test_generation_dock_mapdata_query_rows_evaluate_offset_and_toric()
 	await _test_generation_dock_overlay_deductor_floor_source_query()
 	await _test_generation_dock_mapdata_crop_result_and_reset_rules()
@@ -178,11 +182,14 @@ func _test_map_edit_tool_builds_dock_controls() -> void:
 		"map edit tool controls keep vertical minimum size inside ScrollContainer"
 	)
 	_assert_true(tool._document_path_edit != null, "map edit tool exposes document path control")
+	_assert_true(tool._document_browse_button != null, "map edit tool exposes document browse button")
 	_assert_true(tool._document_load_button != null, "map edit tool exposes document load button")
 	_assert_true(tool._document_save_button != null, "map edit tool exposes document save button")
 	_assert_true(tool._import_map_path_edit != null, "map edit tool exposes HexMapResource import path control")
+	_assert_true(tool._import_map_browse_button != null, "map edit tool exposes HexMapResource import browse button")
 	_assert_true(tool._import_map_button != null, "map edit tool exposes HexMapResource import button")
 	_assert_true(tool._export_button != null, "map edit tool exposes map export button")
+	_assert_true(tool._export_save_as_button != null, "map edit tool exposes map export save-as button")
 	_assert_true(tool._copy_debug_report_button != null, "map edit tool exposes debug report copy button")
 	_assert_eq(tool._mode_option.item_count, HexMapEditTool.EDIT_MODE_NAMES.size(), "map edit tool lists edit modes")
 	_assert_true(tool._object_properties_edit != null, "map edit tool exposes object properties payload control")
@@ -191,8 +198,10 @@ func _test_map_edit_tool_builds_dock_controls() -> void:
 	_assert_true(tool._default_tile_read_button != null, "map edit tool exposes default tile read button")
 	_assert_true(tool._default_tile_apply_button != null, "map edit tool exposes default tile apply button")
 	_assert_true(tool._target_atlas_path_edit != null, "map edit tool exposes target atlas image path control")
+	_assert_true(tool._target_atlas_browse_button != null, "map edit tool exposes target atlas browse button")
 	_assert_true(tool._target_sample_option.item_count >= 3, "map edit tool exposes sample atlas presets")
 	_assert_true(tool._select_display_layer_button != null, "map edit tool exposes display layer selection")
+	_assert_eq(tool._select_display_layer_button.text, "Select Internal TileMapLayer", "display layer button describes internal selection")
 	_assert_true(tool._target_option.item_count >= 2, "map edit tool lists target TileMapLayer options")
 	_assert_eq(tool.target_layer(), hex_layer, "map edit tool resolves Auto target to first HexTileMapLayer")
 	var object_db = HexObjectDatabaseResource.new()
@@ -363,6 +372,42 @@ func _test_map_edit_tool_imports_generated_map_resource() -> void:
 	_assert_true(tool.import_map_resource_from_path(import_path), "map edit tool imports HexMapResource from path")
 	_assert_true(load(document_path) != null, "map edit tool saved document can be loaded")
 	_assert_true(load(export_path) is HexMapResource, "map edit tool exported map can be loaded")
+
+	tool.queue_free()
+	await process_frame
+
+
+func _test_map_edit_tool_path_file_handlers_and_action_states() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	data.set_walls([HexVector.q_axis()])
+	var map_resource = HexMapResource.from_map_data(data)
+	var document = HexMapDocumentAdapter.from_map_resource(map_resource)
+	var document_path = "res://.godot_user/test_selector_document.tres"
+	var import_path = "res://.godot_user/test_selector_import_map.tres"
+	var export_path = "res://.godot_user/test_selector_export_map.tres"
+	_save_resource(document_path, document)
+	_save_resource(import_path, map_resource)
+
+	var tool = await _new_ready_edit_tool()
+	_assert_true(tool._document_load_button.disabled, "document Load is disabled while path is empty")
+	_assert_true(tool._import_map_button.disabled, "Import is disabled while path is empty")
+	_assert_true(tool._document_browse_button != null and not tool._document_browse_button.disabled, "Document Browse remains enabled")
+	_assert_true(tool._export_button.disabled, "Export is disabled without document")
+
+	tool._on_document_file_selected(document_path)
+	_assert_true(tool.document() != null, "document file selected handler loads document")
+	_assert_eq(tool.document_path(), document_path, "document file selected handler syncs path")
+	_assert_eq(tool._document_source, HexMapEditTool.DOCUMENT_SOURCE_LOAD, "document file selected handler records load source")
+	_assert_true(not tool._document_save_button.disabled, "Save As is enabled after document load")
+
+	tool._on_import_map_file_selected(import_path)
+	_assert_eq(tool.import_map_path(), import_path, "import file selected handler syncs path")
+	_assert_eq(tool._document_source, HexMapEditTool.DOCUMENT_SOURCE_IMPORT, "import file selected handler records import source")
+	_assert_true(not tool._export_button.disabled, "Export is enabled after import")
+
+	tool._on_export_file_selected(export_path)
+	_assert_eq(tool.export_path(), export_path, "export file selected handler syncs path")
+	_assert_true(load(export_path) is HexMapResource, "export file selected handler saves HexMapResource")
 
 	tool.queue_free()
 	await process_frame
@@ -756,6 +801,38 @@ func _test_map_edit_tool_target_atlas_settings_use_target_tileset() -> void:
 	await process_frame
 
 
+func _test_map_edit_tool_target_status_reports_tileset_and_overlay_payload() -> void:
+	var document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	var hex_layer = HexTileMapLayer.new()
+	root.add_child(hex_layer)
+	await process_frame
+	var tool = await _new_ready_edit_tool()
+	tool.set_document(document)
+	tool.set_target_layer(hex_layer)
+	tool.set_overlay_tile_payload("Treasure", 4, Vector2i(2, 0), 1)
+	_assert_true(
+		tool._apply_target_atlas_path(
+			"res://addons/hex_map_kit/assets/tactics_flat_top_hex_tiles_64x57_10.png",
+			Vector2i(64, 57)
+		),
+		"target status test configures target atlas"
+	)
+	var status = tool.target_readiness_status()
+	_assert_true(bool(status["tile_set_present"]), "target status reports TileSet presence")
+	_assert_true(int(status["tile_set_source_count"]) >= 1, "target status reports source count")
+	_assert_eq(status["tile_size"], Vector2i(64, 57), "target status reports tile size")
+	_assert_eq(status["overlay_item_key"], "Treasure", "target status reports overlay item key")
+	_assert_eq(status["overlay_source_id"], 4, "target status reports overlay payload source")
+	_assert_true(status.has("overlay_tile_visible"), "target status reports overlay visibility")
+	_assert_true(tool._target_status_label.text.contains("overlay=Treasure"), "target status label includes overlay payload")
+
+	hex_layer.queue_free()
+	tool.queue_free()
+	await process_frame
+
+
 func _test_map_edit_tool_last_edit_trace_distinguishes_document_and_redraw() -> void:
 	var document = HexMapDocumentAdapter.from_map_resource(
 		HexMapResource.from_map_data(HexMapData.rectangle(2, 1))
@@ -928,6 +1005,34 @@ func _test_map_edit_tool_overlay_tile_payload_changes_hex_display() -> void:
 	_assert_eq(trace["target_apply_reason"], "Applied overlay tile to HexTileMapLayer.", "overlay tile mode uses overlay apply reason")
 
 	layer.queue_free()
+	tool.queue_free()
+	await process_frame
+
+
+func _test_map_edit_tool_keeps_tile_payloads_per_mode() -> void:
+	var tool = await _new_ready_edit_tool()
+	tool.set_edit_mode(HexMapEditTool.EditMode.FLOOR_TILE)
+	tool.set_tile_payload(1, Vector2i(2, 3), 0)
+	tool.set_edit_mode(HexMapEditTool.EditMode.WALL_TILE)
+	tool.set_tile_payload(4, Vector2i(5, 6), 1)
+	tool.set_edit_mode(HexMapEditTool.EditMode.OVERLAY_TILE)
+	tool.set_overlay_tile_payload("Treasure", 7, Vector2i(8, 9), 2)
+
+	tool.set_edit_mode(HexMapEditTool.EditMode.FLOOR_TILE)
+	_assert_eq(int(tool._tile_source_spin.value), 1, "floor tile mode restores floor payload source")
+	_assert_eq(Vector2i(int(tool._tile_atlas_x_spin.value), int(tool._tile_atlas_y_spin.value)), Vector2i(2, 3), "floor tile mode restores floor payload atlas")
+
+	tool.set_edit_mode(HexMapEditTool.EditMode.WALL_TILE)
+	_assert_eq(int(tool._tile_source_spin.value), 4, "wall tile mode restores wall payload source")
+	_assert_eq(Vector2i(int(tool._tile_atlas_x_spin.value), int(tool._tile_atlas_y_spin.value)), Vector2i(5, 6), "wall tile mode restores wall payload atlas")
+	_assert_eq(int(tool._tile_alternative_spin.value), 1, "wall tile mode restores wall alternative")
+
+	tool.set_edit_mode(HexMapEditTool.EditMode.OVERLAY_TILE)
+	_assert_eq(int(tool._tile_source_spin.value), 7, "overlay tile mode restores overlay payload source")
+	_assert_eq(Vector2i(int(tool._tile_atlas_x_spin.value), int(tool._tile_atlas_y_spin.value)), Vector2i(8, 9), "overlay tile mode restores overlay payload atlas")
+	_assert_eq(tool._overlay_item_key_edit.text, "Treasure", "overlay tile mode keeps overlay item key")
+	_assert_true(_control_row_visible(tool._overlay_item_key_option), "overlay tile mode shows known item key option")
+
 	tool.queue_free()
 	await process_frame
 
@@ -2575,6 +2680,27 @@ func _test_generation_dock_mapdata_source_registry_load_reload_clear() -> void:
 	dock.clear_mapdata_source(map_id)
 	_assert_eq(dock._mapdata_sources.size(), 0, "clear removes all sources")
 	_assert_eq(dock._source_registry_status_label.text, "No mapdata sources loaded.", "source registry status shows empty state")
+
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_path_action_labels_and_failure_status() -> void:
+	var dock = await _new_ready_dock()
+	_assert_eq(dock._source_load_button.text, "Browse .tres", "source registry uses browse wording")
+	_assert_eq(dock._generate_history_dir_button.text, "History Dir", "generate history uses directory wording")
+	_assert_eq(dock._save_button.text, "Save As .tres", "generation save uses save-as wording")
+	_assert_eq(dock._atlas_image_button.text, "Browse Atlas Image", "atlas image uses browse wording")
+
+	dock._on_source_file_selected("res://.godot_user/missing_source_registry_resource.tres")
+	_assert_true(
+		dock._source_registry_status_label.text.contains("Failed to load mapdata source"),
+		"source registry file selection failure appears in status"
+	)
+	dock._generate_history_check.set_pressed_no_signal(true)
+	dock._generate_history_dir = ""
+	dock._refresh_generate_history_label()
+	_assert_eq(dock._generate_history_dir_label.text, "History: choose directory", "history enabled without dir asks for directory")
 
 	dock.queue_free()
 	await process_frame

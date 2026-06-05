@@ -39,6 +39,7 @@ func _run() -> void:
 	await _test_apply_document_payloads_create_visible_tile_and_markers()
 	await _test_ensure_display_tiles_uses_custom_floor_wall_sources()
 	await _test_display_tile_size_syncs_hex_size_and_overlay()
+	await _test_display_tile_set_resource_persists_through_packed_scene()
 	await _test_apply_map_uses_resource_orientation()
 	await _test_coordinate_roundtrips()
 	await _test_path_highlight_and_connectivity_helpers()
@@ -216,6 +217,43 @@ func _test_display_tile_size_syncs_hex_size_and_overlay() -> void:
 	_assert_vector_eq(pointy_hit["hex"], flat_target, "pointy-top hit follows synced display hex size")
 
 	layer.queue_free()
+	await process_frame
+
+
+func _test_display_tile_set_resource_persists_through_packed_scene() -> void:
+	var layer = HexTileMapLayer.new()
+	layer.name = "PackedHexLayer"
+	root.add_child(layer)
+	await process_frame
+	_assert_true(
+		layer.configure_atlas_display_tiles(
+			HexMapTileAdapter.SAMPLE_TILE_ATLAS_PATH,
+			3,
+			HexMapTileAdapter.SAMPLE_TILE_SIZE,
+			Vector2i.ZERO,
+			Vector2i(1, 0)
+		),
+		"packed scene test configures display atlas"
+	)
+	_assert_true(layer.display_tile_set_resource == layer.display_tile_set(), "display TileSet is mirrored to exported resource")
+
+	var packed_scene := PackedScene.new()
+	var error := packed_scene.pack(layer)
+	_assert_eq(error, OK, "HexTileMapLayer packs into PackedScene")
+	var restored = packed_scene.instantiate()
+	_assert_true(restored is HexTileMapLayer, "PackedScene restores HexTileMapLayer")
+	root.add_child(restored)
+	await process_frame
+	var restored_layer := restored as HexTileMapLayer
+	_assert_true(restored_layer.display_tile_set_present(), "restored layer keeps display TileSet")
+	_assert_true(restored_layer.display_tile_set().has_source(3), "restored display TileSet keeps atlas source")
+	_assert_eq(restored_layer.display_tile_set().tile_size, HexMapTileAdapter.SAMPLE_TILE_SIZE, "restored display TileSet keeps tile size")
+	var status = restored_layer.display_layer_status()
+	_assert_true(int(status["tile_set_source_count"]) >= 1, "display layer status reports restored source count")
+	_assert_eq(status["tile_size"], HexMapTileAdapter.SAMPLE_TILE_SIZE, "display layer status reports restored tile size")
+
+	layer.queue_free()
+	restored_layer.queue_free()
 	await process_frame
 
 

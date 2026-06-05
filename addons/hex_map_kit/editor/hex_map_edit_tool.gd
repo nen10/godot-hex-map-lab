@@ -6,6 +6,7 @@ const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map
 const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
+const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 
@@ -17,6 +18,7 @@ const DOCUMENT_SOURCE_PROVIDED := "provided"
 const DOCUMENT_SOURCE_IMPORT := "import"
 const DOCUMENT_SOURCE_LOAD := "load"
 const DOCUMENT_SOURCE_TARGET := "target"
+const DOCUMENT_SOURCE_SAVE := "save"
 
 enum EditMode {
 	SHAPE,
@@ -58,6 +60,21 @@ var _tile_payload := {
 	"atlas_coords": Vector2i.ZERO,
 	"alternative_tile": 0,
 }
+var _floor_tile_payload := {
+	"source_id": 0,
+	"atlas_coords": Vector2i.ZERO,
+	"alternative_tile": 0,
+}
+var _wall_tile_payload := {
+	"source_id": 0,
+	"atlas_coords": Vector2i.ZERO,
+	"alternative_tile": 0,
+}
+var _overlay_tile_payload := {
+	"source_id": 0,
+	"atlas_coords": Vector2i.ZERO,
+	"alternative_tile": 0,
+}
 var _overlay_item_key := "Overlay"
 var _object_payload := {
 	"object_id": "",
@@ -89,12 +106,15 @@ var _test_viewport_canvas_transform := Transform2D.IDENTITY
 var _document_label: Label
 var _document_resource_picker
 var _document_path_edit: LineEdit
+var _document_browse_button: Button
 var _document_load_button: Button
 var _document_save_button: Button
 var _import_map_path_edit: LineEdit
+var _import_map_browse_button: Button
 var _import_map_button: Button
 var _export_path_edit: LineEdit
 var _export_button: Button
+var _export_save_as_button: Button
 var _target_label: Label
 var _target_option: OptionButton
 var _target_refresh_button: Button
@@ -117,11 +137,13 @@ var _default_tile_read_button: Button
 var _default_tile_apply_button: Button
 var _target_tile_set_picker
 var _target_atlas_path_edit: LineEdit
+var _target_atlas_browse_button: Button
 var _target_atlas_apply_button: Button
 var _target_sample_option: OptionButton
 var _target_sample_apply_button: Button
 var _select_display_layer_button: Button
 var _overlay_item_key_edit: LineEdit
+var _overlay_item_key_option: OptionButton
 var _object_id_edit: LineEdit
 var _object_properties_edit: LineEdit
 var _label_id_edit: LineEdit
@@ -147,6 +169,7 @@ func set_document(document: HexMapDocumentResource) -> void:
 	_refresh_plain_target_tile_options_from_document(_document)
 	_read_target_tile_settings(false)
 	_sync_resource_pickers()
+	_refresh_overlay_item_key_options()
 	_refresh_state_labels()
 
 
@@ -160,6 +183,7 @@ func import_map_resource(resource: HexMapResource) -> HexMapDocumentResource:
 	_refresh_plain_target_tile_options_from_document(_document)
 	_read_target_tile_settings(false)
 	_sync_resource_pickers()
+	_refresh_overlay_item_key_options()
 	_refresh_state_labels()
 	return _document
 
@@ -275,6 +299,7 @@ func set_document_path(path: String) -> void:
 	_document_path = path
 	if _document_path_edit != null:
 		_document_path_edit.text = path
+	_refresh_action_button_states()
 
 
 func document_path() -> String:
@@ -285,6 +310,7 @@ func set_import_map_path(path: String) -> void:
 	_import_map_path = path
 	if _import_map_path_edit != null:
 		_import_map_path_edit.text = path
+	_refresh_action_button_states()
 
 
 func import_map_path() -> String:
@@ -295,6 +321,7 @@ func set_export_path(path: String) -> void:
 	_export_path = path
 	if _export_path_edit != null:
 		_export_path_edit.text = path
+	_refresh_action_button_states()
 
 
 func export_path() -> String:
@@ -314,6 +341,7 @@ func load_document(path: String = "") -> bool:
 	_document_source = DOCUMENT_SOURCE_LOAD
 	set_document_path(actual_path)
 	_sync_resource_pickers()
+	_refresh_overlay_item_key_options()
 	_refresh_plain_target_tile_options_from_document(_document)
 	_read_target_tile_settings(false)
 	_apply_document_to_target()
@@ -339,8 +367,10 @@ func save_document(path: String = "") -> bool:
 		_set_status("Failed to save document: %d" % error)
 		return false
 	set_document_path(actual_path)
+	_document_source = DOCUMENT_SOURCE_SAVE
 	_set_persistence_status("save_document", actual_path, true, OK, "HexMapDocumentResource")
 	_set_status("Saved document.")
+	_refresh_state_labels()
 	return true
 
 
@@ -363,6 +393,7 @@ func export_map_resource_to_path(path: String = "") -> bool:
 	set_export_path(actual_path)
 	_set_persistence_status("export_map", actual_path, true, OK, "HexMapResource")
 	_set_status("Exported HexMapResource.")
+	_refresh_state_labels()
 	return true
 
 
@@ -405,10 +436,14 @@ func refresh_target_layer_options(root_node: Node = null) -> void:
 
 
 func set_edit_mode(mode: int) -> void:
+	_store_current_tile_payload_for_mode()
 	_edit_mode = clampi(mode, 0, EDIT_MODE_NAMES.size() - 1)
+	_load_tile_payload_for_mode()
 	if _mode_option != null:
 		_mode_option.select(_edit_mode)
+	_sync_payload_controls()
 	_refresh_payload_controls_visibility()
+	_refresh_target_status_detail()
 
 
 func edit_mode() -> int:
@@ -421,12 +456,16 @@ func set_tile_payload(source_id: int, atlas_coords: Vector2i, alternative_tile: 
 		"atlas_coords": atlas_coords,
 		"alternative_tile": alternative_tile,
 	}
+	_store_current_tile_payload_for_mode()
 	_sync_payload_controls()
+	_refresh_target_status_detail()
 
 
 func set_overlay_tile_payload(item_key: String, source_id: int, atlas_coords: Vector2i, alternative_tile: int = 0) -> void:
 	_overlay_item_key = item_key
 	set_tile_payload(source_id, atlas_coords, alternative_tile)
+	_overlay_tile_payload = _tile_payload.duplicate(true)
+	_refresh_overlay_item_key_options()
 
 
 func set_object_payload(object_id: String, properties: Dictionary = {}) -> void:
@@ -550,12 +589,16 @@ func _build_ui() -> void:
 	_document_path_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_document_path_edit.text_changed.connect(_on_document_path_changed)
 	document_path_row.add_child(_wrap_labeled("Document", _document_path_edit))
+	_document_browse_button = Button.new()
+	_document_browse_button.text = "Browse"
+	_document_browse_button.pressed.connect(_on_document_browse_pressed)
+	document_path_row.add_child(_document_browse_button)
 	_document_load_button = Button.new()
 	_document_load_button.text = "Load"
 	_document_load_button.pressed.connect(_on_load_document_pressed)
 	document_path_row.add_child(_document_load_button)
 	_document_save_button = Button.new()
-	_document_save_button.text = "Save"
+	_document_save_button.text = "Save As"
 	_document_save_button.pressed.connect(_on_save_document_pressed)
 	document_path_row.add_child(_document_save_button)
 	root.add_child(document_path_row)
@@ -566,6 +609,10 @@ func _build_ui() -> void:
 	_import_map_path_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_import_map_path_edit.text_changed.connect(_on_import_map_path_changed)
 	import_path_row.add_child(_wrap_labeled("Import Map", _import_map_path_edit))
+	_import_map_browse_button = Button.new()
+	_import_map_browse_button.text = "Browse"
+	_import_map_browse_button.pressed.connect(_on_import_map_browse_pressed)
+	import_path_row.add_child(_import_map_browse_button)
 	_import_map_button = Button.new()
 	_import_map_button.text = "Import"
 	_import_map_button.pressed.connect(_on_import_map_pressed)
@@ -582,6 +629,10 @@ func _build_ui() -> void:
 	_export_button.text = "Export"
 	_export_button.pressed.connect(_on_export_pressed)
 	export_path_row.add_child(_export_button)
+	_export_save_as_button = Button.new()
+	_export_save_as_button.text = "Save As"
+	_export_save_as_button.pressed.connect(_on_export_save_as_pressed)
+	export_path_row.add_child(_export_save_as_button)
 	root.add_child(export_path_row)
 
 	_target_label = Label.new()
@@ -662,6 +713,10 @@ func _build_ui() -> void:
 	_target_atlas_path_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_target_atlas_path_edit.text_changed.connect(_on_target_atlas_path_changed)
 	target_atlas_row.add_child(_wrap_labeled("Atlas Image", _target_atlas_path_edit))
+	_target_atlas_browse_button = Button.new()
+	_target_atlas_browse_button.text = "Browse"
+	_target_atlas_browse_button.pressed.connect(_on_target_atlas_browse_pressed)
+	target_atlas_row.add_child(_target_atlas_browse_button)
 	_target_atlas_apply_button = Button.new()
 	_target_atlas_apply_button.text = "Apply Atlas"
 	_target_atlas_apply_button.pressed.connect(_on_apply_target_atlas_pressed)
@@ -678,7 +733,7 @@ func _build_ui() -> void:
 	_target_sample_apply_button.pressed.connect(_on_apply_sample_target_atlas_pressed)
 	sample_row.add_child(_target_sample_apply_button)
 	_select_display_layer_button = Button.new()
-	_select_display_layer_button.text = "Select Display Layer"
+	_select_display_layer_button.text = "Select Internal TileMapLayer"
 	_select_display_layer_button.pressed.connect(_on_select_display_layer_pressed)
 	sample_row.add_child(_select_display_layer_button)
 	root.add_child(sample_row)
@@ -702,7 +757,13 @@ func _build_ui() -> void:
 	_overlay_item_key_edit.placeholder_text = "overlay item key"
 	_overlay_item_key_edit.text = _overlay_item_key
 	_overlay_item_key_edit.text_changed.connect(_on_overlay_item_key_changed)
-	root.add_child(_wrap_labeled("Overlay Item", _overlay_item_key_edit))
+	var overlay_item_row = HBoxContainer.new()
+	overlay_item_row.add_child(_wrap_labeled("Overlay Item", _overlay_item_key_edit))
+	_overlay_item_key_option = OptionButton.new()
+	_overlay_item_key_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_overlay_item_key_option.item_selected.connect(_on_overlay_item_key_option_selected)
+	overlay_item_row.add_child(_wrap_labeled("Known", _overlay_item_key_option))
+	root.add_child(overlay_item_row)
 
 	_object_id_edit = LineEdit.new()
 	_object_id_edit.placeholder_text = "object_id"
@@ -750,6 +811,8 @@ func _build_ui() -> void:
 	_refresh_last_edit_detail()
 	_refresh_persistence_detail()
 	_refresh_payload_controls_visibility()
+	_refresh_overlay_item_key_options()
+	_refresh_action_button_states()
 
 
 func _apply_mode_to_document(document: HexMapDocumentResource, hex) -> void:
@@ -796,6 +859,7 @@ func _commit_document_change(before, after, action_name: String, hex = null, tar
 
 func _replace_document_state(snapshot) -> void:
 	HexMapDocumentAdapter.copy_document_state(_document, snapshot)
+	_refresh_overlay_item_key_options()
 	_refresh_state_labels()
 
 
@@ -909,19 +973,24 @@ func _on_mode_selected(index: int) -> void:
 
 func _on_document_path_changed(text: String) -> void:
 	_document_path = text.strip_edges()
+	_refresh_action_button_states()
 
 
 func _on_import_map_path_changed(text: String) -> void:
 	_import_map_path = text.strip_edges()
+	_refresh_action_button_states()
 
 
 func _on_document_resource_changed(resource: Resource) -> void:
 	if resource is HexMapDocumentResource:
 		_document = resource
 		_document_source = DOCUMENT_SOURCE_PROVIDED
+		if resource.resource_path != "":
+			set_document_path(resource.resource_path)
 	elif resource == null:
 		_document = null
 		_document_source = DOCUMENT_SOURCE_NONE
+	_refresh_overlay_item_key_options()
 	_refresh_state_labels()
 
 
@@ -935,6 +1004,7 @@ func _on_label_database_changed(resource: Resource) -> void:
 
 func _on_export_path_changed(text: String) -> void:
 	_export_path = text.strip_edges()
+	_refresh_action_button_states()
 
 
 func _on_load_document_pressed() -> void:
@@ -942,6 +1012,15 @@ func _on_load_document_pressed() -> void:
 
 
 func _on_save_document_pressed() -> void:
+	if _document_path == "":
+		if not _popup_resource_file_dialog(
+			EditorFileDialog.FILE_MODE_SAVE_FILE,
+			HexMapEditorPathSelector.TRES_FILTERS,
+			Callable(self, "_on_document_save_file_selected"),
+			"hex_map_document.tres"
+		):
+			_set_status("Document path is empty.")
+		return
 	save_document()
 
 
@@ -950,7 +1029,54 @@ func _on_import_map_pressed() -> void:
 
 
 func _on_export_pressed() -> void:
+	if _export_path == "":
+		_on_export_save_as_pressed()
+		return
 	export_map_resource_to_path()
+
+
+func _on_document_browse_pressed() -> void:
+	if not _popup_resource_file_dialog(
+		EditorFileDialog.FILE_MODE_OPEN_FILE,
+		HexMapEditorPathSelector.TRES_FILTERS,
+		Callable(self, "_on_document_file_selected")
+	):
+		_set_status("Document browse is available in the editor.")
+
+
+func _on_document_file_selected(path: String) -> void:
+	load_document(path)
+
+
+func _on_document_save_file_selected(path: String) -> void:
+	save_document(path)
+
+
+func _on_import_map_browse_pressed() -> void:
+	if not _popup_resource_file_dialog(
+		EditorFileDialog.FILE_MODE_OPEN_FILE,
+		HexMapEditorPathSelector.TRES_FILTERS,
+		Callable(self, "_on_import_map_file_selected")
+	):
+		_set_status("Import map browse is available in the editor.")
+
+
+func _on_import_map_file_selected(path: String) -> void:
+	import_map_resource_from_path(path)
+
+
+func _on_export_save_as_pressed() -> void:
+	if not _popup_resource_file_dialog(
+		EditorFileDialog.FILE_MODE_SAVE_FILE,
+		HexMapEditorPathSelector.TRES_FILTERS,
+		Callable(self, "_on_export_file_selected"),
+		"hex_map.tres"
+	):
+		_set_status("Export path is empty.")
+
+
+func _on_export_file_selected(path: String) -> void:
+	export_map_resource_to_path(path)
 
 
 func _on_target_refresh_pressed() -> void:
@@ -974,10 +1100,25 @@ func _on_tile_payload_changed(_value: float) -> void:
 		"atlas_coords": Vector2i(int(_tile_atlas_x_spin.value), int(_tile_atlas_y_spin.value)),
 		"alternative_tile": int(_tile_alternative_spin.value),
 	}
+	_store_current_tile_payload_for_mode()
+	_refresh_target_status_detail()
 
 
 func _on_overlay_item_key_changed(text: String) -> void:
 	_overlay_item_key = text.strip_edges()
+	_refresh_target_status_detail()
+
+
+func _on_overlay_item_key_option_selected(index: int) -> void:
+	if _overlay_item_key_option == null:
+		return
+	var key = _overlay_item_key_option.get_item_text(index)
+	if key == "":
+		return
+	_overlay_item_key = key
+	if _overlay_item_key_edit != null:
+		_overlay_item_key_edit.text = key
+	_refresh_target_status_detail()
 
 
 func _on_target_tile_set_changed(resource: Resource) -> void:
@@ -988,11 +1129,29 @@ func _on_target_tile_set_changed(resource: Resource) -> void:
 
 
 func _on_target_atlas_path_changed(_text: String) -> void:
-	pass
+	_refresh_action_button_states()
 
 
 func _on_apply_target_atlas_pressed() -> void:
 	var path = _target_atlas_path_edit.text.strip_edges() if _target_atlas_path_edit != null else ""
+	if _apply_target_atlas_path(path, HexMapTileAdapter.SAMPLE_TILE_SIZE):
+		_set_status("Applied target atlas.")
+	else:
+		_set_status("Failed to apply target atlas.")
+
+
+func _on_target_atlas_browse_pressed() -> void:
+	if not _popup_resource_file_dialog(
+		EditorFileDialog.FILE_MODE_OPEN_FILE,
+		HexMapEditorPathSelector.IMAGE_FILTERS,
+		Callable(self, "_on_target_atlas_file_selected")
+	):
+		_set_status("Atlas image browse is available in the editor.")
+
+
+func _on_target_atlas_file_selected(path: String) -> void:
+	if _target_atlas_path_edit != null:
+		_target_atlas_path_edit.text = path
 	if _apply_target_atlas_path(path, HexMapTileAdapter.SAMPLE_TILE_SIZE):
 		_set_status("Applied target atlas.")
 	else:
@@ -1016,9 +1175,9 @@ func _on_apply_sample_target_atlas_pressed() -> void:
 
 func _on_select_display_layer_pressed() -> void:
 	if _select_display_layer_in_editor_if_possible():
-		_set_status("Selected target display layer.")
+		_set_status("Selected internal TileMapLayer. Auto target resolves back to HexTileMapLayer.")
 	else:
-		_set_status("No HexTileMapLayer display layer.")
+		_set_status("No HexTileMapLayer internal TileMapLayer.")
 
 
 func _on_default_tile_setting_changed(_value: float) -> void:
@@ -1080,6 +1239,23 @@ func debug_report_text() -> String:
 	return _join_lines(lines)
 
 
+func _popup_resource_file_dialog(
+	file_mode: int,
+	filters: Array,
+	selected_callback: Callable,
+	current_file: String = ""
+) -> bool:
+	if not selected_callback.is_valid():
+		return false
+	if not Engine.is_editor_hint():
+		return false
+	var dialog := HexMapEditorPathSelector.new_dialog(file_mode, filters)
+	if current_file != "":
+		dialog.current_file = current_file
+	dialog.file_selected.connect(selected_callback)
+	return HexMapEditorPathSelector.popup_dialog(dialog)
+
+
 func _join_lines(lines: PackedStringArray) -> String:
 	var result := ""
 	for index in range(lines.size()):
@@ -1098,6 +1274,27 @@ func _on_object_payload_changed(_text: String) -> void:
 func _on_label_payload_changed(_text: String) -> void:
 	_label_payload["label_id"] = _label_id_edit.text
 	_label_payload["text"] = _label_text_edit.text
+
+
+func _store_current_tile_payload_for_mode() -> void:
+	var payload = _tile_payload.duplicate(true)
+	match _edit_mode:
+		EditMode.FLOOR_TILE:
+			_floor_tile_payload = payload
+		EditMode.WALL_TILE:
+			_wall_tile_payload = payload
+		EditMode.OVERLAY_TILE:
+			_overlay_tile_payload = payload
+
+
+func _load_tile_payload_for_mode() -> void:
+	match _edit_mode:
+		EditMode.FLOOR_TILE:
+			_tile_payload = _floor_tile_payload.duplicate(true)
+		EditMode.WALL_TILE:
+			_tile_payload = _wall_tile_payload.duplicate(true)
+		EditMode.OVERLAY_TILE:
+			_tile_payload = _overlay_tile_payload.duplicate(true)
 
 
 func _sync_payload_controls() -> void:
@@ -1128,6 +1325,7 @@ func _refresh_payload_controls_visibility() -> void:
 	_set_control_row_visible(_tile_atlas_y_spin, show_tile)
 	_set_control_row_visible(_tile_alternative_spin, show_tile)
 	_set_control_row_visible(_overlay_item_key_edit, show_overlay)
+	_set_control_row_visible(_overlay_item_key_option, show_overlay)
 	_set_control_row_visible(_object_id_edit, show_object)
 	_set_control_row_visible(_object_properties_edit, show_object)
 	_set_control_row_visible(_object_database_picker, show_object)
@@ -1158,13 +1356,39 @@ func _sync_resource_pickers() -> void:
 		_label_database_picker.edited_resource = _label_database
 
 
+func _refresh_overlay_item_key_options() -> void:
+	if _overlay_item_key_option == null:
+		return
+	var previous_key = _overlay_item_key
+	_overlay_item_key_option.clear()
+	var keys: Array[String] = []
+	if previous_key != "":
+		keys.append(previous_key)
+	if _document != null:
+		for entry in _document.tile_overrides:
+			if not entry is Dictionary:
+				continue
+			if String(entry.get("kind", "")) != HexMapDocumentAdapter.KIND_OVERLAY:
+				continue
+			var key = String(entry.get("item_key", ""))
+			if key != "" and not keys.has(key):
+				keys.append(key)
+	for key in keys:
+		_overlay_item_key_option.add_item(key)
+	var selected_index := keys.find(previous_key)
+	if selected_index >= 0:
+		_overlay_item_key_option.select(selected_index)
+
+
 func _refresh_state_labels() -> void:
 	_target_layer = _resolve_target_layer()
 	_ensure_document_from_target_if_needed()
 	if _document_label != null:
-		_document_label.text = "Document: %s source=%s" % [
+		_document_label.text = "Document: %s source=%s path=%s%s" % [
 			"selected" if _document != null else "none",
 			_document_source,
+			_document_path if _document_path != "" else "(unsaved)",
+			" Unsaved target document" if _document_source == DOCUMENT_SOURCE_TARGET else "",
 		]
 	if _target_label != null:
 		var target_name = "none"
@@ -1172,6 +1396,8 @@ func _refresh_state_labels() -> void:
 			target_name = _target_layer.name
 		_target_label.text = "Target: %s" % target_name
 	_refresh_target_status_detail()
+	_refresh_overlay_item_key_options()
+	_refresh_action_button_states()
 
 
 func _ensure_document_from_target_if_needed() -> bool:
@@ -1651,6 +1877,7 @@ func _refresh_target_status_detail() -> void:
 	_target_status_detail = _build_target_readiness_status()
 	if _target_status_label != null:
 		_target_status_label.text = _format_target_status_detail(_target_status_detail)
+	_refresh_action_button_states()
 
 
 func _build_target_readiness_status() -> Dictionary:
@@ -1660,14 +1887,27 @@ func _build_target_readiness_status() -> Dictionary:
 		"is_hex_tile_map_layer": _target_layer is HexTileMapLayer,
 		"document_present": _document != null,
 		"document_source": _document_source,
+		"document_path": _document_path,
+		"document_unsaved_target": _document_source == DOCUMENT_SOURCE_TARGET,
 		"target_hex_map_present": false,
 		"tile_set_present": false,
+		"tile_set_resource_path": "",
+		"tile_set_source_count": 0,
+		"tile_size": Vector2i.ZERO,
 		"floor_source_id": 0,
 		"floor_atlas_coords": Vector2i.ZERO,
 		"floor_alternative_tile": 0,
 		"wall_source_id": 0,
 		"wall_atlas_coords": Vector2i(1, 0),
 		"wall_alternative_tile": 0,
+		"overlay_source_id": int(_overlay_tile_payload.get("source_id", 0)),
+		"overlay_atlas_coords": _overlay_tile_payload.get("atlas_coords", Vector2i.ZERO),
+		"overlay_alternative_tile": int(_overlay_tile_payload.get("alternative_tile", 0)),
+		"overlay_item_key": _overlay_item_key,
+		"overlay_tile_visible": false,
+		"overlay_tile_z_index": 0,
+		"overlay_canvas_visible": false,
+		"overlay_canvas_z_index": 0,
 		"used_cell_count": 0,
 		"loop_display_mode": HexTileMapLayer.LOOP_DISPLAY_NONE,
 		"target_resolution_reason": _last_target_resolution_reason,
@@ -1678,8 +1918,12 @@ func _build_target_readiness_status() -> Dictionary:
 		return status
 	if _target_layer is HexTileMapLayer:
 		var hex_layer := _target_layer as HexTileMapLayer
+		var layer_status := hex_layer.display_layer_status()
 		status["target_hex_map_present"] = hex_layer.hex_map != null
 		status["tile_set_present"] = hex_layer.display_tile_set_present()
+		status["tile_set_resource_path"] = String(layer_status.get("tile_set_resource_path", ""))
+		status["tile_set_source_count"] = int(layer_status.get("tile_set_source_count", 0))
+		status["tile_size"] = layer_status.get("tile_size", Vector2i.ZERO)
 		status["floor_source_id"] = hex_layer.floor_source_id
 		status["floor_atlas_coords"] = hex_layer.floor_atlas_coords
 		status["floor_alternative_tile"] = hex_layer.floor_alternative_tile
@@ -1688,10 +1932,18 @@ func _build_target_readiness_status() -> Dictionary:
 		status["wall_alternative_tile"] = hex_layer.wall_alternative_tile
 		status["used_cell_count"] = hex_layer.display_used_cell_count()
 		status["loop_display_mode"] = hex_layer.loop_display_mode
+		status["overlay_tile_visible"] = bool(layer_status.get("overlay_tile_visible", false))
+		status["overlay_tile_z_index"] = int(layer_status.get("overlay_tile_z_index", 0))
+		status["overlay_canvas_visible"] = bool(layer_status.get("overlay_canvas_visible", false))
+		status["overlay_canvas_z_index"] = int(layer_status.get("overlay_canvas_z_index", 0))
 	elif _target_layer is TileMapLayer:
 		var tile_layer := _target_layer as TileMapLayer
 		var options = _plain_target_tile_options_for_apply()
 		status["tile_set_present"] = tile_layer.tile_set != null
+		if tile_layer.tile_set != null:
+			status["tile_set_resource_path"] = tile_layer.tile_set.resource_path
+			status["tile_set_source_count"] = tile_layer.tile_set.get_source_count()
+			status["tile_size"] = tile_layer.tile_set.tile_size
 		status["floor_source_id"] = int(options.get("floor_source_id", 0))
 		status["floor_atlas_coords"] = options.get("floor_atlas_coords", Vector2i.ZERO)
 		status["floor_alternative_tile"] = int(options.get("floor_alternative_tile", 0))
@@ -1713,21 +1965,34 @@ func _format_target_status_detail(status: Dictionary) -> String:
 	if status.is_empty():
 		return "none"
 	var tile_state = "ready" if bool(status.get("tile_set_present", false)) else "missing"
+	var tile_path = String(status.get("tile_set_resource_path", ""))
+	if tile_path == "" and bool(status.get("tile_set_present", false)):
+		tile_path = "(embedded)"
 	var loop_text = ""
 	if bool(status.get("is_hex_tile_map_layer", false)):
 		loop_text = " loop=%s" % _loop_mode_name(int(status.get("loop_display_mode", 0)))
-	return "%s %s document=%s:%s tiles=%s floor=%d:%s:%d wall=%d:%s:%d used=%d%s %s %s" % [
+	return "%s %s document=%s:%s:%s tiles=%s path=%s sources=%d size=%s floor=%d:%s:%d wall=%d:%s:%d overlay=%s:%d:%s:%d ov_visible=%s/%s used=%d%s %s %s" % [
 		String(status.get("target_class", "")),
 		String(status.get("target_path", "")),
 		"yes" if bool(status.get("document_present", false)) else "no",
 		String(status.get("document_source", DOCUMENT_SOURCE_NONE)),
+		String(status.get("document_path", "")) if String(status.get("document_path", "")) != "" else ("unsaved-target" if bool(status.get("document_unsaved_target", false)) else "unsaved"),
 		tile_state,
+		tile_path,
+		int(status.get("tile_set_source_count", 0)),
+		str(status.get("tile_size", Vector2i.ZERO)),
 		int(status.get("floor_source_id", 0)),
 		_atlas_text(status.get("floor_atlas_coords", Vector2i.ZERO)),
 		int(status.get("floor_alternative_tile", 0)),
 		int(status.get("wall_source_id", 0)),
 		_atlas_text(status.get("wall_atlas_coords", Vector2i(1, 0))),
 		int(status.get("wall_alternative_tile", 0)),
+		String(status.get("overlay_item_key", "")),
+		int(status.get("overlay_source_id", 0)),
+		_atlas_text(status.get("overlay_atlas_coords", Vector2i.ZERO)),
+		int(status.get("overlay_alternative_tile", 0)),
+		_bool_text(bool(status.get("overlay_tile_visible", false))),
+		_bool_text(bool(status.get("overlay_canvas_visible", false))),
 		int(status.get("used_cell_count", 0)),
 		loop_text,
 		String(status.get("target_resolution_reason", "")),
@@ -2053,6 +2318,36 @@ func _refresh_last_hit_display() -> void:
 
 func _can_use_editor_resource_picker() -> bool:
 	return Engine.is_editor_hint() and ClassDB.class_exists("EditorResourcePicker")
+
+
+func _refresh_action_button_states() -> void:
+	var target_valid = _target_layer != null and is_instance_valid(_target_layer)
+	var hex_target = target_valid and _target_layer is HexTileMapLayer
+	var document_present = _document != null
+	_set_button_enabled(_document_browse_button, true, "")
+	_set_button_enabled(_document_load_button, _document_path != "", "Document path is empty.")
+	_set_button_enabled(_document_save_button, document_present, "No document selected.")
+	_set_button_enabled(_import_map_browse_button, true, "")
+	_set_button_enabled(_import_map_button, _import_map_path != "", "Import map path is empty.")
+	_set_button_enabled(_export_button, document_present, "No document selected.")
+	_set_button_enabled(_export_save_as_button, document_present, "No document selected.")
+	_set_button_enabled(_target_atlas_browse_button, target_valid, "No editable target layer.")
+	_set_button_enabled(
+		_target_atlas_apply_button,
+		target_valid and _target_atlas_path_edit != null and _target_atlas_path_edit.text.strip_edges() != "",
+		"No editable target layer or atlas path."
+	)
+	_set_button_enabled(_target_sample_apply_button, target_valid, "No editable target layer.")
+	_set_button_enabled(_select_display_layer_button, hex_target, "No HexTileMapLayer target.")
+	_set_button_enabled(_default_tile_read_button, target_valid, "No editable target layer.")
+	_set_button_enabled(_default_tile_apply_button, target_valid, "No editable target layer.")
+
+
+func _set_button_enabled(button: Button, enabled: bool, reason: String) -> void:
+	if button == null:
+		return
+	button.disabled = not enabled
+	button.tooltip_text = "" if enabled else reason
 
 
 func _set_status(text: String) -> void:

@@ -267,16 +267,16 @@ Object表示を画像atlasとして扱う計画は外れており、現在のObj
 
 新Planning Flow:
 
-- `docs/plan/2026-06-05_EDITOR_DOCK_FILE_RESOURCE_SELECTION/UX.md`
-- `docs/plan/2026-06-05_EDITOR_DOCK_FILE_RESOURCE_SELECTION/POLICY.md`
-- `docs/plan/2026-06-05_EDITOR_DOCK_FILE_RESOURCE_SELECTION/IMPLEMENTATION_PLAN.md`
+- `docs/complete_on_test/2026-06-05_EDITOR_DOCK_FILE_RESOURCE_SELECTION/UX.md`
+- `docs/complete_on_test/2026-06-05_EDITOR_DOCK_FILE_RESOURCE_SELECTION/POLICY.md`
+- `docs/complete_on_test/2026-06-05_EDITOR_DOCK_FILE_RESOURCE_SELECTION/IMPLEMENTATION_PLAN.md`
 - `docs/review/plan/EDITOR_DOCK_FILE_RESOURCE_SELECTION_PLAN_REVIEW_2026-06-05.md`
 
 新Planning Flowに含めた項目:
 
 - `Atlas Image` だけでなく、Document Load / Save、Import Map、Export、Source Registry、Generate History、Generation Save、Select Atlas Imageを含むpath / resource選択UX。
 - `EditorFileDialog` / `EditorResourcePicker` / direct path入力の役割分担。
-- invalid path、targetなし、TileSetなし、tile size不明などのbutton disabled / status表示。
+- invalid path、targetなし、TileSetなしなどのbutton disabled / status表示。
 - Target StatusにTileSet resource path、source数、tile size、floor / wall / overlay payload、overlay visibilityを出す改善。
 - Target TileSet / atlas sourceのPackedScene保存 / reload永続性確認。
 - `Select Display Layer` を内部 `TileMapLayer` 選択操作として正確に表現する文言 / status改善。
@@ -293,3 +293,27 @@ Object表示を画像atlasとして扱う計画は外れており、現在のObj
 完了扱い:
 
 - `HEX_TILE_MAP_LAYER_EDIT_TARGET_INITIALIZATION_COORDINATE` 計画は、自動テストで主要実装が確認済みであり、上記残項目を分離したため完了扱いにする。
+
+## `EDITOR_DOCK_FILE_RESOURCE_SELECTION` 実装後の整理 2026-06-05
+
+追加レビュー:
+
+- `docs/review/EDITOR_DOCK_FILE_RESOURCE_SELECTION_IMPLEMENTATION_REVIEW_2026-06-05.md`
+
+この実装で完了扱いに移す項目:
+
+- Target TileSet / atlas sourceの `PackedScene.pack()` / instantiate永続性確認。
+- Edit DockのDocument / Import Map / Export / Atlas Image Browse / Save As経路。
+- `Select Display Layer` の `Select Internal TileMapLayer` への改名とstatus改善。
+- Overlay Tile payloadのFloor / Wall Tile payloadからのmode別分離。
+- Target由来documentの未保存 / 保存済み状態表示。
+- Target StatusのTileSet path、source count、tile size、Overlay payload、overlay visibility表示。
+
+引き続き残す項目:
+
+- `apply_document_cell()` の全量document duplicate / resource変換 / `_data` 再構築を避ける差分適用。
+- 大型mapでのper-click処理時間計測。
+- Object Node / scene layer、`TileSetScenesCollectionSource`、object専用layer。
+- plain `TileMapLayer` legacy helperの内部到達経路整理。
+- Editor上のactual dialog / standard TileMap panel / scene save-reload analog result。
+- Direct Atlas Browseを任意tile size importへ拡張するかどうかのUX判断。標準TileSet画面を主経路にする限り、tile size入力は残課題にしない。

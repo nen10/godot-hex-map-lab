@@ -2,7 +2,7 @@
 
 ## 目標UX
 
-- `docs/plan/2026-06-05_EDITOR_DOCK_FILE_RESOURCE_SELECTION/UX.md`
+- `docs/complete_on_test/2026-06-05_EDITOR_DOCK_FILE_RESOURCE_SELECTION/UX.md`
 
 ## 候補
 
