@@ -2,39 +2,19 @@
 
 ## 目的
 
-`docs/review` 直下に蓄積したレビュー文書から、未対応項目と今後の提案をユースケース単位で抽出する。抽出元レビューは整理後に `docs/review/_history/` へ移動する。
+`docs/review` 直下に蓄積したレビュー文書から、機能開発候補として Design Flow 化しうる未対応項目だけをユースケース単位で抽出する。
 
 この文書は実装順序ではなく、ユーザーが重要性を判断するための候補一覧である。実装へ進める場合は、個別に入力・出力・resource schema・テスト概要を持つ plan を作る。
 
+ユーザー確認事項、保留中の調査課題、除外項目、完了項目、抽出元レビューの扱いは `docs/plan/REVIEW_TRIAGE_2026-06-02.md` に分離する。
+
 ## 抽出方針
 
-- `docs/TEST.md` と `docs/complete_on_test/` で完了根拠がある項目は未対応候補に含めない。
-- ユーザーが「不要」と判断した項目は候補から除外する。
-- ユーザーが「優先度低い」と判断した項目は低優先候補として残す。
+- `docs/TEST.md` と `docs/complete_on_test/` で完了根拠がある項目は含めない。
+- ユーザー確認、analog test 実行結果待ち、調査未成熟な課題は含めない。
+- ユーザーが「不要」と判断した項目は含めない。
+- ユーザーが「優先度低い」と判断した項目は、実装候補として成立する場合だけ低優先候補として残す。
 - fallback 記述は仕様根拠にせず、正規仕様へ置き換える必要がある場合だけ候補にする。
-
-## U2. Manual Edit Document / Payload Schema
-
-Use case:
-
-手動編集結果を `HexMapDocumentResource` として保存し、tile override、object、labelを迷わず編集・再利用できる。
-
-抽出候補:
-
-1. object / label databaseのdefinitionとplacement命名を分ける。
-   - 説明: `HexMapDocumentResource.objects` は配置結果、`HexObjectDatabaseResource.objects` は定義候補であり、同じ名前だと用途が混同しやすい。
-   - Evidence: `MANUAL_MAP_EDITING_TOOL_REVIEW_2026-05-31.md`, `ADDITIONAL_REVIEW_NEXT_REQUIREMENTS_2026-05-31.md`
-   - Test候補: database definitionからplacement payloadを選び、document保存後もplacementとして復元する。
-
-2. `tile_overrides.item_key` の扱いを決める。
-   - 説明: 現状はfloor / wall kindでapplyされ、`item_key` はoverlay itemとの将来連携候補として残っている。schema revisionで分離するか、用途を定義するかを決める。
-   - Evidence: `MANUAL_MAP_EDITING_TOOL_REVIEW_2026-05-31.md`, `ADDITIONAL_REVIEW_NEXT_REQUIREMENTS_2026-05-31.md`
-   - Test候補: floor/wall overrideとoverlay item overrideを同じcellに持つ場合の保存・apply。
-
-3. Resource load失敗時のstatusを具体化する。
-   - 説明: `load()` がnullを返す場合も型不一致として扱われる。ファイル未存在、型違い、保存失敗を区別すると操作ミスを報告しやすい。
-   - Evidence: `MANUAL_MAP_EDITING_TOOL_REVIEW_2026-05-31.md`
-   - Test候補: missing path、wrong resource type、invalid save directoryのstatus。
 
 ## U3. Runtime Loop Display / Gameplay Layer
 
@@ -44,22 +24,12 @@ Runtime表示やmanual edit用表示で、toric duplicate、path、hover、conne
 
 抽出候補:
 
-1. `_loop_tile_map` のscene save / reload roundtripを検証する。
-   - 説明: loop copy layerはinternal childとして追加される。scene保存・再読み込み時にduplicate childが増えないこと、base/copy layer識別が維持されることを確認する。
-   - Evidence: `MANUAL_RUNTIME_LOOP_DISPLAY_IMPLEMENTATION_REVIEW_2026-06-01.md`
-   - Test候補: `PackedScene.pack()` / instantiate後のinternal TileMapLayer数、tile_set共有、duplicate tile表示。
-
-2. loop display関連Inspector項目を整理する。
+1. loop display関連Inspector項目を整理する。
    - 説明: runtime input、hover、loop display、tile settingsが並列にexportされており、Inspector上で目的別に探しにくい。グループ化やカテゴリ分けを検討する。
    - Evidence: `RUNTIME_INTERACTION_LOOP_PATH_REVIEW_2026-05-31.md`
    - Test候補: script metadataやexport groupはheadlessで確認しづらいため、必要ならEditor観察。
 
-3. debug sceneのloop path / cell hit操作を手動確認項目として維持する。
-   - 説明: headless testはtoggle stateとデータを確認するが、`L` / `C` / `P` の実キー操作と見た目はEditor/debug画面で確認する必要がある。
-   - Evidence: `RUNTIME_INTERACTION_LOOP_PATH_REVIEW_2026-05-31.md`
-   - Test候補: `tools/debug_generated_map.sh` で path連続性、cell hit表示、duplicate tile表示を観察する。
-
-4. toric period candidate計算の最適化を検討する。
+2. toric period candidate計算の最適化を検討する。
    - 説明: 表示範囲に応じた `_toric_period_candidates()` は正しく動くが、period基準が過大なcandidate数を生む可能性がある。性能問題が出た場合に最適化対象にする。
    - Evidence: `RUNTIME_INTERACTION_LOOP_PATH_REVIEW_2026-05-31.md`, `BRAINSTORM_OPEN_TOPICS_2026-05-30.md`
    - Test候補: 大きいtoric sizeと広いdisplay rectでentry数と処理時間を測る。
@@ -86,11 +56,6 @@ Source Registry、Mask Query Row、Reference Query Row、Deductor Floor Source�
    - 説明: `cell_gap = 0` の境界clickはentry順序に依存して決定論的に処理される。現Query Rowでは重大ではないが、将来disc/ringなど密なpressable panelを使う場合は仕様化が必要。
    - Evidence: `HEX_CELL_BUTTON_EDITOR_UI_REVIEW_2026-05-31.md`
    - Test候補: disc shapeで境界点をclickしたときの選択規則。
-
-4. helper統合は利点が明確になってから扱う。
-   - 説明: `_query_direction_*` map helper統合はレビュー候補にあったが、ユーザーは利点が不明と判断している。実装前に重複削減の効果を説明する。
-   - Evidence: `HEX_CELL_BUTTON_EDITOR_UI_REVIEW_2026-05-31.md`
-   - Test候補: helper統合後もQuery Row offset、label、tooltip、metadataが同じ。
 
 ## U5. Editor Dock UX / Overlay Generation
 
@@ -120,19 +85,6 @@ Primary / Overlay generation Dockで、生成条件、source状態、write mode�
    - Evidence: `BRAINSTORM_OPEN_TOPICS_2026-05-30.md`
    - Test候補: history追加、cancel時非追加、表示名。
 
-## U6. Crop Retained Recalculation
-
-Use case:
-
-Crop結果を見ながら、shape、size、source、Mask Query Rowを調整したい場合に、Crop Offへ戻らず結果を再計算する。
-
-抽出候補:
-
-1. 既存planを実装するか、使用感確認まで保留するか判断する。
-   - 説明: `docs/plan/CROP_RETAINED_RECALC_POLICY_2026-05-31.md` と implementation plan は残っている。一方、ユーザー追記では「使用感が報告されていない状況で検討が先走っている」とされている。
-   - Evidence: `BRAINSTORM_OPEN_TOPICS_2026-05-30.md`, `docs/plan/CROP_RETAINED_RECALC_POLICY_2026-05-31.md`
-   - Test候補: retained modeでQuery Row編集後にcrop resultが再評価される。通常modeは従来通りCrop Offに戻る。
-
 ## U7. Public Sample / API Package
 
 Use case:
@@ -142,7 +94,7 @@ addonを外部利用できるように、sample project、sample scene、API ref
 抽出候補:
 
 1. 既存planの実行範囲を決める。
-   - 説明: `docs/plan/PUBLIC_SAMPLE_API_PACKAGE_POLICY_2026-05-31.md` と implementation plan が残っている。packaging scriptやexample projectを `tools/test.sh` 標準対象に入れるかoptionalにするかは判断が必要。
+   - 説明: `docs/plan/pending/PUBLIC_SAMPLE_API_PACKAGE_POLICY_2026-05-31.md` と implementation plan が残っている。packaging scriptやexample projectを `tools/test.sh` 標準対象に入れるかoptionalにするかは判断が必要。
    - Evidence: `BRAINSTORM_OPEN_TOPICS_2026-05-30.md`, `BRAINSTORM_OPEN_TOPICS_PLAN_REVIEW_2026-05-31.md`
    - Test候補: sample scene load、public API script test、addon package file list。
 
@@ -184,48 +136,71 @@ Core APIとDock snapshot境界を整理し、今後の生成方式追加時に�
    - Evidence: `BRAINSTORM_OPEN_TOPICS_2026-05-30.md`
    - Test候補: snapshotだけで必要状態が残る。
 
-## U9. Documentation / Analog Test
+## U10. HexTileMapLayer State / Performance
 
 Use case:
 
-レビューや実装結果を追いやすくし、Editor実操作が必要な範囲をユーザーが判断できる。
+大きめmapでも、manual edit、Undo / Redo、Overlay applyが全画面再構築に見えず、Target内部stateと保存snapshotの境界を安全に扱える。
 
 抽出候補:
 
-1. `GENERATED_MAP_MANUAL_EDIT` analog testを再実行可能な状態に保つ。
-   - 説明: 旧analog resultはStep 14 failを記録している。実装修正後もユーザーから「Dock statusは出るがviewport変化が見えない」と報告されているため、再実行時の観察項目を追加する価値がある。
-   - Evidence: `GENERATED_MAP_MANUAL_EDIT_ANALOG_RESULT_2026-06-01.md`, `MANUAL_RUNTIME_LOOP_DISPLAY_IMPLEMENTATION_REVIEW_2026-06-01.md`
-   - Test候補: click後のstatus、target tile coords、save/export result、Source Registry reload。
+1. target apply失敗時のdocument / target乖離を避ける。
+   - 説明: `_apply_hex_tile_map_layer_edit_command()` はdocument更新後にtargetへcommandをapplyする。target applyがfalseの場合、表示は変わらないがSave対象だけ進む余地がある。
+   - Evidence: `HEX_TILE_MAP_LAYER_TILEMAP_BACKED_ARCHITECTURE_IMPLEMENTATION_REVIEW_2026-06-05.md`
+   - Test候補: invalid commandまたはtarget apply失敗fixtureでdocument更新がskip / rollbackされる。
 
-2. 完了承認済み機能のmanual / screenshot / section diagramはユーザー要望後に作る。
-   - 説明: Source Registry、Query Row、Crop、Deductor、Apply Write、Generate HistoryまでDockが大きくなっているため、manual化候補はある。ただしmanualは仕様書ではなく、ユーザー要望または完了承認が条件。
-   - Evidence: `BRAINSTORM_OPEN_TOPICS_2026-05-30.md`, `docs/plan/policy/ANALOG_TEST_POLICY.md`
-   - Test候補: manualではなくanalog observationとして必要箇所を分割する。
+2. Generator Primary applyのstate API境界を読み取りやすくする。
+   - 説明: 実装は `hex_map` setter経由でも成立しているが、計画意図に合わせるなら `load_map_resource()` 呼び出しへ揃えるか、setterが互換入口であることを短く説明する。
+   - Evidence: `HEX_TILE_MAP_LAYER_TILEMAP_BACKED_ARCHITECTURE_IMPLEMENTATION_REVIEW_2026-06-05.md`
+   - Test候補: Generator Primary apply後の `HexTileMapLayer` state、display TileSet、orientation、floor / wall payload。
 
-## 除外した項目
+3. Target Status / Apply Statusを内部state境界が分かる文言へ整理する。
+   - 説明: Primary mapとOverlayがどちらも `HexTileMapLayer` 内部layerへ書かれていること、Save / Export時はdocument snapshotが保存されることを通常statusで読み取りやすくする。
+   - Evidence: `HEX_TILE_MAP_LAYER_TILEMAP_BACKED_ARCHITECTURE_IMPLEMENTATION_REVIEW_2026-06-05.md`, `EDITOR_DOCK_FILE_RESOURCE_SELECTION_IMPLEMENTATION_REVIEW_2026-06-05.md`
+   - Test候補: Target Statusのsemantic token、debug reportの詳細情報。
 
-- Reference Query Row空結果時の警告: ユーザーが不要と判断したため除外。
-- Generative Reference ItemKeyの実装不足: レビュー上不足なし。関連計画は完了扱い。
-- Manual Map Editing の実Editor可視化: `docs/complete_on_test/MANUAL_MAP_EDITING_EDITOR_VISIBILITY_IMPLEMENTATION_PLAN_2026-06-02.md` の範囲として完了扱い。scene roundtripはU3に残す。
-- Runtime loop copy display / manual loop displayの主要要件: `docs/complete_on_test/実施順序_2026-06-01.md` の範囲として完了扱い。scene roundtripはU3に残す。
-- Hex Cell Button Editor UIの主要要件: Codex対応結果とテスト通過により完了扱い。theme追従やdense panel境界hitなど用途依存の改善だけ残す。
-- floor / wall default tile apply設定: `docs/complete_on_test/HEX_TILE_MAP_LAYER_EDIT_DOCK_FOLLOWUP_IMPLEMENTATION_PLAN_2026-06-02.md` と `tests/test_editor_plugin.gd` の default tile settings確認により完了扱い。
+4. `EditorUndoRedoManager` 連携を必要時に別計画化する。
+   - 説明: 現在はPluginから `EditorUndoRedoManager` を渡さず、headless `UndoRedo` の検証を維持している。Godot Editor本体のUndo stack統合が必要になった場合はadapterを作る。
+   - Evidence: `HEX_TILE_MAP_LAYER_EDIT_DOCK_VIEWPORT_DEBUG_RELIABILITY_IMPLEMENTATION_REVIEW_2026-06-02.md`, `HEX_TILE_MAP_LAYER_TILEMAP_BACKED_ARCHITECTURE_IMPLEMENTATION_REVIEW_2026-06-05.md`
+   - Test候補: EditorUndoRedoManager adapterのAPI差分、headless `UndoRedo` との分離。
 
-## 抽出元レビューと扱い
+## U11. Editor File / Resource Selection UX
 
-| Source | 扱い |
-| --- | --- |
-| `docs/review/_history/BRAINSTORM_OPEN_TOPICS_2026-05-30.md` | U4-U9へ抽出 |
-| `docs/review/_history/BRAINSTORM_OPEN_TOPICS_PLAN_REVIEW_2026-05-31.md` | U6-U7と計画化時の注意へ抽出 |
-| `docs/review/_history/ADDITIONAL_REVIEW_NEXT_REQUIREMENTS_2026-05-31.md` | U2-U3、U8へ抽出。完了済み実Editor可視化とloop/manual主要要件は除外 |
-| `docs/review/_history/GENERATIVE_REFERENCE_ITEMKEY_REVIEW_2026-05-31.md` | U8へ抽出 |
-| `docs/review/_history/RUNTIME_INTERACTION_LOOP_PATH_REVIEW_2026-05-31.md` | U3へ抽出 |
-| `docs/review/_history/RUNTIME_MANUAL_LOOP_DISPLAY_PLAN_REVIEW_2026-05-31.md` | 完了済みloop/manual主要要件として整理済み |
-| `docs/review/_history/MANUAL_MAP_EDITING_TOOL_REVIEW_2026-05-31.md` | U2へ抽出。viewport inputは完了済みとして除外 |
-| `docs/review/_history/MANUAL_MAP_EDITING_TOOL_VIEWPORT_INPUT_PLAN_REVIEW_2026-06-01.md` | 完了済み実Editor可視化として整理済み |
-| `docs/review/_history/MANUAL_RUNTIME_LOOP_DISPLAY_IMPLEMENTATION_REVIEW_2026-06-01.md` | U2-U3へ抽出。実Editor可視化は完了済みとして除外 |
-| `docs/review/_history/GENERATED_MAP_MANUAL_EDIT_ANALOG_RESULT_2026-06-01.md` | U9へ抽出。実Editor可視化は完了済みとして除外 |
-| `docs/review/_history/GENERATED_MAP_MANUAL_EDIT_FAILURE_ANALYSIS_2026-06-01.md` | 完了済み実Editor可視化として整理済み |
-| `docs/review/_history/GENERATED_MAP_MANUAL_EDIT_CODE_READING_2026-06-01.md` | U9へ抽出 |
-| `docs/review/_history/HEX_CELL_BUTTON_EDITOR_UI_PLAN_REVIEW_2026-05-31.md` | U4へ抽出 |
-| `docs/review/_history/HEX_CELL_BUTTON_EDITOR_UI_REVIEW_2026-05-31.md` | U4へ抽出 |
+Use case:
+
+Document、Import / Export、Atlas Image、Source Registry、Generate Historyのpath操作で、上書き、失敗原因、通常statusとdebug detailの境界を誤認しない。
+
+抽出候補:
+
+1. Document rowの `Save` / `Save As` を分ける。
+   - 説明: 現在の `Save As` buttonはpath設定済み時にdialogを開かず上書き保存する。Export rowと予測が揃わず、既存pathへ意図せず保存する可能性がある。
+   - Evidence: `EDITOR_DOCK_FILE_RESOURCE_SELECTION_IMPLEMENTATION_REVIEW_2026-06-05.md`
+   - Test候補: pathありDocumentのSave、path変更Save As、pathなしfallback。
+
+2. Target Statusの通常表示とdebug reportの情報量を分ける。
+   - 説明: Target StatusはTileSet path、source count、tile size、floor / wall / overlay payload、overlay visibilityを1行にまとめており、通常操作中に読み取りにくい。
+   - Evidence: `EDITOR_DOCK_FILE_RESOURCE_SELECTION_IMPLEMENTATION_REVIEW_2026-06-05.md`
+   - Test候補: 通常statusはready / document source / TileSet path / tile size程度、詳細はCopy Debug Reportへ残す。
+
+3. invalid resource / path失敗原因を区別する。
+   - 説明: 空入力系はbutton disabledで守られているが、存在しないpath、型違い `.tres`、texture load失敗、tile grid不一致などは押下後status中心で判明する。
+   - Evidence: `EDITOR_DOCK_FILE_RESOURCE_SELECTION_IMPLEMENTATION_REVIEW_2026-06-05.md`, `MANUAL_MAP_EDITING_TOOL_REVIEW_2026-05-31.md`
+   - Test候補: missing path、unsupported resource type、load failed、invalid save directoryのstatus。
+
+4. Source Registry失敗statusを分ける。
+   - 説明: `load_mapdata_source()` はmissing pathとresource type mismatchが同じstatusになりやすい。Source Registryはquery source選択の入口なので失敗理由を分ける価値がある。
+   - Evidence: `EDITOR_DOCK_FILE_RESOURCE_SELECTION_IMPLEMENTATION_REVIEW_2026-06-05.md`
+   - Test候補: missing path、HexMapResource、HexOverlayResource、unsupported resource、reload失敗。
+
+## U12. Ordered Overlay Layer Architecture
+
+Use case:
+
+Effect、装飾Tile、ゲームUIなどを、Primary mapと独立した順序付きlayerとして編集・保存・表示できる。
+
+抽出候補:
+
+1. 順序付き複数Overlayを設計する。
+   - 説明: 現行はPrimaryとOverlay表示が `HexTileMapLayer` に接続されたが、Floor / Wall修飾、Effect、ゲームUIなど複数layerの上下関係と編集対象選択を実現するゲーム開発UXの可能性が未設計である。
+   - Evidence: `HEX_TILE_MAP_LAYER_TILEMAP_BACKED_ARCHITECTURE_IMPLEMENTATION_REVIEW_2026-06-05.md`
+   - Test候補: named overlay layer追加、z-order、active edit layer選択、保存schema、Generate Overlay適用先。

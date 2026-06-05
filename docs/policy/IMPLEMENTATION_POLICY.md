@@ -42,6 +42,7 @@
 ## レビューと完了整理
 
 - 主タスク完了ごとに reviewer が計画、実装、テスト、残リスクを確認しDocumentationする。
+- review では 成果の確認のほか残リスクについては fix now / backlog and separate Design Flow / user validation / ignore and accepted risk に分類する。
 - TEST によって計画済み機能が確認された場合、該当計画文書は `docs/complete_on_test/` 以下へ移動し、`docs/plan/` には未実装項目として残さない。
 - レビューで課題が見つかった場合でも、後続の主タスクに支障がないものは計画候補または backlog として残し、実装済み内容は完了整理できる。
 

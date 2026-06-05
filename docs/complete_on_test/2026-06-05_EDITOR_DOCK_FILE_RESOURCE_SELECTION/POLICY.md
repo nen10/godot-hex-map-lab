@@ -142,7 +142,7 @@
 理由:
 
 - Objectは画像atlas選択ではなく、Node / scene配置、interaction、game stateの設計を含む。
-- `docs/review/HEX_TILE_MAP_LAYER_OBJECT_ASSET_BOUNDARY_REVIEW_2026-06-05.md` の判断通り、別計画で扱う。
+- `docs/review/_history/HEX_TILE_MAP_LAYER_OBJECT_ASSET_BOUNDARY_REVIEW_2026-06-05.md` の判断通り、別計画で扱う。
 
 ## 破壊的変更
 

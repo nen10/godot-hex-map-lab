@@ -6,7 +6,7 @@
 
 ## 参照
 
-- Review: `docs/review/HEX_TILE_MAP_LAYER_EDIT_DOCK_FOLLOWUP_REVIEW_2026-06-02.md`
+- Review: `docs/review/_history/HEX_TILE_MAP_LAYER_EDIT_DOCK_FOLLOWUP_REVIEW_2026-06-02.md`
 - Completed target plan: `docs/complete_on_test/HEX_TILE_MAP_LAYER_COMMON_TARGET_IMPLEMENTATION_PLAN_2026-06-02.md`
 - Existing visibility UX: `docs/complete_on_test/MANUAL_MAP_EDITING_EDITOR_VISIBILITY_UX_2026-06-02.md`
 - Backlog related item: `docs/plan/REVIEW_BACKLOG_2026-06-02.md` U2-1

@@ -6,7 +6,7 @@
 - Policy: `docs/complete_on_test/2026-06-05_EDITOR_DOCK_FILE_RESOURCE_SELECTION/POLICY.md`
 - Implementation Plan: `docs/complete_on_test/2026-06-05_EDITOR_DOCK_FILE_RESOURCE_SELECTION/IMPLEMENTATION_PLAN.md`
 - Plan Review: `docs/review/plan/EDITOR_DOCK_FILE_RESOURCE_SELECTION_PLAN_REVIEW_2026-06-05.md`
-- Source Review: `docs/review/HEX_TILE_MAP_LAYER_EDIT_TARGET_INITIALIZATION_COORDINATE_IMPLEMENTATION_REVIEW_2026-06-05.md`
+- Source Review: `docs/review/_history/HEX_TILE_MAP_LAYER_EDIT_TARGET_INITIALIZATION_COORDINATE_IMPLEMENTATION_REVIEW_2026-06-05.md`
 
 主な実装対象:
 
@@ -166,13 +166,13 @@ Floor / Wall / Overlay Tile payloadがmode別stateになり、Overlay item key�
 
 ## その他の不明点・任意指摘
 
-- Object Node / scene layer、`TileSetScenesCollectionSource`、object専用layerは今回も未着手で妥当。`docs/review/HEX_TILE_MAP_LAYER_OBJECT_ASSET_BOUNDARY_REVIEW_2026-06-05.md` を元に別Planning Flowで扱う。
+- Object Node / scene layer、`TileSetScenesCollectionSource`、object専用layerは今回も未着手で妥当。`docs/review/_history/HEX_TILE_MAP_LAYER_OBJECT_ASSET_BOUNDARY_REVIEW_2026-06-05.md` を元に別Planning Flowで扱う。
 - `apply_document_cell()` の全量document duplicate / resource変換 / `_data` 再構築は今回計画から分離されており、未解決のまま残る。これは次のperformance / state差分適用計画の中心にする。
 - plain `TileMapLayer` legacy helperの内部到達経路整理も今回計画外のまま残る。Editor通常UX、Generation Overlay、Core互換testの境界整理として別扱いがよい。
 
 ## 既存レビューからの完了整理
 
-`docs/review/HEX_TILE_MAP_LAYER_EDIT_TARGET_INITIALIZATION_COORDINATE_IMPLEMENTATION_REVIEW_2026-06-05.md` の後続アクション候補について、今回の計画での状態は以下。
+`docs/review/_history/HEX_TILE_MAP_LAYER_EDIT_TARGET_INITIALIZATION_COORDINATE_IMPLEMENTATION_REVIEW_2026-06-05.md` の後続アクション候補について、今回の計画での状態は以下。
 
 完了扱い:
 

@@ -8,8 +8,8 @@
 
 - Plan: `docs/complete_on_test/HEX_TILE_MAP_LAYER_EDIT_TARGET_INITIALIZATION_COORDINATE_IMPLEMENTATION_PLAN_2026-06-03.md`
 - Policy: `docs/complete_on_test/HEX_TILE_MAP_LAYER_EDIT_TARGET_INITIALIZATION_COORDINATE_POLICY_2026-06-03.md`
-- Review reference: `docs/review/HEX_TILE_MAP_LAYER_EDIT_TARGET_INITIALIZATION_PERFORMANCE_REVIEW_2026-06-03.md`
-- Object asset boundary reference: `docs/review/HEX_TILE_MAP_LAYER_OBJECT_ASSET_BOUNDARY_REVIEW_2026-06-05.md`
+- Review reference: `docs/review/_history/HEX_TILE_MAP_LAYER_EDIT_TARGET_INITIALIZATION_PERFORMANCE_REVIEW_2026-06-03.md`
+- Object asset boundary reference: `docs/review/_history/HEX_TILE_MAP_LAYER_OBJECT_ASSET_BOUNDARY_REVIEW_2026-06-05.md`
 
 主な実装対象:
 
@@ -227,7 +227,7 @@ Object表示を画像atlasとして扱う計画は外れており、現在のObj
 
 参照:
 
-- `docs/review/HEX_TILE_MAP_LAYER_OBJECT_ASSET_BOUNDARY_REVIEW_2026-06-05.md`
+- `docs/review/_history/HEX_TILE_MAP_LAYER_OBJECT_ASSET_BOUNDARY_REVIEW_2026-06-05.md`
 
 ### analog testは更新済みだが、実行結果文書は未確認
 
@@ -287,7 +287,7 @@ Object表示を画像atlasとして扱う計画は外れており、現在のObj
 
 - `apply_document_cell()` の全量document duplicate / resource変換 / `_data` 再構築を避ける性能改善。これはpath選択UXではなく、document差分適用とlarge map performanceの別計画で扱う。
 - `apply_document_cell()` / `apply_document()` の責務分割。性能改善と同じくstate適用境界の別計画で扱う。
-- Object Node / scene layer、`TileSetScenesCollectionSource`、object専用layer。`docs/review/HEX_TILE_MAP_LAYER_OBJECT_ASSET_BOUNDARY_REVIEW_2026-06-05.md` を元に別Planning Flowで扱う。
+- Object Node / scene layer、`TileSetScenesCollectionSource`、object専用layer。`docs/review/_history/HEX_TILE_MAP_LAYER_OBJECT_ASSET_BOUNDARY_REVIEW_2026-06-05.md` を元に別Planning Flowで扱う。
 - plain `TileMapLayer` legacy helperの内部到達経路整理。Editor通常UX、Generation Overlay、Core互換testの境界整理として別に扱う。
 
 完了扱い:
@@ -298,7 +298,7 @@ Object表示を画像atlasとして扱う計画は外れており、現在のObj
 
 追加レビュー:
 
-- `docs/review/EDITOR_DOCK_FILE_RESOURCE_SELECTION_IMPLEMENTATION_REVIEW_2026-06-05.md`
+- `docs/review/_history/EDITOR_DOCK_FILE_RESOURCE_SELECTION_IMPLEMENTATION_REVIEW_2026-06-05.md`
 
 この実装で完了扱いに移す項目:
 
