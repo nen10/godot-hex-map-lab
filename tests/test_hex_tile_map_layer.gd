@@ -198,7 +198,7 @@ func _test_display_tile_size_syncs_hex_size_and_overlay() -> void:
 	_assert_eq(layer.hex_size, 40.0, "flat-top display tile width syncs hex_size")
 	layer.apply_map(HexMapResource.from_map_data(HexMapData.rectangle(2, 1)))
 	var flat_target = HexVector.q_axis()
-	var flat_hit = layer.local_to_cell_hit(layer._tile_map.position + layer.hex_to_local(flat_target))
+	var flat_hit = layer.local_to_cell_hit(layer._tile_map.position + layer.hex_to_display_local(flat_target))
 	_assert_vector_eq(flat_hit["hex"], flat_target, "flat-top hit follows synced display hex size")
 	layer.highlight_cell(flat_target, Color(1.0, 0.0, 0.0))
 	_assert_true(layer._highlights.has(flat_target.key()), "highlight storage remains canonical with overlay drawing")
@@ -212,7 +212,7 @@ func _test_display_tile_size_syncs_hex_size_and_overlay() -> void:
 		"pointy-top display tiles can be configured for size sync"
 	)
 	_assert_eq(layer.hex_size, 36.0, "pointy-top display tile height syncs hex_size")
-	var pointy_hit = layer.local_to_cell_hit(layer._tile_map.position + layer.hex_to_local(flat_target))
+	var pointy_hit = layer.local_to_cell_hit(layer._tile_map.position + layer.hex_to_display_local(flat_target))
 	_assert_vector_eq(pointy_hit["hex"], flat_target, "pointy-top hit follows synced display hex size")
 
 	layer.queue_free()
@@ -257,15 +257,31 @@ func _test_coordinate_roundtrips() -> void:
 		HexVector.s_axis(),
 		HexVector.q_axis().add(HexVector.r_axis()),
 		HexVector.q_axis().scaled(2).subtract(HexVector.r_axis()),
+		HexVector.apply_basis(30, 0, 0),
+		HexVector.apply_basis(0, -30, 0),
+		HexVector.apply_basis(0, 0, 30),
 	]
 
 	for flat_top in [true, false]:
 		layer.flat_top = flat_top
+		layer.ensure_display_tiles(Vector2i(64, 64))
 		for point in points:
 			_assert_vector_eq(
 				layer.local_to_hex(layer.hex_to_local(point)),
 				point,
 				"local_to_hex roundtrips hex_to_local flat_top=%s point=%s" % [str(flat_top), point.key()]
+			)
+			var display_local = layer.hex_to_display_local(point)
+			var expected_display = layer._tile_map.map_to_local(HexMapTileAdapter.vector_to_map_cell(point, flat_top))
+			_assert_eq(
+				display_local,
+				expected_display,
+				"hex_to_display_local follows TileMapLayer.map_to_local flat_top=%s point=%s" % [str(flat_top), point.key()]
+			)
+			_assert_vector_eq(
+				layer.local_to_cell_hit(layer._tile_map.position + display_local)["hex"],
+				point,
+				"local_to_cell_hit roundtrips display local flat_top=%s point=%s" % [str(flat_top), point.key()]
 			)
 
 	layer.queue_free()
@@ -352,7 +368,7 @@ func _test_runtime_input_signals_use_cell_hit() -> void:
 	layer.cell_hit_hovered.connect(Callable(recorder, "record_hit_hovered"))
 
 	var target = HexVector.q_axis()
-	var target_position = layer.to_global(layer._tile_map.position + layer.hex_to_local(target))
+	var target_position = layer.to_global(layer._tile_map.position + layer.hex_to_display_local(target))
 	var press = InputEventMouseButton.new()
 	press.button_index = MOUSE_BUTTON_LEFT
 	press.pressed = true
@@ -383,7 +399,7 @@ func _test_local_to_cell_hit_wraps_toric_visual_cell() -> void:
 	layer.loop_display_enabled = true
 	layer.loop_display_mode = HexTileMapLayer.LOOP_DISPLAY_TORIC
 	var visual = HexVector.apply_basis(3, 0, 0)
-	var hit = layer.local_to_cell_hit(layer._tile_map.position + layer.hex_to_local(visual))
+	var hit = layer.local_to_cell_hit(layer._tile_map.position + layer.hex_to_display_local(visual))
 
 	_assert_vector_eq(hit["visual_hex"], visual, "toric hit keeps visual representative")
 	_assert_vector_eq(hit["hex"], HexVector.zero(), "toric hit wraps visual representative to canonical cell")
@@ -401,7 +417,7 @@ func _test_infinite_loop_mode_keeps_visual_cell_identity() -> void:
 	layer.loop_display_enabled = true
 	layer.loop_display_mode = HexTileMapLayer.LOOP_DISPLAY_INFINITE
 	var visual = HexVector.apply_basis(3, 0, 0)
-	var hit = layer.local_to_cell_hit(layer._tile_map.position + layer.hex_to_local(visual))
+	var hit = layer.local_to_cell_hit(layer._tile_map.position + layer.hex_to_display_local(visual))
 
 	_assert_vector_eq(hit["hex"], visual, "infinite hit keeps visual cell as canonical identity")
 	_assert_true(not bool(hit["exists"]), "infinite hit does not collapse outside finite resource into toric cell")
@@ -418,13 +434,13 @@ func _test_visual_representatives_for_toric_cell() -> void:
 	layer.apply_map(HexMapResource.from_map_data(HexMapData.square(3, true)))
 	layer.loop_display_mode = HexTileMapLayer.LOOP_DISPLAY_TORIC
 	var visual = HexVector.apply_basis(-3, 0, 0)
-	var rect = Rect2(layer.hex_to_local(visual) - Vector2.ONE, Vector2(2, 2))
+	var rect = Rect2(layer.hex_to_display_local(visual) - Vector2.ONE, Vector2(2, 2))
 	var reps = layer.visual_representatives_for_cell(HexVector.zero(), rect, 0)
 
 	_assert_keys_eq(reps, [visual], "toric visual representatives include the visible period copy only")
 
 	var far_visual = HexVector.apply_basis(9, 0, 0)
-	var far_rect = Rect2(layer.hex_to_local(far_visual) - Vector2.ONE, Vector2(2, 2))
+	var far_rect = Rect2(layer.hex_to_display_local(far_visual) - Vector2.ONE, Vector2(2, 2))
 	var far_reps = layer.visual_representatives_for_cell(HexVector.zero(), far_rect, 0)
 	_assert_keys_eq(far_reps, [far_visual], "toric visual representatives honor far-from-origin display rects")
 
@@ -441,7 +457,7 @@ func _test_visual_cell_entries_for_rect_marks_canonical_and_duplicates() -> void
 	layer.loop_display_mode = HexTileMapLayer.LOOP_DISPLAY_TORIC
 	layer.apply_map(HexMapResource.from_map_data(HexMapData.square(3, true)))
 
-	var canonical_rect = Rect2(layer.hex_to_local(HexVector.zero()) - Vector2.ONE, Vector2(2, 2))
+	var canonical_rect = Rect2(layer.hex_to_display_local(HexVector.zero()) - Vector2.ONE, Vector2(2, 2))
 	var canonical_entries = layer.visual_cell_entries_for_rect(canonical_rect, 0)
 	var canonical_entry = _find_visual_entry(canonical_entries, HexVector.zero(), HexVector.zero())
 	_assert_true(not canonical_entry.is_empty(), "visual cell entries include canonical representative")
@@ -453,7 +469,7 @@ func _test_visual_cell_entries_for_rect_marks_canonical_and_duplicates() -> void
 	)
 
 	var duplicate_visual = HexVector.apply_basis(-3, 0, 0)
-	var duplicate_rect = Rect2(layer.hex_to_local(duplicate_visual) - Vector2.ONE, Vector2(2, 2))
+	var duplicate_rect = Rect2(layer.hex_to_display_local(duplicate_visual) - Vector2.ONE, Vector2(2, 2))
 	var duplicate_entries = layer.visual_cell_entries_for_rect(duplicate_rect, 0)
 	var duplicate_entry = _find_visual_entry(duplicate_entries, HexVector.zero(), duplicate_visual)
 	_assert_true(not duplicate_entry.is_empty(), "visual cell entries include toric duplicate representative")
@@ -476,7 +492,7 @@ func _test_loop_copy_layer_draws_duplicate_tiles() -> void:
 	var duplicate_visual = HexVector.apply_basis(-3, 0, 0)
 	layer.loop_display_enabled = true
 	layer.loop_display_mode = HexTileMapLayer.LOOP_DISPLAY_TORIC
-	layer.loop_display_rect = Rect2(layer.hex_to_local(duplicate_visual) - Vector2.ONE, Vector2(2, 2))
+	layer.loop_display_rect = Rect2(layer.hex_to_display_local(duplicate_visual) - Vector2.ONE, Vector2(2, 2))
 	layer.apply_map(HexMapResource.from_map_data(HexMapData.square(3, true)))
 	var duplicate_map_cell = HexMapTileAdapter.vector_to_map_cell(duplicate_visual, true)
 
@@ -500,7 +516,7 @@ func _test_loop_copy_layer_updates_after_wall_floor_edit() -> void:
 	var duplicate_visual = HexVector.apply_basis(-3, 0, 0)
 	layer.loop_display_enabled = true
 	layer.loop_display_mode = HexTileMapLayer.LOOP_DISPLAY_TORIC
-	layer.loop_display_rect = Rect2(layer.hex_to_local(duplicate_visual) - Vector2.ONE, Vector2(2, 2))
+	layer.loop_display_rect = Rect2(layer.hex_to_display_local(duplicate_visual) - Vector2.ONE, Vector2(2, 2))
 	layer.apply_map(HexMapResource.from_map_data(HexMapData.square(3, true)))
 	var duplicate_map_cell = HexMapTileAdapter.vector_to_map_cell(duplicate_visual, true)
 
@@ -534,8 +550,8 @@ func _test_visual_path_for_toric_path_uses_nearest_representatives() -> void:
 	]
 	var visual_path = layer.visual_path_for_canonical_path(canonical_path)
 	var wrapped_visual = HexVector.q_axis().scaled(-1)
-	var canonical_distance = layer.hex_to_local(canonical_path[0]).distance_to(layer.hex_to_local(canonical_path[1]))
-	var visual_distance = layer.hex_to_local(visual_path[0]).distance_to(layer.hex_to_local(visual_path[1]))
+	var canonical_distance = layer.hex_to_display_local(canonical_path[0]).distance_to(layer.hex_to_display_local(canonical_path[1]))
+	var visual_distance = layer.hex_to_display_local(visual_path[0]).distance_to(layer.hex_to_display_local(visual_path[1]))
 
 	_assert_keys_eq(visual_path, [HexVector.zero(), wrapped_visual], "toric visual path chooses adjacent representative across wrap")
 	_assert_true(visual_distance < canonical_distance, "toric visual path is shorter than canonical jump")
@@ -558,7 +574,7 @@ func _test_visual_path_anchor_selects_first_representative() -> void:
 		HexVector.zero(),
 		HexVector.q_axis(),
 	]
-	var visual_path = layer.visual_path_for_canonical_path(canonical_path, layer.hex_to_local(duplicate_visual))
+	var visual_path = layer.visual_path_for_canonical_path(canonical_path, layer.hex_to_display_local(duplicate_visual))
 
 	_assert_vector_eq(
 		visual_path[0],
@@ -578,7 +594,7 @@ func _test_connected_component_from_local_matches_core() -> void:
 	await process_frame
 	layer.apply_map(HexMapResource.from_map_data(data))
 	var target = HexVector.q_axis().scaled(2)
-	var component = layer.connected_component_from_local(layer._tile_map.position + layer.hex_to_local(target))
+	var component = layer.connected_component_from_local(layer._tile_map.position + layer.hex_to_display_local(target))
 	var expected = HexGrid.connected_area(target, data.floor_cells(), data.cyclic_size)
 
 	_assert_keys_eq(component, expected, "connected_component_from_local uses canonical hit cell")

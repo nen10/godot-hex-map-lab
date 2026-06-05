@@ -56,6 +56,7 @@ func _run() -> void:
 	await _test_plugin_handles_canvas_item_when_map_edit_ready()
 	await _test_map_edit_tool_auto_target_uses_selected_layer()
 	await _test_map_edit_tool_auto_target_maps_hex_internal_layer_selection()
+	await _test_map_edit_tool_initializes_document_from_hex_target()
 	await _test_map_edit_tool_imports_generated_map_resource()
 	await _test_map_edit_tool_click_updates_document_with_undo_redo()
 	await _test_map_edit_tool_debug_report_copy_includes_reportable_state()
@@ -66,11 +67,13 @@ func _run() -> void:
 	await _test_map_edit_tool_target_readiness_reports_hex_tile_map_layer_loop_state()
 	await _test_map_edit_tool_preserves_plain_target_tile_settings_when_redrawing()
 	await _test_map_edit_tool_applies_explicit_default_tile_settings()
+	await _test_map_edit_tool_target_atlas_settings_use_target_tileset()
 	await _test_map_edit_tool_last_edit_trace_distinguishes_document_and_redraw()
 	await _test_map_edit_tool_last_edit_trace_reports_target_apply_failure()
 	await _test_map_edit_tool_persistence_checkpoint_reports_save_and_export_counts()
 	await _test_map_edit_tool_local_hit_uses_hex_tile_map_layer()
 	await _test_map_edit_tool_hex_tile_payload_modes_change_display()
+	await _test_map_edit_tool_overlay_tile_payload_changes_hex_display()
 	await _test_map_edit_tool_object_and_label_payloads_change_hex_display()
 	await _test_map_edit_tool_forward_canvas_gui_input_edits_loop_visual_duplicate()
 	await _test_map_edit_tool_undo_redo_preserves_loop_visual_identity()
@@ -153,8 +156,12 @@ func _test_map_edit_tool_builds_dock_controls() -> void:
 	scene_root.name = "SceneRoot"
 	root.add_child(scene_root)
 	var tile_layer = TileMapLayer.new()
-	tile_layer.name = "PaintLayer"
+	tile_layer.name = "LegacyPlainLayer"
 	scene_root.add_child(tile_layer)
+	var hex_layer = HexTileMapLayer.new()
+	hex_layer.name = "PaintLayer"
+	scene_root.add_child(hex_layer)
+	await process_frame
 
 	var tool = await _new_ready_edit_tool()
 	tool.refresh_target_layer_options(scene_root)
@@ -183,8 +190,11 @@ func _test_map_edit_tool_builds_dock_controls() -> void:
 	_assert_true(tool._default_wall_atlas_x_spin != null, "map edit tool exposes default wall atlas control")
 	_assert_true(tool._default_tile_read_button != null, "map edit tool exposes default tile read button")
 	_assert_true(tool._default_tile_apply_button != null, "map edit tool exposes default tile apply button")
+	_assert_true(tool._target_atlas_path_edit != null, "map edit tool exposes target atlas image path control")
+	_assert_true(tool._target_sample_option.item_count >= 3, "map edit tool exposes sample atlas presets")
+	_assert_true(tool._select_display_layer_button != null, "map edit tool exposes display layer selection")
 	_assert_true(tool._target_option.item_count >= 2, "map edit tool lists target TileMapLayer options")
-	_assert_eq(tool.target_layer(), tile_layer, "map edit tool resolves Auto target to first editable layer")
+	_assert_eq(tool.target_layer(), hex_layer, "map edit tool resolves Auto target to first HexTileMapLayer")
 	var object_db = HexObjectDatabaseResource.new()
 	var label_db = HexLabelDatabaseResource.new()
 	tool.set_object_database(object_db)
@@ -240,14 +250,14 @@ func _test_map_edit_tool_auto_target_uses_selected_layer() -> void:
 	first_layer.tile_set = TileSet.new()
 	HexMapTileAdapter.configure_hex_tile_set(first_layer.tile_set, true, Vector2i(64, 64))
 	scene_root.add_child(first_layer)
-	var selected_layer = TileMapLayer.new()
+	var selected_layer = HexTileMapLayer.new()
 	selected_layer.name = "SelectedLayer"
-	selected_layer.tile_set = TileSet.new()
-	HexMapTileAdapter.configure_hex_tile_set(selected_layer.tile_set, true, Vector2i(64, 64))
 	scene_root.add_child(selected_layer)
+	await process_frame
 	var document = HexMapDocumentAdapter.from_map_resource(
 		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
 	)
+	selected_layer.apply_map(document.map)
 	var tool = await _new_ready_edit_tool()
 	tool.set_document(document)
 	tool.refresh_target_layer_options(scene_root)
@@ -256,9 +266,9 @@ func _test_map_edit_tool_auto_target_uses_selected_layer() -> void:
 
 	_assert_eq(tool.target_layer(), selected_layer, "Auto target resolves to the editor-selected layer")
 	_assert_true(tool.viewport_input_enabled(), "Auto target enables viewport input for the selected layer")
-	var origin_local = selected_layer.map_to_local(HexMapTileAdapter.vector_to_map_cell(HexVector.zero(), true))
+	var origin_local = selected_layer._tile_map.position + selected_layer.hex_to_display_local(HexVector.zero())
 	_assert_true(tool.apply_local_position(origin_local), "Auto target edit applies to the selected layer")
-	_assert_eq(selected_layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(1, 0), "Auto target redraws selected layer")
+	_assert_eq(selected_layer.display_atlas_coords_for_hex(HexVector.zero()), Vector2i(1, 0), "Auto target redraws selected layer")
 	_assert_eq(first_layer.get_used_cells().size(), 0, "Auto target does not redraw the first layer when selection exists")
 	_assert_eq(tool.last_edit_status()["target_resolution_reason"], "auto editor selection", "Last Edit records Auto selection reason")
 
@@ -293,6 +303,37 @@ func _test_map_edit_tool_auto_target_maps_hex_internal_layer_selection() -> void
 		"HexTileMapLayer",
 		"internal TileMapLayer selection reports wrapper target readiness"
 	)
+
+	scene_root.queue_free()
+	tool.queue_free()
+	await process_frame
+
+
+func _test_map_edit_tool_initializes_document_from_hex_target() -> void:
+	var scene_root = Node2D.new()
+	scene_root.name = "SceneRoot"
+	root.add_child(scene_root)
+	var data = HexMapData.rectangle(2, 1)
+	var resource = HexMapResource.from_map_data(data, HexMapResource.ORIENTATION_POINTY_TOP)
+	var hex_layer = HexTileMapLayer.new()
+	hex_layer.name = "RuntimeMap"
+	scene_root.add_child(hex_layer)
+	await process_frame
+	hex_layer.hex_map = resource
+	var tool = await _new_ready_edit_tool()
+	tool.refresh_target_layer_options(scene_root)
+	tool.set_editor_selected_target_layer_for_test(hex_layer)
+	tool.set_edit_mode(HexMapEditTool.EditMode.WALL_FLOOR)
+
+	_assert_true(tool.document() != null, "map edit tool creates a document from selected HexTileMapLayer target")
+	_assert_eq(tool._document_source, HexMapEditTool.DOCUMENT_SOURCE_TARGET, "target document source is recorded")
+	_assert_eq(tool.document().map.orientation, HexMapResource.ORIENTATION_POINTY_TOP, "target document preserves target map orientation")
+	_assert_true(tool.viewport_input_enabled(), "target-derived document enables viewport input")
+	var origin_local = hex_layer._tile_map.position + hex_layer.hex_to_display_local(HexVector.zero())
+	_assert_true(tool.apply_local_position(origin_local), "target-derived document accepts viewport edit")
+	_assert_true(tool.document().map.to_map_data().has_wall(HexVector.zero()), "target-derived document mutates on edit")
+	_assert_true(hex_layer.hex_map.to_map_data().has_wall(HexVector.zero()), "target-derived edit updates HexTileMapLayer resource")
+	_assert_true(tool.debug_report_text().contains("document_source: target"), "debug report includes target document source")
 
 	scene_root.queue_free()
 	tool.queue_free()
@@ -450,12 +491,13 @@ func _test_map_edit_tool_forward_canvas_gui_input_uses_viewport_transform() -> v
 func _test_map_edit_tool_target_selection_sync_for_explicit_target() -> void:
 	var scene_root = Node2D.new()
 	root.add_child(scene_root)
-	var first_layer = TileMapLayer.new()
+	var first_layer = HexTileMapLayer.new()
 	first_layer.name = "FirstLayer"
 	scene_root.add_child(first_layer)
-	var second_layer = TileMapLayer.new()
+	var second_layer = HexTileMapLayer.new()
 	second_layer.name = "SecondLayer"
 	scene_root.add_child(second_layer)
+	await process_frame
 	var tool = await _new_ready_edit_tool()
 	tool.refresh_target_layer_options(scene_root)
 	var before_count = tool._target_selection_sync_request_count
@@ -673,6 +715,47 @@ func _test_map_edit_tool_applies_explicit_default_tile_settings() -> void:
 	await process_frame
 
 
+func _test_map_edit_tool_target_atlas_settings_use_target_tileset() -> void:
+	var document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(2, 1))
+	)
+	var hex_layer = HexTileMapLayer.new()
+	root.add_child(hex_layer)
+	await process_frame
+	var tool = await _new_ready_edit_tool()
+	tool.set_document(document)
+	tool.set_target_layer(hex_layer)
+	tool._default_floor_source_spin.value = 0
+	tool._default_floor_atlas_x_spin.value = 0
+	tool._default_floor_atlas_y_spin.value = 0
+	tool._default_wall_source_spin.value = 0
+	tool._default_wall_atlas_x_spin.value = 1
+	tool._default_wall_atlas_y_spin.value = 0
+	tool._on_default_tile_setting_changed(0.0)
+
+	_assert_true(
+		tool._apply_target_atlas_path(
+			"res://addons/hex_map_kit/assets/tactics_flat_top_hex_tiles_64x57_10.png",
+			Vector2i(64, 57)
+		),
+		"map edit tool applies sample atlas to target TileSet"
+	)
+	var tile_set = hex_layer.display_tile_set()
+	_assert_true(tile_set.has_source(0), "target atlas setup creates source on HexTileMapLayer TileSet")
+	_assert_eq(tile_set.tile_size, Vector2i(64, 57), "target atlas setup stores tile size on Target TileSet")
+	_assert_eq(document.tile_overrides.size(), 0, "target atlas setup does not write asset data into document tile overrides")
+	tool._apply_document_to_target()
+	_assert_eq(hex_layer.display_atlas_coords_for_hex(HexVector.zero()), Vector2i.ZERO, "target atlas setup draws floor atlas after apply")
+
+	var replacement = TileSet.new()
+	_assert_true(tool._apply_target_tile_set(replacement), "map edit tool accepts explicit Target TileSet resource")
+	_assert_eq(hex_layer.display_tile_set(), replacement, "explicit Target TileSet is stored on HexTileMapLayer display layer")
+
+	hex_layer.queue_free()
+	tool.queue_free()
+	await process_frame
+
+
 func _test_map_edit_tool_last_edit_trace_distinguishes_document_and_redraw() -> void:
 	var document = HexMapDocumentAdapter.from_map_resource(
 		HexMapResource.from_map_data(HexMapData.rectangle(2, 1))
@@ -779,7 +862,7 @@ func _test_map_edit_tool_local_hit_uses_hex_tile_map_layer() -> void:
 	tool.set_target_layer(layer)
 	tool.set_edit_mode(HexMapEditTool.EditMode.WALL_FLOOR)
 	var wrapped_visual = HexVector.apply_basis(3, 0, 0)
-	var hit_local = layer.hex_to_local(wrapped_visual)
+	var hit_local = layer._tile_map.position + layer.hex_to_display_local(wrapped_visual)
 
 	_assert_true(tool.apply_local_position(hit_local), "map edit tool uses HexTileMapLayer loop-aware hit")
 	_assert_true(document.map.to_map_data().has_wall(HexVector.zero()), "map edit tool edits canonical toric cell from visual duplicate")
@@ -811,6 +894,38 @@ func _test_map_edit_tool_hex_tile_payload_modes_change_display() -> void:
 	_assert_true(bool(trace["display_changed"]), "floor tile mode Last Edit records display change")
 	_assert_eq(trace["display_renderer_after"], "HexTileMapLayer", "floor tile mode Last Edit records Hex renderer")
 	_assert_true(tool._last_edit_detail_label.text.contains("payload=0:(1,0):0"), "floor tile mode Last Edit includes payload")
+
+	layer.queue_free()
+	tool.queue_free()
+	await process_frame
+
+
+func _test_map_edit_tool_overlay_tile_payload_changes_hex_display() -> void:
+	var document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	var layer = HexTileMapLayer.new()
+	root.add_child(layer)
+	await process_frame
+	var tool = await _new_ready_edit_tool()
+	tool.set_document(document)
+	tool.set_target_layer(layer)
+	tool._apply_document_to_target()
+	tool.set_edit_mode(HexMapEditTool.EditMode.OVERLAY_TILE)
+	tool.set_overlay_tile_payload("Treasure", 0, Vector2i(1, 0), 0)
+
+	_assert_true(tool.apply_cell(HexVector.zero()), "overlay tile mode applies payload to HexTileMapLayer")
+	_assert_eq(document.tile_overrides.size(), 1, "overlay tile mode stores a document tile override")
+	_assert_eq(document.tile_overrides[0]["kind"], HexMapDocumentAdapter.KIND_OVERLAY, "overlay tile mode stores overlay kind")
+	_assert_eq(document.tile_overrides[0]["item_key"], "Treasure", "overlay tile mode stores item key")
+	var map_cell = HexMapTileAdapter.vector_to_map_cell(HexVector.zero(), true)
+	_assert_eq(layer._overlay_tile_map.get_cell_atlas_coords(map_cell), Vector2i(1, 0), "overlay tile mode draws overlay tile")
+	var state = layer.display_state_for_hex(HexVector.zero())
+	_assert_eq(state["overlay_count"], 1, "overlay tile mode exposes overlay count")
+	var trace = tool.last_edit_status()
+	_assert_true(bool(trace["display_changed"]), "overlay tile mode Last Edit records display change")
+	_assert_eq(trace["display_overlay_count_after"], 1, "overlay tile mode Last Edit records overlay count")
+	_assert_eq(trace["target_apply_reason"], "Applied overlay tile to HexTileMapLayer.", "overlay tile mode uses overlay apply reason")
 
 	layer.queue_free()
 	tool.queue_free()
@@ -863,7 +978,7 @@ func _test_map_edit_tool_forward_canvas_gui_input_edits_loop_visual_duplicate() 
 	layer.hex_size = 10.0
 	layer.loop_display_enabled = true
 	layer.loop_display_mode = HexTileMapLayer.LOOP_DISPLAY_TORIC
-	layer.loop_display_rect = Rect2(layer.hex_to_local(duplicate_visual) - Vector2.ONE, Vector2(2, 2))
+	layer.loop_display_rect = Rect2(layer.hex_to_display_local(duplicate_visual) - Vector2.ONE, Vector2(2, 2))
 	layer.apply_map(resource)
 	var tool = await _new_ready_edit_tool()
 	tool.set_document(document)
@@ -872,7 +987,7 @@ func _test_map_edit_tool_forward_canvas_gui_input_edits_loop_visual_duplicate() 
 	var press = InputEventMouseButton.new()
 	press.button_index = MOUSE_BUTTON_LEFT
 	press.pressed = true
-	press.position = layer.to_global(layer.hex_to_local(duplicate_visual))
+	press.position = layer.to_global(layer._tile_map.position + layer.hex_to_display_local(duplicate_visual))
 	var duplicate_map_cell = HexMapTileAdapter.vector_to_map_cell(duplicate_visual, true)
 
 	_assert_true(tool.forward_canvas_gui_input(press), "map edit tool edits loop visual duplicate via viewport input")
@@ -886,7 +1001,7 @@ func _test_map_edit_tool_forward_canvas_gui_input_edits_loop_visual_duplicate() 
 	_assert_vector_eq(tool.last_edit_status()["hex"], HexVector.zero(), "last edit status stores canonical hex")
 	_assert_vector_eq(tool.last_edit_status()["visual_hex"], duplicate_visual, "last edit status stores visual hex")
 	_assert_true(
-		tool.apply_local_position(layer.hex_to_local(HexVector.q_axis())),
+		tool.apply_local_position(layer._tile_map.position + layer.hex_to_display_local(HexVector.q_axis())),
 		"map edit tool accepts a second loop target edit"
 	)
 	_assert_eq(layer._highlights.size(), 1, "map edit tool keeps only one last-edit highlight")
@@ -909,7 +1024,7 @@ func _test_map_edit_tool_undo_redo_preserves_loop_visual_identity() -> void:
 	layer.hex_size = 10.0
 	layer.loop_display_enabled = true
 	layer.loop_display_mode = HexTileMapLayer.LOOP_DISPLAY_TORIC
-	layer.loop_display_rect = Rect2(layer.hex_to_local(duplicate_visual) - Vector2.ONE, Vector2(2, 2))
+	layer.loop_display_rect = Rect2(layer.hex_to_display_local(duplicate_visual) - Vector2.ONE, Vector2(2, 2))
 	layer.apply_map(resource)
 	var tool = await _new_ready_edit_tool()
 	var undo_redo = UndoRedo.new()
@@ -921,7 +1036,7 @@ func _test_map_edit_tool_undo_redo_preserves_loop_visual_identity() -> void:
 	var press = InputEventMouseButton.new()
 	press.button_index = MOUSE_BUTTON_LEFT
 	press.pressed = true
-	press.position = layer.to_global(layer.hex_to_local(duplicate_visual))
+	press.position = layer.to_global(layer._tile_map.position + layer.hex_to_display_local(duplicate_visual))
 
 	_assert_true(tool.forward_canvas_gui_input(press), "loop visual duplicate edit is undoable")
 	undo_redo.undo()
@@ -958,6 +1073,11 @@ func _test_map_edit_tool_mode_specific_payload_controls() -> void:
 	_assert_true(_control_row_visible(tool._tile_source_spin), "floor tile mode shows tile source control")
 	_assert_true(_control_row_visible(tool._tile_atlas_x_spin), "floor tile mode shows tile atlas controls")
 	_assert_true(not _control_row_visible(tool._object_id_edit), "floor tile mode hides object payload controls")
+
+	tool.set_edit_mode(HexMapEditTool.EditMode.OVERLAY_TILE)
+	_assert_true(_control_row_visible(tool._tile_source_spin), "overlay tile mode shows tile source control")
+	_assert_true(_control_row_visible(tool._overlay_item_key_edit), "overlay tile mode shows item key control")
+	_assert_true(not _control_row_visible(tool._object_id_edit), "overlay tile mode hides object payload controls")
 
 	tool.set_edit_mode(HexMapEditTool.EditMode.OBJECT)
 	_assert_true(_control_row_visible(tool._object_id_edit), "object mode shows object payload controls")
@@ -1836,10 +1956,10 @@ func _test_generation_dock_lists_hex_tile_map_layer_common_target() -> void:
 	await process_frame
 
 	dock.refresh_tile_layer_options(scene_root)
-	_assert_eq(dock._tile_layer_option.item_count, 4, "generation dock lists Auto, plain target, HexTileMapLayer, and add new layer")
-	_assert_eq(dock._tile_layer_option.get_item_text(1), "PlainLayer", "generation dock keeps plain target label")
-	_assert_eq(dock._tile_layer_option.get_item_text(2), "RuntimeMap (HexTileMapLayer)", "generation dock identifies HexTileMapLayer target")
-	dock._tile_layer_option.select(2)
+	_assert_eq(dock._tile_layer_option.item_count, 4, "generation dock lists Auto, HexTileMapLayer, plain target, and add new layer")
+	_assert_eq(dock._tile_layer_option.get_item_text(1), "RuntimeMap (HexTileMapLayer)", "generation dock prioritizes HexTileMapLayer target")
+	_assert_eq(dock._tile_layer_option.get_item_text(2), "PlainLayer", "generation dock keeps plain target label for explicit/Overlay use")
+	dock._tile_layer_option.select(1)
 	_assert_eq(dock.selected_tile_map_layer(), hex_layer, "generation dock returns selected HexTileMapLayer")
 	dock._set_editor_selected_tile_map_layer_for_test(hex_layer)
 	_assert_eq(dock._find_editor_selected_tile_map_layer(), hex_layer, "generation dock accepts editor-selected HexTileMapLayer")

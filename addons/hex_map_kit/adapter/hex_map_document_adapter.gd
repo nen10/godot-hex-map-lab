@@ -72,6 +72,8 @@ static func apply_to_tile_map_layer(document, layer, options: Dictionary = {}) -
 		if not cell_set.has(hex.key()):
 			continue
 		var entry_kind = String(entry.get("kind", KIND_FLOOR))
+		if entry_kind == KIND_OVERLAY:
+			continue
 		var is_wall = wall_set.has(hex.key())
 		if entry_kind == KIND_FLOOR and is_wall:
 			continue

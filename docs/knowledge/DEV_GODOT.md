@@ -9,6 +9,7 @@ Godotでの開発ノウハウを随時追加します。
 - addon専用のmanual edit targetを作る場合、plain `TileMapLayer` を直接選択対象にするより、`Node2D` wrapperを選択対象にして内部 `TileMapLayer` を表示実装として隠す方が入力責務を分けやすい。
 - `TileMapLayer.set_cell()` はsource id、atlas coords、alternative tileで表示tileを決める。cellを書いても、対応する `TileSet` source / atlas tileが存在しなければEditor viewport上では表示確認できない。
 - `@tool` nodeでresourceをready前に受け取る場合、setterではresourceを保持し、`_ready()` でinternal child作成後にredrawする。redraw時にはTileSet shapeだけでなくvisible atlas sourceの存在も確認する。
+- `HexTileMapLayer.apply_map()` は表示用にmap dataを反映するhelperであり、`hex_map` export propertyを必ず更新する入口ではない。Editor DockなどがTarget resourceとして `HexTileMapLayer.hex_map` を読む場合、fixtureや実装では `hex_layer.hex_map = resource` を使う。
 - `Node.add_child(..., INTERNAL_MODE_BACK)` で作るinternal childを後で再検出する場合、`get_children(true)` を使う。defaultの `get_children()` だけだとinternal childを走査できない。
 
 ## Editor Dock UI と target 解決
@@ -25,6 +26,7 @@ Godotでの開発ノウハウを随時追加します。
 - `EditorUndoRedoManager` は `UndoRedo` と `add_do_method()` のAPIが異なる。headless testで `UndoRedo.new()` が通っても、Editor Pluginで `EditorInterface.get_editor_undo_redo()` に `Callable` を渡すとerrorになる。Editor UndoRedo連携を使う場合はAPI adapterを作り、不要なら直接applyへ戻す。
 - `CanvasItem` の親 `_draw()` はchild `TileMapLayer` の背面に出る。TileMap上のhighlightやmarkerを確実に見せたい場合、親 `_draw()` ではなく前面overlay child、z index、またはchild orderを使う。
 - `HexTileMapLayer` の表示tileはGodot `TileMapLayer` / `TileSet.tile_size` に従い、click hitやhighlightは `hex_size` に従う。両者を別々に更新すると、見えているcellとhit対象がずれる。display tile size変更時は `hex_size` を同期するか、hit / overlayの中心座標を内部 `TileMapLayer.map_to_local()` から取得する。
+- `TileMapLayer.map_to_local()` / `local_to_map()` によるhex表示座標をテストする場合、対象 `TileMapLayer.tile_set` に `TILE_SHAPE_HEXAGON`、`TILE_LAYOUT_STACKED`、orientationに合った `tile_offset_axis` と `tile_size` を先に設定する。TileSet未設定時は独自helperのfallback値とGodot側変換値を同列に比較しない。
 - `Hex Map Edit` のviewport入力はTargetだけでなく編集対象documentにも依存する。`HexTileMapLayer` が `hex_map` を持ってreadyでも、Edit Dock側の `_document` が空ならviewport editは始まらない。Target Reloadを編集開始操作にする場合、選択中 `HexTileMapLayer.hex_map` から未保存 `HexMapDocumentResource` を作る入口が必要。
 - `TileMapLayer.local_to_map()` / `map_to_local()` はGodot側のmap cellとlocal座標の基準APIである。`TileSet.tile_shape = HEXAGON`、`TILE_LAYOUT_STACKED`、`tile_offset_axis`、`tile_size` を使う表示では、独自hex数式だけをhit / overlay中心の根拠にすると遠端cellでずれが蓄積しやすい。Editor上で見えているcell操作は内部 `TileMapLayer` の変換APIに寄せる。
 - `HexMapDocumentResource` を1clickごとにbefore / after全量複製し、さらに `HexTileMapLayer.apply_document()` で全量redrawすると、大きいmapではEditor操作が重くなる。`Wall / Floor` やtile overrideのような単一cell変更は、document state更新と内部 `TileMapLayer.set_cell()` のincremental applyを優先する。
@@ -40,8 +42,7 @@ Godotでの開発ノウハウを随時追加します。
 - `TileMapLayer.set_cell()` は `source_id`、`atlas_coords`、`alternative_tile` をcellに保存する。asset選択UXではTarget / TileSet境界を採用し、documentはこの3値をpayloadとして持ち、asset path / TileSet referenceは持たない。
 - `EditorPlugin._handles()` がtrueを返す対象では `_edit()` / `_make_visible()` / `_forward_canvas_gui_input()` が呼ばれる。標準TileMap editorとaddon manual editの入力が同じ2D viewportで競合する場合、addon側はeventを消費する条件を限定する必要がある。
 - addonは標準TileMap panelの現在選択tileに依存せず、Target TileSet resourceと `source_id` / `atlas_coords` / `alternative_tile` を境界にする。標準TileMap画面はTileSet編集の補助操作として開き、manual edit payloadはDock側の明示設定から作る。
-- 現在のaddon実装では、Generation Dockに `Select Atlas Image` / `Use Sample Tiles` があり、選択画像を `HexTileMapLayer` またはplain `TileMapLayer` のTileSetへ反映する経路がある。Edit Dockはsource id / atlas coords / alternative tileの数値設定と `Read Target Tiles` / `Apply Target Tiles` を持つが、画像atlas選択UIはまだ持たない。
-- Edit Dockへasset選択UIを足す場合、Generation Dockの画像選択処理を再利用できる。選択assetはTarget `HexTileMapLayer` の内部 `TileMapLayer.tile_set` へ設定し、documentへasset pathを保存しない。
+- 現在のaddon実装では、Generation Dockに `Select Atlas Image` / `Use Sample Tiles` があり、Edit DockにもTarget TileSet / Atlas Image / Sample presetの入口がある。どちらの入口でも選択assetはTarget `HexTileMapLayer` の内部 `TileMapLayer.tile_set` へ設定し、documentへasset pathを保存しない。
 - 生成済みtactics atlasは固定defaultではなく、ユーザーが選択できるsample / preset assetとして扱う。Object用画像atlasはTile / Overlay asset計画から外し、Node / scene配置の検討としてreview側へ分離する。
 
 参照:

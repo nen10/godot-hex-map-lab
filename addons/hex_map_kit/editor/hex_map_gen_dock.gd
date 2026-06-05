@@ -2071,6 +2071,7 @@ func refresh_tile_layer_options(root_node: Node = null) -> void:
 	_tile_layer_option.add_item(TILE_TARGET_AUTO_LABEL)
 	if scan_root != null:
 		_collect_tile_map_layers_recursive(scan_root, _tile_layer_nodes)
+	_tile_layer_nodes = _prioritized_tile_layer_nodes(_tile_layer_nodes)
 
 	var name_counts = _tile_layer_name_counts()
 	for node in _tile_layer_nodes:
@@ -2422,7 +2423,9 @@ func _find_target_tile_map_layer():
 		root = EditorInterface.get_edited_scene_root()
 	if root == null:
 		return null
-	return _find_tile_map_layer_recursive(root)
+	var candidates: Array[Node] = []
+	_collect_tile_map_layers_recursive(root, candidates)
+	return _preferred_tile_layer_from_candidates(candidates)
 
 
 func _find_editor_selected_tile_map_layer():
@@ -2434,8 +2437,9 @@ func _find_editor_selected_tile_map_layer():
 	var selection = EditorInterface.get_selection()
 	var selected = selection.get_selected_nodes()
 	for node in selected:
-		if node is HexTileMapLayer or node is TileMapLayer:
-			return node
+		var target = _tile_layer_target_from_node(node)
+		if target != null:
+			return target
 	return null
 
 
@@ -2508,20 +2512,57 @@ func _unique_tile_layer_name(root: Node, base_name: String) -> String:
 
 
 func _find_tile_map_layer_recursive(node: Node):
-	if node is HexTileMapLayer or node is TileMapLayer:
-		return node
-	for child in node.get_children():
-		var found = _find_tile_map_layer_recursive(child)
-		if found:
-			return found
-	return null
+	var candidates: Array[Node] = []
+	_collect_tile_map_layers_recursive(node, candidates)
+	return _preferred_tile_layer_from_candidates(candidates)
 
 
 func _collect_tile_map_layers_recursive(node: Node, result: Array[Node]) -> void:
-	if node is HexTileMapLayer or node is TileMapLayer:
+	if node is HexTileMapLayer:
+		result.append(node)
+		return
+	if node is TileMapLayer:
 		result.append(node)
 	for child in node.get_children():
 		_collect_tile_map_layers_recursive(child, result)
+
+
+func _tile_layer_target_from_node(node):
+	if node == null or not is_instance_valid(node):
+		return null
+	if node is HexTileMapLayer:
+		return node
+	if node is TileMapLayer:
+		var parent = node.get_parent()
+		if parent is HexTileMapLayer:
+			return parent
+		return node
+	return null
+
+
+func _preferred_tile_layer_from_candidates(candidates: Array):
+	if candidates.is_empty():
+		return null
+	if _overlay_mode_enabled():
+		for node in candidates:
+			if node is TileMapLayer and not (node is HexTileMapLayer):
+				return node
+		return candidates[0]
+	for node in candidates:
+		if node is HexTileMapLayer:
+			return node
+	return candidates[0]
+
+
+func _prioritized_tile_layer_nodes(nodes: Array[Node]) -> Array[Node]:
+	var hex_layers: Array[Node] = []
+	var other_layers: Array[Node] = []
+	for node in nodes:
+		if node is HexTileMapLayer:
+			hex_layers.append(node)
+		else:
+			other_layers.append(node)
+	return hex_layers + other_layers
 
 
 func _tile_layer_name_counts() -> Dictionary:
