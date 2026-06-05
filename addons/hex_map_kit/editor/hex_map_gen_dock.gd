@@ -1933,12 +1933,25 @@ func _apply_tile_settings_to_current_layer() -> bool:
 func apply_current_overlay_data_to_tile_map_layer(layer) -> bool:
 	if _current_overlay_data == null or layer == null:
 		return false
-	if layer is HexTileMapLayer:
-		push_warning("Overlay apply currently requires a plain TileMapLayer target.")
-		return false
 
 	_current_orientation = _tile_settings_orientation()
 	var flat_top := _tile_settings_flat_top()
+	if layer is HexTileMapLayer:
+		var hex_layer := layer as HexTileMapLayer
+		hex_layer.flat_top = flat_top
+		hex_layer.ensure_display_tiles(
+			_tile_settings_tile_size(),
+			int(_floor_source_spin.value),
+			Vector2i(int(_floor_atlas_x_spin.value), int(_floor_atlas_y_spin.value)),
+			int(_wall_source_spin.value),
+			Vector2i(int(_wall_atlas_x_spin.value), int(_wall_atlas_y_spin.value))
+		)
+		return hex_layer.apply_overlay_data(
+			_current_overlay_data,
+			_overlay_item_tile_configs(),
+			_apply_write_clears_layer(),
+			_current_overlay_data.item_keys()
+		)
 	if layer is TileMapLayer:
 		_ensure_unique_tile_set_for_layer(layer)
 		HexMapTileAdapter.configure_hex_tile_set(

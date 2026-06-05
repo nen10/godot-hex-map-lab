@@ -36,6 +36,21 @@ class FakeTileLayer:
 		})
 
 
+class CountingHexTileMapLayer:
+	extends HexTileMapLayer
+
+	var apply_document_cell_count := 0
+	var redraw_count := 0
+
+	func apply_document_cell(document, hex: HexVector) -> bool:
+		apply_document_cell_count += 1
+		return super.apply_document_cell(document, hex)
+
+	func _redraw() -> void:
+		redraw_count += 1
+		super._redraw()
+
+
 class CellPressRecorder:
 	var entries: Array = []
 
@@ -44,6 +59,7 @@ class CellPressRecorder:
 
 
 var _failures: Array[String] = []
+var _test_output_root := ""
 
 
 func _init() -> void:
@@ -74,6 +90,7 @@ func _run() -> void:
 	await _test_map_edit_tool_last_edit_trace_reports_target_apply_failure()
 	await _test_map_edit_tool_persistence_checkpoint_reports_save_and_export_counts()
 	await _test_map_edit_tool_local_hit_uses_hex_tile_map_layer()
+	await _test_map_edit_tool_hex_target_uses_command_apply_path()
 	await _test_map_edit_tool_hex_tile_payload_modes_change_display()
 	await _test_map_edit_tool_overlay_tile_payload_changes_hex_display()
 	await _test_map_edit_tool_keeps_tile_payloads_per_mode()
@@ -122,6 +139,7 @@ func _run() -> void:
 	await _test_generation_dock_generate_auto_applies_current_map()
 	await _test_generation_dock_generate_auto_applies_hex_tile_map_layer()
 	await _test_generation_dock_overlay_uniform_generation_and_apply()
+	await _test_generation_dock_overlay_applies_to_hex_tile_map_layer()
 	await _test_generation_dock_overlay_limit_and_apply_policy()
 	await _test_generation_dock_overlay_placement_mask_filters_candidates()
 	await _test_generation_dock_overlay_adjacency_reference_generation()
@@ -363,9 +381,9 @@ func _test_map_edit_tool_imports_generated_map_resource() -> void:
 	_assert_keys_eq(exported.to_map_data().cells, data.cells, "map edit tool export preserves cells")
 	_assert_keys_eq(exported.to_map_data().walls, data.walls, "map edit tool export preserves walls")
 
-	var document_path = "res://.godot_user/test_map_edit_tool_document.tres"
-	var export_path = "res://.godot_user/test_map_edit_tool_export.tres"
-	var import_path = "res://.godot_user/test_map_edit_tool_import_source.tres"
+	var document_path = _test_resource_path("test_map_edit_tool_document.tres")
+	var export_path = _test_resource_path("test_map_edit_tool_export.tres")
+	var import_path = _test_resource_path("test_map_edit_tool_import_source.tres")
 	_save_resource(import_path, resource)
 	_assert_true(tool.save_document(document_path), "map edit tool saves document resource")
 	_assert_true(tool.export_map_resource_to_path(export_path), "map edit tool saves exported HexMapResource")
@@ -382,9 +400,9 @@ func _test_map_edit_tool_path_file_handlers_and_action_states() -> void:
 	data.set_walls([HexVector.q_axis()])
 	var map_resource = HexMapResource.from_map_data(data)
 	var document = HexMapDocumentAdapter.from_map_resource(map_resource)
-	var document_path = "res://.godot_user/test_selector_document.tres"
-	var import_path = "res://.godot_user/test_selector_import_map.tres"
-	var export_path = "res://.godot_user/test_selector_export_map.tres"
+	var document_path = _test_resource_path("test_selector_document.tres")
+	var import_path = _test_resource_path("test_selector_import_map.tres")
+	var export_path = _test_resource_path("test_selector_export_map.tres")
 	_save_resource(document_path, document)
 	_save_resource(import_path, map_resource)
 
@@ -897,8 +915,8 @@ func _test_map_edit_tool_persistence_checkpoint_reports_save_and_export_counts()
 	var document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(data))
 	var tool = await _new_ready_edit_tool()
 	tool.set_document(document)
-	var document_path = "res://.godot_user/test_map_edit_visibility_document.tres"
-	var export_path = "res://.godot_user/test_map_edit_visibility_export.tres"
+	var document_path = _test_resource_path("test_map_edit_visibility_document.tres")
+	var export_path = _test_resource_path("test_map_edit_visibility_export.tres")
 
 	_assert_true(tool.save_document(document_path), "persistence checkpoint saves document")
 	var save_status = tool.persistence_status()
@@ -945,6 +963,47 @@ func _test_map_edit_tool_local_hit_uses_hex_tile_map_layer() -> void:
 	_assert_true(document.map.to_map_data().has_wall(HexVector.zero()), "map edit tool edits canonical toric cell from visual duplicate")
 	_assert_true(layer.hex_map.to_map_data().has_wall(HexVector.zero()), "map edit tool updates HexTileMapLayer hex_map resource")
 
+	layer.queue_free()
+	tool.queue_free()
+	await process_frame
+
+
+func _test_map_edit_tool_hex_target_uses_command_apply_path() -> void:
+	var document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	var layer = CountingHexTileMapLayer.new()
+	root.add_child(layer)
+	await process_frame
+	var undo_redo = UndoRedo.new()
+	var tool = await _new_ready_edit_tool()
+	tool.set_document(document)
+	tool.set_target_layer(layer)
+	tool.set_undo_redo(undo_redo)
+	tool._apply_document_to_target()
+	var redraw_count_after_full_apply = layer.redraw_count
+	tool.set_edit_mode(HexMapEditTool.EditMode.WALL_FLOOR)
+
+	_assert_true(tool.apply_cell(HexVector.zero()), "Hex target edit uses command apply path")
+	_assert_eq(layer.apply_document_cell_count, 0, "Hex target edit does not call apply_document_cell")
+	_assert_eq(layer.redraw_count, redraw_count_after_full_apply, "Hex target edit does not call full redraw")
+	_assert_true(document.map.to_map_data().has_wall(HexVector.zero()), "Hex target command updates document")
+	_assert_true(layer.is_wall(HexVector.zero()), "Hex target command updates target state")
+
+	undo_redo.undo()
+	_assert_eq(layer.apply_document_cell_count, 0, "Hex target undo does not call apply_document_cell")
+	_assert_eq(layer.redraw_count, redraw_count_after_full_apply, "Hex target undo does not call full redraw")
+	_assert_true(not document.map.to_map_data().has_wall(HexVector.zero()), "Hex target command undo updates document")
+	_assert_true(layer.is_floor(HexVector.zero()), "Hex target command undo restores target state")
+
+	undo_redo.redo()
+	_assert_eq(layer.apply_document_cell_count, 0, "Hex target redo does not call apply_document_cell")
+	_assert_eq(layer.redraw_count, redraw_count_after_full_apply, "Hex target redo does not call full redraw")
+	_assert_true(document.map.to_map_data().has_wall(HexVector.zero()), "Hex target command redo updates document")
+	_assert_true(layer.is_wall(HexVector.zero()), "Hex target command redo restores target state")
+
+	undo_redo.clear_history()
+	undo_redo.free()
 	layer.queue_free()
 	tool.queue_free()
 	await process_frame
@@ -1426,7 +1485,7 @@ func _test_distribution_editor_loads_default_preset_values() -> void:
 
 
 func _test_distribution_editor_loads_resource_values_and_colors_cells() -> void:
-	var path = "res://.godot_user/test_hex_distribution_editor.tres"
+	var path = _test_resource_path("test_hex_distribution_editor.tres")
 	var custom = HexDistribution.new(
 		[0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0],
 		[0.5, 2.5, 4.5, 6.5],
@@ -1516,8 +1575,7 @@ func _test_distribution_editor_close_button_uses_cancel_flow() -> void:
 
 func _test_distribution_editor_manages_recent_custom_and_duplicate_preset() -> void:
 	HexDistEditor.clear_recent_distributions()
-	var path = "res://.godot_user/test_hex_distribution_duplicate.tres"
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://.godot_user"))
+	var path = _test_resource_path("test_hex_distribution_duplicate.tres")
 
 	var editor = HexDistEditor.new()
 	root.add_child(editor)
@@ -2414,6 +2472,35 @@ func _test_generation_dock_overlay_uniform_generation_and_apply() -> void:
 	await process_frame
 
 
+func _test_generation_dock_overlay_applies_to_hex_tile_map_layer() -> void:
+	var dock = await _new_ready_dock()
+	dock._overlay_mode_check.set_pressed_no_signal(true)
+	dock._overlay_item_pool_rows[0]["name"].text = "Tree"
+	dock._overlay_item_pool_rows[0]["tile_source"].value = 0
+	dock._overlay_item_pool_rows[0]["tile_atlas_x"].value = 1
+	dock._overlay_item_pool_rows[0]["tile_atlas_y"].value = 0
+	dock._refresh_controls()
+	var data = HexMapData.rectangle(2, 1)
+	dock._current_overlay_data = HexOverlayData.from_item_cells(data.cells, "Tree", data.cells)
+	var layer = HexTileMapLayer.new()
+	root.add_child(layer)
+	await process_frame
+	layer.apply_map(HexMapResource.from_map_data(data))
+
+	_assert_true(dock.apply_current_overlay_data_to_tile_map_layer(layer), "generation dock applies overlay data to HexTileMapLayer")
+	var origin_map_cell = HexMapTileAdapter.vector_to_map_cell(HexVector.zero(), true)
+	_assert_eq(layer._overlay_tile_map.get_cell_atlas_coords(origin_map_cell), Vector2i(1, 0), "HexTileMapLayer overlay apply writes overlay atlas")
+	var state = layer.display_state_for_hex(HexVector.zero())
+	_assert_eq(state["overlay_count"], 1, "HexTileMapLayer overlay apply exposes overlay state")
+	var snapshot = layer.to_document_resource()
+	_assert_eq(snapshot.tile_overrides.size(), 2, "HexTileMapLayer overlay apply exports overlay entries")
+	_assert_eq(snapshot.tile_overrides[0]["kind"], HexMapDocumentAdapter.KIND_OVERLAY, "HexTileMapLayer overlay snapshot stores overlay kind")
+
+	layer.queue_free()
+	dock.queue_free()
+	await process_frame
+
+
 func _test_generation_dock_overlay_limit_and_apply_policy() -> void:
 	var dock = await _new_ready_dock()
 
@@ -2631,7 +2718,7 @@ func _test_generation_dock_overlay_item_pool_tile_mapping() -> void:
 
 func _test_generation_dock_mapdata_source_registry_load_reload_clear() -> void:
 	var dock = await _new_ready_dock()
-	var path = "res://.godot_user/test_mapdata_source_overlay.tres"
+	var path = _test_resource_path("test_mapdata_source_overlay.tres")
 	var overlay = HexOverlayData.from_cells(
 		[HexVector.zero()],
 		{"Tree": [HexVector.zero()]}
@@ -2692,7 +2779,7 @@ func _test_generation_dock_path_action_labels_and_failure_status() -> void:
 	_assert_eq(dock._save_button.text, "Save As .tres", "generation save uses save-as wording")
 	_assert_eq(dock._atlas_image_button.text, "Browse Atlas Image", "atlas image uses browse wording")
 
-	dock._on_source_file_selected("res://.godot_user/missing_source_registry_resource.tres")
+	dock._on_source_file_selected(_test_resource_path("missing_source_registry_resource.tres"))
 	_assert_true(
 		dock._source_registry_status_label.text.contains("Failed to load mapdata source"),
 		"source registry file selection failure appears in status"
@@ -3086,8 +3173,7 @@ func _test_generation_dock_mapdata_crop_off_stacks_overlay_sources() -> void:
 
 func _test_generation_dock_generate_history_saves_overlay_delta_source() -> void:
 	var dock = await _new_ready_dock()
-	var history_dir = "res://.godot_user/mapdata_history"
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(history_dir))
+	var history_dir = _test_resource_dir("mapdata_history")
 	dock._set_generate_history_directory_for_test(history_dir)
 	dock._overlay_mode_check.set_pressed_no_signal(true)
 	dock._generate_option.select(HexMapGenDock.GENERATE_SIMPLE)
@@ -3152,14 +3238,54 @@ func _test_generation_dock_generate_history_saves_overlay_delta_source() -> void
 	await process_frame
 
 
+func _test_resource_path(filename: String) -> String:
+	return "%s/%s" % [_test_output_dir(), filename]
+
+
+func _test_resource_dir(dirname: String) -> String:
+	var path = "%s/%s" % [_test_output_dir(), dirname]
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path))
+	return path
+
+
+func _test_output_dir() -> String:
+	if _test_output_root == "":
+		_test_output_root = "res://.godot_user/test-runs/%s/test_editor_plugin" % _safe_path_part(_test_run_id())
+		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_test_output_root))
+	return _test_output_root
+
+
+func _test_run_id() -> String:
+	var run_id = OS.get_environment("HEX_MAP_TEST_RUN_ID")
+	if run_id == "":
+		run_id = "manual-%d-%d" % [OS.get_process_id(), Time.get_ticks_usec()]
+	return run_id
+
+
+func _safe_path_part(value: String) -> String:
+	var result := ""
+	for index in range(value.length()):
+		var code = value.unicode_at(index)
+		if (code >= 48 and code <= 57) \
+			or (code >= 65 and code <= 90) \
+			or (code >= 97 and code <= 122) \
+			or code == 45 \
+			or code == 46 \
+			or code == 95:
+			result += char(code)
+		else:
+			result += "-"
+	return "run" if result == "" else result
+
+
 func _save_distribution(path: String, distribution: HexDistribution) -> void:
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://.godot_user"))
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
 	var error = ResourceSaver.save(distribution, path)
 	_assert_eq(error, OK, "test distribution resource saves")
 
 
 func _save_resource(path: String, resource: Resource) -> void:
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://.godot_user"))
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
 	var error = ResourceSaver.save(resource, path)
 	_assert_eq(error, OK, "test resource saves")
 

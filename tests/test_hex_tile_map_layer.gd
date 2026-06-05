@@ -35,6 +35,7 @@ func _init() -> void:
 
 func _run() -> void:
 	await _test_apply_map_and_cell_editing()
+	await _test_apply_edit_command_and_inverse_roundtrip()
 	await _test_hex_map_resource_assignment_creates_visible_tiles()
 	await _test_apply_document_payloads_create_visible_tile_and_markers()
 	await _test_ensure_display_tiles_uses_custom_floor_wall_sources()
@@ -87,6 +88,69 @@ func _test_apply_map_and_cell_editing() -> void:
 	_assert_true(layer.is_wall(HexVector.zero()), "set_wall changes a floor to wall")
 	layer.set_wall(HexVector.apply_basis(9, 0, 9))
 	_assert_eq(layer.get_floor_cells().size(), 5, "editing ignores cells outside the map")
+
+	layer.queue_free()
+	await process_frame
+
+
+func _test_apply_edit_command_and_inverse_roundtrip() -> void:
+	var layer = HexTileMapLayer.new()
+	root.add_child(layer)
+	await process_frame
+	layer.apply_map(HexMapResource.from_map_data(HexMapData.rectangle(1, 1)))
+	var hex = HexVector.zero()
+	var before = layer.cell_edit_state(hex)
+	var after = before.duplicate(true)
+	after["wall"] = true
+	after["tile_overrides"] = [{
+		"cell": Vector3i(0, 0, 0),
+		"kind": HexMapDocumentAdapter.KIND_WALL,
+		"source_id": 0,
+		"atlas_coords": Vector2i.ZERO,
+		"alternative_tile": 0,
+	}]
+	after["overlay_tiles"] = [{
+		"cell": Vector3i(0, 0, 0),
+		"kind": HexMapDocumentAdapter.KIND_OVERLAY,
+		"item_key": "Treasure",
+		"source_id": 0,
+		"atlas_coords": Vector2i(1, 0),
+		"alternative_tile": 0,
+	}]
+	after["objects"] = [{
+		"cell": Vector3i(0, 0, 0),
+		"object_id": "chest",
+		"properties": {"locked": true},
+	}]
+	after["labels"] = [{
+		"cell": Vector3i(0, 0, 0),
+		"label_id": "area",
+		"text": "North",
+	}]
+	var command = {
+		"mode": HexTileMapLayer.EDIT_MODE_WALL_FLOOR,
+		"hex": hex,
+		"before": before,
+		"after": after,
+	}
+
+	_assert_true(layer.apply_edit_command(command), "apply_edit_command applies a cell state diff")
+	_assert_true(layer.is_wall(hex), "apply_edit_command updates wall state")
+	_assert_eq(layer.display_atlas_coords_for_hex(hex), Vector2i.ZERO, "apply_edit_command applies wall tile override")
+	var display_state = layer.display_state_for_hex(hex)
+	_assert_eq(display_state["overlay_count"], 1, "apply_edit_command applies overlay tile state")
+	_assert_eq(display_state["marker_count"], 2, "apply_edit_command applies object and label markers")
+	var snapshot = layer.to_document_resource()
+	_assert_true(snapshot.map.to_map_data().has_wall(hex), "to_document_resource exports command wall state")
+	_assert_eq(snapshot.tile_overrides.size(), 2, "to_document_resource exports tile and overlay entries")
+	_assert_eq(snapshot.objects.size(), 1, "to_document_resource exports object entries")
+	_assert_eq(snapshot.labels.size(), 1, "to_document_resource exports label entries")
+
+	_assert_true(layer.apply_edit_command(layer.inverse_edit_command(command)), "inverse_edit_command can be applied")
+	_assert_true(layer.is_floor(hex), "inverse_edit_command restores floor state")
+	var restored_state = layer.display_state_for_hex(hex)
+	_assert_eq(restored_state["overlay_count"], 0, "inverse_edit_command removes overlay state")
+	_assert_eq(restored_state["marker_count"], 0, "inverse_edit_command removes marker state")
 
 	layer.queue_free()
 	await process_frame

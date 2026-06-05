@@ -4,7 +4,9 @@ extends Node2D
 
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
 const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
+const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
+const HexOverlayTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_overlay_tile_adapter.gd")
 const HexGrid = preload("res://addons/hex_map_kit/core/hex_grid.gd")
 const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
@@ -22,6 +24,13 @@ const BASE_TILE_MAP_NAME := "TileMapLayer"
 const LOOP_TILE_MAP_NAME := "LoopTileMapLayer"
 const OVERLAY_TILE_MAP_NAME := "OverlayTileMapLayer"
 const OVERLAY_NAME := "OverlayLayer"
+const EDIT_MODE_SHAPE := "shape"
+const EDIT_MODE_WALL_FLOOR := "wall_floor"
+const EDIT_MODE_FLOOR_TILE := "floor_tile"
+const EDIT_MODE_WALL_TILE := "wall_tile"
+const EDIT_MODE_OBJECT := "object"
+const EDIT_MODE_LABEL := "label"
+const EDIT_MODE_OVERLAY_TILE := "overlay_tile"
 
 
 class OverlayCanvas:
@@ -182,10 +191,37 @@ func apply_map(resource: HexMapResource) -> void:
 	_sync_hex_size_for_current_display()
 	_data = resource.to_map_data()
 	_data = _normalize_data(_data)
+	if not _hex_map_setter_suppressed:
+		_hex_map_setter_suppressed = true
+		hex_map = HexMapResource.from_map_data(_data, resource.orientation)
+		_hex_map_setter_suppressed = false
 	_clear_document_payload_display()
 	_highlights.clear()
 	_display_path.clear()
 	_redraw()
+
+
+func load_map_resource(resource: HexMapResource) -> void:
+	apply_map(resource)
+
+
+func load_document_resource(document: HexMapDocumentResource) -> void:
+	apply_document(document)
+
+
+func to_map_resource() -> HexMapResource:
+	if _data == null:
+		return HexMapResource.from_map_data(HexMapData.from_cells([]), _resource_orientation())
+	return HexMapResource.from_map_data(_data, _resource_orientation())
+
+
+func to_document_resource() -> HexMapDocumentResource:
+	var document = HexMapDocumentResource.new()
+	document.map = to_map_resource()
+	document.tile_overrides = _document_tile_override_entries()
+	document.objects = _document_marker_entries(_object_markers_by_key)
+	document.labels = _document_marker_entries(_label_markers_by_key)
+	return document
 
 
 func apply_document(document) -> void:
@@ -206,22 +242,49 @@ func apply_document(document) -> void:
 func apply_document_cell(document, hex: HexVector) -> bool:
 	if document == null or document.map == null:
 		return false
-	var snapshot = HexMapDocumentAdapter.duplicate_document(document)
-	var resource = HexMapDocumentAdapter.to_map_resource(snapshot)
-	flat_top = resource.is_flat_top()
+	flat_top = document.map.is_flat_top()
 	_sync_hex_size_for_current_display()
-	_hex_map_setter_suppressed = true
-	hex_map = resource
-	_hex_map_setter_suppressed = false
 	if not is_node_ready() or _tile_map == null:
-		_pending_document_payloads = snapshot
+		_pending_document_payloads = document
 		return true
-	_data = _normalize_data(resource.to_map_data())
 	var normalized = HexVector.apply_basis(hex.q, hex.s, hex.r)
-	_refresh_document_payloads_for_cell(snapshot, normalized)
+	set_cell_exists(normalized, _resource_has_cell(document.map, normalized))
+	set_wall_state(normalized, _resource_has_wall(document.map, normalized))
+	_refresh_document_payloads_for_cell(document, normalized)
 	_update_tile(normalized)
 	_update_overlay_tile(normalized)
 	return true
+
+
+func cell_edit_state(hex: HexVector) -> Dictionary:
+	var normalized = HexVector.apply_basis(hex.q, hex.s, hex.r)
+	var key = normalized.key()
+	return {
+		"hex": normalized,
+		"exists": has_cell(normalized),
+		"wall": is_wall(normalized),
+		"tile_overrides": _tile_override_entries_for_key(key),
+		"overlay_tiles": _overlay_tile_entries_for_key(key),
+		"objects": _payload_entries_for_key(_object_markers_by_key, key),
+		"labels": _payload_entries_for_key(_label_markers_by_key, key),
+	}
+
+
+func apply_edit_command(command: Dictionary) -> bool:
+	if command.is_empty():
+		return false
+	var state = command.get("after", {})
+	if not state is Dictionary or (state as Dictionary).is_empty():
+		state = command
+	return _apply_cell_edit_state(state as Dictionary)
+
+
+func inverse_edit_command(command: Dictionary) -> Dictionary:
+	var inverse = command.duplicate(true)
+	inverse["before"] = command.get("after", {}).duplicate(true) if command.get("after", {}) is Dictionary else {}
+	inverse["after"] = command.get("before", {}).duplicate(true) if command.get("before", {}) is Dictionary else {}
+	inverse["inverted"] = not bool(command.get("inverted", false))
+	return inverse
 
 
 func local_to_hex(local_pos: Vector2) -> HexVector:
@@ -332,35 +395,80 @@ func get_floor_cells() -> Array:
 	return _data.floor_cells()
 
 
-func set_wall(hex: HexVector) -> void:
+func set_cell_exists(hex: HexVector, exists: bool) -> bool:
+	var normalized = HexVector.apply_basis(hex.q, hex.s, hex.r)
 	if _data == null:
-		return
-	var key = HexVector.apply_basis(hex.q, hex.s, hex.r).key()
-	if not _data.cell_set().has(key):
-		return
-	if _data.wall_set().has(key):
-		return
-	var wall = _data.cell_set()[key]
-	var new_walls = _data.walls.duplicate()
-	new_walls.append(wall)
-	_data.set_walls(new_walls)
-	_update_tile(hex)
+		_data = HexMapData.from_cells([])
+	var cell_set = _data.cell_set()
+	var has_existing: bool = cell_set.has(normalized.key())
+	if exists == has_existing:
+		return true
+	var cells = _data.cells.duplicate()
+	var walls = _data.walls.duplicate()
+	if exists:
+		cells.append(normalized)
+	else:
+		cells = HexMapData.points_except(cells, [normalized])
+		walls = HexMapData.points_except(walls, [normalized])
+		_clear_payload_display_for_cell(normalized)
+	_data = HexMapData.from_cells(cells, walls, int(_data.cyclic_size))
+	_sync_hex_map_snapshot_cell(normalized)
+	_update_tile(normalized)
+	_update_overlay_tile(normalized)
+	return true
+
+
+func set_wall_state(hex: HexVector, wall: bool) -> bool:
+	if _data == null:
+		return false
+	var normalized = HexVector.apply_basis(hex.q, hex.s, hex.r)
+	var cell_set = _data.cell_set()
+	if not cell_set.has(normalized.key()):
+		return false
+	var wall_set = _data.wall_set()
+	if wall == wall_set.has(normalized.key()):
+		return true
+	var walls = _data.walls.duplicate()
+	if wall:
+		walls.append(cell_set[normalized.key()])
+	else:
+		walls = HexMapData.points_except(walls, [normalized])
+	_data.set_walls(walls)
+	_sync_hex_map_snapshot_cell(normalized)
+	_update_tile(normalized)
+	return true
+
+
+func apply_overlay_data(data, item_tiles: Dictionary, clear_overlay: bool = true, item_order: Array = []) -> bool:
+	if data == null:
+		return false
+	_ensure_tile_map_layers()
+	_configure_tile_map()
+	if clear_overlay:
+		_overlay_tiles_by_key.clear()
+		if _overlay_tile_map != null:
+			_overlay_tile_map.clear()
+	for entry in HexOverlayTileAdapter.to_tile_entries(data, item_tiles, flat_top, item_order):
+		if int(entry.get("source_id", -1)) < 0:
+			continue
+		_set_overlay_tile_entry(entry.get("vector", HexVector.zero()), {
+			"kind": HexMapDocumentAdapter.KIND_OVERLAY,
+			"item_key": String(entry.get("item_key", "")),
+			"source_id": int(entry.get("source_id", 0)),
+			"atlas_coords": entry.get("atlas_coords", Vector2i.ZERO),
+			"alternative_tile": int(entry.get("alternative_tile", 0)),
+		})
+	_update_overlay_tiles_for_data(data)
+	_queue_visual_redraw()
+	return true
+
+
+func set_wall(hex: HexVector) -> void:
+	set_wall_state(hex, true)
 
 
 func set_floor(hex: HexVector) -> void:
-	if _data == null:
-		return
-	var key = HexVector.apply_basis(hex.q, hex.s, hex.r).key()
-	if not _data.cell_set().has(key):
-		return
-	if not _data.wall_set().has(key):
-		return
-	var new_walls: Array = []
-	for wall in _data.walls:
-		if wall.key() != key:
-			new_walls.append(wall)
-	_data.set_walls(new_walls)
-	_update_tile(hex)
+	set_wall_state(hex, false)
 
 
 func highlight_cell(hex: HexVector, color: Color) -> void:
@@ -922,11 +1030,7 @@ func _apply_document_payloads(document) -> void:
 func _refresh_document_payloads_for_cell(document, hex: HexVector) -> void:
 	var normalized = HexVector.apply_basis(hex.q, hex.s, hex.r)
 	var key = normalized.key()
-	_tile_overrides_by_key.erase(_tile_override_key(key, HexMapDocumentAdapter.KIND_FLOOR))
-	_tile_overrides_by_key.erase(_tile_override_key(key, HexMapDocumentAdapter.KIND_WALL))
-	_overlay_tiles_by_key.erase(key)
-	_object_markers_by_key.erase(key)
-	_label_markers_by_key.erase(key)
+	_clear_payload_display_for_cell(normalized)
 	if document == null or document.map == null or _data == null:
 		return
 	var cell_set = _data.cell_set()
@@ -958,6 +1062,61 @@ func _refresh_document_payloads_for_cell(document, hex: HexVector) -> void:
 			_store_payload_marker(_label_markers_by_key, raw_entry as Dictionary, cell_set)
 
 
+func _apply_cell_edit_state(state: Dictionary) -> bool:
+	if state.is_empty() or not state.has("hex"):
+		return false
+	var normalized = _hex_from_state(state)
+	var exists := bool(state.get("exists", true))
+	set_cell_exists(normalized, exists)
+	if not exists:
+		return true
+	if not set_wall_state(normalized, bool(state.get("wall", false))):
+		return false
+	_replace_payload_display_for_cell(normalized, state)
+	_update_tile(normalized)
+	_update_overlay_tile(normalized)
+	_queue_visual_redraw()
+	return true
+
+
+func _replace_payload_display_for_cell(hex: HexVector, state: Dictionary) -> void:
+	var normalized = HexVector.apply_basis(hex.q, hex.s, hex.r)
+	_clear_payload_display_for_cell(normalized)
+	if _data == null:
+		return
+	var cell_set = _data.cell_set()
+	if not cell_set.has(normalized.key()):
+		return
+	for raw_entry in state.get("tile_overrides", []):
+		if raw_entry is Dictionary:
+			var entry = _entry_with_cell(raw_entry as Dictionary, normalized)
+			var kind = String(entry.get("kind", HexMapDocumentAdapter.KIND_FLOOR))
+			if kind == HexMapDocumentAdapter.KIND_OVERLAY:
+				_append_overlay_tile_entry(normalized, entry)
+			else:
+				_tile_overrides_by_key[_tile_override_key(normalized.key(), kind)] = entry
+	for raw_entry in state.get("overlay_tiles", []):
+		if raw_entry is Dictionary:
+			var entry = _entry_with_cell(raw_entry as Dictionary, normalized)
+			entry["kind"] = HexMapDocumentAdapter.KIND_OVERLAY
+			_append_overlay_tile_entry(normalized, entry)
+	for raw_entry in state.get("objects", []):
+		if raw_entry is Dictionary:
+			_store_payload_marker(_object_markers_by_key, _entry_with_cell(raw_entry as Dictionary, normalized), cell_set)
+	for raw_entry in state.get("labels", []):
+		if raw_entry is Dictionary:
+			_store_payload_marker(_label_markers_by_key, _entry_with_cell(raw_entry as Dictionary, normalized), cell_set)
+
+
+func _clear_payload_display_for_cell(hex: HexVector) -> void:
+	var key = HexVector.apply_basis(hex.q, hex.s, hex.r).key()
+	_tile_overrides_by_key.erase(_tile_override_key(key, HexMapDocumentAdapter.KIND_FLOOR))
+	_tile_overrides_by_key.erase(_tile_override_key(key, HexMapDocumentAdapter.KIND_WALL))
+	_overlay_tiles_by_key.erase(key)
+	_object_markers_by_key.erase(key)
+	_label_markers_by_key.erase(key)
+
+
 func _store_payload_marker(store: Dictionary, entry: Dictionary, cell_set: Dictionary) -> void:
 	var hex = _hex_from_entry_cell(entry)
 	var key = hex.key()
@@ -982,12 +1141,99 @@ func _append_overlay_tile_entry(hex: HexVector, entry: Dictionary) -> void:
 	_overlay_tiles_by_key[key]["entries"].append(entry.duplicate(true))
 
 
+func _set_overlay_tile_entry(hex: HexVector, entry: Dictionary) -> void:
+	var normalized = HexVector.apply_basis(hex.q, hex.s, hex.r)
+	var key = normalized.key()
+	var item_key = String(entry.get("item_key", ""))
+	if not _overlay_tiles_by_key.has(key):
+		_overlay_tiles_by_key[key] = {
+			"hex": normalized,
+			"entries": [],
+		}
+	var entries: Array = _overlay_tiles_by_key[key].get("entries", [])
+	for index in range(entries.size() - 1, -1, -1):
+		if entries[index] is Dictionary and String((entries[index] as Dictionary).get("item_key", "")) == item_key:
+			entries.remove_at(index)
+	if int(entry.get("source_id", -1)) >= 0:
+		entries.append(_entry_with_cell(entry, normalized))
+	if entries.is_empty():
+		_overlay_tiles_by_key.erase(key)
+	else:
+		_overlay_tiles_by_key[key]["entries"] = entries
+
+
+func _update_overlay_tiles_for_data(data) -> void:
+	if data == null:
+		return
+	for cell in data.cells:
+		_update_overlay_tile(cell)
+
+
 func _tile_override_for_hex(hex: HexVector, is_wall_cell: bool) -> Dictionary:
 	var kind = HexMapDocumentAdapter.KIND_WALL if is_wall_cell else HexMapDocumentAdapter.KIND_FLOOR
 	var key = _tile_override_key(hex.key(), kind)
 	if _tile_overrides_by_key.has(key):
 		return _tile_overrides_by_key[key]
 	return {}
+
+
+func _tile_override_entries_for_key(key: String) -> Array:
+	var result: Array = []
+	for store_key in _tile_overrides_by_key:
+		var entry: Dictionary = _tile_overrides_by_key[store_key]
+		if _entry_cell_key(entry) == key:
+			result.append(entry.duplicate(true))
+	return result
+
+
+func _overlay_tile_entries_for_key(key: String) -> Array:
+	return _payload_entries_for_key(_overlay_tiles_by_key, key)
+
+
+func _payload_entries_for_key(store: Dictionary, key: String) -> Array:
+	if not store.has(key):
+		return []
+	var bucket: Dictionary = store[key]
+	var result: Array = []
+	for entry in bucket.get("entries", []):
+		if entry is Dictionary:
+			result.append((entry as Dictionary).duplicate(true))
+	return result
+
+
+func _document_tile_override_entries() -> Array:
+	var result: Array = []
+	for store_key in _tile_overrides_by_key:
+		var entry: Dictionary = _tile_overrides_by_key[store_key]
+		result.append(entry.duplicate(true))
+	for key in _overlay_tiles_by_key:
+		for entry in _payload_entries_for_key(_overlay_tiles_by_key, key):
+			result.append(entry)
+	return result
+
+
+func _document_marker_entries(store: Dictionary) -> Array:
+	var result: Array = []
+	for key in store:
+		for entry in _payload_entries_for_key(store, key):
+			result.append(entry)
+	return result
+
+
+func _entry_with_cell(entry: Dictionary, hex: HexVector) -> Dictionary:
+	var result = entry.duplicate(true)
+	var normalized = HexVector.apply_basis(hex.q, hex.s, hex.r)
+	result["cell"] = Vector3i(normalized.q, normalized.s, normalized.r)
+	return result
+
+
+func _hex_from_state(state: Dictionary) -> HexVector:
+	var value = state.get("hex", HexVector.zero())
+	if value is HexVector:
+		return HexVector.apply_basis(value.q, value.s, value.r)
+	if typeof(value) == TYPE_VECTOR3I:
+		return HexVector.apply_basis(value.x, value.y, value.z)
+	return HexVector.zero()
 
 
 func _tile_override_key(hex_key: String, kind: String) -> String:
@@ -1268,6 +1514,58 @@ func _texture_supports_atlas_tile(texture: Texture2D, tile_size: Vector2i, atlas
 		return false
 	return (atlas_coords.x + 1) * tile_size.x <= texture.get_width() \
 		and (atlas_coords.y + 1) * tile_size.y <= texture.get_height()
+
+
+func _resource_orientation() -> int:
+	return HexMapResource.ORIENTATION_FLAT_TOP if flat_top else HexMapResource.ORIENTATION_POINTY_TOP
+
+
+func _sync_hex_map_snapshot_cell(hex: HexVector) -> void:
+	if _data == null:
+		return
+	if hex_map == null:
+		_hex_map_setter_suppressed = true
+		hex_map = HexMapResource.from_map_data(HexMapData.from_cells([], [], int(_data.cyclic_size)), _resource_orientation())
+		_hex_map_setter_suppressed = false
+	hex_map.orientation = _resource_orientation()
+	hex_map.cyclic_size = int(_data.cyclic_size)
+	var normalized = HexVector.apply_basis(hex.q, hex.s, hex.r)
+	var component = Vector3i(normalized.q, normalized.s, normalized.r)
+	if _data.cell_set().has(normalized.key()):
+		_ensure_resource_component(hex_map.cells, component)
+	else:
+		_remove_resource_component(hex_map.cells, component)
+	if _data.wall_set().has(normalized.key()):
+		_ensure_resource_component(hex_map.walls, component)
+	else:
+		_remove_resource_component(hex_map.walls, component)
+
+
+func _ensure_resource_component(components: Array, component: Vector3i) -> void:
+	if _resource_component_index(components, component) >= 0:
+		return
+	components.append(component)
+
+
+func _remove_resource_component(components: Array, component: Vector3i) -> void:
+	for index in range(components.size() - 1, -1, -1):
+		if components[index] == component:
+			components.remove_at(index)
+
+
+func _resource_component_index(components: Array, component: Vector3i) -> int:
+	for index in range(components.size()):
+		if components[index] == component:
+			return index
+	return -1
+
+
+func _resource_has_cell(resource: HexMapResource, hex: HexVector) -> bool:
+	return _resource_component_index(resource.cells, Vector3i(hex.q, hex.s, hex.r)) >= 0
+
+
+func _resource_has_wall(resource: HexMapResource, hex: HexVector) -> bool:
+	return _resource_component_index(resource.walls, Vector3i(hex.q, hex.s, hex.r)) >= 0
 
 
 static func _normalize_data(data) -> HexMapData:

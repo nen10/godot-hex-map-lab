@@ -2,10 +2,12 @@
 
 ## 対象
 
-- UX: `docs/plan/HEX_TILE_MAP_LAYER_TILEMAP_BACKED_ARCHITECTURE_UX_2026-06-03.md`
-- Policy: `docs/plan/HEX_TILE_MAP_LAYER_TILEMAP_BACKED_ARCHITECTURE_POLICY_2026-06-03.md`
-- Implementation Plan: `docs/plan/HEX_TILE_MAP_LAYER_TILEMAP_BACKED_ARCHITECTURE_IMPLEMENTATION_PLAN_2026-06-03.md`
+- UX: `docs/complete_on_test/HEX_TILE_MAP_LAYER_TILEMAP_BACKED_ARCHITECTURE_UX_2026-06-03.md`
+- Policy: `docs/complete_on_test/HEX_TILE_MAP_LAYER_TILEMAP_BACKED_ARCHITECTURE_POLICY_2026-06-03.md`
+- Implementation Plan: `docs/complete_on_test/HEX_TILE_MAP_LAYER_TILEMAP_BACKED_ARCHITECTURE_IMPLEMENTATION_PLAN_2026-06-03.md`
 - Review: `docs/review/HEX_TILE_MAP_LAYER_EDIT_TARGET_INITIALIZATION_PERFORMANCE_REVIEW_2026-06-03.md`
+- Completed review: `docs/review/EDITOR_DOCK_FILE_RESOURCE_SELECTION_IMPLEMENTATION_REVIEW_2026-06-05.md`
+- Boundary review: `docs/review/HEX_TILE_MAP_LAYER_OBJECT_ASSET_BOUNDARY_REVIEW_2026-06-05.md`
 
 ## Planning Flow確認
 
@@ -61,8 +63,23 @@ Core数式debugとGodot `TileMapLayer` 表示debugの役割を分ける必要が
 
 ## 不足と修正
 
-scene保存時に内部stateをどこまでexport property化するかは未確定である。実装前に、`hex_map` 互換propertyだけで足りるか、`HexMapDocumentResource` subresourceを持つべきかを追加reviewする。
+2026-06-05時点の実装状況に合わせ、以下を修正済みとする。
+
+- Target Reload / Auto target / Target Status / internal `TileMapLayer` 座標API利用は完了済みであり、このFlowの残作業から外す。
+- Target TileSet resource persistenceは `display_tile_set_resource` とPackedScene testで完了済みであり、このFlowのschema課題から外す。
+- file/resource selection UXは完了済みFlowに従い、このFlowでは再設計しない。
+- scene保存時のdocument payload暗黙保存は採用しない。Target由来documentはunsaved snapshotであり、document保存は明示操作とする。
+- Object scene layer / object database拡張はObject Asset Boundaryの別Planning Flowで扱う。
+
+残る不足は、`apply_document_cell()` を中心とするper-click document全量複製 / Resource変換 / `_data` 再構築の排除である。Implementation Planでは、これを `HexTileMapLayer` command API、incremental internal `TileMapLayer` sync、command / inverse command Undo / Redoへ分解した。
+
+## 上位要件に基づく判断
+
+- UX上の主Targetは `HexTileMapLayer` wrapperであり、`HexTileMapLayer extends TileMapLayer` へ変更しない。入力解決、overlay child、toric表示責務を分離するためである。
+- Resourceは保存・読み込み・export用snapshotであり、live editのtransportではない。これはper-click性能とfile/resource selection UXの両方を満たすためである。
+- scene保存はTarget node状態と表示設定を保持するが、document保存の代替にはしない。sceneをdocument化する要求が出た場合のみ、別Planning Flowで `HexMapDocumentResource` subresourceを検討する。
+- plain `TileMapLayer` はCore helper / migration / debug用途として残し、Editor通常Primary Targetへ戻さない。
 
 ## 判定
 
-Planning Flowとして成立している。ただし実装は短期計画の完了後に着手し、Overlay要Tile統合とscene保存schemaはさらに小さく分割して判断する。
+Planning Flowとして成立している。現状反映後の実装対象は、Target内部state command API、per-click incremental sync、Edit Dock / Generator Dock / Save Exportの共通Target state経路に絞られた。Overlay表示は既存完了構成へ接続し、Object scene layerとscene document化は別Flowへ分離する。

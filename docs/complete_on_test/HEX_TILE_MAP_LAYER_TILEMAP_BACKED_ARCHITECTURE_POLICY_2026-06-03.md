@@ -2,7 +2,14 @@
 
 ## 目標UX
 
-- `docs/plan/HEX_TILE_MAP_LAYER_TILEMAP_BACKED_ARCHITECTURE_UX_2026-06-03.md`
+- `docs/complete_on_test/HEX_TILE_MAP_LAYER_TILEMAP_BACKED_ARCHITECTURE_UX_2026-06-03.md`
+
+## 現状反映 2026-06-05
+
+- `HexTileMapLayer` Target初期化、Target Status、internal `TileMapLayer` 座標API利用、Target TileSet / atlas path selectionは実装済みとして扱う。
+- `display_tile_set_resource` によりTarget TileSet resourceのPackedScene永続化は解決済みとして扱う。
+- Manual editのOverlay Tile / Object / Label表示責務は `HexTileMapLayer` 配下へ寄せる方向で完了済みとして扱う。
+- このFlowの残りは、per-click editがdocument全量複製 / Resource変換 / `_data` 全量再構築へ戻る経路を、Target内部state command APIへ置き換えることに絞る。
 
 ## 採用候補
 
@@ -71,7 +78,7 @@
 
 ### 候補G: Overlay要Tileを `HexTileMapLayer` 配下の専用表示層へ統合する
 
-採用候補。
+採用。
 
 内容:
 
@@ -82,14 +89,57 @@
 
 判断:
 
-- Primary edit安定後に進める。
-- Generator Overlay applyのplain target依存を解消する時に採用する。
+- Manual edit側の表示責務は完了済み構成を維持する。
+- Generator Overlay applyにplain `TileMapLayer` 依存が残る場合は、同じoverlay state APIへ接続する。
+- Object scene layer自体はObject Asset Boundaryの別Flowへ分離する。
+
+### 候補H: Scene保存にdocument payloadを暗黙永続化する
+
+不採用。
+
+理由:
+
+- file/resource selection UXでは、Target由来documentはunsaved snapshotであり、保存は明示操作として扱う。
+- scene保存にdocument payloadを暗黙混入すると、scene保存とdocument保存の責務が重複する。
+- `HexTileMapLayer` scene保存はTarget node構成、`hex_map` snapshot、`display_tile_set_resource` など表示に必要な設定までに留める。
+
+Escalation:
+
+- sceneをdocument保存媒体にしたい要求が上位UXで必要になった場合、`HexMapDocumentResource` subresourceを `HexTileMapLayer` に持たせる別Planning Flowで判断する。
+
+### 候補I: Edit Dock Undo / Redoをdocument全量snapshotで続ける
+
+不採用。
+
+理由:
+
+- per-click performance改善の主目的に反する。
+- Target state command APIに対して、before / after最小差分またはinverse commandを持つ形に移行する。
+
+### 候補J: まず専用state classを新設する
+
+保留。
+
+判断:
+
+- 初回実装では `HexTileMapLayer` 内のdictionary / typed helperによる最小state APIを優先する。
+- state肥大化やResource schemaとの重複が実装上の問題になった時点で、non-Resource state classへ分離する。
+
+### 候補K: Object scene layerをこのFlowで実装する
+
+不採用。
+
+理由:
+
+- Object scene layer、object database、scene resource boundaryはObject Asset Boundary reviewの範囲であり、Primary map live state高速化とは責務が異なる。
+- このFlowではObject / Label marker stateのsnapshot roundtripと表示同期までを扱う。
 
 ## 破壊的変更
 
 - `HexTileMapLayer.hex_map` を唯一のlive stateとして扱わなくなる。互換propertyとしてsnapshotを保持するか、setter / getterで内部stateと同期する。
 - Manual Edit / Generator PrimaryのUI targetは `HexTileMapLayer` を標準とする。
 - plain `TileMapLayer` targetはCore helperまたはmigration/import用途に移る。
+- `apply_document_cell()` のようなdocument全量snapshot入力APIは、Editorの通常per-click経路から外す。
 
 ## fallback扱い
 
@@ -102,3 +152,4 @@
 - `HexTileMapLayer` 内部stateが肥大化してResource schemaと重複しすぎる場合、state classを `HexMapDocumentResource` 互換のnon-Resource modelとして分離する。
 - Overlay統合でGeneration Dockの操作が複雑になる場合、Primary / OverlayをtabまたはTarget typeで明示分離する。
 - Godot標準TileMap editorとの併用要求が強い場合、plain `TileMapLayer` import helperを強化し、直接編集はaddon外のmigration pathとして扱う。
+- scene保存でdocument payloadを暗黙保存したい要求が強い場合、file/resource selection UXと衝突するため、上位UXで「scene document化」を別途判断する。

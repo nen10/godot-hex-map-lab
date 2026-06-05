@@ -15,6 +15,7 @@ const HexOverlayTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_over
 const HexAdjacencyRuleSet = preload("res://addons/hex_map_kit/adapter/hex_adjacency_rule_set.gd")
 
 var _failures: Array[String] = []
+var _test_output_root := ""
 
 
 func _init() -> void:
@@ -404,8 +405,7 @@ func _test_hex_map_document_roundtrips_map_and_payloads() -> void:
 	var label_db = HexLabelDatabaseResource.new()
 	label_db.labels = [{"label_id": "area", "display_name": "Area"}]
 
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://.godot_user"))
-	var path = "res://.godot_user/test_hex_map_document.tres"
+	var path = _test_resource_path("test_hex_map_document.tres")
 	var error = ResourceSaver.save(document, path)
 	var loaded = load(path)
 	var roundtrip = HexMapDocumentAdapter.to_map_resource(loaded).to_map_data()
@@ -600,6 +600,40 @@ func _test_overlay_tile_adapter_can_preserve_existing_layer_cells() -> void:
 	_assert_eq(layer.get_cell_source_id(Vector2i.ZERO), 4, "overlay tile adapter writes generated overlay cell when not clearing")
 
 	layer.free()
+
+
+func _test_resource_path(filename: String) -> String:
+	return "%s/%s" % [_test_output_dir(), filename]
+
+
+func _test_output_dir() -> String:
+	if _test_output_root == "":
+		_test_output_root = "res://.godot_user/test-runs/%s/test_hex_adapter" % _safe_path_part(_test_run_id())
+		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_test_output_root))
+	return _test_output_root
+
+
+func _test_run_id() -> String:
+	var run_id = OS.get_environment("HEX_MAP_TEST_RUN_ID")
+	if run_id == "":
+		run_id = "manual-%d-%d" % [OS.get_process_id(), Time.get_ticks_usec()]
+	return run_id
+
+
+func _safe_path_part(value: String) -> String:
+	var result := ""
+	for index in range(value.length()):
+		var code = value.unicode_at(index)
+		if (code >= 48 and code <= 57) \
+			or (code >= 65 and code <= 90) \
+			or (code >= 97 and code <= 122) \
+			or code == 45 \
+			or code == 46 \
+			or code == 95:
+			result += char(code)
+		else:
+			result += "-"
+	return "run" if result == "" else result
 
 
 func _assert_neighbor_offset_deltas(center, expected: Array, message: String) -> void:
