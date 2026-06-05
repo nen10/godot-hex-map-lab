@@ -6,8 +6,8 @@
 
 ## レビュー対象
 
-- Plan: `docs/plan/HEX_TILE_MAP_LAYER_EDIT_TARGET_INITIALIZATION_COORDINATE_IMPLEMENTATION_PLAN_2026-06-03.md`
-- Policy: `docs/plan/HEX_TILE_MAP_LAYER_EDIT_TARGET_INITIALIZATION_COORDINATE_POLICY_2026-06-03.md`
+- Plan: `docs/complete_on_test/HEX_TILE_MAP_LAYER_EDIT_TARGET_INITIALIZATION_COORDINATE_IMPLEMENTATION_PLAN_2026-06-03.md`
+- Policy: `docs/complete_on_test/HEX_TILE_MAP_LAYER_EDIT_TARGET_INITIALIZATION_COORDINATE_POLICY_2026-06-03.md`
 - Review reference: `docs/review/HEX_TILE_MAP_LAYER_EDIT_TARGET_INITIALIZATION_PERFORMANCE_REVIEW_2026-06-03.md`
 - Object asset boundary reference: `docs/review/HEX_TILE_MAP_LAYER_OBJECT_ASSET_BOUNDARY_REVIEW_2026-06-05.md`
 
@@ -260,3 +260,36 @@ Object表示を画像atlasとして扱う計画は外れており、現在のObj
 - Edit Dockのasset file browse UX。
 - Overlay Tile payloadのmode別保持。
 - Target由来documentの保存導線明確化。
+
+## Planning Flow反映 2026-06-05
+
+ユーザー指摘により、asset項目単体ではなく、Editor Plugin全体のファイルpath / resource選択UXとして新しいPlanning Flowへ切り出した。
+
+新Planning Flow:
+
+- `docs/plan/2026-06-05_EDITOR_DOCK_FILE_RESOURCE_SELECTION/UX.md`
+- `docs/plan/2026-06-05_EDITOR_DOCK_FILE_RESOURCE_SELECTION/POLICY.md`
+- `docs/plan/2026-06-05_EDITOR_DOCK_FILE_RESOURCE_SELECTION/IMPLEMENTATION_PLAN.md`
+- `docs/review/plan/EDITOR_DOCK_FILE_RESOURCE_SELECTION_PLAN_REVIEW_2026-06-05.md`
+
+新Planning Flowに含めた項目:
+
+- `Atlas Image` だけでなく、Document Load / Save、Import Map、Export、Source Registry、Generate History、Generation Save、Select Atlas Imageを含むpath / resource選択UX。
+- `EditorFileDialog` / `EditorResourcePicker` / direct path入力の役割分担。
+- invalid path、targetなし、TileSetなし、tile size不明などのbutton disabled / status表示。
+- Target StatusにTileSet resource path、source数、tile size、floor / wall / overlay payload、overlay visibilityを出す改善。
+- Target TileSet / atlas sourceのPackedScene保存 / reload永続性確認。
+- `Select Display Layer` を内部 `TileMapLayer` 選択操作として正確に表現する文言 / status改善。
+- Overlay Tile payloadのmode別保持と、Overlay item key候補UI。
+- Target由来documentの未保存状態とSave / Export後の状態遷移。
+
+新Planning Flowに含めない残り項目:
+
+- `apply_document_cell()` の全量document duplicate / resource変換 / `_data` 再構築を避ける性能改善。これはpath選択UXではなく、document差分適用とlarge map performanceの別計画で扱う。
+- `apply_document_cell()` / `apply_document()` の責務分割。性能改善と同じくstate適用境界の別計画で扱う。
+- Object Node / scene layer、`TileSetScenesCollectionSource`、object専用layer。`docs/review/HEX_TILE_MAP_LAYER_OBJECT_ASSET_BOUNDARY_REVIEW_2026-06-05.md` を元に別Planning Flowで扱う。
+- plain `TileMapLayer` legacy helperの内部到達経路整理。Editor通常UX、Generation Overlay、Core互換testの境界整理として別に扱う。
+
+完了扱い:
+
+- `HEX_TILE_MAP_LAYER_EDIT_TARGET_INITIALIZATION_COORDINATE` 計画は、自動テストで主要実装が確認済みであり、上記残項目を分離したため完了扱いにする。
