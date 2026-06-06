@@ -11,6 +11,8 @@ const HexMapDocumentTerrainLayerResource = preload("res://addons/hex_map_kit/ada
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
 const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
+const HexLayerStackEntryResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_entry_resource.gd")
+const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 
 class RuntimeSignalRecorder:
@@ -32,6 +34,7 @@ class RuntimeSignalRecorder:
 		hovered_hits.append(hit)
 
 var _failures: Array[String] = []
+var _test_output_root := ""
 
 
 func _init() -> void:
@@ -44,6 +47,8 @@ func _run() -> void:
 	await _test_hex_map_resource_assignment_creates_visible_tiles()
 	await _test_apply_document_payloads_create_visible_tile_and_markers()
 	await _test_apply_v2_document_payloads_create_visible_tile_and_markers()
+	await _test_layer_stack_standard_template_roles()
+	await _test_layer_stack_resource_roundtrips()
 	await _test_ensure_display_tiles_uses_custom_floor_wall_sources()
 	await _test_display_tile_size_syncs_hex_size_and_overlay()
 	await _test_display_tile_set_resource_persists_through_packed_scene()
@@ -279,6 +284,66 @@ func _test_apply_v2_document_payloads_create_visible_tile_and_markers() -> void:
 	_assert_eq(wall_state["atlas_coords"], Vector2i(0, 0), "apply_document displays v2 wall tile assignment")
 
 	layer.queue_free()
+	await process_frame
+
+
+func _test_layer_stack_standard_template_roles() -> void:
+	var stack = HexLayerStackResource.standard_template()
+	var minimal = HexLayerStackResource.minimal_runtime_template()
+
+	_assert_eq(stack.role_names(), HexLayerStackResource.standard_role_names(), "standard layer stack exposes every role")
+	_assert_eq(
+		stack.layer_ids(),
+		PackedStringArray(["terrain", "decoration", "object", "collision", "navigation", "overlay", "debug"]),
+		"standard layer stack creates expected layer ids"
+	)
+	_assert_eq(
+		stack.node_names(),
+		PackedStringArray([
+			"TerrainTileMapLayer",
+			"DecorationTileMapLayer",
+			"ObjectTileMapLayer",
+			"CollisionTileMapLayer",
+			"NavigationTileMapLayer",
+			"OverlayTileMapLayer",
+			"DebugOverlayLayer",
+		]),
+		"standard layer stack creates expected node names"
+	)
+	_assert_true(stack.has_role(HexLayerStackResource.ROLE_TERRAIN), "standard layer stack has terrain role")
+	_assert_true(stack.has_role(HexLayerStackResource.ROLE_DECORATION), "standard layer stack has decoration role")
+	_assert_true(stack.has_role(HexLayerStackResource.ROLE_OBJECT), "standard layer stack has object role")
+	_assert_true(stack.has_role(HexLayerStackResource.ROLE_COLLISION), "standard layer stack has collision role")
+	_assert_true(stack.has_role(HexLayerStackResource.ROLE_NAVIGATION), "standard layer stack has navigation role")
+	_assert_true(stack.has_role(HexLayerStackResource.ROLE_OVERLAY), "standard layer stack has overlay role")
+	_assert_true(stack.has_role(HexLayerStackResource.ROLE_DEBUG), "standard layer stack has debug role")
+	_assert_eq(stack.first_layer_for_role(HexLayerStackResource.ROLE_OVERLAY).node_name, "OverlayTileMapLayer", "overlay role resolves expected layer")
+	_assert_eq(stack.first_layer_for_role(HexLayerStackResource.ROLE_COLLISION).visible, false, "collision role starts hidden")
+	_assert_eq(
+		minimal.role_names(),
+		PackedStringArray([
+			HexLayerStackResource.ROLE_TERRAIN,
+			HexLayerStackResource.ROLE_OVERLAY,
+			HexLayerStackResource.ROLE_DEBUG,
+		]),
+		"minimal runtime template exposes current runtime roles"
+	)
+	await process_frame
+
+
+func _test_layer_stack_resource_roundtrips() -> void:
+	var stack = HexLayerStackResource.standard_template()
+	stack.metadata = {"template": "standard"}
+	var path = _test_resource_path("test_hex_layer_stack.tres")
+	var error = ResourceSaver.save(stack, path)
+	var loaded = load(path)
+
+	_assert_eq(error, OK, "layer stack resource saves")
+	_assert_true(loaded is HexLayerStackResource, "layer stack resource loads as typed resource")
+	_assert_eq(loaded.role_names(), HexLayerStackResource.standard_role_names(), "loaded layer stack preserves roles")
+	_assert_true(loaded.layers[0] is HexLayerStackEntryResource, "loaded layer stack preserves typed entries")
+	_assert_eq(loaded.first_layer_for_role(HexLayerStackResource.ROLE_TERRAIN).node_name, "TerrainTileMapLayer", "loaded layer stack preserves node name")
+	_assert_eq(loaded.metadata["template"], "standard", "loaded layer stack preserves metadata")
 	await process_frame
 
 
@@ -824,4 +889,38 @@ func _keys(points: Array) -> Array:
 	for point in points:
 		result.append(point.key())
 	result.sort()
+	return result
+
+
+func _test_resource_path(filename: String) -> String:
+	return "%s/%s" % [_test_output_dir(), filename]
+
+
+func _test_output_dir() -> String:
+	if _test_output_root == "":
+		_test_output_root = "res://.godot_user/test-runs/%s/test_hex_tile_map_layer" % _safe_path_part(_test_run_id())
+		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_test_output_root))
+	return _test_output_root
+
+
+func _test_run_id() -> String:
+	var run_id = OS.get_environment("HEX_MAP_TEST_RUN_ID")
+	if run_id == "":
+		run_id = "manual-%d-%d" % [OS.get_process_id(), Time.get_ticks_usec()]
+	return run_id
+
+
+func _safe_path_part(value: String) -> String:
+	var result := ""
+	for index in range(value.length()):
+		var code = value.unicode_at(index)
+		if (code >= 48 and code <= 57) \
+			or (code >= 65 and code <= 90) \
+			or (code >= 97 and code <= 122) \
+			or code == 45 \
+			or code == 46 \
+			or code == 95:
+			result += char(code)
+		else:
+			result += "_"
 	return result
