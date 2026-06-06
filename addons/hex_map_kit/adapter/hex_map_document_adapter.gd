@@ -25,9 +25,10 @@ static func from_map_resource(resource: HexMapResourceScript):
 
 
 static func to_map_resource(document):
-	if document == null or document.map == null:
+	var data = _document_map_data(document)
+	if data == null:
 		return HexMapResourceScript.from_map_data(HexMapDataScript.from_cells([]))
-	return HexMapResourceScript.from_map_data(document.map.to_map_data(), document.map.orientation)
+	return HexMapResourceScript.from_map_data(data, _document_orientation(document))
 
 
 static func duplicate_document(document):
@@ -105,6 +106,56 @@ static func document_summary(document) -> Dictionary:
 	}
 
 
+static func document_tile_entries(document) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if document == null:
+		return result
+	for layer in document.terrain_layers:
+		if layer == null:
+			continue
+		for raw_entry in layer.get("tile_assignments"):
+			if raw_entry is Dictionary:
+				result.append((raw_entry as Dictionary).duplicate(true))
+	for layer in document.overlay_layers:
+		if layer == null:
+			continue
+		for raw_entry in layer.get("tile_assignments"):
+			if not raw_entry is Dictionary:
+				continue
+			var entry: Dictionary = (raw_entry as Dictionary).duplicate(true)
+			entry["kind"] = KIND_OVERLAY
+			if String(entry.get("item_key", "")) == "":
+				entry["item_key"] = String(layer.get("item_key"))
+			result.append(entry)
+	if result.is_empty():
+		return _duplicate_entries(document.tile_overrides)
+	return result
+
+
+static func document_object_entries(document) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if document == null:
+		return result
+	for placement in document.object_placements:
+		if placement is Resource:
+			result.append(_object_placement_entry(placement as Resource))
+	if result.is_empty():
+		return _duplicate_entries(document.objects)
+	return result
+
+
+static func document_label_entries(document) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if document == null:
+		return result
+	for placement in document.label_placements:
+		if placement is Resource:
+			result.append(_label_placement_entry(placement as Resource))
+	if result.is_empty():
+		return _duplicate_entries(document.labels)
+	return result
+
+
 static func validation_result_for_document(document):
 	var result = HexMapValidationResultScript.new()
 	result.summary = document_summary(document)
@@ -155,12 +206,13 @@ static func copy_document_state(target, source) -> void:
 
 
 static func apply_to_tile_map_layer(document, layer, options: Dictionary = {}) -> void:
-	if document == null or document.map == null or layer == null:
+	var data = _document_map_data(document)
+	if data == null or layer == null:
 		return
-	var flat_top = document.map.is_flat_top()
+	var flat_top = _document_orientation(document) == HexMapResourceScript.ORIENTATION_FLAT_TOP
 	HexMapTileAdapterScript.apply_to_tile_map_layer(
 		layer,
-		document.map.to_map_data(),
+		data,
 		int(options.get("floor_source_id", 0)),
 		options.get("floor_atlas_coords", Vector2i.ZERO),
 		int(options.get("wall_source_id", 0)),
@@ -170,10 +222,9 @@ static func apply_to_tile_map_layer(document, layer, options: Dictionary = {}) -
 		int(options.get("floor_alternative_tile", 0)),
 		int(options.get("wall_alternative_tile", 0))
 	)
-	var data = document.map.to_map_data()
 	var cell_set = data.cell_set()
 	var wall_set = data.wall_set()
-	for entry in document.tile_overrides:
+	for entry in document_tile_entries(document):
 		var hex = _hex_from_component(entry.get("cell", Vector3i.ZERO))
 		if not cell_set.has(hex.key()):
 			continue
@@ -189,9 +240,10 @@ static func apply_to_tile_map_layer(document, layer, options: Dictionary = {}) -
 
 
 static func set_wall(document, hex, wall: bool) -> void:
-	if document == null or document.map == null:
+	var map_resource = _document_map_resource(document)
+	if document == null or map_resource == null:
 		return
-	var data = document.map.to_map_data()
+	var data = map_resource.to_map_data()
 	var normalized = _normalize_hex(hex)
 	var cell_set = data.cell_set()
 	if not cell_set.has(normalized.key()):
@@ -203,14 +255,17 @@ static func set_wall(document, hex, wall: bool) -> void:
 		data.set_walls(walls)
 	elif not wall and wall_set.has(normalized.key()):
 		data.set_walls(HexMapDataScript.points_except(data.walls, [normalized]))
-	document.map.set_from_map_data(data, document.map.orientation)
+	map_resource.set_from_map_data(data, map_resource.orientation)
 
 
 static func set_cell_exists(document, hex, exists: bool) -> void:
 	if document == null:
 		return
 	_ensure_map(document)
-	var data = document.map.to_map_data()
+	var map_resource = _document_map_resource(document)
+	if map_resource == null:
+		return
+	var data = map_resource.to_map_data()
 	var normalized = _normalize_hex(hex)
 	var cell_set = data.cell_set()
 	if exists and not cell_set.has(normalized.key()):
@@ -222,7 +277,7 @@ static func set_cell_exists(document, hex, exists: bool) -> void:
 		var walls_without = HexMapDataScript.points_except(data.walls, [normalized])
 		data = HexMapDataScript.from_cells(cells_without, walls_without, data.cyclic_size)
 		_remove_cell_payloads(document, normalized)
-	document.map.set_from_map_data(data, document.map.orientation)
+	map_resource.set_from_map_data(data, map_resource.orientation)
 
 
 static func set_tile_override(document, hex, payload: Dictionary) -> void:
@@ -269,7 +324,7 @@ static func set_label(document, hex, payload: Dictionary) -> void:
 
 
 static func _ensure_map(document) -> void:
-	if document.map == null:
+	if _document_map_resource(document) == null:
 		document.map = HexMapResourceScript.from_map_data(HexMapDataScript.from_cells([]))
 
 
@@ -300,6 +355,7 @@ static func _remove_cell_payloads(document, hex) -> void:
 	_remove_entry(document.tile_overrides, matcher, ["cell"])
 	_remove_entry(document.objects, matcher, ["cell"])
 	_remove_entry(document.labels, matcher, ["cell"])
+	_remove_v2_cell_payloads(document, matcher["cell"])
 
 
 static func _replace_entry(entries: Array, entry: Dictionary, keys: Array) -> void:
@@ -335,14 +391,24 @@ static func _duplicate_resources(entries: Array) -> Array[Resource]:
 
 
 static func _document_map_data(document):
+	var map_resource = _document_map_resource(document)
+	return map_resource.to_map_data() if map_resource != null else null
+
+
+static func _document_map_resource(document):
 	if document == null:
 		return null
 	if document.map != null:
-		return document.map.to_map_data()
+		return document.map
 	for layer in document.terrain_layers:
 		if layer != null and layer.get("map") != null:
-			return layer.get("map").to_map_data()
+			return layer.get("map")
 	return null
+
+
+static func _document_orientation(document) -> int:
+	var map_resource = _document_map_resource(document)
+	return map_resource.orientation if map_resource != null else HexMapResourceScript.ORIENTATION_FLAT_TOP
 
 
 static func _document_object_count(document) -> int:
@@ -366,6 +432,64 @@ static func _baseline_warning_count(document) -> int:
 	if document.dependencies.is_empty():
 		count += 1
 	return count
+
+
+static func _object_placement_entry(placement: Resource) -> Dictionary:
+	return {
+		"cell": placement.get("cell"),
+		"object_id": String(placement.get("object_id")),
+		"properties": placement.get("properties").duplicate(true),
+		"variant": String(placement.get("variant")),
+		"rotation_degrees": float(placement.get("rotation_degrees")),
+		"spawn_condition": String(placement.get("spawn_condition")),
+	}
+
+
+static func _label_placement_entry(placement: Resource) -> Dictionary:
+	return {
+		"cell": placement.get("cell"),
+		"label_id": String(placement.get("label_id")),
+		"text": String(placement.get("text")),
+		"style_key": String(placement.get("style_key")),
+		"zone_id": String(placement.get("zone_id")),
+	}
+
+
+static func _remove_v2_cell_payloads(document, cell: Vector3i) -> void:
+	if document == null:
+		return
+	var key = _hex_from_component(cell).key()
+	for layer in document.terrain_layers:
+		if layer != null:
+			_remove_assignment_cells(layer.get("tile_assignments"), key)
+	for layer in document.overlay_layers:
+		if layer != null:
+			_remove_assignment_cells(layer.get("tile_assignments"), key)
+	for index in range(document.object_placements.size() - 1, -1, -1):
+		var placement = document.object_placements[index]
+		if placement is Resource and _hex_from_component(placement.get("cell")).key() == key:
+			document.object_placements.remove_at(index)
+	for index in range(document.label_placements.size() - 1, -1, -1):
+		var placement = document.label_placements[index]
+		if placement is Resource and _hex_from_component(placement.get("cell")).key() == key:
+			document.label_placements.remove_at(index)
+	for zone_index in range(document.zones.size() - 1, -1, -1):
+		var zone = document.zones[zone_index]
+		if not zone is Resource:
+			continue
+		var cells: Array = zone.get("cells")
+		for cell_index in range(cells.size() - 1, -1, -1):
+			if _hex_from_component(cells[cell_index]).key() == key:
+				cells.remove_at(cell_index)
+		if cells.is_empty():
+			document.zones.remove_at(zone_index)
+
+
+static func _remove_assignment_cells(assignments: Array, key: String) -> void:
+	for index in range(assignments.size() - 1, -1, -1):
+		var entry = assignments[index]
+		if entry is Dictionary and _hex_from_component((entry as Dictionary).get("cell", Vector3i.ZERO)).key() == key:
+			assignments.remove_at(index)
 
 
 static func _v1_terrain_tile_assignments(entries: Array) -> Array[Dictionary]:

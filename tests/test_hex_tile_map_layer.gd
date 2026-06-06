@@ -3,6 +3,11 @@ extends SceneTree
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const HexGrid = preload("res://addons/hex_map_kit/core/hex_grid.gd")
 const HexMapData = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
+const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
+const HexMapDocumentLabelPlacementResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_label_placement_resource.gd")
+const HexMapDocumentObjectPlacementResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_object_placement_resource.gd")
+const HexMapDocumentOverlayLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_overlay_layer_resource.gd")
+const HexMapDocumentTerrainLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_terrain_layer_resource.gd")
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
 const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
@@ -38,6 +43,7 @@ func _run() -> void:
 	await _test_apply_edit_command_and_inverse_roundtrip()
 	await _test_hex_map_resource_assignment_creates_visible_tiles()
 	await _test_apply_document_payloads_create_visible_tile_and_markers()
+	await _test_apply_v2_document_payloads_create_visible_tile_and_markers()
 	await _test_ensure_display_tiles_uses_custom_floor_wall_sources()
 	await _test_display_tile_size_syncs_hex_size_and_overlay()
 	await _test_display_tile_set_resource_persists_through_packed_scene()
@@ -210,6 +216,67 @@ func _test_apply_document_payloads_create_visible_tile_and_markers() -> void:
 	_assert_eq(floor_state["label_count"], 1, "apply_document exposes label marker state")
 	_assert_eq(floor_state["marker_count"], 2, "apply_document exposes aggregate marker state")
 	_assert_eq(wall_state["atlas_coords"], Vector2i(0, 0), "apply_document displays wall tile override")
+
+	layer.queue_free()
+	await process_frame
+
+
+func _test_apply_v2_document_payloads_create_visible_tile_and_markers() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	data.set_walls([HexVector.q_axis()])
+	var document = HexMapDocumentResource.new()
+	document.ensure_v2_defaults()
+
+	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
+	terrain_layer.map = HexMapResource.from_map_data(data)
+	terrain_layer.tile_assignments.append({
+		"cell": Vector3i.ZERO,
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"source_id": 0,
+		"atlas_coords": Vector2i(1, 0),
+	})
+	terrain_layer.tile_assignments.append({
+		"cell": Vector3i(1, 0, 0),
+		"kind": HexMapDocumentAdapter.KIND_WALL,
+		"source_id": 0,
+		"atlas_coords": Vector2i(0, 0),
+	})
+	document.terrain_layers.append(terrain_layer)
+
+	var overlay_layer = HexMapDocumentOverlayLayerResource.new()
+	overlay_layer.item_key = "Treasure"
+	overlay_layer.tile_assignments.append({
+		"cell": Vector3i.ZERO,
+		"source_id": 0,
+		"atlas_coords": Vector2i(1, 0),
+	})
+	document.overlay_layers.append(overlay_layer)
+
+	var placement = HexMapDocumentObjectPlacementResource.new()
+	placement.object_id = "chest"
+	placement.cell = Vector3i.ZERO
+	document.object_placements.append(placement)
+
+	var label = HexMapDocumentLabelPlacementResource.new()
+	label.label_id = "area"
+	label.cell = Vector3i.ZERO
+	label.text = "North"
+	document.label_placements.append(label)
+
+	var layer = HexTileMapLayer.new()
+	root.add_child(layer)
+	await process_frame
+
+	layer.apply_document(document)
+	var floor_state = layer.display_state_for_hex(HexVector.zero())
+	var wall_state = layer.display_state_for_hex(HexVector.q_axis())
+
+	_assert_eq(layer.hex_map.to_map_data().walls.size(), 1, "apply_document stores v2 terrain map")
+	_assert_eq(floor_state["atlas_coords"], Vector2i(1, 0), "apply_document displays v2 floor tile assignment")
+	_assert_eq(floor_state["overlay_count"], 1, "apply_document displays v2 overlay assignment")
+	_assert_eq(floor_state["object_count"], 1, "apply_document exposes v2 object marker state")
+	_assert_eq(floor_state["label_count"], 1, "apply_document exposes v2 label marker state")
+	_assert_eq(wall_state["atlas_coords"], Vector2i(0, 0), "apply_document displays v2 wall tile assignment")
 
 	layer.queue_free()
 	await process_frame

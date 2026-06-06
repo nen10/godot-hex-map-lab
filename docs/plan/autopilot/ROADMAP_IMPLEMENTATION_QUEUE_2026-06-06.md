@@ -66,9 +66,9 @@ Goal: `HexMapDocumentResource` をゲーム制作で保存・検査・実行ロ�
 | `LD2-01` | `COMPLETE` | `P0-02`, `P0-03` | `docs/plan/2026-06-06_LD2-01_RESOURCE_SCHEMA/` | Level Document v2 typed resource schema | `addons/hex_map_kit/adapter/hex_map_document_resource.gd`, new v2 resource classes if needed, `tests/test_hex_adapter.gd` | v2 fields cover `terrain_layers`, `overlay_layers`, `object_placements`, `labels`, `zones`, `metadata`, `dependencies`; v1 fixtures still load. |
 | `LD2-02` | `COMPLETE` | `LD2-01` | `docs/plan/2026-06-06_LD2-02_MIGRATION/` | v1 -> v2 migration helper and compatibility policy | `addons/hex_map_kit/adapter/hex_map_document_adapter.gd`, migration helper file if needed, `tests/test_hex_adapter.gd` | Migration preserves map/tile_overrides/objects/labels/version; has roundtrip tests and missing-field tests. |
 | `LD2-03` | `COMPLETE` | `LD2-01` | `docs/plan/2026-06-06_LD2-03_SUMMARY_VALIDATION_SCHEMA/` | Document summary and validation result schema | new `HexMapValidationResult` resource/script, adapter helpers, `tests/test_hex_adapter.gd` | Summary reports cells/walls/floors/objects/labels/zones/warnings/dependencies; validation result serializable and testable. |
-| `LD2-04` | `READY` | `LD2-02`, `LD2-03` | `docs/plan/2026-06-06_LD2-04_ADAPTER_ROUNDTRIP/` | Adapter roundtrip for v2 document | `hex_map_document_adapter.gd`, `hex_tile_map_layer.gd`, `tests/test_hex_adapter.gd`, `tests/test_hex_tile_map_layer.gd` | Roundtrip, payload cleanup, deleted cell cleanup, tile overrides, labels, objects, zones pass. |
-| `LD2-05` | `BACKLOG` | `LD2-04` | `docs/plan/2026-06-06_LD2-05_EDITOR_LOAD_SAVE/` | Edit Dock / Generate Dock document v2 load/save integration | `hex_map_edit_tool.gd`, `hex_map_gen_dock.gd`, `tests/test_editor_plugin.gd`, `docs/TEST.md` | Browse/Load/Save/Export/import flows work with v2 while v1 remains compatible. |
-| `LD2-06` | `BACKLOG` | `LD2-04` | `docs/plan/2026-06-06_LD2-06_RUNTIME_LOAD_SAMPLE/` | Runtime load helper/sample for level document | `hex_tile_map_layer.gd`, `examples/basic_runtime` later or debug scene, `tests/test_debug_scenes.gd` | Runtime can load v2 document into `HexTileMapLayer`; no editor-only dependency in runtime path. |
+| `LD2-04` | `COMPLETE` | `LD2-02`, `LD2-03` | `docs/plan/2026-06-06_LD2-04_ADAPTER_ROUNDTRIP/` | Adapter roundtrip for v2 document | `hex_map_document_adapter.gd`, `hex_tile_map_layer.gd`, `tests/test_hex_adapter.gd`, `tests/test_hex_tile_map_layer.gd` | Roundtrip, payload cleanup, deleted cell cleanup, tile overrides, labels, objects, zones pass. |
+| `LD2-05` | `READY` | `LD2-04` | `docs/plan/2026-06-06_LD2-05_EDITOR_LOAD_SAVE/` | Edit Dock / Generate Dock document v2 load/save integration | `hex_map_edit_tool.gd`, `hex_map_gen_dock.gd`, `tests/test_editor_plugin.gd`, `docs/TEST.md` | Browse/Load/Save/Export/import flows work with v2 while v1 remains compatible. |
+| `LD2-06` | `READY` | `LD2-04` | `docs/plan/2026-06-06_LD2-06_RUNTIME_LOAD_SAMPLE/` | Runtime load helper/sample for level document | `hex_tile_map_layer.gd`, `examples/basic_runtime` later or debug scene, `tests/test_debug_scenes.gd` | Runtime can load v2 document into `HexTileMapLayer`; no editor-only dependency in runtime path. |
 
 ---
 
@@ -198,13 +198,13 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `LD2-04`.
+Current recommended next task: `LD2-05`.
 
 Reason:
 
-- `LD2-03` is complete and provides document summary / validation result schema.
-- `LD2-04` is now READY because `LD2-02` and `LD2-03` are complete.
-- `LD2-04` should connect the v2 schema and migration into adapter roundtrip behavior.
+- `LD2-04` is complete and provides v2 adapter roundtrip, payload normalization, and deleted-cell cleanup.
+- `LD2-05` is now READY because its dependency `LD2-04` is complete.
+- `LD2-06` is also READY, but `LD2-05` appears first in queue order.
 
 ---
 
@@ -376,4 +376,31 @@ Notes:
 
 - Added document summary helper and serializable `HexMapValidationResult` schema.
 - Full validation engine rules remain in `VAL-01`.
+- `repair-now`: none.
+
+### LD2-04
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot
+plan: `docs/plan/2026-06-06_LD2-04_ADAPTER_ROUNDTRIP/`
+review: `docs/review/autopilot/LD2-04_SELF_REVIEW_2026-06-07.md`
+test result: `docs/review/autopilot/LD2-04_TEST_RESULT_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+- docs:
+  - `docs/TEST.md`
+- major files:
+  - `addons/hex_map_kit/adapter/hex_map_document_adapter.gd`
+  - `addons/hex_map_kit/adapter/hex_tile_map_layer.gd`
+  - `tests/test_hex_adapter.gd`
+  - `tests/test_hex_tile_map_layer.gd`
+
+Notes:
+
+- Added v2-aware map and payload normalization helpers in `HexMapDocumentAdapter`.
+- Added v2 deleted-cell cleanup for terrain assignments, overlay assignments, object placements, label placements, and zones.
+- `HexTileMapLayer.apply_document()` now accepts pure v2 documents whose map lives on a terrain layer.
 - `repair-now`: none.

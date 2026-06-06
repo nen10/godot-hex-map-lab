@@ -225,7 +225,7 @@ func to_document_resource() -> HexMapDocumentResource:
 
 
 func apply_document(document) -> void:
-	if document == null or document.map == null:
+	if document == null:
 		return
 	var snapshot = HexMapDocumentAdapter.duplicate_document(document)
 	var resource = HexMapDocumentAdapter.to_map_resource(snapshot)
@@ -240,16 +240,17 @@ func apply_document(document) -> void:
 
 
 func apply_document_cell(document, hex: HexVector) -> bool:
-	if document == null or document.map == null:
+	if document == null:
 		return false
-	flat_top = document.map.is_flat_top()
+	var resource = HexMapDocumentAdapter.to_map_resource(document)
+	flat_top = resource.is_flat_top()
 	_sync_hex_size_for_current_display()
 	if not is_node_ready() or _tile_map == null:
 		_pending_document_payloads = document
 		return true
 	var normalized = HexVector.apply_basis(hex.q, hex.s, hex.r)
-	set_cell_exists(normalized, _resource_has_cell(document.map, normalized))
-	set_wall_state(normalized, _resource_has_wall(document.map, normalized))
+	set_cell_exists(normalized, _resource_has_cell(resource, normalized))
+	set_wall_state(normalized, _resource_has_wall(resource, normalized))
 	_refresh_document_payloads_for_cell(document, normalized)
 	_update_tile(normalized)
 	_update_overlay_tile(normalized)
@@ -995,12 +996,12 @@ func _clear_document_payload_display() -> void:
 
 func _apply_document_payloads(document) -> void:
 	_clear_document_payload_display()
-	if document == null or document.map == null or _data == null:
+	if document == null or _data == null:
 		_redraw()
 		return
 	var cell_set = _data.cell_set()
 	var wall_set = _data.wall_set()
-	for raw_entry in document.tile_overrides:
+	for raw_entry in HexMapDocumentAdapter.document_tile_entries(document):
 		if not raw_entry is Dictionary:
 			continue
 		var entry: Dictionary = (raw_entry as Dictionary).duplicate(true)
@@ -1018,10 +1019,10 @@ func _apply_document_payloads(document) -> void:
 		if entry_kind == HexMapDocumentAdapter.KIND_WALL and not is_wall_cell:
 			continue
 		_tile_overrides_by_key[_tile_override_key(key, entry_kind)] = entry
-	for raw_entry in document.objects:
+	for raw_entry in HexMapDocumentAdapter.document_object_entries(document):
 		if raw_entry is Dictionary:
 			_store_payload_marker(_object_markers_by_key, raw_entry as Dictionary, cell_set)
-	for raw_entry in document.labels:
+	for raw_entry in HexMapDocumentAdapter.document_label_entries(document):
 		if raw_entry is Dictionary:
 			_store_payload_marker(_label_markers_by_key, raw_entry as Dictionary, cell_set)
 	_redraw()
@@ -1031,13 +1032,13 @@ func _refresh_document_payloads_for_cell(document, hex: HexVector) -> void:
 	var normalized = HexVector.apply_basis(hex.q, hex.s, hex.r)
 	var key = normalized.key()
 	_clear_payload_display_for_cell(normalized)
-	if document == null or document.map == null or _data == null:
+	if document == null or _data == null:
 		return
 	var cell_set = _data.cell_set()
 	if not cell_set.has(key):
 		return
 	var wall_set = _data.wall_set()
-	for raw_entry in document.tile_overrides:
+	for raw_entry in HexMapDocumentAdapter.document_tile_entries(document):
 		if not raw_entry is Dictionary:
 			continue
 		var entry: Dictionary = (raw_entry as Dictionary).duplicate(true)
@@ -1054,10 +1055,10 @@ func _refresh_document_payloads_for_cell(document, hex: HexVector) -> void:
 		if entry_kind == HexMapDocumentAdapter.KIND_WALL and not is_wall_cell:
 			continue
 		_tile_overrides_by_key[_tile_override_key(key, entry_kind)] = entry
-	for raw_entry in document.objects:
+	for raw_entry in HexMapDocumentAdapter.document_object_entries(document):
 		if raw_entry is Dictionary and _entry_cell_key(raw_entry as Dictionary) == key:
 			_store_payload_marker(_object_markers_by_key, raw_entry as Dictionary, cell_set)
-	for raw_entry in document.labels:
+	for raw_entry in HexMapDocumentAdapter.document_label_entries(document):
 		if raw_entry is Dictionary and _entry_cell_key(raw_entry as Dictionary) == key:
 			_store_payload_marker(_label_markers_by_key, raw_entry as Dictionary, cell_set)
 

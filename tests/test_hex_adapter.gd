@@ -57,6 +57,8 @@ func _run() -> void:
 	_test_hex_map_document_migration_handles_missing_fields()
 	_test_hex_map_document_summary_reports_v2_counts()
 	_test_hex_map_validation_result_serializes_summary_and_warnings()
+	_test_hex_map_document_adapter_roundtrips_v2_payload_entries()
+	_test_hex_map_document_adapter_cleans_v2_payloads_for_deleted_cell()
 	_test_hex_map_document_adapter_updates_wall_floor()
 	_test_hex_map_document_adapter_applies_tile_overrides()
 	_test_overlay_resource_roundtrips_to_overlay_data()
@@ -717,6 +719,115 @@ func _test_hex_map_validation_result_serializes_summary_and_warnings() -> void:
 	_assert_eq(loaded.warning_count(), 2, "loaded validation result counts warnings")
 	_assert_eq(loaded.summary["warnings"], 2, "loaded validation result preserves summary")
 	_assert_eq(loaded.issues[1]["rule_id"], "document.dependencies_empty", "loaded validation result preserves issues")
+
+
+func _test_hex_map_document_adapter_roundtrips_v2_payload_entries() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	data.set_walls([HexVector.q_axis()])
+	var document = HexMapDocumentResource.new()
+	document.ensure_v2_defaults()
+
+	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
+	terrain_layer.map = HexMapResource.from_map_data(data, HexMapResource.ORIENTATION_POINTY_TOP)
+	terrain_layer.tile_assignments.append({
+		"cell": Vector3i.ZERO,
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"source_id": 4,
+		"atlas_coords": Vector2i(1, 0),
+	})
+	document.terrain_layers.append(terrain_layer)
+
+	var overlay_layer = HexMapDocumentOverlayLayerResource.new()
+	overlay_layer.item_key = "Treasure"
+	overlay_layer.tile_assignments.append({
+		"cell": Vector3i.ZERO,
+		"source_id": 5,
+		"atlas_coords": Vector2i(2, 0),
+	})
+	document.overlay_layers.append(overlay_layer)
+
+	var placement = HexMapDocumentObjectPlacementResource.new()
+	placement.object_id = "chest"
+	placement.cell = Vector3i.ZERO
+	placement.properties = {"gold": 3}
+	document.object_placements.append(placement)
+
+	var label = HexMapDocumentLabelPlacementResource.new()
+	label.label_id = "area"
+	label.cell = Vector3i.ZERO
+	label.text = "North"
+	document.label_placements.append(label)
+
+	var map_resource = HexMapDocumentAdapter.to_map_resource(document)
+	var tile_entries = HexMapDocumentAdapter.document_tile_entries(document)
+	var object_entries = HexMapDocumentAdapter.document_object_entries(document)
+	var label_entries = HexMapDocumentAdapter.document_label_entries(document)
+	var copy = HexMapDocumentAdapter.duplicate_document(document)
+
+	_assert_keys_eq(map_resource.to_map_data().cells, data.cells, "v2 adapter map resource preserves cells")
+	_assert_keys_eq(map_resource.to_map_data().walls, data.walls, "v2 adapter map resource preserves walls")
+	_assert_eq(map_resource.orientation, HexMapResource.ORIENTATION_POINTY_TOP, "v2 adapter map resource preserves orientation")
+	_assert_eq(tile_entries.size(), 2, "v2 adapter exposes terrain and overlay tile entries")
+	_assert_eq(tile_entries[0]["atlas_coords"], Vector2i(1, 0), "v2 adapter exposes terrain tile assignment")
+	_assert_eq(tile_entries[1]["kind"], HexMapDocumentAdapter.KIND_OVERLAY, "v2 adapter marks overlay assignment kind")
+	_assert_eq(tile_entries[1]["item_key"], "Treasure", "v2 adapter fills overlay item key from layer")
+	_assert_eq(object_entries[0]["object_id"], "chest", "v2 adapter exposes object placement")
+	_assert_eq(object_entries[0]["properties"]["gold"], 3, "v2 adapter preserves object properties")
+	_assert_eq(label_entries[0]["text"], "North", "v2 adapter exposes label placement")
+	_assert_eq(copy.terrain_layers[0] is HexMapDocumentTerrainLayerResource, true, "v2 duplicate preserves typed terrain layer")
+	_assert_eq(copy.object_placements[0] is HexMapDocumentObjectPlacementResource, true, "v2 duplicate preserves typed object placement")
+
+
+func _test_hex_map_document_adapter_cleans_v2_payloads_for_deleted_cell() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	var deleted = HexVector.q_axis()
+	var document = HexMapDocumentResource.new()
+	document.ensure_v2_defaults()
+
+	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
+	terrain_layer.map = HexMapResource.from_map_data(data)
+	terrain_layer.tile_assignments.append({
+		"cell": Vector3i(1, 0, 0),
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"source_id": 4,
+		"atlas_coords": Vector2i(1, 0),
+	})
+	document.terrain_layers.append(terrain_layer)
+
+	var overlay_layer = HexMapDocumentOverlayLayerResource.new()
+	overlay_layer.item_key = "Treasure"
+	overlay_layer.tile_assignments.append({
+		"cell": Vector3i(1, 0, 0),
+		"source_id": 5,
+		"atlas_coords": Vector2i(2, 0),
+	})
+	document.overlay_layers.append(overlay_layer)
+
+	var placement = HexMapDocumentObjectPlacementResource.new()
+	placement.object_id = "chest"
+	placement.cell = Vector3i(1, 0, 0)
+	document.object_placements.append(placement)
+
+	var label = HexMapDocumentLabelPlacementResource.new()
+	label.label_id = "area"
+	label.cell = Vector3i(1, 0, 0)
+	label.text = "East"
+	document.label_placements.append(label)
+
+	var zone = HexMapDocumentZoneResource.new()
+	zone.zone_id = "east"
+	var zone_cells: Array[Vector3i] = [Vector3i(1, 0, 0)]
+	zone.cells = zone_cells
+	document.zones.append(zone)
+
+	HexMapDocumentAdapter.set_cell_exists(document, deleted, false)
+
+	_assert_eq(HexMapDocumentAdapter.to_map_resource(document).to_map_data().has_cell(deleted), false, "v2 delete removes map cell")
+	_assert_eq(document.terrain_layers[0].tile_assignments.size(), 0, "v2 delete removes terrain tile assignment")
+	_assert_eq(document.overlay_layers[0].tile_assignments.size(), 0, "v2 delete removes overlay tile assignment")
+	_assert_eq(document.object_placements.size(), 0, "v2 delete removes object placement")
+	_assert_eq(document.label_placements.size(), 0, "v2 delete removes label placement")
+	_assert_eq(document.zones.size(), 0, "v2 delete removes empty zone")
 
 
 func _test_hex_map_document_adapter_updates_wall_floor() -> void:
