@@ -205,8 +205,20 @@ func load_map_resource(resource: HexMapResource) -> void:
 	apply_map(resource)
 
 
-func load_document_resource(document: HexMapDocumentResource) -> void:
+func load_document_resource(document: HexMapDocumentResource) -> bool:
+	if document == null:
+		return false
 	apply_document(document)
+	return true
+
+
+func load_document_path(path: String) -> bool:
+	if path == "" or not ResourceLoader.exists(path):
+		return false
+	var resource = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
+	if not resource is HexMapDocumentResource:
+		return false
+	return load_document_resource(resource)
 
 
 func to_map_resource() -> HexMapResource:

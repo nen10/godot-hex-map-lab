@@ -7,6 +7,12 @@ const HexMapData = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
 const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
 const HexToricMapSplitRule = preload("res://addons/hex_map_kit/core/hex_toric_map_split_rule.gd")
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
+const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
+const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
+const HexMapDocumentLabelPlacementResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_label_placement_resource.gd")
+const HexMapDocumentObjectPlacementResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_object_placement_resource.gd")
+const HexMapDocumentOverlayLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_overlay_layer_resource.gd")
+const HexMapDocumentTerrainLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_terrain_layer_resource.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 
@@ -321,6 +327,35 @@ func _run() -> void:
 	)
 	runtime_layer.queue_free()
 
+	var document_path = _test_resource_path("runtime_v2_document.tres")
+	_assert_eq(
+		ResourceSaver.save(_runtime_v2_document(), document_path),
+		OK,
+		"debug test saves runtime v2 document fixture"
+	)
+	var document_layer = HexTileMapLayer.new()
+	root.add_child(document_layer)
+	await process_frame
+	_assert_true(
+		document_layer.ensure_display_tiles(
+			HexMapTileAdapter.SAMPLE_TILE_SIZE,
+			4,
+			Vector2i(0, 0),
+			5,
+			Vector2i(1, 0)
+		),
+		"runtime v2 document layer configures display tiles"
+	)
+	_assert_true(document_layer.load_document_path(document_path), "runtime helper loads v2 document path")
+	_assert_true(not document_layer.load_document_path(_test_resource_path("missing_runtime_v2_document.tres")), "runtime helper rejects missing document path")
+	_assert_eq(document_layer.hex_map.to_map_data().walls.size(), 1, "runtime helper applies v2 terrain map")
+	var runtime_state = document_layer.display_state_for_hex(HexVector.zero())
+	_assert_eq(runtime_state["atlas_coords"], Vector2i(1, 0), "runtime helper applies v2 terrain tile assignment")
+	_assert_eq(runtime_state["overlay_count"], 1, "runtime helper applies v2 overlay assignment")
+	_assert_eq(runtime_state["object_count"], 1, "runtime helper applies v2 object placement")
+	_assert_eq(runtime_state["label_count"], 1, "runtime helper applies v2 label placement")
+	document_layer.queue_free()
+
 	scene.queue_free()
 	await process_frame
 
@@ -342,6 +377,56 @@ func _assert_true(value: bool, message: String) -> void:
 func _assert_eq(actual: Variant, expected: Variant, message: String) -> void:
 	if actual != expected:
 		_failures.append("%s: expected %s, got %s" % [message, str(expected), str(actual)])
+
+
+func _runtime_v2_document() -> HexMapDocumentResource:
+	var data = HexMapData.rectangle(2, 1)
+	data.set_walls([HexVector.q_axis()])
+	var document = HexMapDocumentResource.new()
+	document.ensure_v2_defaults()
+
+	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
+	terrain_layer.map = HexMapResource.from_map_data(data)
+	terrain_layer.tile_assignments.append({
+		"cell": Vector3i.ZERO,
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"source_id": 0,
+		"atlas_coords": Vector2i(1, 0),
+	})
+	terrain_layer.tile_assignments.append({
+		"cell": Vector3i(1, 0, 0),
+		"kind": HexMapDocumentAdapter.KIND_WALL,
+		"source_id": 0,
+		"atlas_coords": Vector2i(0, 0),
+	})
+	document.terrain_layers.append(terrain_layer)
+
+	var overlay_layer = HexMapDocumentOverlayLayerResource.new()
+	overlay_layer.item_key = "Treasure"
+	overlay_layer.tile_assignments.append({
+		"cell": Vector3i.ZERO,
+		"source_id": 0,
+		"atlas_coords": Vector2i(1, 0),
+	})
+	document.overlay_layers.append(overlay_layer)
+
+	var placement = HexMapDocumentObjectPlacementResource.new()
+	placement.object_id = "chest"
+	placement.cell = Vector3i.ZERO
+	document.object_placements.append(placement)
+
+	var label = HexMapDocumentLabelPlacementResource.new()
+	label.label_id = "area"
+	label.cell = Vector3i.ZERO
+	label.text = "North"
+	document.label_placements.append(label)
+	return document
+
+
+func _test_resource_path(filename: String) -> String:
+	var directory = "res://.godot_user/test-runs/test_debug_scenes"
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(directory))
+	return "%s/%s" % [directory, filename]
 
 
 func _keys(points: Array) -> Array:
