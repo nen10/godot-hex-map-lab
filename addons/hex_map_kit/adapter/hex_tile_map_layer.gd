@@ -8,6 +8,7 @@ const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexOverlayTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_overlay_tile_adapter.gd")
 const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
+const HexGameplayLayerData = preload("res://addons/hex_map_kit/adapter/hex_gameplay_layer_data.gd")
 const HexGrid = preload("res://addons/hex_map_kit/core/hex_grid.gd")
 const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
@@ -727,6 +728,39 @@ func find_path(start: HexVector, goal: HexVector) -> Array:
 	var goal_normalized = HexVector.apply_basis(goal.q, goal.s, goal.r)
 	var floors = _data.floor_cells()
 	return HexGrid.shortest_path(start_normalized, [goal_normalized], floors, _data.cyclic_size)
+
+
+func gameplay_layer_data(movement_profile = null):
+	return HexGameplayLayerData.from_map_data(_data, movement_profile)
+
+
+func find_weighted_path(start: HexVector, goal: HexVector, movement_profile = null) -> Array:
+	if _data == null:
+		return []
+	var start_normalized = HexVector.apply_basis(start.q, start.s, start.r)
+	var goal_normalized = HexVector.apply_basis(goal.q, goal.s, goal.r)
+	var gameplay = gameplay_layer_data(movement_profile)
+	return HexGrid.weighted_path(
+		start_normalized,
+		[goal_normalized],
+		gameplay.passable_cells(),
+		gameplay.movement_costs(),
+		_data.cyclic_size
+	)
+
+
+func movement_range(start: HexVector, movement_budget: float, movement_profile = null) -> Dictionary:
+	if _data == null:
+		return {}
+	var start_normalized = HexVector.apply_basis(start.q, start.s, start.r)
+	var gameplay = gameplay_layer_data(movement_profile)
+	return HexGrid.movement_range(
+		start_normalized,
+		gameplay.passable_cells(),
+		movement_budget,
+		gameplay.movement_costs(),
+		_data.cyclic_size
+	)
 
 
 func draw_path(path: Array, color: Color = Color(0.12, 0.48, 0.88, 0.90)) -> void:

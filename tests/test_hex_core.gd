@@ -28,6 +28,8 @@ func _run() -> void:
 	_test_grid_l1_ring_and_disc()
 	_test_grid_shortest_path_uses_enterable_points()
 	_test_grid_toric_shortest_path_wraps_edges()
+	_test_grid_weighted_path_prefers_lower_cost_route()
+	_test_grid_movement_range_respects_budget_and_blockers()
 	_test_movement_profile_defines_defaults_costs_and_blockers()
 	_test_toric_split_rule_triangle_units()
 	_test_toric_split_rule_partitions_square_canvas()
@@ -322,6 +324,71 @@ func _test_grid_toric_shortest_path_wraps_edges() -> void:
 	)
 
 	_assert_keys_eq(path, [origin, wrapped_west], "toric shortest path follows wrapped edge")
+
+
+func _test_grid_weighted_path_prefers_lower_cost_route() -> void:
+	var origin = HexVector.zero()
+	var q1 = HexVector.q_axis()
+	var q2 = HexVector.q_axis().scaled(2)
+	var r1 = HexVector.r_axis()
+	var q1_r1 = q1.add(r1)
+	var q2_r1 = q2.add(r1)
+	var cells: Array = [origin, q1, q2, r1, q1_r1, q2_r1]
+	var movement_costs := {
+		q1.key(): 10.0,
+		q2.key(): 1.0,
+		r1.key(): 1.0,
+		q1_r1.key(): 1.0,
+		q2_r1.key(): 1.0,
+	}
+
+	_assert_keys_eq(
+		HexGrid.shortest_path(origin, [q2], cells),
+		[origin, q1, q2],
+		"unweighted shortest path keeps fewest-step behavior"
+	)
+	_assert_keys_eq(
+		HexGrid.weighted_path(origin, [q2], cells, movement_costs),
+		[origin, q1_r1, q2_r1, q2],
+		"weighted path prefers lower total movement cost over fewer steps"
+	)
+
+
+func _test_grid_movement_range_respects_budget_and_blockers() -> void:
+	var origin = HexVector.zero()
+	var q1 = HexVector.q_axis()
+	var q2 = HexVector.q_axis().scaled(2)
+	var r1 = HexVector.r_axis()
+	var q1_r1 = q1.add(r1)
+	var q2_r1 = q2.add(r1)
+	var cells: Array = [origin, q1, q2, r1, q1_r1, q2_r1]
+	var movement_costs := {
+		q1.key(): 10.0,
+		q2.key(): 1.0,
+		r1.key(): 1.0,
+		q1_r1.key(): 1.0,
+		q2_r1.key(): 1.0,
+	}
+	var range_result = HexGrid.movement_range(origin, cells, 2.0, movement_costs)
+
+	_assert_true(range_result.has(origin.key()), "movement range includes start at zero cost")
+	_assert_eq(float(range_result[origin.key()]["cost"]), 0.0, "start movement cost is zero")
+	_assert_true(range_result.has(r1.key()), "movement range includes affordable first step")
+	_assert_true(range_result.has(q1_r1.key()), "movement range includes affordable accumulated second step")
+	_assert_true(range_result.has(q2_r1.key()), "movement range includes lower-cost route within budget")
+	_assert_false(range_result.has(q1.key()), "movement range excludes high-cost neighbor above budget")
+	_assert_false(range_result.has(q2.key()), "movement range excludes destination above budget")
+
+	_assert_eq(
+		HexGrid.weighted_path(origin, [q2], [origin, q2], movement_costs).size(),
+		0,
+		"weighted path fails when blocked cells disconnect enterable points"
+	)
+	_assert_eq(
+		HexGrid.movement_range(origin, [q1, q2], 4.0, movement_costs).size(),
+		0,
+		"movement range is empty when the start is not enterable"
+	)
 
 
 func _test_movement_profile_defines_defaults_costs_and_blockers() -> void:

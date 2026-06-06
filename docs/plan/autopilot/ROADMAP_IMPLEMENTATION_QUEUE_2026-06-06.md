@@ -108,10 +108,10 @@ Goal: movement cost / blocker / reachability / range preview を game-facing API
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
 | `GAME-01` | `COMPLETE` | `LD2-04`, `VAL-01` | `docs/plan/2026-06-06_GAME-01_MOVEMENT_PROFILE_RESOURCE/` | `HexMovementProfileResource` and gameplay layer data | new resource/core files, `tests/test_hex_core.gd`, `tests/test_hex_adapter.gd` | Movement profile defines passability, costs, blocker keys, default behavior. |
-| `GAME-02` | `READY` | `GAME-01` | `docs/plan/2026-06-06_GAME-02_WEIGHTED_PATH_AND_RANGE/` | Weighted pathfinding and movement range API | `hex_grid.gd` or helper, `hex_tile_map_layer.gd`, tests | Weighted path, blocked cells, profile-specific range, existing unweighted path compatibility. |
-| `GAME-03` | `BACKLOG` | `GAME-02`, `VAL-02` | `docs/plan/2026-06-06_GAME-03_DEBUG_OVERLAY/` | Movement/range/debug overlay | `hex_tile_map_layer.gd`, editor/debug scene files, `tests/test_hex_tile_map_layer.gd`, `tests/test_debug_scenes.gd` | Debug overlay can show reachable cells/cost heat data in headless-checkable state. |
-| `GAME-04` | `BACKLOG` | `GAME-02`, `VAL-01` | `docs/plan/2026-06-06_GAME-04_PROFILE_REACHABILITY_VALIDATION/` | Profile-specific reachability validation | validation helpers/tests | Important points mutually reachable per movement profile; validation reports profile id. |
-| `GAME-05` | `BACKLOG` | `GAME-02`, `LD2-06` | `docs/plan/2026-06-06_GAME-05_RUNTIME_QUERY_SAMPLE/` | Runtime query API sample | `examples/basic_runtime` or debug scene, docs/manual | Runtime script can load document and ask movement/path/range queries. |
+| `GAME-02` | `COMPLETE` | `GAME-01` | `docs/plan/2026-06-06_GAME-02_WEIGHTED_PATH_AND_RANGE/` | Weighted pathfinding and movement range API | `hex_grid.gd` or helper, `hex_tile_map_layer.gd`, tests | Weighted path, blocked cells, profile-specific range, existing unweighted path compatibility. |
+| `GAME-03` | `READY` | `GAME-02`, `VAL-02` | `docs/plan/2026-06-06_GAME-03_DEBUG_OVERLAY/` | Movement/range/debug overlay | `hex_tile_map_layer.gd`, editor/debug scene files, `tests/test_hex_tile_map_layer.gd`, `tests/test_debug_scenes.gd` | Debug overlay can show reachable cells/cost heat data in headless-checkable state. |
+| `GAME-04` | `READY` | `GAME-02`, `VAL-01` | `docs/plan/2026-06-06_GAME-04_PROFILE_REACHABILITY_VALIDATION/` | Profile-specific reachability validation | validation helpers/tests | Important points mutually reachable per movement profile; validation reports profile id. |
+| `GAME-05` | `READY` | `GAME-02`, `LD2-06` | `docs/plan/2026-06-06_GAME-05_RUNTIME_QUERY_SAMPLE/` | Runtime query API sample | `examples/basic_runtime` or debug scene, docs/manual | Runtime script can load document and ask movement/path/range queries. |
 
 ---
 
@@ -198,11 +198,11 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `GAME-02` is READY.
+Current recommended next task: `GAME-03` is READY.
 
 Reason:
 
-- Dependency sweep completed on 2026-06-07 after GAME-01 completion.
+- Dependency sweep completed on 2026-06-07 after GAME-02 completion.
 - `CAT-01` is `COMPLETE`.
 - `CAT-02` is `COMPLETE`.
 - `CAT-03` is `COMPLETE`.
@@ -215,7 +215,10 @@ Reason:
 - `VAL-03` is `COMPLETE`.
 - `VAL-04` is `COMPLETE`.
 - `GAME-01` is `COMPLETE`.
-- `GAME-02` is now the first READY task by queue order because `GAME-01` is `COMPLETE`.
+- `GAME-02` is `COMPLETE`.
+- `GAME-03` is now the first READY task by queue order because `GAME-02` and `VAL-02` are `COMPLETE`.
+- `GAME-04` is also `READY` because `GAME-02` and `VAL-01` are `COMPLETE`.
+- `GAME-05` is also `READY` because `GAME-02` and `LD2-06` are `COMPLETE`.
 - `QA-01` is also `READY` because its dependencies are complete.
 - `OBJ-01` is also `READY` because `LD2-01` and `CAT-01` are `COMPLETE`.
 - `ARCH-02` is also `READY` because `ARCH-01` and `CATUI-01` are `COMPLETE`.
@@ -812,4 +815,33 @@ Notes:
 - Added saveable `HexMovementProfileResource`.
 - Added `HexGameplayLayerData` extraction from maps/documents/catalogs/object placements.
 - `GAME-02` was promoted after dependency sweep.
+- `repair-now`: none.
+
+### GAME-02
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot
+plan: `docs/plan/2026-06-06_GAME-02_WEIGHTED_PATH_AND_RANGE/`
+review: `docs/review/autopilot/GAME-02_SELF_REVIEW_2026-06-07.md`
+test result: `docs/review/autopilot/GAME-02_TEST_RESULT_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+- docs:
+  - `docs/TEST.md`
+- major files:
+  - `addons/hex_map_kit/core/hex_grid.gd`
+  - `addons/hex_map_kit/adapter/hex_gameplay_layer_data.gd`
+  - `addons/hex_map_kit/adapter/hex_tile_map_layer.gd`
+  - `tests/test_hex_core.gd`
+  - `tests/test_hex_tile_map_layer.gd`
+
+Notes:
+
+- Added weighted Dijkstra path helpers with cost-to-enter movement semantics.
+- Added movement range results keyed by cell with accumulated cost and display cell data.
+- Added `HexTileMapLayer` gameplay query wrappers for profile-specific weighted path and movement range.
+- `GAME-03`, `GAME-04`, and `GAME-05` were promoted after dependency sweep.
 - `repair-now`: none.

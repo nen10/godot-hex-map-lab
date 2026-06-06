@@ -84,6 +84,18 @@ func passable_cells() -> Array:
 	return result
 
 
+func movement_costs() -> Dictionary:
+	var result := {}
+	for key in cell_states:
+		var state = cell_states[key]
+		if not (state is Dictionary):
+			continue
+		if not bool(state.get("passable", false)):
+			continue
+		result[key] = float(state.get("cost", 1.0))
+	return result
+
+
 static func _profile_from_value(value):
 	if value == null:
 		return HexMovementProfileResourceScript.new()

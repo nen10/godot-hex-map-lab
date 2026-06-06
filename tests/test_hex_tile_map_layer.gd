@@ -13,6 +13,7 @@ const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexLayerStackEntryResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_entry_resource.gd")
 const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
+const HexMovementProfileResource = preload("res://addons/hex_map_kit/adapter/hex_movement_profile_resource.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 
 class RuntimeSignalRecorder:
@@ -56,6 +57,7 @@ func _run() -> void:
 	await _test_apply_map_uses_resource_orientation()
 	await _test_coordinate_roundtrips()
 	await _test_path_highlight_and_connectivity_helpers()
+	await _test_weighted_path_and_range_use_movement_profile()
 	await _test_remove_highlight_removes_single_cell()
 	await _test_runtime_input_signals_use_cell_hit()
 	await _test_local_to_cell_hit_wraps_toric_visual_cell()
@@ -635,6 +637,44 @@ func _test_path_highlight_and_connectivity_helpers() -> void:
 	_assert_eq(layer._display_path.size(), 4, "draw_path stores display path")
 	layer.clear_path()
 	_assert_eq(layer._display_path.size(), 0, "clear_path clears display path")
+
+	layer.queue_free()
+	await process_frame
+
+
+func _test_weighted_path_and_range_use_movement_profile() -> void:
+	var data = HexMapData.rectangle(3, 1)
+	var wall = HexVector.q_axis()
+	var goal = HexVector.q_axis().scaled(2)
+	data.set_walls([wall])
+
+	var layer = HexTileMapLayer.new()
+	root.add_child(layer)
+	await process_frame
+	layer.apply_map(HexMapResource.from_map_data(data))
+
+	_assert_eq(
+		layer.find_weighted_path(HexVector.zero(), goal).size(),
+		0,
+		"weighted layer path excludes default blocked walls"
+	)
+	var default_range = layer.movement_range(HexVector.zero(), 2.0)
+	_assert_true(default_range.has(HexVector.zero().key()), "default movement range includes start")
+	_assert_true(not default_range.has(wall.key()), "default movement range excludes wall blocker")
+	_assert_true(not default_range.has(goal.key()), "default movement range excludes cells behind wall blocker")
+
+	var wall_profile = HexMovementProfileResource.new()
+	wall_profile.wall_passable = true
+	wall_profile.wall_cost = 1.0
+	_assert_keys_eq(
+		layer.find_weighted_path(HexVector.zero(), goal, wall_profile),
+		[HexVector.zero(), wall, goal],
+		"weighted layer path uses profile-specific passable walls"
+	)
+	var passable_wall_range = layer.movement_range(HexVector.zero(), 2.0, wall_profile)
+	_assert_true(passable_wall_range.has(wall.key()), "profile movement range includes passable wall")
+	_assert_true(passable_wall_range.has(goal.key()), "profile movement range reaches cells behind passable wall")
+	_assert_eq(float(passable_wall_range[goal.key()]["cost"]), 2.0, "profile movement range records accumulated cost")
 
 	layer.queue_free()
 	await process_frame
