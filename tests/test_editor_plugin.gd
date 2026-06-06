@@ -95,6 +95,7 @@ func _run() -> void:
 	await _test_map_edit_tool_target_atlas_settings_use_target_tileset()
 	await _test_map_edit_tool_catalog_selectors_drive_defaults_and_payloads()
 	await _test_map_edit_tool_reports_catalog_fallback_warnings()
+	await _test_map_edit_tool_validation_dashboard_groups_and_focuses_cell_issue()
 	await _test_map_edit_tool_target_status_reports_tileset_and_overlay_payload()
 	await _test_map_edit_tool_last_edit_trace_distinguishes_document_and_redraw()
 	await _test_map_edit_tool_last_edit_trace_reports_target_apply_failure()
@@ -219,6 +220,8 @@ func _test_map_edit_tool_builds_dock_controls() -> void:
 	_assert_true(tool._import_map_button != null, "map edit tool exposes HexMapResource import button")
 	_assert_true(tool._export_button != null, "map edit tool exposes map export button")
 	_assert_true(tool._export_save_as_button != null, "map edit tool exposes map export save-as button")
+	_assert_true(tool._validation_dashboard != null, "map edit tool exposes validation dashboard")
+	_assert_true(tool._validation_dashboard._validate_button != null, "validation dashboard exposes Validate button")
 	_assert_true(tool._copy_debug_report_button != null, "map edit tool exposes debug report copy button")
 	_assert_eq(tool._mode_option.item_count, HexMapEditTool.EDIT_MODE_NAMES.size(), "map edit tool lists edit modes")
 	_assert_true(tool._object_properties_edit != null, "map edit tool exposes object properties payload control")
@@ -1032,6 +1035,54 @@ func _test_map_edit_tool_reports_catalog_fallback_warnings() -> void:
 	_assert_true(report.contains("catalog.entry_key_missing"), "debug report includes catalog warning rule id")
 
 	layer.queue_free()
+	tool.queue_free()
+	await process_frame
+
+
+func _test_map_edit_tool_validation_dashboard_groups_and_focuses_cell_issue() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	data.set_walls([HexVector.q_axis()])
+	var document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(data))
+	HexMapDocumentAdapter.set_label(document, HexVector.apply_basis(4, 0, 0), {
+		"label_id": "outside",
+		"text": "Outside",
+	})
+	HexMapDocumentAdapter.set_object(document, HexVector.q_axis(), {"object_id": "chest"})
+	var hex_layer = HexTileMapLayer.new()
+	hex_layer.name = "ValidationLayer"
+	root.add_child(hex_layer)
+	await process_frame
+	hex_layer.apply_map(document.map)
+
+	var tool = await _new_ready_edit_tool()
+	tool.set_document(document)
+	tool.set_target_layer(hex_layer)
+	tool._validation_dashboard._validate_button.pressed.emit()
+
+	var summary = tool.validation_dashboard_summary()
+	_assert_true(int(summary.get("errors", 0)) >= 2, "validation dashboard reports error count")
+	_assert_true(int(summary.get("groups", 0)) >= 2, "validation dashboard groups validation rows")
+	var rows = tool._validation_dashboard.issue_rows()
+	_assert_true(rows.size() >= 2, "validation dashboard exposes issue rows")
+	_assert_true(String(rows[0].get("group_key", "")).contains("/"), "validation issue row stores grouped key")
+	_assert_true(tool._validation_dashboard._summary_label.text.contains("errors="), "validation summary label includes error count")
+
+	var wall_issue_index := -1
+	for index in range(rows.size()):
+		if String(rows[index].get("rule_id", "")) == "document.object_on_wall":
+			wall_issue_index = index
+			break
+	_assert_true(wall_issue_index >= 0, "validation dashboard lists object-on-wall issue")
+	_assert_true(tool.select_validation_issue(wall_issue_index), "validation dashboard selects a cell-scoped issue")
+	var selected = tool.selected_validation_issue()
+	var focus = tool.validation_focus_status()
+	_assert_eq(selected.get("rule_id", ""), "document.object_on_wall", "selected validation issue records rule id")
+	_assert_eq(focus.get("cell", Vector3i.ZERO), Vector3i(1, 0, 0), "validation issue focus records selected cell")
+	_assert_eq(focus.get("cell_key", ""), HexVector.q_axis().key(), "validation issue focus records cell key")
+	_assert_eq(bool(focus.get("focused", false)), true, "validation issue focus marks existing cell focused")
+	_assert_true(hex_layer._highlights.has(HexVector.q_axis().key()), "cell-scoped validation issue highlights HexTileMapLayer target")
+
+	hex_layer.queue_free()
 	tool.queue_free()
 	await process_frame
 

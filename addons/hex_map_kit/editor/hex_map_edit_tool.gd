@@ -4,10 +4,12 @@ extends Control
 
 const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
 const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
+const HexMapDocumentValidator = preload("res://addons/hex_map_kit/adapter/hex_map_document_validator.gd")
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
 const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
+const HexMapValidationDashboard = preload("res://addons/hex_map_kit/editor/hex_map_validation_dashboard.gd")
 const HexTileCatalogResource = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
@@ -97,6 +99,9 @@ var _last_edit_hit: Dictionary = {}
 var _last_edit_status: Dictionary = {}
 var _target_status_detail: Dictionary = {}
 var _last_persistence_status: Dictionary = {}
+var _last_validation_result = null
+var _selected_validation_issue: Dictionary = {}
+var _validation_focus_status: Dictionary = {}
 var _pending_viewport_trace: Dictionary = {}
 var _last_highlight_hex = null
 var _plain_target_tile_options: Dictionary = {}
@@ -165,6 +170,7 @@ var _status_label: Label
 var _target_status_label: Label
 var _last_edit_detail_label: Label
 var _persistence_detail_label: Label
+var _validation_dashboard: HexMapValidationDashboard
 var _copy_debug_report_button: Button
 var _last_copied_debug_report := ""
 var _editor_session_state: HexMapEditorSessionState = null
@@ -345,6 +351,45 @@ func target_readiness_status() -> Dictionary:
 
 func persistence_status() -> Dictionary:
 	return _last_persistence_status.duplicate(true)
+
+
+func validation_dashboard_summary() -> Dictionary:
+	if _validation_dashboard == null:
+		return {}
+	return _validation_dashboard.validation_summary()
+
+
+func selected_validation_issue() -> Dictionary:
+	return _selected_validation_issue.duplicate(true)
+
+
+func validation_focus_status() -> Dictionary:
+	return _validation_focus_status.duplicate(true)
+
+
+func select_validation_issue(index: int) -> bool:
+	if _validation_dashboard == null:
+		return false
+	return _validation_dashboard.select_issue(index)
+
+
+func validate_document_now() -> bool:
+	_sync_document_snapshot_from_hex_target()
+	if _document == null:
+		_last_validation_result = null
+		_selected_validation_issue.clear()
+		_validation_focus_status.clear()
+		if _validation_dashboard != null:
+			_validation_dashboard.clear_result("No document selected.")
+		_set_status("No document selected.")
+		return false
+	_last_validation_result = HexMapDocumentValidator.validate_document(_document, _validation_options())
+	_selected_validation_issue.clear()
+	_validation_focus_status.clear()
+	if _validation_dashboard != null:
+		_validation_dashboard.set_validation_result(_last_validation_result)
+	_set_status("Validation complete: %d issue(s)." % _last_validation_result.issue_count())
+	return true
 
 
 func set_object_database(database: Resource) -> void:
@@ -909,6 +954,10 @@ func _build_ui() -> void:
 	root.add_child(_wrap_labeled("Last Edit", _last_edit_detail_label))
 	_persistence_detail_label = _new_detail_label()
 	root.add_child(_wrap_labeled("Save / Export", _persistence_detail_label))
+	_validation_dashboard = HexMapValidationDashboard.new()
+	_validation_dashboard.validate_requested.connect(_on_validate_document_pressed)
+	_validation_dashboard.issue_selected.connect(_on_validation_issue_selected)
+	root.add_child(_validation_dashboard)
 	_copy_debug_report_button = Button.new()
 	_copy_debug_report_button.text = "Copy Debug Report"
 	_copy_debug_report_button.pressed.connect(_on_copy_debug_report_pressed)
@@ -1680,6 +1729,18 @@ func _on_copy_debug_report_pressed() -> void:
 		_set_status("Copied debug report.")
 	else:
 		_set_status("Debug report is empty.")
+
+
+func _on_validate_document_pressed() -> void:
+	validate_document_now()
+
+
+func _on_validation_issue_selected(issue: Dictionary, _index: int) -> void:
+	_selected_validation_issue = issue.duplicate(true)
+	if _focus_validation_issue(issue):
+		_set_status("Selected validation issue: %s" % String(issue.get("rule_id", "")))
+	else:
+		_set_status("Selected validation issue.")
 
 
 func copy_debug_report_to_clipboard() -> bool:
@@ -2515,6 +2576,61 @@ func _catalog_compatibility_warnings_for_status() -> Array[Dictionary]:
 	)
 
 
+func _validation_options() -> Dictionary:
+	var options := {}
+	if _tile_catalog != null:
+		options["tile_catalog"] = _tile_catalog
+	var tile_set = _target_tile_set_for_validation()
+	if tile_set != null:
+		options["tile_set"] = tile_set
+	return options
+
+
+func _target_tile_set_for_validation():
+	_target_layer = _resolve_target_layer()
+	if _target_layer == null or not is_instance_valid(_target_layer):
+		return null
+	if _target_layer is HexTileMapLayer:
+		return (_target_layer as HexTileMapLayer).display_tile_set()
+	if _target_layer is TileMapLayer:
+		return (_target_layer as TileMapLayer).tile_set
+	return null
+
+
+func _focus_validation_issue(issue: Dictionary) -> bool:
+	var hex = _validation_issue_hex(issue)
+	_validation_focus_status = {
+		"rule_id": String(issue.get("rule_id", "")),
+		"scope": String(issue.get("scope", "")),
+		"cell": issue.get("cell", Vector3i.ZERO),
+		"cell_key": hex.key() if hex != null else "",
+		"focused": false,
+		"target_path": _target_path_string(),
+	}
+	if hex == null:
+		return false
+	_last_edit_hit = {
+		"hex": hex,
+		"visual_hex": hex,
+		"local": Vector2.ZERO,
+		"exists": _document_has_cell(_document, hex),
+		"validation_rule_id": String(issue.get("rule_id", "")),
+	}
+	_validation_focus_status["focused"] = bool(_last_edit_hit.get("exists", false))
+	_refresh_last_hit_display()
+	return bool(_validation_focus_status.get("focused", false))
+
+
+func _validation_issue_hex(issue: Dictionary):
+	var scope = String(issue.get("scope", ""))
+	if scope != "cell" and scope != "object":
+		return null
+	var cell = issue.get("cell", null)
+	if not cell is Vector3i:
+		return null
+	return HexVector.apply_basis(cell.x, cell.y, cell.z)
+
+
 func _format_target_status_detail(status: Dictionary) -> String:
 	if status.is_empty():
 		return "none"
@@ -2918,6 +3034,8 @@ func _refresh_action_button_states() -> void:
 	_set_button_enabled(_select_display_layer_button, hex_target, "No HexTileMapLayer target.")
 	_set_button_enabled(_default_tile_read_button, target_valid, "No editable target layer.")
 	_set_button_enabled(_default_tile_apply_button, target_valid, "No editable target layer.")
+	if _validation_dashboard != null:
+		_validation_dashboard.set_validate_enabled(document_present, "No document selected.")
 
 
 func _set_button_enabled(button: Button, enabled: bool, reason: String) -> void:
