@@ -15,10 +15,14 @@ const HexMapDocumentOverlayLayerResource = preload("res://addons/hex_map_kit/ada
 const HexMapDocumentTerrainLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_terrain_layer_resource.gd")
 const HexMovementProfileResource = preload("res://addons/hex_map_kit/adapter/hex_movement_profile_resource.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
+const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
 const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
 const HexObjectDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_object_definition_resource.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 const HexRuntimeQuerySample = preload("res://examples/basic_runtime/runtime_query_sample.gd")
+const HexRuntimeQueryExampleScene = preload("res://examples/basic_runtime/runtime_query_example.tscn")
+const HexEditorWorkflowExample = preload("res://examples/editor_workflow/editor_workflow_example.gd")
+const HexEditorWorkflowExampleScene = preload("res://examples/editor_workflow/editor_workflow_example.tscn")
 
 var _failures: Array[String] = []
 
@@ -422,6 +426,50 @@ func _run() -> void:
 		not runtime_export_document.object_placements[0].properties.has("runtime_only"),
 		"runtime object export does not mutate authoring properties"
 	)
+
+	for example_path in HexEditorWorkflowExample.loadable_example_paths():
+		_assert_true(ResourceLoader.exists(example_path), "PKG-01 example path exists: %s" % example_path)
+		_assert_true(
+			ResourceLoader.load(example_path, "", ResourceLoader.CACHE_MODE_IGNORE) != null,
+			"PKG-01 example path loads: %s" % example_path
+		)
+	for source_path in [
+		"res://examples/basic_runtime/runtime_query_sample.gd",
+		"res://examples/basic_runtime/runtime_query_example.gd",
+		"res://examples/editor_workflow/editor_workflow_example.gd",
+	]:
+		var source = FileAccess.get_file_as_string(source_path)
+		_assert_true(source.find("res://addons/hex_map_kit/editor/") == -1, "PKG-01 example avoids editor preloads: %s" % source_path)
+
+	var runtime_example = HexRuntimeQueryExampleScene.instantiate()
+	root.add_child(runtime_example)
+	await process_frame
+	var runtime_example_result = runtime_example.run_example(document_path)
+	_assert_true(runtime_example_result["loaded"], "PKG-01 runtime example scene loads saved v2 document")
+	_assert_eq(runtime_example_result["profile_id"], "runtime-example", "PKG-01 runtime example scene uses runtime profile")
+	_assert_eq(runtime_example_result["path_count"], 2, "PKG-01 runtime example scene returns weighted path")
+	runtime_example.queue_free()
+
+	var workflow_document = HexEditorWorkflowExample.build_authoring_document()
+	var workflow_summary = HexEditorWorkflowExample.workflow_summary(workflow_document)
+	_assert_eq(workflow_summary["summary"]["version"], HexMapDocumentResource.VERSION_V2, "PKG-01 editor workflow sample builds v2 document")
+	_assert_eq(workflow_summary["summary"]["cells"], 6, "PKG-01 editor workflow sample reports cells")
+	_assert_eq(workflow_summary["summary"]["objects"], 1, "PKG-01 editor workflow sample reports object placement")
+	_assert_true(
+		(workflow_summary["layer_roles"] as Array).has(HexLayerStackResource.ROLE_TERRAIN),
+		"PKG-01 editor workflow sample includes terrain layer role"
+	)
+	_assert_true(
+		(workflow_summary["dependency_paths"] as Array).has(HexEditorWorkflowExample.SAMPLE_CATALOG_PATH),
+		"PKG-01 editor workflow sample records catalog dependency"
+	)
+
+	var workflow_scene = HexEditorWorkflowExampleScene.instantiate()
+	root.add_child(workflow_scene)
+	await process_frame
+	_assert_eq(workflow_scene.last_summary["summary"]["version"], HexMapDocumentResource.VERSION_V2, "PKG-01 editor workflow scene initializes summary")
+	_assert_true(workflow_scene.sample_document != null, "PKG-01 editor workflow scene builds sample document")
+	workflow_scene.queue_free()
 
 	scene.queue_free()
 	await process_frame

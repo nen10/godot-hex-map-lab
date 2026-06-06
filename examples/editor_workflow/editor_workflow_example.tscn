@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://examples/editor_workflow/editor_workflow_example.gd" id="1_editor_workflow_example"]
+
+[node name="EditorWorkflowExample" type="Node"]
+script = ExtResource("1_editor_workflow_example")
+
