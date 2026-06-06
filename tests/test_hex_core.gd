@@ -6,6 +6,7 @@ const HexToricCoordinate = preload("res://addons/hex_map_kit/core/hex_toric_coor
 const HexToricMapSplitRule = preload("res://addons/hex_map_kit/core/hex_toric_map_split_rule.gd")
 const HexGrid = preload("res://addons/hex_map_kit/core/hex_grid.gd")
 const HexDisjointSet = preload("res://addons/hex_map_kit/core/hex_disjoint_set.gd")
+const HexMovementProfile = preload("res://addons/hex_map_kit/core/hex_movement_profile.gd")
 
 var _failures: Array[String] = []
 
@@ -27,6 +28,7 @@ func _run() -> void:
 	_test_grid_l1_ring_and_disc()
 	_test_grid_shortest_path_uses_enterable_points()
 	_test_grid_toric_shortest_path_wraps_edges()
+	_test_movement_profile_defines_defaults_costs_and_blockers()
 	_test_toric_split_rule_triangle_units()
 	_test_toric_split_rule_partitions_square_canvas()
 	_test_toric_split_rule_rough_tags()
@@ -320,6 +322,38 @@ func _test_grid_toric_shortest_path_wraps_edges() -> void:
 	)
 
 	_assert_keys_eq(path, [origin, wrapped_west], "toric shortest path follows wrapped edge")
+
+
+func _test_movement_profile_defines_defaults_costs_and_blockers() -> void:
+	var profile = HexMovementProfile.new()
+	var floor_state = profile.cell_state(HexMovementProfile.KIND_FLOOR)
+	var wall_state = profile.cell_state(HexMovementProfile.KIND_WALL)
+	_assert_eq(bool(floor_state["passable"]), true, "movement profile default floor is passable")
+	_assert_eq(float(floor_state["cost"]), 1.0, "movement profile default floor cost is 1")
+	_assert_eq(bool(wall_state["passable"]), false, "movement profile default wall is blocked")
+	_assert_eq((wall_state["blockers"] as PackedStringArray).has(HexMovementProfile.BLOCKER_WALL), true, "movement profile records wall blocker")
+
+	profile.default_cost = 1.5
+	profile.wall_passable = true
+	profile.wall_cost = 4.0
+	profile.terrain_costs = {
+		"terrain.swamp": 3.0,
+		"mud": 2.0,
+	}
+	profile.blocker_keys = PackedStringArray(["terrain.lava"])
+	profile.blocker_tags = PackedStringArray(["blocking"])
+	var swamp_state = profile.cell_state(HexMovementProfile.KIND_FLOOR, "terrain.swamp")
+	var mud_state = profile.cell_state(HexMovementProfile.KIND_FLOOR, "", PackedStringArray(["mud"]))
+	var lava_state = profile.cell_state(HexMovementProfile.KIND_FLOOR, "terrain.lava")
+	var tag_blocked_state = profile.cell_state(HexMovementProfile.KIND_FLOOR, "terrain.crate", PackedStringArray(["blocking"]))
+	var passable_wall_state = profile.cell_state(HexMovementProfile.KIND_WALL)
+	_assert_eq(float(swamp_state["cost"]), 3.0, "movement profile uses catalog-key cost override")
+	_assert_eq(float(mud_state["cost"]), 2.0, "movement profile uses tag cost override")
+	_assert_eq(bool(lava_state["passable"]), false, "movement profile blocks configured catalog key")
+	_assert_eq((lava_state["blockers"] as PackedStringArray).has("terrain.lava"), true, "movement profile records catalog blocker")
+	_assert_eq(bool(tag_blocked_state["passable"]), false, "movement profile blocks configured tag")
+	_assert_eq(bool(passable_wall_state["passable"]), true, "movement profile can allow walls")
+	_assert_eq(float(passable_wall_state["cost"]), 4.0, "movement profile uses passable wall cost")
 
 
 func _test_toric_split_rule_triangle_units() -> void:

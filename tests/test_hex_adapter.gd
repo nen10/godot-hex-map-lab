@@ -16,6 +16,8 @@ const HexMapDocumentTerrainLayerResource = preload("res://addons/hex_map_kit/ada
 const HexMapDocumentZoneResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_zone_resource.gd")
 const HexMapValidationResult = preload("res://addons/hex_map_kit/adapter/hex_map_validation_result.gd")
 const HexMapDocumentValidator = preload("res://addons/hex_map_kit/adapter/hex_map_document_validator.gd")
+const HexMovementProfileResource = preload("res://addons/hex_map_kit/adapter/hex_movement_profile_resource.gd")
+const HexGameplayLayerData = preload("res://addons/hex_map_kit/adapter/hex_gameplay_layer_data.gd")
 const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
 const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
 const HexTileCatalogEntry = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd")
@@ -63,6 +65,8 @@ func _run() -> void:
 	_test_hex_map_validation_result_serializes_summary_and_warnings()
 	_test_hex_map_document_validator_reports_core_rules()
 	_test_hex_map_document_validator_rule_matrix()
+	_test_hex_movement_profile_resource_roundtrips_gameplay_defaults()
+	_test_hex_gameplay_layer_data_uses_profile_catalog_and_objects()
 	_test_hex_map_document_adapter_roundtrips_v2_payload_entries()
 	_test_hex_map_document_adapter_cleans_v2_payloads_for_deleted_cell()
 	_test_hex_map_document_adapter_updates_wall_floor()
@@ -965,6 +969,83 @@ func _catalog_with_atlas_entry(key: String, source_id: int, atlas_coords: Vector
 	entry.atlas_coords = atlas_coords
 	catalog.add_entry(entry)
 	return catalog
+
+
+func _test_hex_movement_profile_resource_roundtrips_gameplay_defaults() -> void:
+	var profile = HexMovementProfileResource.new()
+	profile.profile_id = "tactics"
+	profile.display_name = "Tactics"
+	profile.default_cost = 1.25
+	profile.wall_passable = true
+	profile.wall_cost = 5.0
+	profile.terrain_costs = {"terrain.road": 0.5}
+	profile.blocker_keys = PackedStringArray(["object.crate"])
+	profile.blocker_tags = PackedStringArray(["blocking"])
+	var path = _test_resource_path("test_hex_movement_profile.tres")
+	var error = ResourceSaver.save(profile, path)
+	var loaded = load(path) as HexMovementProfileResource
+
+	_assert_eq(error, OK, "movement profile resource saves")
+	_assert_eq(loaded.profile_id, "tactics", "movement profile resource preserves id")
+	_assert_eq(loaded.display_name, "Tactics", "movement profile resource preserves display name")
+	_assert_eq(float(loaded.default_cost), 1.25, "movement profile resource preserves default cost")
+	_assert_eq(float(loaded.cell_state("terrain", "terrain.road")["cost"]), 0.5, "movement profile resource resolves catalog cost")
+	_assert_eq(bool(loaded.cell_state("wall")["passable"]), true, "movement profile resource preserves passable wall default")
+	_assert_eq(
+		bool(loaded.cell_state("floor", "object.crate")["passable"]),
+		false,
+		"movement profile resource preserves blocker keys"
+	)
+
+
+func _test_hex_gameplay_layer_data_uses_profile_catalog_and_objects() -> void:
+	var data = HexMapData.rectangle(3, 1)
+	data.set_walls([HexVector.q_axis()])
+	var document = HexMapDocumentResource.new()
+	document.ensure_v2_defaults()
+	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
+	terrain_layer.map = HexMapResource.from_map_data(data)
+	terrain_layer.tile_assignments.append({
+		"cell": Vector3i.ZERO,
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"catalog_key": "terrain.road",
+		"source_id": 0,
+		"atlas_coords": Vector2i.ZERO,
+	})
+	terrain_layer.tile_assignments.append({
+		"cell": Vector3i(2, 0, 0),
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"catalog_key": "terrain.water",
+		"source_id": 0,
+		"atlas_coords": Vector2i.ZERO,
+	})
+	document.terrain_layers.append(terrain_layer)
+	HexMapDocumentAdapter.set_object(document, HexVector.zero(), {"object_id": "object.crate"})
+	var catalog = HexTileCatalogResource.new()
+	catalog.add_entry(_test_catalog_entry("terrain.road", 0, Vector2i.ZERO, ["road", "cost:2"]))
+	catalog.add_entry(_test_catalog_entry("terrain.water", 0, Vector2i.ZERO, ["blocking"]))
+
+	var profile = HexMovementProfileResource.new()
+	profile.default_cost = 1.0
+	profile.blocker_keys = PackedStringArray(["object.crate"])
+	profile.blocker_tags = PackedStringArray(["blocking"])
+	var gameplay = HexGameplayLayerData.from_document(document, profile, catalog)
+	var map_gameplay = HexGameplayLayerData.from_map_data(data, profile)
+
+	_assert_eq(map_gameplay.has_cell(HexVector.q_axis()), true, "gameplay layer data includes map wall cell")
+	_assert_eq(map_gameplay.is_passable(HexVector.q_axis()), false, "gameplay layer data blocks map walls by default")
+	_assert_eq(gameplay.has_cell(HexVector.zero()), true, "gameplay layer data includes document floor cell")
+	_assert_eq(gameplay.is_passable(HexVector.zero()), false, "gameplay layer data applies object blocker key")
+	_assert_eq(gameplay.blocker_keys(HexVector.zero()).has("object.crate"), true, "gameplay layer data records object blocker")
+	_assert_eq(float(gameplay.movement_cost(HexVector.zero())), 2.0, "gameplay layer data applies catalog cost tag")
+	_assert_eq(gameplay.is_passable(HexVector.q_axis()), false, "gameplay layer data keeps wall blocked")
+	_assert_eq(gameplay.blocker_keys(HexVector.q_axis()).has("wall"), true, "gameplay layer data records wall blocker")
+	_assert_eq(gameplay.is_passable(HexVector.q_axis().scaled(2)), false, "gameplay layer data applies blocking catalog tag")
+	_assert_eq(
+		gameplay.blocker_keys(HexVector.q_axis().scaled(2)).has("blocking"),
+		true,
+		"gameplay layer data records catalog tag blocker"
+	)
 
 
 func _test_hex_map_document_adapter_roundtrips_v2_payload_entries() -> void:
