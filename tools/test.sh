@@ -23,6 +23,8 @@ LOG_DIR="$ROOT_DIR/.godot_user/test-runs/$RUN_ID/logs"
 mkdir -p "$LOG_DIR"
 TEST_JOBS="${TEST_JOBS:-1}"
 
+"$ROOT_DIR/tools/package_addon.sh" --check
+
 TEST_SCRIPTS=(
   "res://tests/test_hex_core.gd"
   "res://tests/test_hex_map_generation.gd"

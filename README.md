@@ -31,6 +31,8 @@ Hex 座標系・ランダム壁生成・通路生成(連結性回復)処理を G
 - `docs/manual/MANUAL_WORKFLOW.md`
 - `docs/manual/MANUAL_SCRIPTING.md`
 - `docs/manual/MANUAL_EDITOR_PLUGIN.md`
+- `docs/manual/MANUAL_PACKAGE.md`
+- `docs/manual/MIGRATION_V0_2_TO_V0_3.md`
 - `docs/api/API_REFERENCE.md`
 
 Examples:
@@ -49,6 +51,8 @@ Examples:
 ./tools/test.sh
 ```
 
+`tools/test.sh` also runs the addon package manifest check.
+
 複数 test script を並列実行する場合:
 
 ```sh
@@ -62,6 +66,16 @@ GODOT_BIN=/path/to/Godot ./tools/test.sh
 ```
 
 テスト対象と手動 debug 実行は `docs/TEST.md` を参照してください。
+
+## Package
+
+Addon-only package artifact:
+
+```sh
+./tools/package_addon.sh
+```
+
+This writes `dist/hex_map_kit-<version>.zip` and `dist/hex_map_kit-<version>.manifest.txt`. Public upload is a manual release step.
 
 ## 開発計画
 
@@ -81,7 +95,7 @@ docs/        manual、algorithm note、plan、test note
 docs/api/    public API reference
 examples/    runtime and editor-workflow samples
 tests/       headless Godot test scripts
-tools/       test/debug 起動 script
+tools/       test/debug/package 起動 script
 ```
 
 ## License

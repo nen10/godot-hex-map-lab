@@ -150,7 +150,7 @@ Goal: v2 API に合わせた package、examples、manual、migration guide を�
 |---|---|---|---|---|---|---|
 | `PKG-01` | `COMPLETE` | `LD2-06`, `GAME-05`, `OBJ-05` | `docs/plan/2026-06-06_PKG-01_EXAMPLES/` | `examples/basic_runtime` and `examples/editor_workflow` | examples, debug scene tests | Examples load without editor-only errors; test/debug scene checks resource paths. |
 | `PKG-02` | `COMPLETE` | `PKG-01`, `CATUI-01`, `VAL-03` | `docs/plan/2026-06-06_PKG-02_DOCS_API_MANUAL_SPLIT/` | API docs and workflow manual split | `docs/api`, `docs/manual`, `README.md` | Docs explain setup, document v2, catalog/layer stack, validation, runtime query. |
-| `PKG-03` | `READY` | `PKG-02` | `docs/plan/2026-06-06_PKG-03_PACKAGE_ADDON/` | package script, manifest test, migration guide | `tools/package_addon.sh`, `dist`, tests | Addon-only zip can be built; manifest excludes dev-only files; migration guide v0.2 -> v0.3 exists. Human check only before public release upload. |
+| `PKG-03` | `COMPLETE` | `PKG-02` | `docs/plan/2026-06-06_PKG-03_PACKAGE_ADDON/` | package script, manifest test, migration guide | `tools/package_addon.sh`, `dist`, tests | Addon-only zip can be built; manifest excludes dev-only files; migration guide v0.2 -> v0.3 exists. Human check only before public release upload. |
 
 ---
 
@@ -198,11 +198,11 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `PKG-03` is READY.
+Current recommended next task: `ARCH-02` is READY.
 
 Reason:
 
-- Dependency sweep completed on 2026-06-07 after PKG-02 completion.
+- Dependency sweep completed on 2026-06-07 after PKG-03 completion.
 - `CAT-01` is `COMPLETE`.
 - `CAT-02` is `COMPLETE`.
 - `CAT-03` is `COMPLETE`.
@@ -230,16 +230,51 @@ Reason:
 - `QA-04` is `COMPLETE`.
 - `PKG-01` is `COMPLETE`.
 - `PKG-02` is `COMPLETE`.
-- `PKG-03` was promoted to READY because `PKG-02` is `COMPLETE`.
-- `PKG-03` is now the first READY task by queue order.
+- `PKG-03` is `COMPLETE`.
+- `ARCH-02` is now the first READY task by queue order because `ARCH-01` and `CATUI-01` are `COMPLETE`.
 - `ARCH-03` is also `READY` because `ARCH-01` and `OBJ-03` are `COMPLETE`.
-- `ARCH-02` is also `READY` because `ARCH-01` and `CATUI-01` are `COMPLETE`.
 - `ARCH-04` is also `READY` because `VAL-02` is `COMPLETE`.
 - Remaining `BACKLOG` tasks still have at least one dependency that is not `COMPLETE` or `COMPLETE_WITH_BACKLOG`.
 
 ---
 
 ## 12. Completed task proof log
+
+### PKG-03
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot
+plan: `docs/plan/2026-06-06_PKG-03_PACKAGE_ADDON/`
+review: `docs/review/autopilot/PKG-03_SELF_REVIEW_2026-06-07.md`
+test result: `docs/review/autopilot/PKG-03_TEST_RESULT_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/package_addon.sh --check` PASS
+  - `./tools/package_addon.sh` PASS, generated `dist/hex_map_kit-0.3.0.zip`
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+- docs:
+  - `docs/manual/MANUAL_PACKAGE.md`
+  - `docs/manual/MIGRATION_V0_2_TO_V0_3.md`
+  - `docs/TEST.md`
+  - `docs/review/autopilot/PKG-03_SELF_REVIEW_2026-06-07.md`
+  - `docs/review/autopilot/PKG-03_TEST_RESULT_2026-06-07.md`
+- major files:
+  - `tools/package_addon.sh`
+  - `tools/test.sh`
+  - `addons/hex_map_kit/plugin.cfg`
+  - `docs/manual/MANUAL_PACKAGE.md`
+  - `docs/manual/MIGRATION_V0_2_TO_V0_3.md`
+
+Notes:
+
+- Package metadata is now `0.3.0`.
+- Package manifest includes 103 addon-only entries and excludes dev-only roots.
+- `dist/` is ignored because release artifacts are generated outputs.
+- Public upload was not performed and remains a human release check.
+- `ARCH-02` remains READY and is now the first READY task by queue order.
+- No `repair-now` items remain.
 
 ### PKG-02
 

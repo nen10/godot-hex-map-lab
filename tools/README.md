@@ -6,6 +6,8 @@
 ./tools/test.sh
 ```
 
+`tools/test.sh` は `tools/package_addon.sh --check` で package manifest を検証してから Godot headless tests を実行します。
+
 複数 test script を並列実行する場合:
 
 ```sh
@@ -19,6 +21,20 @@ GODOT_BIN=/path/to/Godot ./tools/test.sh
 ```
 
 Godot が出す終了コード 0の macOS 証明書関連の非致命的な ERROR は既知であり無視します。
+
+## Addon package
+
+addon-only zip と manifest を生成する場合:
+
+```sh
+./tools/package_addon.sh
+```
+
+manifest check だけ実行する場合:
+
+```sh
+./tools/package_addon.sh --check
+```
 
 ## ChatGPT への引き渡し用 zip
 
