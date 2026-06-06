@@ -8,6 +8,12 @@ const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
 const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
 const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
+const HexMapDocumentDependencyResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_dependency_resource.gd")
+const HexMapDocumentLabelPlacementResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_label_placement_resource.gd")
+const HexMapDocumentObjectPlacementResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_object_placement_resource.gd")
+const HexMapDocumentOverlayLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_overlay_layer_resource.gd")
+const HexMapDocumentTerrainLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_terrain_layer_resource.gd")
+const HexMapDocumentZoneResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_zone_resource.gd")
 const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
 const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
 const HexOverlayResource = preload("res://addons/hex_map_kit/adapter/hex_overlay_resource.gd")
@@ -44,6 +50,8 @@ func _run() -> void:
 	_test_map_resource_stores_map_data()
 	_test_map_resource_roundtrips_to_map_data()
 	_test_hex_map_document_roundtrips_map_and_payloads()
+	_test_hex_map_document_v2_schema_roundtrips_typed_resources()
+	_test_hex_map_document_v1_fixture_still_loads_with_v2_fields()
 	_test_hex_map_document_adapter_updates_wall_floor()
 	_test_hex_map_document_adapter_applies_tile_overrides()
 	_test_overlay_resource_roundtrips_to_overlay_data()
@@ -419,6 +427,138 @@ func _test_hex_map_document_roundtrips_map_and_payloads() -> void:
 	_assert_eq(loaded.labels[0]["text"], "North Gate", "hex map document preserves labels")
 	_assert_eq(object_db.objects[0]["object_id"], "chest", "object database stores object definitions")
 	_assert_eq(label_db.labels[0]["label_id"], "area", "label database stores label definitions")
+
+
+func _test_hex_map_document_v2_schema_roundtrips_typed_resources() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	var overlay_data = HexOverlayData.from_item_cells(data.cells, "Treasure", [HexVector.zero()])
+	var document = HexMapDocumentResource.new()
+	document.ensure_v2_defaults()
+	document.metadata.document_id = "level-001"
+	document.metadata.display_name = "North Gate"
+	document.metadata.generation_seed = 42
+
+	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
+	terrain_layer.layer_id = "terrain-base"
+	terrain_layer.display_name = "Base Terrain"
+	terrain_layer.map = HexMapResource.from_map_data(data, HexMapResource.ORIENTATION_POINTY_TOP)
+	terrain_layer.default_floor_key = "terrain.grass"
+	terrain_layer.default_wall_key = "terrain.wall"
+	terrain_layer.tile_assignments.append({
+		"cell": Vector3i.ZERO,
+		"catalog_key": "terrain.stone",
+	})
+	document.terrain_layers.append(terrain_layer)
+
+	var overlay_layer = HexMapDocumentOverlayLayerResource.new()
+	overlay_layer.layer_id = "overlay-treasure"
+	overlay_layer.display_name = "Treasure Overlay"
+	overlay_layer.item_key = "Treasure"
+	overlay_layer.catalog_key = "overlay.treasure"
+	overlay_layer.overlay = HexOverlayResource.from_overlay_data(overlay_data)
+	overlay_layer.z_index = 5
+	document.overlay_layers.append(overlay_layer)
+
+	var placement = HexMapDocumentObjectPlacementResource.new()
+	placement.placement_id = "chest-001"
+	placement.object_id = "chest"
+	placement.cell = Vector3i(1, 0, 0)
+	placement.variant = "gold"
+	placement.properties = {"gold": 5}
+	placement.spawn_condition = "default"
+	document.object_placements.append(placement)
+
+	var label = HexMapDocumentLabelPlacementResource.new()
+	label.label_id = "area"
+	label.cell = Vector3i.ZERO
+	label.text = "North"
+	label.style_key = "small"
+	document.label_placements.append(label)
+
+	var zone = HexMapDocumentZoneResource.new()
+	zone.zone_id = "spawn"
+	zone.display_name = "Spawn Zone"
+	var zone_cells: Array[Vector3i] = [Vector3i.ZERO, Vector3i(1, 0, 0)]
+	zone.cells = zone_cells
+	zone.tags = PackedStringArray(["safe", "entry"])
+	document.zones.append(zone)
+
+	var dependency = HexMapDocumentDependencyResource.new()
+	dependency.dependency_id = "tiles-main"
+	dependency.kind = HexMapDocumentDependencyResource.KIND_TILE_CATALOG
+	dependency.dependency_path = "res://addons/hex_map_kit/presets/sample_catalog.tres"
+	dependency.role = "terrain"
+	document.dependencies.append(dependency)
+
+	var path = _test_resource_path("test_hex_map_document_v2.tres")
+	var error = ResourceSaver.save(document, path)
+	var loaded = load(path)
+	var fields = loaded.v2_schema_fields()
+
+	_assert_eq(error, OK, "hex map document v2 resource saves")
+	_assert_eq(loaded.version, HexMapDocumentResource.VERSION_V2, "v2 document stores version")
+	_assert_eq(loaded.is_v2(), true, "v2 document reports v2 schema")
+	_assert_eq(fields.has("terrain_layers"), true, "v2 fields include terrain layers")
+	_assert_eq(fields.has("overlay_layers"), true, "v2 fields include overlay layers")
+	_assert_eq(fields.has("object_placements"), true, "v2 fields include object placements")
+	_assert_eq(fields.has("label_placements"), true, "v2 fields include label placements")
+	_assert_eq(fields.has("zones"), true, "v2 fields include zones")
+	_assert_eq(fields.has("metadata"), true, "v2 fields include metadata")
+	_assert_eq(fields.has("dependencies"), true, "v2 fields include dependencies")
+	_assert_eq(loaded.metadata.document_id, "level-001", "v2 document metadata roundtrips")
+	_assert_eq(loaded.terrain_layers[0] is HexMapDocumentTerrainLayerResource, true, "terrain layer keeps typed resource")
+	_assert_eq(loaded.terrain_layers[0].default_floor_key, "terrain.grass", "terrain layer preserves floor key")
+	_assert_eq(loaded.terrain_layers[0].map.orientation, HexMapResource.ORIENTATION_POINTY_TOP, "terrain layer map preserves orientation")
+	_assert_eq(loaded.overlay_layers[0] is HexMapDocumentOverlayLayerResource, true, "overlay layer keeps typed resource")
+	_assert_eq(loaded.overlay_layers[0].overlay.item_keys[0], "Treasure", "overlay layer preserves overlay resource")
+	_assert_eq(loaded.object_placements[0] is HexMapDocumentObjectPlacementResource, true, "object placement keeps typed resource")
+	_assert_eq(loaded.object_placements[0].properties["gold"], 5, "object placement preserves properties")
+	_assert_eq(loaded.label_placements[0] is HexMapDocumentLabelPlacementResource, true, "label placement keeps typed resource")
+	_assert_eq(loaded.label_placements[0].text, "North", "label placement preserves text")
+	_assert_eq(loaded.zones[0] is HexMapDocumentZoneResource, true, "zone keeps typed resource")
+	_assert_eq(loaded.zones[0].tags[1], "entry", "zone preserves tags")
+	_assert_eq(loaded.dependencies[0] is HexMapDocumentDependencyResource, true, "dependency keeps typed resource")
+	_assert_eq(loaded.dependencies[0].kind, HexMapDocumentDependencyResource.KIND_TILE_CATALOG, "dependency preserves kind")
+
+
+func _test_hex_map_document_v1_fixture_still_loads_with_v2_fields() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	var document = HexMapDocumentResource.new()
+	document.version = HexMapDocumentResource.VERSION_V1
+	document.map = HexMapResource.from_map_data(data)
+	document.tile_overrides = [{
+		"cell": Vector3i.ZERO,
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"source_id": 1,
+		"atlas_coords": Vector2i(2, 3),
+	}]
+	document.objects = [{
+		"cell": Vector3i(1, 0, 0),
+		"object_id": "chest",
+	}]
+	document.labels = [{
+		"cell": Vector3i.ZERO,
+		"label_id": "area",
+		"text": "North",
+	}]
+
+	var path = _test_resource_path("test_hex_map_document_v1_compat.tres")
+	var error = ResourceSaver.save(document, path)
+	var loaded = load(path)
+
+	_assert_eq(error, OK, "hex map document v1 fixture saves after v2 fields exist")
+	_assert_eq(loaded.version, HexMapDocumentResource.VERSION_V1, "v1 fixture keeps version")
+	_assert_eq(loaded.is_v2(), false, "v1 fixture is not reported as v2")
+	_assert_keys_eq(loaded.map.to_map_data().cells, data.cells, "v1 fixture preserves cells")
+	_assert_eq(loaded.tile_overrides[0]["atlas_coords"], Vector2i(2, 3), "v1 fixture preserves tile overrides")
+	_assert_eq(loaded.objects[0]["object_id"], "chest", "v1 fixture preserves objects")
+	_assert_eq(loaded.labels[0]["text"], "North", "v1 fixture preserves labels")
+	_assert_eq(loaded.terrain_layers.size(), 0, "v1 fixture leaves v2 terrain layers empty")
+	_assert_eq(loaded.overlay_layers.size(), 0, "v1 fixture leaves v2 overlay layers empty")
+	_assert_eq(loaded.object_placements.size(), 0, "v1 fixture leaves v2 object placements empty")
+	_assert_eq(loaded.label_placements.size(), 0, "v1 fixture leaves v2 label placements empty")
+	_assert_eq(loaded.zones.size(), 0, "v1 fixture leaves v2 zones empty")
+	_assert_eq(loaded.dependencies.size(), 0, "v1 fixture leaves v2 dependencies empty")
 
 
 func _test_hex_map_document_adapter_updates_wall_floor() -> void:
