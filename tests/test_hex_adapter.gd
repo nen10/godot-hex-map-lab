@@ -52,6 +52,8 @@ func _run() -> void:
 	_test_hex_map_document_roundtrips_map_and_payloads()
 	_test_hex_map_document_v2_schema_roundtrips_typed_resources()
 	_test_hex_map_document_v1_fixture_still_loads_with_v2_fields()
+	_test_hex_map_document_migrates_v1_to_v2_preserving_legacy_fields()
+	_test_hex_map_document_migration_handles_missing_fields()
 	_test_hex_map_document_adapter_updates_wall_floor()
 	_test_hex_map_document_adapter_applies_tile_overrides()
 	_test_overlay_resource_roundtrips_to_overlay_data()
@@ -559,6 +561,92 @@ func _test_hex_map_document_v1_fixture_still_loads_with_v2_fields() -> void:
 	_assert_eq(loaded.label_placements.size(), 0, "v1 fixture leaves v2 label placements empty")
 	_assert_eq(loaded.zones.size(), 0, "v1 fixture leaves v2 zones empty")
 	_assert_eq(loaded.dependencies.size(), 0, "v1 fixture leaves v2 dependencies empty")
+
+
+func _test_hex_map_document_migrates_v1_to_v2_preserving_legacy_fields() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	data.set_walls([HexVector.q_axis()])
+	var document = HexMapDocumentResource.new()
+	document.version = HexMapDocumentResource.VERSION_V1
+	document.map = HexMapResource.from_map_data(data, HexMapResource.ORIENTATION_POINTY_TOP)
+	document.tile_overrides = [{
+		"cell": Vector3i.ZERO,
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"item_key": "Floor",
+		"source_id": 2,
+		"atlas_coords": Vector2i(3, 4),
+		"alternative_tile": 1,
+	}, {
+		"cell": Vector3i.ZERO,
+		"kind": HexMapDocumentAdapter.KIND_OVERLAY,
+		"item_key": "Treasure",
+		"source_id": 5,
+		"atlas_coords": Vector2i(6, 7),
+	}]
+	document.objects = [{
+		"cell": Vector3i(1, 0, 0),
+		"object_id": "chest",
+		"properties": {"gold": 8},
+		"variant": "rare",
+	}]
+	document.labels = [{
+		"cell": Vector3i.ZERO,
+		"label_id": "area",
+		"text": "North Gate",
+	}]
+
+	var migrated = HexMapDocumentAdapter.migrate_v1_to_v2(document)
+	var path = _test_resource_path("test_hex_map_document_v1_to_v2.tres")
+	var error = ResourceSaver.save(migrated, path)
+	var loaded = load(path)
+
+	_assert_eq(document.version, HexMapDocumentResource.VERSION_V1, "migration does not mutate source version")
+	_assert_eq(migrated.version, HexMapDocumentResource.VERSION_V2, "migration creates v2 document")
+	_assert_eq(migrated.metadata.custom_properties["source_version"], HexMapDocumentResource.VERSION_V1, "migration records source version")
+	_assert_keys_eq(migrated.map.to_map_data().cells, data.cells, "migration preserves legacy map cells")
+	_assert_keys_eq(migrated.map.to_map_data().walls, data.walls, "migration preserves legacy map walls")
+	_assert_eq(migrated.map.orientation, HexMapResource.ORIENTATION_POINTY_TOP, "migration preserves legacy map orientation")
+	_assert_eq(migrated.tile_overrides[0]["atlas_coords"], Vector2i(3, 4), "migration preserves legacy tile overrides")
+	_assert_eq(migrated.objects[0]["properties"]["gold"], 8, "migration preserves legacy objects")
+	_assert_eq(migrated.labels[0]["text"], "North Gate", "migration preserves legacy labels")
+	_assert_eq(migrated.terrain_layers.size(), 1, "migration creates default terrain layer")
+	_assert_eq(migrated.terrain_layers[0].tile_assignments.size(), 1, "migration moves non-overlay tile override to terrain assignment")
+	_assert_eq(migrated.terrain_layers[0].tile_assignments[0]["source_id"], 2, "terrain assignment preserves source id fallback")
+	_assert_eq(migrated.overlay_layers.size(), 1, "migration creates overlay layer")
+	_assert_eq(migrated.overlay_layers[0].item_key, "Treasure", "migration groups overlay by item key")
+	_assert_eq(migrated.overlay_layers[0].tile_assignments[0]["atlas_coords"], Vector2i(6, 7), "overlay assignment preserves atlas fallback")
+	_assert_eq(migrated.object_placements.size(), 1, "migration creates object placement")
+	_assert_eq(migrated.object_placements[0].object_id, "chest", "object placement preserves object id")
+	_assert_eq(migrated.object_placements[0].properties["gold"], 8, "object placement preserves properties")
+	_assert_eq(migrated.label_placements.size(), 1, "migration creates label placement")
+	_assert_eq(migrated.label_placements[0].text, "North Gate", "label placement preserves text")
+	_assert_eq(error, OK, "migrated document saves")
+	_assert_eq(loaded.version, HexMapDocumentResource.VERSION_V2, "migrated roundtrip preserves v2 version")
+	_assert_eq(loaded.metadata.custom_properties["source_version"], HexMapDocumentResource.VERSION_V1, "migrated roundtrip preserves source version")
+	_assert_eq(loaded.terrain_layers[0] is HexMapDocumentTerrainLayerResource, true, "migrated roundtrip keeps typed terrain")
+	_assert_eq(loaded.overlay_layers[0] is HexMapDocumentOverlayLayerResource, true, "migrated roundtrip keeps typed overlay")
+	_assert_eq(loaded.object_placements[0] is HexMapDocumentObjectPlacementResource, true, "migrated roundtrip keeps typed object placement")
+	_assert_eq(loaded.label_placements[0] is HexMapDocumentLabelPlacementResource, true, "migrated roundtrip keeps typed label placement")
+
+
+func _test_hex_map_document_migration_handles_missing_fields() -> void:
+	var empty_document = HexMapDocumentResource.new()
+	var migrated = HexMapDocumentAdapter.migrate_v1_to_v2(empty_document)
+	var null_migrated = HexMapDocumentAdapter.migrate_v1_to_v2(null)
+
+	_assert_eq(migrated.version, HexMapDocumentResource.VERSION_V2, "empty document migrates to v2")
+	_assert_eq(migrated.metadata.custom_properties["source_version"], HexMapDocumentResource.VERSION_V1, "empty document records default source version")
+	_assert_eq(migrated.map, null, "empty document keeps missing map empty")
+	_assert_eq(migrated.tile_overrides.size(), 0, "empty document keeps tile overrides empty")
+	_assert_eq(migrated.objects.size(), 0, "empty document keeps objects empty")
+	_assert_eq(migrated.labels.size(), 0, "empty document keeps labels empty")
+	_assert_eq(migrated.terrain_layers.size(), 0, "empty document creates no terrain layer without map")
+	_assert_eq(migrated.overlay_layers.size(), 0, "empty document creates no overlay layers")
+	_assert_eq(migrated.object_placements.size(), 0, "empty document creates no object placements")
+	_assert_eq(migrated.label_placements.size(), 0, "empty document creates no label placements")
+	_assert_eq(null_migrated.version, HexMapDocumentResource.VERSION_V2, "null document migrates to v2")
+	_assert_eq(null_migrated.metadata.custom_properties["source_version"], 0, "null migration records missing source version")
+	_assert_eq(null_migrated.terrain_layers.size(), 0, "null migration creates no terrain layer")
 
 
 func _test_hex_map_document_adapter_updates_wall_floor() -> void:

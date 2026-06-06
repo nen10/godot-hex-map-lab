@@ -40,6 +40,7 @@ Godotでの開発ノウハウを随時追加します。
 ## TileSet / TileMap editor と asset 選択
 
 - `Resource` には組み込みpropertyとして `resource_path` があるため、custom `Resource` scriptで `@export var resource_path` を再定義するとparse errorになる。依存関係や参照pathを保存するResourceでは `dependency_path` や `source_path` のような別名を使う。
+- `@export var items: Array[Resource]` や `Array[Vector3i]` のようなtyped Array propertyへ、plainな `[]` や untyped Array literalを代入すると実行時に型不一致になることがある。空にする場合は既存Arrayの `clear()`、代入する場合は `var typed_items: Array[Resource] = []` のように型付きlocalを使う。
 - このprojectは `project.godot` でGodot `4.6` featureを指定している。TileSet / TileMap editor連携を調査する場合はGodot 4.6公式docsを基準にする。
 - Godot標準TileMap editorは、`TileMapLayer` nodeを選択してからbottom panelのTileMap panelを開く流れで使う。addonのユーザー向けTargetを `HexTileMapLayer` wrapperに寄せる場合、内部 `TileMapLayer` を標準TileMap panel対象として選択させる操作と、wrapperをmanual edit targetにする操作が衝突しないか確認する。
 - Godot標準TileSet editorでは、tilesheet画像から `TileSetAtlasSource` を作り、TileSetのtile sizeに基づいてtileを自動作成できる。複数画像を1つのTileSetに使う場合は追加atlasを作る方針が公式docs上の自然な経路である。

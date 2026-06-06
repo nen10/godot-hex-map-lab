@@ -2,6 +2,10 @@ class_name HexMapDocumentAdapter
 extends RefCounted
 
 const HexMapDocumentResourceScript = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
+const HexMapDocumentLabelPlacementResourceScript = preload("res://addons/hex_map_kit/adapter/hex_map_document_label_placement_resource.gd")
+const HexMapDocumentObjectPlacementResourceScript = preload("res://addons/hex_map_kit/adapter/hex_map_document_object_placement_resource.gd")
+const HexMapDocumentOverlayLayerResourceScript = preload("res://addons/hex_map_kit/adapter/hex_map_document_overlay_layer_resource.gd")
+const HexMapDocumentTerrainLayerResourceScript = preload("res://addons/hex_map_kit/adapter/hex_map_document_terrain_layer_resource.gd")
 const HexMapResourceScript = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
 const HexMapTileAdapterScript = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexMapDataScript = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
@@ -33,7 +37,52 @@ static func duplicate_document(document):
 	copy.tile_overrides = _duplicate_entries(document.tile_overrides if document != null else [])
 	copy.objects = _duplicate_entries(document.objects if document != null else [])
 	copy.labels = _duplicate_entries(document.labels if document != null else [])
+	if document != null:
+		copy.terrain_layers = _duplicate_resources(document.terrain_layers)
+		copy.overlay_layers = _duplicate_resources(document.overlay_layers)
+		copy.object_placements = _duplicate_resources(document.object_placements)
+		copy.label_placements = _duplicate_resources(document.label_placements)
+		copy.zones = _duplicate_resources(document.zones)
+		copy.dependencies = _duplicate_resources(document.dependencies)
+		if document.metadata != null:
+			copy.metadata = document.metadata.duplicate(true)
 	return copy
+
+
+static func migrate_v1_to_v2(document):
+	if document != null and document.has_method("is_v2") and document.is_v2():
+		return duplicate_document(document)
+
+	var source_version = int(document.version) if document != null else 0
+	var migrated = duplicate_document(document)
+	migrated.ensure_v2_defaults()
+	migrated.metadata.custom_properties["source_version"] = source_version
+	migrated.metadata.custom_properties["migration"] = "v1_to_v2"
+
+	migrated.terrain_layers.clear()
+	migrated.overlay_layers.clear()
+	migrated.object_placements.clear()
+	migrated.label_placements.clear()
+
+	if migrated.map != null:
+		var terrain_layer = HexMapDocumentTerrainLayerResourceScript.new()
+		terrain_layer.map = HexMapResourceScript.from_map_data(
+			migrated.map.to_map_data(),
+			migrated.map.orientation
+		)
+		terrain_layer.tile_assignments = _v1_terrain_tile_assignments(migrated.tile_overrides)
+		migrated.terrain_layers.append(terrain_layer)
+
+	for overlay_layer in _v1_overlay_layers(migrated.tile_overrides):
+		migrated.overlay_layers.append(overlay_layer)
+
+	for entry in migrated.objects:
+		migrated.object_placements.append(_v1_object_placement(entry))
+
+	for entry in migrated.labels:
+		migrated.label_placements.append(_v1_label_placement(entry))
+
+	return migrated
 
 
 static func copy_document_state(target, source) -> void:
@@ -46,6 +95,13 @@ static func copy_document_state(target, source) -> void:
 	target.tile_overrides = _duplicate_entries(source.tile_overrides)
 	target.objects = _duplicate_entries(source.objects)
 	target.labels = _duplicate_entries(source.labels)
+	target.terrain_layers = _duplicate_resources(source.terrain_layers)
+	target.overlay_layers = _duplicate_resources(source.overlay_layers)
+	target.object_placements = _duplicate_resources(source.object_placements)
+	target.label_placements = _duplicate_resources(source.label_placements)
+	target.zones = _duplicate_resources(source.zones)
+	target.dependencies = _duplicate_resources(source.dependencies)
+	target.metadata = source.metadata.duplicate(true) if source.metadata != null else null
 
 
 static func apply_to_tile_map_layer(document, layer, options: Dictionary = {}) -> void:
@@ -218,6 +274,99 @@ static func _duplicate_entries(entries: Array) -> Array[Dictionary]:
 	for entry in entries:
 		result.append(entry.duplicate(true))
 	return result
+
+
+static func _duplicate_resources(entries: Array) -> Array[Resource]:
+	var result: Array[Resource] = []
+	for entry in entries:
+		if entry is Resource:
+			result.append(entry.duplicate(true))
+	return result
+
+
+static func _v1_terrain_tile_assignments(entries: Array) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for raw_entry in entries:
+		var entry: Dictionary = raw_entry
+		if String(entry.get("kind", KIND_FLOOR)) == KIND_OVERLAY:
+			continue
+		result.append(_v1_tile_assignment(entry))
+	return result
+
+
+static func _v1_overlay_layers(entries: Array) -> Array[Resource]:
+	var grouped := {}
+	for raw_entry in entries:
+		var entry: Dictionary = raw_entry
+		if String(entry.get("kind", KIND_FLOOR)) != KIND_OVERLAY:
+			continue
+		var item_key = String(entry.get("item_key", "overlay"))
+		if item_key == "":
+			item_key = "overlay"
+		if not grouped.has(item_key):
+			grouped[item_key] = []
+		grouped[item_key].append(_v1_tile_assignment(entry))
+
+	var layers: Array[Resource] = []
+	var item_keys = grouped.keys()
+	item_keys.sort()
+	for item_key in item_keys:
+		var layer = HexMapDocumentOverlayLayerResourceScript.new()
+		layer.layer_id = "overlay_%s" % _safe_id(item_key)
+		layer.display_name = item_key
+		layer.item_key = item_key
+		var assignments: Array[Dictionary] = []
+		for assignment in grouped[item_key]:
+			assignments.append(assignment)
+		layer.tile_assignments = assignments
+		layers.append(layer)
+	return layers
+
+
+static func _v1_tile_assignment(entry: Dictionary) -> Dictionary:
+	return {
+		"cell": entry.get("cell", Vector3i.ZERO),
+		"kind": String(entry.get("kind", KIND_FLOOR)),
+		"item_key": String(entry.get("item_key", "")),
+		"source_id": int(entry.get("source_id", 0)),
+		"atlas_coords": entry.get("atlas_coords", Vector2i.ZERO),
+		"alternative_tile": int(entry.get("alternative_tile", 0)),
+	}
+
+
+static func _v1_object_placement(entry: Dictionary) -> Resource:
+	var placement = HexMapDocumentObjectPlacementResourceScript.new()
+	placement.cell = entry.get("cell", Vector3i.ZERO)
+	placement.object_id = String(entry.get("object_id", ""))
+	placement.placement_id = String(entry.get("placement_id", ""))
+	placement.variant = String(entry.get("variant", ""))
+	placement.rotation_degrees = float(entry.get("rotation_degrees", entry.get("rotation", 0.0)))
+	placement.properties = entry.get("properties", {}).duplicate(true)
+	placement.spawn_condition = String(entry.get("spawn_condition", ""))
+	return placement
+
+
+static func _v1_label_placement(entry: Dictionary) -> Resource:
+	var placement = HexMapDocumentLabelPlacementResourceScript.new()
+	placement.cell = entry.get("cell", Vector3i.ZERO)
+	placement.label_id = String(entry.get("label_id", ""))
+	placement.text = String(entry.get("text", ""))
+	placement.style_key = String(entry.get("style_key", ""))
+	placement.zone_id = String(entry.get("zone_id", ""))
+	return placement
+
+
+static func _safe_id(value: String) -> String:
+	var result := ""
+	for index in range(value.length()):
+		var code = value.unicode_at(index)
+		if (code >= 48 and code <= 57) \
+			or (code >= 65 and code <= 90) \
+			or (code >= 97 and code <= 122):
+			result += char(code).to_lower()
+		else:
+			result += "_"
+	return "layer" if result == "" else result
 
 
 static func _component_from_hex(hex) -> Vector3i:
