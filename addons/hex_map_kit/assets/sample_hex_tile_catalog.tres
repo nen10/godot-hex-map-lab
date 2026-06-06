@@ -1,0 +1,67 @@
+[gd_resource type="Resource" script_class="HexTileCatalogResource" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd" id="1_catalog"]
+[ext_resource type="Script" path="res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd" id="2_entry"]
+
+[sub_resource type="Resource" id="HexTileCatalogEntry_floor"]
+script = ExtResource("2_entry")
+key = "terrain.floor"
+display_name = "Sample Floor"
+entry_type = "atlas"
+source_id = 0
+atlas_coords = Vector2i(0, 0)
+alternative_tile = 0
+tags = PackedStringArray("terrain", "floor", "walkable")
+fallback_source_id = 0
+fallback_atlas_coords = Vector2i(0, 0)
+metadata = {
+"terrain_kind": "floor"
+}
+
+[sub_resource type="Resource" id="HexTileCatalogEntry_wall"]
+script = ExtResource("2_entry")
+key = "terrain.wall"
+display_name = "Sample Wall"
+entry_type = "atlas"
+source_id = 0
+atlas_coords = Vector2i(1, 0)
+alternative_tile = 0
+tags = PackedStringArray("terrain", "wall", "blocking")
+fallback_source_id = 0
+fallback_atlas_coords = Vector2i(1, 0)
+metadata = {
+"terrain_kind": "wall"
+}
+
+[sub_resource type="Resource" id="HexTileCatalogEntry_overlay"]
+script = ExtResource("2_entry")
+key = "overlay.treasure"
+display_name = "Treasure Overlay"
+entry_type = "atlas"
+source_id = 0
+atlas_coords = Vector2i(0, 0)
+alternative_tile = 0
+tags = PackedStringArray("overlay", "treasure")
+fallback_source_id = 0
+fallback_atlas_coords = Vector2i(0, 0)
+
+[sub_resource type="Resource" id="HexTileCatalogEntry_spawn"]
+script = ExtResource("2_entry")
+key = "object.spawn_marker"
+display_name = "Spawn Marker Scene Tile"
+entry_type = "scene"
+source_id = 1
+scene_path = "res://addons/hex_map_kit/debug/hex_spawn_marker.tscn"
+tags = PackedStringArray("object", "spawn", "scene")
+fallback_source_id = 0
+fallback_atlas_coords = Vector2i(0, 0)
+
+[resource]
+script = ExtResource("1_catalog")
+catalog_id = "sample_hex_tile_catalog"
+display_name = "Sample Hex Tile Catalog"
+tile_set_path = "res://addons/hex_map_kit/assets/sample_hex_tiles.png"
+entries = Array[Resource]([SubResource("HexTileCatalogEntry_floor"), SubResource("HexTileCatalogEntry_wall"), SubResource("HexTileCatalogEntry_overlay"), SubResource("HexTileCatalogEntry_spawn")])
+metadata = {
+"source": "CAT-01"
+}

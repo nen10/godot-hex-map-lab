@@ -78,9 +78,9 @@ Goal: `source_id / atlas_coords` の数値入力を、logical key と layer stac
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `CAT-01` | `READY` | `LD2-01` | `docs/plan/2026-06-06_CAT-01_CATALOG_RESOURCE/` | `HexTileCatalogResource` and `HexTileCatalogEntry` | new adapter/resource files, sample catalog resource, `tests/test_hex_adapter.gd` | Logical key maps to atlas tile, scene tile, tags, fallback fields. Sample catalog loads. |
-| `CAT-02` | `BACKLOG` | `CAT-01` | `docs/plan/2026-06-06_CAT-02_CATALOG_VALIDATION/` | Catalog validation and custom data reader | catalog validation helper, `tests/test_hex_adapter.gd` | Detect missing source, invalid atlas coords, missing scene, missing TileSet, tag/custom data extraction. |
-| `CAT-03` | `BACKLOG` | `CAT-01`, `LD2-04` | `docs/plan/2026-06-06_CAT-03_CATALOG_BACKED_ADAPTERS/` | Catalog-backed map/overlay tile adapters | `hex_map_tile_adapter.gd`, `hex_overlay_tile_adapter.gd`, `hex_map_document_adapter.gd`, tests | Floor/wall/overlay item key resolves by catalog key; numeric fallback remains advanced/debug path. |
+| `CAT-01` | `COMPLETE` | `LD2-01` | `docs/plan/2026-06-06_CAT-01_CATALOG_RESOURCE/` | `HexTileCatalogResource` and `HexTileCatalogEntry` | new adapter/resource files, sample catalog resource, `tests/test_hex_adapter.gd` | Logical key maps to atlas tile, scene tile, tags, fallback fields. Sample catalog loads. |
+| `CAT-02` | `READY` | `CAT-01` | `docs/plan/2026-06-06_CAT-02_CATALOG_VALIDATION/` | Catalog validation and custom data reader | catalog validation helper, `tests/test_hex_adapter.gd` | Detect missing source, invalid atlas coords, missing scene, missing TileSet, tag/custom data extraction. |
+| `CAT-03` | `READY` | `CAT-01`, `LD2-04` | `docs/plan/2026-06-06_CAT-03_CATALOG_BACKED_ADAPTERS/` | Catalog-backed map/overlay tile adapters | `hex_map_tile_adapter.gd`, `hex_overlay_tile_adapter.gd`, `hex_map_document_adapter.gd`, tests | Floor/wall/overlay item key resolves by catalog key; numeric fallback remains advanced/debug path. |
 | `LST-01` | `READY` | `LD2-01` | `docs/plan/2026-06-06_LST-01_LAYER_STACK_RESOURCE/` | `HexLayerStackResource` and templates | new resource/helper files, `tests/test_hex_tile_map_layer.gd` | Terrain/decoration/object/collision/navigation/overlay/debug roles defined; templates create expected role names. |
 | `LST-02` | `BACKLOG` | `LST-01`, `CAT-03` | `docs/plan/2026-06-06_LST-02_APPLY_DOCUMENT_TO_LAYER_STACK/` | `apply_document_to_layer_stack()` primary path | `hex_tile_map_layer.gd`, adapter helpers, `tests/test_hex_tile_map_layer.gd` | v2 document applies to child layers by role; single plain TileMapLayer path remains compatibility path. |
 | `CATUI-01` | `BACKLOG` | `CAT-03`, `LST-02`, `LD2-05` | `docs/plan/2026-06-06_CATUI-01_CATALOG_SELECTOR_UI/` | Generate/Edit catalog key selectors and advanced fallback UI | `hex_map_gen_dock.gd`, `hex_map_edit_tool.gd`, `tests/test_editor_plugin.gd` | Floor/Wall/Overlay/Object default assignment uses catalog selector; old spin boxes are advanced fallback. |
@@ -121,7 +121,7 @@ Goal: object mode を marker から object placement / scene placement へ上げ
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `OBJ-01` | `BACKLOG` | `LD2-01`, `CAT-01` | `docs/plan/2026-06-06_OBJ-01_OBJECT_DATABASE_V2/` | `HexObjectDatabaseResource v2` definitions | `hex_object_database_resource.gd`, new definition script if needed, `tests/test_hex_adapter.gd` | Definition has id/display_name/scene_path/tags/default_properties/preview. Existing Array loads through migration/fallback. |
+| `OBJ-01` | `READY` | `LD2-01`, `CAT-01` | `docs/plan/2026-06-06_OBJ-01_OBJECT_DATABASE_V2/` | `HexObjectDatabaseResource v2` definitions | `hex_object_database_resource.gd`, new definition script if needed, `tests/test_hex_adapter.gd` | Definition has id/display_name/scene_path/tags/default_properties/preview. Existing Array loads through migration/fallback. |
 | `OBJ-02` | `BACKLOG` | `OBJ-01`, `LD2-04` | `docs/plan/2026-06-06_OBJ-02_OBJECT_PLACEMENT_SCHEMA/` | Object placement schema in document | document resource/adapter/tests | Placement has object_id/cell/rotation/variant/properties/spawn_condition; cleanup on deleted cell. |
 | `OBJ-03` | `BACKLOG` | `OBJ-02`, `LD2-05` | `docs/plan/2026-06-06_OBJ-03_OBJECT_EDITOR_UI/` | Object brush and property editor UI | `hex_map_edit_tool.gd`, tests | Object mode edits typed placements; property table state is saved and undoable. |
 | `OBJ-04` | `BACKLOG` | `OBJ-02`, `LST-02` | `docs/plan/2026-06-06_OBJ-04_OBJECT_LAYER_ADAPTER/` | Object layer adapter using scene tile or direct instance prototypes | `hex_tile_map_layer.gd`, object adapter helper, tests | Scene tile prototype and direct instance prototype both work; standard choice documented in policy. |
@@ -198,14 +198,16 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `CAT-01`.
+Current recommended next task: `CAT-02`.
 
 Reason:
 
 - Dependency sweep completed on 2026-06-07.
-- `CAT-01` is `READY` because `LD2-01` is `COMPLETE`.
+- `CAT-01` is `COMPLETE`.
+- `CAT-02` is `READY` because `CAT-01` is `COMPLETE`.
+- `CAT-03` is also `READY` because `CAT-01` and `LD2-04` are `COMPLETE`.
 - `LST-01` is also `READY` because `LD2-01` is `COMPLETE`.
-- The dispatcher selects `CAT-01` first by queue order.
+- `OBJ-01` is also `READY` because `LD2-01` and `CAT-01` are `COMPLETE`.
 - Remaining `BACKLOG` tasks still have at least one dependency that is not `COMPLETE` or `COMPLETE_WITH_BACKLOG`.
 
 ---
@@ -484,4 +486,31 @@ Notes:
 - Added shared editor session state for target/document/path references.
 - Plugin now wires one session instance into Generate Dock and Edit Dock.
 - Existing target auto behavior remains covered by prior tests.
+- `repair-now`: none.
+
+### CAT-01
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot
+plan: `docs/plan/2026-06-06_CAT-01_CATALOG_RESOURCE/`
+review: `docs/review/autopilot/CAT-01_SELF_REVIEW_2026-06-07.md`
+test result: `docs/review/autopilot/CAT-01_TEST_RESULT_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+- docs:
+  - `docs/TEST.md`
+- major files:
+  - `addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd`
+  - `addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd`
+  - `addons/hex_map_kit/assets/sample_hex_tile_catalog.tres`
+  - `tests/test_hex_adapter.gd`
+
+Notes:
+
+- Added typed tile catalog and catalog entry resources.
+- Sample catalog loads and includes atlas, overlay, and scene-style entries.
+- Catalog tests cover logical key lookup, scene tile fields, tags, fallback fields, duplicate key determinism, and saved resource roundtrip.
 - `repair-now`: none.
