@@ -15,6 +15,7 @@ const HexMapDocumentOverlayLayerResource = preload("res://addons/hex_map_kit/ada
 const HexMapDocumentTerrainLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_terrain_layer_resource.gd")
 const HexMapDocumentZoneResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_zone_resource.gd")
 const HexMapValidationResult = preload("res://addons/hex_map_kit/adapter/hex_map_validation_result.gd")
+const HexMapDocumentValidator = preload("res://addons/hex_map_kit/adapter/hex_map_document_validator.gd")
 const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
 const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
 const HexTileCatalogEntry = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd")
@@ -60,6 +61,7 @@ func _run() -> void:
 	_test_hex_map_document_migration_handles_missing_fields()
 	_test_hex_map_document_summary_reports_v2_counts()
 	_test_hex_map_validation_result_serializes_summary_and_warnings()
+	_test_hex_map_document_validator_reports_core_rules()
 	_test_hex_map_document_adapter_roundtrips_v2_payload_entries()
 	_test_hex_map_document_adapter_cleans_v2_payloads_for_deleted_cell()
 	_test_hex_map_document_adapter_updates_wall_floor()
@@ -747,6 +749,64 @@ func _test_hex_map_validation_result_serializes_summary_and_warnings() -> void:
 	_assert_eq(loaded.warning_count(), 2, "loaded validation result counts warnings")
 	_assert_eq(loaded.summary["warnings"], 2, "loaded validation result preserves summary")
 	_assert_eq(loaded.issues[1]["rule_id"], "document.dependencies_empty", "loaded validation result preserves issues")
+
+
+func _test_hex_map_document_validator_reports_core_rules() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	data.set_walls([HexVector.q_axis()])
+	var document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(data))
+	HexMapDocumentAdapter.set_tile_override(document, HexVector.apply_basis(3, 0, 0), {
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"source_id": 1,
+		"atlas_coords": Vector2i(0, 0),
+	})
+	HexMapDocumentAdapter.set_label(document, HexVector.apply_basis(4, 0, 0), {
+		"label_id": "orphan",
+		"text": "Outside",
+	})
+	HexMapDocumentAdapter.set_object(document, HexVector.q_axis(), {"object_id": "chest"})
+	var dependency = HexMapDocumentDependencyResource.new()
+	dependency.dependency_id = "missing-catalog"
+	dependency.kind = HexMapDocumentDependencyResource.KIND_TILE_CATALOG
+	dependency.dependency_path = "res://missing_catalog_resource.tres"
+	document.dependencies.append(dependency)
+
+	var result = HexMapDocumentValidator.validate_document(document)
+	_assert_has_issue(result, "document.payload_outside_map", "validator detects tile payload outside map")
+	_assert_has_issue(result, "document.orphan_payload", "validator detects orphan label payload")
+	_assert_has_issue(result, "document.dependency_missing", "validator detects missing dependency path")
+	_assert_has_issue(result, "document.object_on_wall", "validator detects object on wall")
+	_assert_eq(result.error_count() >= 4, true, "validator reports core document errors")
+
+	var catalog_document = HexMapDocumentResource.new()
+	catalog_document.ensure_v2_defaults()
+	var catalog_terrain = HexMapDocumentTerrainLayerResource.new()
+	catalog_terrain.map = HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	catalog_terrain.tile_assignments.append({
+		"cell": Vector3i.ZERO,
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"catalog_key": "terrain.floor",
+		"source_id": 0,
+		"atlas_coords": Vector2i.ZERO,
+	})
+	catalog_document.terrain_layers.append(catalog_terrain)
+	var missing_catalog_result = HexMapDocumentValidator.validate_document(catalog_document)
+	_assert_has_issue(missing_catalog_result, "document.catalog_missing", "validator detects missing catalog resource")
+
+	var catalog = HexTileCatalogResource.new()
+	var missing_tile = HexTileCatalogEntry.new()
+	missing_tile.key = "terrain.floor"
+	missing_tile.entry_type = HexTileCatalogEntry.TYPE_ATLAS
+	missing_tile.source_id = 99
+	missing_tile.atlas_coords = Vector2i.ZERO
+	catalog.add_entry(missing_tile)
+	var tile_set = TileSet.new()
+	HexMapTileAdapter.configure_sample_tile_set(tile_set)
+	var missing_tile_result = HexMapDocumentValidator.validate_document(catalog_document, {
+		"tile_catalog": catalog,
+		"tile_set": tile_set,
+	})
+	_assert_has_issue(missing_tile_result, "document.tile_missing", "validator detects missing catalog tile")
 
 
 func _test_hex_map_document_adapter_roundtrips_v2_payload_entries() -> void:

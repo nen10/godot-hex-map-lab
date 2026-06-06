@@ -94,10 +94,10 @@ Goal: document / catalog / object / cell の不整合を UI と debug report で
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `VAL-01` | `READY` | `LD2-03`, `CAT-02` | `docs/plan/2026-06-06_VAL-01_VALIDATION_ENGINE/` | Validation engine core rules | validation helper, `tests/test_hex_adapter.gd` | Detect outside map, orphan payload, missing catalog, missing tile, missing dependency, object on wall. |
-| `VAL-02` | `BACKLOG` | `VAL-01`, `LD2-05` | `docs/plan/2026-06-06_VAL-02_DASHBOARD_UI/` | Validate tab/panel and error list | `hex_map_edit_tool.gd`, maybe shared dashboard script, `tests/test_editor_plugin.gd` | Validate button produces grouped errors/warnings; clicking cell-scoped error updates selected/focus state in headless-testable way. |
+| `VAL-01` | `COMPLETE` | `LD2-03`, `CAT-02` | `docs/plan/2026-06-06_VAL-01_VALIDATION_ENGINE/` | Validation engine core rules | validation helper, `tests/test_hex_adapter.gd` | Detect outside map, orphan payload, missing catalog, missing tile, missing dependency, object on wall. |
+| `VAL-02` | `READY` | `VAL-01`, `LD2-05` | `docs/plan/2026-06-06_VAL-02_DASHBOARD_UI/` | Validate tab/panel and error list | `hex_map_edit_tool.gd`, maybe shared dashboard script, `tests/test_editor_plugin.gd` | Validate button produces grouped errors/warnings; clicking cell-scoped error updates selected/focus state in headless-testable way. |
 | `VAL-03` | `BACKLOG` | `VAL-02` | `docs/plan/2026-06-06_VAL-03_DEBUG_REPORT_INTEGRATION/` | Validation summary in Copy Debug Report | `hex_map_edit_tool.gd`, `hex_map_gen_dock.gd`, `tests/test_editor_plugin.gd` | Debug report includes validation summary without bloating normal status. |
-| `VAL-04` | `BACKLOG` | `VAL-01` | `docs/plan/2026-06-06_VAL-04_VALIDATION_RULE_MATRIX/` | Rule matrix fixtures and docs | `tests/test_hex_adapter.gd`, `tests/test_editor_plugin.gd`, `docs/TEST.md` | Each validation rule has at least one failing and passing fixture. |
+| `VAL-04` | `READY` | `VAL-01` | `docs/plan/2026-06-06_VAL-04_VALIDATION_RULE_MATRIX/` | Rule matrix fixtures and docs | `tests/test_hex_adapter.gd`, `tests/test_editor_plugin.gd`, `docs/TEST.md` | Each validation rule has at least one failing and passing fixture. |
 
 ---
 
@@ -107,7 +107,7 @@ Goal: movement cost / blocker / reachability / range preview を game-facing API
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `GAME-01` | `BACKLOG` | `LD2-04`, `VAL-01` | `docs/plan/2026-06-06_GAME-01_MOVEMENT_PROFILE_RESOURCE/` | `HexMovementProfileResource` and gameplay layer data | new resource/core files, `tests/test_hex_core.gd`, `tests/test_hex_adapter.gd` | Movement profile defines passability, costs, blocker keys, default behavior. |
+| `GAME-01` | `READY` | `LD2-04`, `VAL-01` | `docs/plan/2026-06-06_GAME-01_MOVEMENT_PROFILE_RESOURCE/` | `HexMovementProfileResource` and gameplay layer data | new resource/core files, `tests/test_hex_core.gd`, `tests/test_hex_adapter.gd` | Movement profile defines passability, costs, blocker keys, default behavior. |
 | `GAME-02` | `BACKLOG` | `GAME-01` | `docs/plan/2026-06-06_GAME-02_WEIGHTED_PATH_AND_RANGE/` | Weighted pathfinding and movement range API | `hex_grid.gd` or helper, `hex_tile_map_layer.gd`, tests | Weighted path, blocked cells, profile-specific range, existing unweighted path compatibility. |
 | `GAME-03` | `BACKLOG` | `GAME-02`, `VAL-02` | `docs/plan/2026-06-06_GAME-03_DEBUG_OVERLAY/` | Movement/range/debug overlay | `hex_tile_map_layer.gd`, editor/debug scene files, `tests/test_hex_tile_map_layer.gd`, `tests/test_debug_scenes.gd` | Debug overlay can show reachable cells/cost heat data in headless-checkable state. |
 | `GAME-04` | `BACKLOG` | `GAME-02`, `VAL-01` | `docs/plan/2026-06-06_GAME-04_PROFILE_REACHABILITY_VALIDATION/` | Profile-specific reachability validation | validation helpers/tests | Important points mutually reachable per movement profile; validation reports profile id. |
@@ -135,7 +135,7 @@ Goal: 生成結果を validation / score / seed promotion に接続する。
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `QA-01` | `BACKLOG` | `VAL-01`, `LD2-04` | `docs/plan/2026-06-06_QA-01_VALIDATION_SUITE_ON_GENERATION/` | Apply validation suite to generation result | generator/editor helpers, tests | Generated map can be validated before promotion; pass/fail result captured. |
+| `QA-01` | `READY` | `VAL-01`, `LD2-04` | `docs/plan/2026-06-06_QA-01_VALIDATION_SUITE_ON_GENERATION/` | Apply validation suite to generation result | generator/editor helpers, tests | Generated map can be validated before promotion; pass/fail result captured. |
 | `QA-02` | `BACKLOG` | `QA-01` | `docs/plan/2026-06-06_QA-02_BATCH_RUNNER_SCORE_TABLE/` | Batch generation runner and score table | `hex_map_gen_dock.gd`, generator helpers, tests | N seeds generate, validation summary and scores sortable/headless-testable. |
 | `QA-03` | `BACKLOG` | `QA-02`, `LD2-05` | `docs/plan/2026-06-06_QA-03_SEED_PROMOTION/` | Promote chosen seed to Level Document | generator/editor adapter/tests | Chosen seed creates v2 document with generation snapshot metadata. |
 | `QA-04` | `BACKLOG` | `QA-03` | `docs/plan/2026-06-06_QA-04_GOLDEN_SEED_FIXTURES/` | Golden seed tests and preview artifacts | `tests/test_hex_map_generation.gd`, docs/test fixtures | Deterministic scores/fixtures guard important seeds; preview data exists without requiring visual assertion. |
@@ -198,11 +198,11 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `VAL-01` is READY.
+Current recommended next task: `VAL-02` is READY.
 
 Reason:
 
-- Dependency sweep completed on 2026-06-07 after LST-02 completion.
+- Dependency sweep completed on 2026-06-07 after VAL-01 completion.
 - `CAT-01` is `COMPLETE`.
 - `CAT-02` is `COMPLETE`.
 - `CAT-03` is `COMPLETE`.
@@ -210,7 +210,9 @@ Reason:
 - `LST-02` is `COMPLETE`.
 - `CATUI-01` is `COMPLETE`.
 - `CAT-04` is `COMPLETE`.
-- `VAL-01` is `READY` because `LD2-03` and `CAT-02` are `COMPLETE`.
+- `VAL-01` is `COMPLETE`.
+- `VAL-02` is now the first READY task by queue order because `VAL-01` and `LD2-05` are `COMPLETE`.
+- `VAL-04`, `GAME-01`, and `QA-01` were also promoted to `READY` because their dependencies are complete.
 - `OBJ-01` is also `READY` because `LD2-01` and `CAT-01` are `COMPLETE`.
 - `ARCH-02` is also `READY` because `ARCH-01` and `CATUI-01` are `COMPLETE`.
 - Remaining `BACKLOG` tasks still have at least one dependency that is not `COMPLETE` or `COMPLETE_WITH_BACKLOG`.
@@ -676,4 +678,29 @@ Notes:
 - Existing v1/v2 catalogless documents continue drawing through numeric fallback values.
 - `HexMapDocumentAdapter.catalog_compatibility_warnings()` reports structured fallback warnings for missing default keys, missing entry keys, missing catalog resources, and missing catalog entries.
 - Edit Dock target status/debug report includes catalog warning counts and details.
+- `repair-now`: none.
+
+### VAL-01
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot
+plan: `docs/plan/2026-06-06_VAL-01_VALIDATION_ENGINE/`
+review: `docs/review/autopilot/VAL-01_SELF_REVIEW_2026-06-07.md`
+test result: `docs/review/autopilot/VAL-01_TEST_RESULT_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+- docs:
+  - `docs/TEST.md`
+- major files:
+  - `addons/hex_map_kit/adapter/hex_map_document_validator.gd`
+  - `tests/test_hex_adapter.gd`
+
+Notes:
+
+- Added `HexMapDocumentValidator.validate_document()` returning reusable `HexMapValidationResult` issue data.
+- Core rules detect outside map tile payloads, orphan object/label payloads, missing catalogs, missing catalog tiles, missing required dependencies, and objects placed on wall cells.
+- `VAL-02`, `VAL-04`, `GAME-01`, and `QA-01` were promoted after dependency sweep.
 - `repair-now`: none.
