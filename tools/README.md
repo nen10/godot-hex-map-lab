@@ -1,0 +1,37 @@
+
+
+## 自動テスト
+
+```sh
+./tools/test.sh
+```
+
+複数 test script を並列実行する場合:
+
+```sh
+TEST_JOBS=3 ./tools/test.sh
+```
+
+Godot の実行ファイルを明示する場合:
+
+```sh
+GODOT_BIN=/path/to/Godot ./tools/test.sh
+```
+
+Godot が出す終了コード 0の macOS 証明書関連の非致命的な ERROR は既知であり無視します。
+
+## ChatGPT への引き渡し用 zip
+
+現在の作業ツリーを zip 化する場合:
+
+```sh
+./tools/export_chatgpt_zip.sh
+```
+
+出力先を指定する場合:
+
+```sh
+./tools/export_chatgpt_zip.sh /tmp/godot-hex-map-lab-chatgpt.zip
+```
+
+この script は未コミット・未追跡ファイルを含め、`.git/`、`.godot/`、`.godot_user/`、debug 生成物などのローカル生成物を除外します。IDE 上の未保存変更は含まれないため、必要なファイルを保存してから実行してください。

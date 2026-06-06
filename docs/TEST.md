@@ -49,14 +49,6 @@ GodotでのDebug実行によるテストが有用なケースについては、�
 TEST_JOBS=3 ./tools/test.sh
 ```
 
-test run id を明示する場合:
-
-```sh
-HEX_MAP_TEST_RUN_ID=manual-2026-06-05 TEST_JOBS=3 ./tools/test.sh
-```
-
-ログとテスト用 resource は `.godot_user/test-runs/<run-id>/` 配下へ分離し、通常テストから `.godot_user` 直下の固定 `.tres` へ書き込まないことによって出力の衝突を避ける。並列実行を保証し、効率化する目的。
-
 Godot の実行ファイルを明示する場合:
 
 ```sh
