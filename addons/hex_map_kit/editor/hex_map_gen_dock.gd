@@ -21,6 +21,7 @@ const HexAdjacencyRuleEditor = preload("res://addons/hex_map_kit/editor/hex_adja
 const HexCellButtonPanel = preload("res://addons/hex_map_kit/editor/hex_cell_button_panel.gd")
 const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
 const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
+const HexMapGenStateEvaluator = preload("res://addons/hex_map_kit/editor/hex_map_gen_state_evaluator.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const HexToricCoordinate = preload("res://addons/hex_map_kit/core/hex_toric_coordinate.gd")
 const HexRandomizer = preload("res://addons/hex_map_kit/core/hex_randomizer.gd")
@@ -3292,60 +3293,58 @@ func _tile_set_is_used_by_another_layer_recursive(node: Node, layer: TileMapLaye
 
 
 func _refresh_controls() -> void:
-	var symmetric = _uses_symmetric_generation()
-	var overlay = _overlay_mode_enabled()
-	match _generate_option.selected:
-		GENERATE_SYMMETRIC:
-			_shape_symmetric_row.visible = true
-			_shape_simple_row.visible = false
-			_rect_row.visible = false
-			_hex_row.visible = false
-			_radius_row.visible = true
-			_sym_options_container.visible = not _overlay_adjacency_enabled()
-			_prob_bar_label.text = "  Initial Probability"
-		GENERATE_SIMPLE, _:
-			_shape_symmetric_row.visible = false
-			_shape_simple_row.visible = true
-			_rect_row.visible = (_shape_option_simple.selected == SHAPE_RECTANGLE)
-			_hex_row.visible = (_shape_option_simple.selected == SHAPE_HEXAGON)
-			_radius_row.visible = false
-			_sym_options_container.visible = false
-			_prob_bar_label.text = "  Probability / Cell"
+	var control_state = HexMapGenStateEvaluator.evaluate_control_state({
+		"symmetric": _uses_symmetric_generation(),
+		"overlay": _overlay_mode_enabled(),
+		"generation_running": _generation_running,
+		"overlay_adjacency_enabled": _overlay_adjacency_enabled(),
+		"overlay_item_limit_enabled": _overlay_item_limit_check != null and _overlay_item_limit_check.button_pressed,
+		"simple_shape": _shape_option_simple.selected if _shape_option_simple != null else SHAPE_HEXAGON,
+		"shape_rectangle": SHAPE_RECTANGLE,
+		"shape_hexagon": SHAPE_HEXAGON,
+	})
+	_shape_symmetric_row.visible = bool(control_state["shape_symmetric_row_visible"])
+	_shape_simple_row.visible = bool(control_state["shape_simple_row_visible"])
+	_rect_row.visible = bool(control_state["rect_row_visible"])
+	_hex_row.visible = bool(control_state["hex_row_visible"])
+	_radius_row.visible = bool(control_state["radius_row_visible"])
+	_sym_options_container.visible = bool(control_state["sym_options_visible"])
+	_prob_bar_label.text = String(control_state["probability_label"])
 	if _torus_connectivity_check != null:
-		_torus_connectivity_check.visible = symmetric
-		_torus_connectivity_check.disabled = not symmetric or _generation_running
+		_torus_connectivity_check.visible = bool(control_state["torus_connectivity_visible"])
+		_torus_connectivity_check.disabled = bool(control_state["torus_connectivity_disabled"])
 	if _overlay_controls_container != null:
-		_overlay_controls_container.visible = overlay
+		_overlay_controls_container.visible = bool(control_state["overlay_controls_visible"])
 	if _generate_button != null:
-		_generate_button.text = "Overlay Generation" if overlay else "Primary Generation"
+		_generate_button.text = String(control_state["generate_button_text"])
 	if _deductor_label != null:
-		_deductor_label.text = "Overlay Deductor" if overlay else "Passage Generator"
+		_deductor_label.text = String(control_state["deductor_label_text"])
 	if _generator_label != null:
-		_generator_label.text = "Overlay Generator" if overlay else "Wall Generator"
+		_generator_label.text = String(control_state["generator_label_text"])
 	if _overlay_adjacency_check != null:
-		_overlay_adjacency_check.visible = overlay
-		_overlay_adjacency_check.disabled = (not overlay or _overlay_item_limit_check.button_pressed) or _generation_running
+		_overlay_adjacency_check.visible = bool(control_state["overlay_adjacency_visible"])
+		_overlay_adjacency_check.disabled = bool(control_state["overlay_adjacency_disabled"])
 	if _overlay_item_limit_check != null:
-		_overlay_item_limit_check.visible = overlay
-		_overlay_item_limit_check.disabled = (not overlay or _overlay_adjacency_check.button_pressed) or _generation_running
+		_overlay_item_limit_check.visible = bool(control_state["overlay_item_limit_visible"])
+		_overlay_item_limit_check.disabled = bool(control_state["overlay_item_limit_disabled"])
 	if _overlay_item_limit_spin != null:
-		_overlay_item_limit_spin.visible = false
+		_overlay_item_limit_spin.visible = bool(control_state["overlay_item_limit_spin_visible"])
 	if _overlay_item_name_edit != null:
 		var item_name_row = _overlay_item_name_edit.get_parent()
 		if item_name_row is Control:
-			item_name_row.visible = overlay and symmetric
+			item_name_row.visible = bool(control_state["overlay_item_name_row_visible"])
 	if _overlay_item_pool_container != null:
-		_overlay_item_pool_container.visible = overlay and not symmetric
+		_overlay_item_pool_container.visible = bool(control_state["overlay_item_pool_visible"])
 	if _overlay_add_item_button != null:
-		_overlay_add_item_button.visible = overlay and not symmetric
+		_overlay_add_item_button.visible = bool(control_state["overlay_add_item_visible"])
 	if _overlay_mask_container != null:
-		_overlay_mask_container.visible = overlay
+		_overlay_mask_container.visible = bool(control_state["overlay_mask_visible"])
 	if _overlay_deductor_floor_container != null:
-		_overlay_deductor_floor_container.visible = overlay and symmetric and not _overlay_adjacency_enabled()
+		_overlay_deductor_floor_container.visible = bool(control_state["overlay_deductor_floor_visible"])
 	if _overlay_reference_container != null:
-		_overlay_reference_container.visible = _overlay_adjacency_enabled()
+		_overlay_reference_container.visible = bool(control_state["overlay_reference_visible"])
 	if _wall_prob_row != null:
-		_wall_prob_row.visible = not overlay or not (_overlay_item_limit_enabled() or _overlay_adjacency_enabled())
+		_wall_prob_row.visible = bool(control_state["wall_probability_row_visible"])
 	_refresh_overlay_item_pool_rows()
 	_refresh_adjacency_rules_status()
 	_refresh_generation_block_state()
@@ -3356,29 +3355,43 @@ func _uses_symmetric_generation() -> bool:
 
 
 func _current_generation_block_reason() -> String:
-	if _generation_running or not _overlay_mode_enabled():
-		return ""
-	if _query_rows_enabled(QUERY_KIND_MASK) \
-		and _evaluate_query_rows(QUERY_KIND_MASK).is_empty():
-		return GENERATION_BLOCK_EMPTY_MASK
+	var mask_query_enabled = _query_rows_enabled(QUERY_KIND_MASK)
+	var mask_candidate_count = 1
+	if mask_query_enabled:
+		mask_candidate_count = _evaluate_query_rows(QUERY_KIND_MASK).size()
+	var adjacency_rule_count = 1
 	if _overlay_adjacency_enabled():
 		var text = _overlay_adjacency_rules_edit.text if _overlay_adjacency_rules_edit != null else ""
 		var rules: Dictionary = HexAdjacencyRuleSet.parse_rules_text(text)
-		if rules.is_empty():
-			return GENERATION_BLOCK_EMPTY_ADJACENCY_RULES
-	return ""
+		adjacency_rule_count = rules.size()
+	return HexMapGenStateEvaluator.generation_block_reason(
+		{
+			"generation_running": _generation_running,
+			"overlay_mode": _overlay_mode_enabled(),
+			"mask_query_enabled": mask_query_enabled,
+			"mask_candidate_count": mask_candidate_count,
+			"overlay_adjacency_enabled": _overlay_adjacency_enabled(),
+			"adjacency_rule_count": adjacency_rule_count,
+		},
+		GENERATION_BLOCK_EMPTY_MASK,
+		GENERATION_BLOCK_EMPTY_ADJACENCY_RULES
+	)
 
 
 func _generation_block_reason_for_snapshot(snapshot: Dictionary) -> String:
-	if not bool(snapshot.get("overlay_mode", false)):
-		return ""
 	var candidates: Array = snapshot.get("overlay_candidate_cells", [])
-	if bool(snapshot.get("overlay_mask_query_enabled", false)) and candidates.is_empty():
-		return GENERATION_BLOCK_EMPTY_MASK
 	var rules: Dictionary = snapshot.get("overlay_adjacency_rules", {})
-	if bool(snapshot.get("overlay_adjacency_enabled", false)) and rules.is_empty():
-		return GENERATION_BLOCK_EMPTY_ADJACENCY_RULES
-	return ""
+	return HexMapGenStateEvaluator.generation_block_reason(
+		{
+			"overlay_mode": bool(snapshot.get("overlay_mode", false)),
+			"mask_query_enabled": bool(snapshot.get("overlay_mask_query_enabled", false)),
+			"mask_candidate_count": candidates.size(),
+			"overlay_adjacency_enabled": bool(snapshot.get("overlay_adjacency_enabled", false)),
+			"adjacency_rule_count": rules.size(),
+		},
+		GENERATION_BLOCK_EMPTY_MASK,
+		GENERATION_BLOCK_EMPTY_ADJACENCY_RULES
+	)
 
 
 func _generation_block_status(reason: String) -> String:

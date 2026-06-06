@@ -18,6 +18,7 @@ const HexMapDocumentTerrainLayerResource = preload("res://addons/hex_map_kit/ada
 const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
 const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
 const HexMapGenDock = preload("res://addons/hex_map_kit/editor/hex_map_gen_dock.gd")
+const HexMapGenStateEvaluator = preload("res://addons/hex_map_kit/editor/hex_map_gen_state_evaluator.gd")
 const HexMapEditTool = preload("res://addons/hex_map_kit/editor/hex_map_edit_tool.gd")
 const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
 const HexDistEditor = preload("res://addons/hex_map_kit/editor/hex_dist_editor.gd")
@@ -127,6 +128,7 @@ func _run() -> void:
 	await _test_distribution_editor_close_button_uses_cancel_flow()
 	await _test_distribution_editor_manages_recent_custom_and_duplicate_preset()
 	await _test_adjacency_rule_editor_applies_rule_text()
+	_test_generation_dock_state_evaluator_splits_control_logic()
 	await _test_generation_dock_adjacency_rule_validation()
 	await _test_generation_dock_symmetric_hexagon_minimum_radii()
 	await _test_generation_dock_shape_universe_uses_canonical_hexagon_and_square_torus()
@@ -1954,6 +1956,124 @@ func _test_adjacency_rule_editor_applies_rule_text() -> void:
 
 	_assert_eq(state["rules"], "1=0.8;bad=x", "adjacency rule editor apply returns rule text")
 	_assert_eq(state["count"], 0, "adjacency rule editor apply does not call cancel")
+
+
+func _test_generation_dock_state_evaluator_splits_control_logic() -> void:
+	var simple = HexMapGenStateEvaluator.evaluate_control_state({
+		"symmetric": false,
+		"overlay": false,
+		"generation_running": false,
+		"overlay_adjacency_enabled": false,
+		"overlay_item_limit_enabled": false,
+		"simple_shape": HexMapGenDock.SHAPE_RECTANGLE,
+		"shape_rectangle": HexMapGenDock.SHAPE_RECTANGLE,
+		"shape_hexagon": HexMapGenDock.SHAPE_HEXAGON,
+	})
+	_assert_true(bool(simple["shape_simple_row_visible"]), "state evaluator shows simple shape row for simple generation")
+	_assert_true(bool(simple["rect_row_visible"]), "state evaluator shows rectangle row for rectangle shape")
+	_assert_true(not bool(simple["hex_row_visible"]), "state evaluator hides hex row for rectangle shape")
+	_assert_true(not bool(simple["radius_row_visible"]), "state evaluator hides radius row for simple generation")
+	_assert_eq(simple["probability_label"], "  Probability / Cell", "state evaluator labels simple probability")
+	_assert_eq(simple["generate_button_text"], "Primary Generation", "state evaluator labels primary generation button")
+	_assert_true(not bool(simple["overlay_controls_visible"]), "state evaluator hides overlay controls in primary mode")
+	_assert_true(bool(simple["wall_probability_row_visible"]), "state evaluator shows wall probability in primary mode")
+
+	var overlay_symmetric = HexMapGenStateEvaluator.evaluate_control_state({
+		"symmetric": true,
+		"overlay": true,
+		"generation_running": false,
+		"overlay_adjacency_enabled": true,
+		"overlay_item_limit_enabled": false,
+		"simple_shape": HexMapGenDock.SHAPE_HEXAGON,
+		"shape_rectangle": HexMapGenDock.SHAPE_RECTANGLE,
+		"shape_hexagon": HexMapGenDock.SHAPE_HEXAGON,
+	})
+	_assert_true(bool(overlay_symmetric["shape_symmetric_row_visible"]), "state evaluator shows symmetric shape row")
+	_assert_true(bool(overlay_symmetric["radius_row_visible"]), "state evaluator shows radius row for symmetric generation")
+	_assert_true(not bool(overlay_symmetric["sym_options_visible"]), "state evaluator hides symmetric options during overlay adjacency")
+	_assert_eq(overlay_symmetric["probability_label"], "  Initial Probability", "state evaluator labels symmetric probability")
+	_assert_eq(overlay_symmetric["generate_button_text"], "Overlay Generation", "state evaluator labels overlay generation button")
+	_assert_eq(overlay_symmetric["deductor_label_text"], "Overlay Deductor", "state evaluator labels overlay deductor")
+	_assert_eq(overlay_symmetric["generator_label_text"], "Overlay Generator", "state evaluator labels overlay generator")
+	_assert_true(bool(overlay_symmetric["overlay_controls_visible"]), "state evaluator shows overlay controls")
+	_assert_true(bool(overlay_symmetric["overlay_item_name_row_visible"]), "state evaluator shows symmetric overlay item name row")
+	_assert_true(not bool(overlay_symmetric["overlay_item_pool_visible"]), "state evaluator hides item pool for symmetric overlay")
+	_assert_true(bool(overlay_symmetric["overlay_reference_visible"]), "state evaluator shows adjacency reference controls")
+	_assert_true(not bool(overlay_symmetric["overlay_deductor_floor_visible"]), "state evaluator hides deductor source during overlay adjacency")
+	_assert_true(not bool(overlay_symmetric["wall_probability_row_visible"]), "state evaluator hides wall probability during overlay adjacency")
+
+	var running_limit = HexMapGenStateEvaluator.evaluate_control_state({
+		"symmetric": true,
+		"overlay": true,
+		"generation_running": true,
+		"overlay_adjacency_enabled": false,
+		"overlay_item_limit_enabled": true,
+		"simple_shape": HexMapGenDock.SHAPE_HEXAGON,
+		"shape_rectangle": HexMapGenDock.SHAPE_RECTANGLE,
+		"shape_hexagon": HexMapGenDock.SHAPE_HEXAGON,
+	})
+	_assert_true(bool(running_limit["torus_connectivity_disabled"]), "state evaluator disables torus connectivity while generating")
+	_assert_true(bool(running_limit["overlay_adjacency_disabled"]), "state evaluator disables adjacency toggle during item limit or generation")
+	_assert_true(bool(running_limit["overlay_item_limit_disabled"]), "state evaluator disables item limit toggle while generating")
+	_assert_true(bool(running_limit["overlay_deductor_floor_visible"]), "state evaluator shows symmetric overlay deductor source outside adjacency")
+	_assert_true(not bool(running_limit["wall_probability_row_visible"]), "state evaluator hides wall probability during item limit")
+
+	_assert_eq(
+		HexMapGenStateEvaluator.generation_block_reason({
+			"overlay_mode": false,
+			"mask_query_enabled": true,
+			"mask_candidate_count": 0,
+			"overlay_adjacency_enabled": true,
+			"adjacency_rule_count": 0,
+		}),
+		"",
+		"state evaluator does not block primary generation"
+	)
+	_assert_eq(
+		HexMapGenStateEvaluator.generation_block_reason({
+			"overlay_mode": true,
+			"mask_query_enabled": true,
+			"mask_candidate_count": 0,
+			"overlay_adjacency_enabled": false,
+			"adjacency_rule_count": 1,
+		}),
+		HexMapGenStateEvaluator.DEFAULT_EMPTY_MASK_REASON,
+		"state evaluator blocks empty overlay mask"
+	)
+	_assert_eq(
+		HexMapGenStateEvaluator.generation_block_reason({
+			"overlay_mode": true,
+			"mask_query_enabled": false,
+			"mask_candidate_count": 0,
+			"overlay_adjacency_enabled": true,
+			"adjacency_rule_count": 0,
+		}),
+		HexMapGenStateEvaluator.DEFAULT_EMPTY_ADJACENCY_RULES_REASON,
+		"state evaluator blocks empty adjacency rules"
+	)
+	_assert_eq(
+		HexMapGenStateEvaluator.generation_block_reason({
+			"generation_running": true,
+			"overlay_mode": true,
+			"mask_query_enabled": true,
+			"mask_candidate_count": 0,
+			"overlay_adjacency_enabled": true,
+			"adjacency_rule_count": 0,
+		}),
+		"",
+		"state evaluator does not change block reason while generation is running"
+	)
+	_assert_eq(
+		HexMapGenStateEvaluator.generation_block_reason({
+			"overlay_mode": true,
+			"mask_query_enabled": false,
+			"mask_candidate_count": 0,
+			"overlay_adjacency_enabled": true,
+			"adjacency_rule_count": 1,
+		}),
+		"",
+		"state evaluator allows valid adjacency overlay generation"
+	)
 
 
 func _test_generation_dock_adjacency_rule_validation() -> void:
