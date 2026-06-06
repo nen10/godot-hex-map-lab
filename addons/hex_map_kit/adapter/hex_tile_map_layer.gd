@@ -111,6 +111,7 @@ var _data = null
 var _highlights: Dictionary = {}
 var _display_path: Array = []
 var _path_color := Color(0.12, 0.48, 0.88, 0.90)
+var _movement_range_overlay: Dictionary = {}
 var _hovered_hit_key := ""
 var _hex_map_setter_suppressed := false
 var _pending_document_payloads = null
@@ -157,6 +158,13 @@ func _draw_overlay(canvas: Node2D) -> void:
 
 	_draw_loop_cell_outlines(canvas)
 
+	for key in _movement_range_overlay:
+		var range_hex = _movement_range_overlay[key]["hex"]
+		var range_color: Color = _movement_range_overlay[key]["color"]
+		for visual_hex in _visual_hexes_for_draw(range_hex):
+			var tile_center = _display_center_for_hex(visual_hex)
+			_draw_hex_fill(canvas, tile_center, range_color, Color(range_color.r, range_color.g, range_color.b, 0.72))
+
 	for key in _highlights:
 		var hex = _highlights[key]["hex"]
 		var color: Color = _highlights[key]["color"]
@@ -177,14 +185,29 @@ func _draw_overlay(canvas: Node2D) -> void:
 
 
 func _draw_hex_highlight(canvas: Node2D, center: Vector2, color: Color) -> void:
+	var points = _hex_polygon(center)
+	var outline = points
+	outline.append(points[0])
+	canvas.draw_polyline(outline, color, 2.5)
+
+
+func _draw_hex_fill(canvas: Node2D, center: Vector2, fill: Color, outline_color: Color = Color.TRANSPARENT) -> void:
+	var points = _hex_polygon(center)
+	canvas.draw_colored_polygon(points, fill)
+	if outline_color.a <= 0.0:
+		return
+	var outline = points
+	outline.append(points[0])
+	canvas.draw_polyline(outline, outline_color, 1.5)
+
+
+func _hex_polygon(center: Vector2) -> PackedVector2Array:
 	var points: PackedVector2Array = []
 	var rotation = 0.0 if flat_top else 30.0
 	for index in range(6):
 		var angle = deg_to_rad(rotation + 60.0 * float(index))
 		points.append(center + Vector2(cos(angle), sin(angle)) * hex_size)
-	var outline = points
-	outline.append(points[0])
-	canvas.draw_polyline(outline, color, 2.5)
+	return points
 
 
 func apply_map(resource: HexMapResource) -> void:
@@ -201,6 +224,7 @@ func apply_map(resource: HexMapResource) -> void:
 	_clear_document_payload_display()
 	_highlights.clear()
 	_display_path.clear()
+	_movement_range_overlay.clear()
 	_redraw()
 
 
@@ -761,6 +785,67 @@ func movement_range(start: HexVector, movement_budget: float, movement_profile =
 		gameplay.movement_costs(),
 		_data.cyclic_size
 	)
+
+
+func show_movement_range(
+	start: HexVector,
+	movement_budget: float,
+	movement_profile = null,
+	near_color: Color = Color(0.12, 0.62, 0.42, 0.24),
+	far_color: Color = Color(0.94, 0.54, 0.16, 0.52)
+) -> Dictionary:
+	var range_result = movement_range(start, movement_budget, movement_profile)
+	draw_movement_range(range_result, near_color, far_color)
+	return range_result
+
+
+func draw_movement_range(
+	range_result: Dictionary,
+	near_color: Color = Color(0.12, 0.62, 0.42, 0.24),
+	far_color: Color = Color(0.94, 0.54, 0.16, 0.52)
+) -> void:
+	_movement_range_overlay.clear()
+	var max_cost := 0.0
+	for key in range_result:
+		var record = range_result[key]
+		if not (record is Dictionary):
+			continue
+		max_cost = maxf(max_cost, float(record.get("cost", 0.0)))
+
+	for key in range_result:
+		var record = range_result[key]
+		if not (record is Dictionary):
+			continue
+		if not record.has("cell"):
+			continue
+		var hex = record["cell"]
+		var normalized = HexVector.apply_basis(hex.q, hex.s, hex.r)
+		var cost = float(record.get("cost", 0.0))
+		var ratio := 0.0 if max_cost <= 0.0 else clampf(cost / max_cost, 0.0, 1.0)
+		_movement_range_overlay[normalized.key()] = {
+			"hex": normalized,
+			"cost": cost,
+			"color": near_color.lerp(far_color, ratio),
+		}
+	_queue_visual_redraw()
+
+
+func clear_movement_range_overlay() -> void:
+	_movement_range_overlay.clear()
+	_queue_visual_redraw()
+
+
+func movement_range_overlay_entries() -> Array:
+	var keys = _movement_range_overlay.keys()
+	keys.sort()
+	var result: Array = []
+	for key in keys:
+		result.append(_movement_range_overlay[key].duplicate(true))
+	return result
+
+
+func movement_range_overlay_state() -> Dictionary:
+	return _movement_range_overlay.duplicate(true)
 
 
 func draw_path(path: Array, color: Color = Color(0.12, 0.48, 0.88, 0.90)) -> void:

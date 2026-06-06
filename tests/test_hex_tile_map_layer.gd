@@ -676,6 +676,19 @@ func _test_weighted_path_and_range_use_movement_profile() -> void:
 	_assert_true(passable_wall_range.has(goal.key()), "profile movement range reaches cells behind passable wall")
 	_assert_eq(float(passable_wall_range[goal.key()]["cost"]), 2.0, "profile movement range records accumulated cost")
 
+	layer.draw_movement_range(passable_wall_range)
+	var overlay_state = layer.movement_range_overlay_state()
+	_assert_eq(overlay_state.size(), 3, "movement range overlay stores every reachable cell")
+	_assert_eq(float(overlay_state[goal.key()]["cost"]), 2.0, "movement range overlay stores heat cost")
+	_assert_true(
+		(overlay_state[goal.key()]["color"] as Color) != (overlay_state[HexVector.zero().key()]["color"] as Color),
+		"movement range overlay stores cost heat colors"
+	)
+	var overlay_entries = layer.movement_range_overlay_entries()
+	_assert_eq(overlay_entries.size(), 3, "movement range overlay exposes sorted entries")
+	layer.clear_movement_range_overlay()
+	_assert_eq(layer.movement_range_overlay_entries().size(), 0, "clear_movement_range_overlay clears heat data")
+
 	layer.queue_free()
 	await process_frame
 

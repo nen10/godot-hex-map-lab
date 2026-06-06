@@ -109,7 +109,7 @@ Goal: movement cost / blocker / reachability / range preview を game-facing API
 |---|---|---|---|---|---|---|
 | `GAME-01` | `COMPLETE` | `LD2-04`, `VAL-01` | `docs/plan/2026-06-06_GAME-01_MOVEMENT_PROFILE_RESOURCE/` | `HexMovementProfileResource` and gameplay layer data | new resource/core files, `tests/test_hex_core.gd`, `tests/test_hex_adapter.gd` | Movement profile defines passability, costs, blocker keys, default behavior. |
 | `GAME-02` | `COMPLETE` | `GAME-01` | `docs/plan/2026-06-06_GAME-02_WEIGHTED_PATH_AND_RANGE/` | Weighted pathfinding and movement range API | `hex_grid.gd` or helper, `hex_tile_map_layer.gd`, tests | Weighted path, blocked cells, profile-specific range, existing unweighted path compatibility. |
-| `GAME-03` | `READY` | `GAME-02`, `VAL-02` | `docs/plan/2026-06-06_GAME-03_DEBUG_OVERLAY/` | Movement/range/debug overlay | `hex_tile_map_layer.gd`, editor/debug scene files, `tests/test_hex_tile_map_layer.gd`, `tests/test_debug_scenes.gd` | Debug overlay can show reachable cells/cost heat data in headless-checkable state. |
+| `GAME-03` | `COMPLETE` | `GAME-02`, `VAL-02` | `docs/plan/2026-06-06_GAME-03_DEBUG_OVERLAY/` | Movement/range/debug overlay | `hex_tile_map_layer.gd`, editor/debug scene files, `tests/test_hex_tile_map_layer.gd`, `tests/test_debug_scenes.gd` | Debug overlay can show reachable cells/cost heat data in headless-checkable state. |
 | `GAME-04` | `READY` | `GAME-02`, `VAL-01` | `docs/plan/2026-06-06_GAME-04_PROFILE_REACHABILITY_VALIDATION/` | Profile-specific reachability validation | validation helpers/tests | Important points mutually reachable per movement profile; validation reports profile id. |
 | `GAME-05` | `READY` | `GAME-02`, `LD2-06` | `docs/plan/2026-06-06_GAME-05_RUNTIME_QUERY_SAMPLE/` | Runtime query API sample | `examples/basic_runtime` or debug scene, docs/manual | Runtime script can load document and ask movement/path/range queries. |
 
@@ -198,11 +198,11 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `GAME-03` is READY.
+Current recommended next task: `GAME-04` is READY.
 
 Reason:
 
-- Dependency sweep completed on 2026-06-07 after GAME-02 completion.
+- Dependency sweep completed on 2026-06-07 after GAME-03 completion.
 - `CAT-01` is `COMPLETE`.
 - `CAT-02` is `COMPLETE`.
 - `CAT-03` is `COMPLETE`.
@@ -216,8 +216,8 @@ Reason:
 - `VAL-04` is `COMPLETE`.
 - `GAME-01` is `COMPLETE`.
 - `GAME-02` is `COMPLETE`.
-- `GAME-03` is now the first READY task by queue order because `GAME-02` and `VAL-02` are `COMPLETE`.
-- `GAME-04` is also `READY` because `GAME-02` and `VAL-01` are `COMPLETE`.
+- `GAME-03` is `COMPLETE`.
+- `GAME-04` is now the first READY task by queue order because `GAME-02` and `VAL-01` are `COMPLETE`.
 - `GAME-05` is also `READY` because `GAME-02` and `LD2-06` are `COMPLETE`.
 - `QA-01` is also `READY` because its dependencies are complete.
 - `OBJ-01` is also `READY` because `LD2-01` and `CAT-01` are `COMPLETE`.
@@ -844,4 +844,31 @@ Notes:
 - Added movement range results keyed by cell with accumulated cost and display cell data.
 - Added `HexTileMapLayer` gameplay query wrappers for profile-specific weighted path and movement range.
 - `GAME-03`, `GAME-04`, and `GAME-05` were promoted after dependency sweep.
+- `repair-now`: none.
+
+### GAME-03
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot
+plan: `docs/plan/2026-06-06_GAME-03_DEBUG_OVERLAY/`
+review: `docs/review/autopilot/GAME-03_SELF_REVIEW_2026-06-07.md`
+test result: `docs/review/autopilot/GAME-03_TEST_RESULT_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+- docs:
+  - `docs/TEST.md`
+- major files:
+  - `addons/hex_map_kit/adapter/hex_tile_map_layer.gd`
+  - `debug/generated_map_debug.gd`
+  - `tests/test_hex_tile_map_layer.gd`
+  - `tests/test_debug_scenes.gd`
+
+Notes:
+
+- Added `HexTileMapLayer` movement range heat overlay state, drawing, getters, and clear helper.
+- Added generated-map debug Range toggle with headless movement range getter.
+- Range overlay records include canonical cell, accumulated cost, and heat color.
 - `repair-now`: none.

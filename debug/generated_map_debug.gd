@@ -23,6 +23,9 @@ const OUTLINE_COLOR := Color(0.12, 0.13, 0.14)
 const PATH_COLOR := Color(0.12, 0.48, 0.88, 0.90)
 const PATH_START_COLOR := Color(0.12, 0.62, 0.42)
 const PATH_GOAL_COLOR := Color(0.88, 0.24, 0.24)
+const RANGE_BUDGET := 3.0
+const RANGE_NEAR_COLOR := Color(0.12, 0.62, 0.42, 0.22)
+const RANGE_FAR_COLOR := Color(0.94, 0.54, 0.16, 0.50)
 const SYMMETRY_OUTER_PHASE_COLORS := [
 	Color(0.95, 0.28, 0.18, 0.48),
 	Color(0.96, 0.52, 0.18, 0.48),
@@ -77,6 +80,7 @@ var _wall_probability := 0.45
 var _connect_method := 1
 var _flat_top := true
 var _show_path := true
+var _show_movement_range := false
 var _show_split := true
 var _show_symmetry_regions := false
 var _center_toric_domain := false
@@ -88,6 +92,7 @@ var _toric_size_index := 0
 var _map_data
 var _split_rule = null
 var _path_points: Array = []
+var _movement_range_overlay: Dictionary = {}
 var _last_cell_hit := {}
 var _shape_buttons: Array[Button] = []
 var _summary_label: Label
@@ -95,6 +100,7 @@ var _orientation_option: OptionButton
 var _probability_option: OptionButton
 var _connect_method_option: OptionButton
 var _path_check: CheckButton
+var _range_check: CheckButton
 var _loop_path_check: CheckButton
 var _cell_hit_check: CheckButton
 var _split_check: CheckButton
@@ -122,7 +128,8 @@ func configure_for_test(
 	use_symmetric_toric_generation: bool = false,
 	center_toric_domain: bool = false,
 	loop_path_enabled: bool = false,
-	cell_hit_display_enabled: bool = false
+	cell_hit_display_enabled: bool = false,
+	movement_range_enabled: bool = false
 ) -> void:
 	_shape_mode = shape_mode
 	_seed = seed
@@ -137,6 +144,7 @@ func configure_for_test(
 	_center_toric_domain = center_toric_domain
 	_loop_path_enabled = loop_path_enabled
 	_cell_hit_display_enabled = cell_hit_display_enabled
+	_show_movement_range = movement_range_enabled
 	_sync_controls()
 	_generate_map()
 
@@ -151,6 +159,10 @@ func get_current_path() -> Array:
 
 func get_current_visual_path() -> Array:
 	return _visual_path_for_current_path()
+
+
+func get_current_movement_range() -> Dictionary:
+	return _movement_range_overlay.duplicate(true)
 
 
 func get_split_index(point) -> int:
@@ -181,6 +193,10 @@ func is_loop_path_enabled() -> bool:
 
 func is_cell_hit_display_enabled() -> bool:
 	return _cell_hit_display_enabled
+
+
+func is_movement_range_enabled() -> bool:
+	return _show_movement_range
 
 
 func get_last_cell_hit() -> Dictionary:
@@ -240,6 +256,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			_set_orientation(1 if _flat_top else 0)
 		KEY_P:
 			_set_path_visible(not _show_path)
+		KEY_M:
+			_set_movement_range_visible(not _show_movement_range)
 		KEY_L:
 			_set_loop_path_enabled(not _loop_path_enabled)
 		KEY_C:
@@ -292,6 +310,14 @@ func _build_controls() -> void:
 	_path_check.button_pressed = _show_path
 	_path_check.toggled.connect(_set_path_visible)
 	add_child(_path_check)
+
+	_range_check = CheckButton.new()
+	_range_check.text = "Range"
+	_range_check.position = Vector2(568.0, 126.0)
+	_range_check.size = Vector2(104.0, 36.0)
+	_range_check.button_pressed = _show_movement_range
+	_range_check.toggled.connect(_set_movement_range_visible)
+	add_child(_range_check)
 
 	_loop_path_check = CheckButton.new()
 	_loop_path_check.text = "Loop Path"
@@ -428,6 +454,14 @@ func _set_path_visible(value: bool) -> void:
 	queue_redraw()
 
 
+func _set_movement_range_visible(value: bool) -> void:
+	_show_movement_range = value
+	_refresh_movement_range()
+	_sync_controls()
+	_update_summary()
+	queue_redraw()
+
+
 func _set_loop_path_enabled(value: bool) -> void:
 	_loop_path_enabled = value
 	_sync_controls()
@@ -491,6 +525,8 @@ func _sync_controls() -> void:
 		_connect_method_option.select(_connect_method)
 	if _path_check != null:
 		_path_check.button_pressed = _show_path
+	if _range_check != null:
+		_range_check.button_pressed = _show_movement_range
 	if _loop_path_check != null:
 		_loop_path_check.button_pressed = _loop_path_enabled
 		_loop_path_check.visible = _shape_mode == ShapeMode.TORUS
@@ -568,6 +604,7 @@ func _generate_map() -> void:
 				protected_floor
 			)
 	_refresh_path()
+	_refresh_movement_range()
 	_update_summary()
 	queue_redraw()
 
@@ -586,6 +623,8 @@ func _update_summary() -> void:
 	]
 	if _show_path:
 		_summary_label.text += "  path=%d" % _path_points.size()
+	if _show_movement_range:
+		_summary_label.text += "  range=%d budget=%.0f" % [_movement_range_overlay.size(), RANGE_BUDGET]
 	if _shape_mode == ShapeMode.TORUS and _loop_path_enabled:
 		_summary_label.text += "  loop-path=on"
 	if _cell_hit_display_enabled:
@@ -625,7 +664,7 @@ func _draw_header() -> void:
 	draw_string(
 		font,
 			Vector2(24.0, 122.0),
-			"Space: new seed   Tab: shape   R: method   O: orientation   P: path   L: loop path   C: cell hit   S: 9-split   Y: sym-region   D: centered   U: unfold   N: size   G: sym-gen",
+			"Space: new seed   Tab: shape   R: method   O: orientation   P: path   M: range   L: loop path   C: cell hit   S: 9-split   Y: sym-region   D: centered   U: unfold   N: size   G: sym-gen",
 		HORIZONTAL_ALIGNMENT_LEFT,
 		-1.0,
 		16,
@@ -684,6 +723,7 @@ func _draw_map() -> void:
 			fill = fill.lerp(Color.WHITE, 0.24)
 		_draw_hex(offset + item["local"], _flat_top, fill, OUTLINE_COLOR)
 
+	_draw_movement_range_overlay(offset)
 	_draw_split_overlay(offset, positions)
 	_draw_symmetry_overlay(offset, positions)
 	_draw_path(offset, local_by_key)
@@ -708,6 +748,20 @@ func _refresh_path() -> void:
 		return
 
 	_path_points = HexGrid.shortest_path(start, [goal], floors, _map_data.cyclic_size)
+
+
+func _refresh_movement_range() -> void:
+	_movement_range_overlay = {}
+	if not _show_movement_range or _map_data == null:
+		return
+	var floors = _map_data.floor_cells()
+	if floors.is_empty():
+		return
+
+	var start = HexVector.zero()
+	if not _map_data.has_cell(start) or _map_data.has_wall(start):
+		start = floors[0]
+	_movement_range_overlay = HexGrid.movement_range(start, floors, RANGE_BUDGET, {}, _map_data.cyclic_size)
 
 
 func _farthest_floor_from(start, floors: Array):
@@ -747,6 +801,37 @@ func _draw_path(map_offset: Vector2, local_by_key: Dictionary) -> void:
 	draw_polyline(points, PATH_COLOR, 6.0, true)
 	draw_circle(points[0], 8.0, PATH_START_COLOR)
 	draw_circle(points[points.size() - 1], 8.0, PATH_GOAL_COLOR)
+
+
+func _draw_movement_range_overlay(map_offset: Vector2) -> void:
+	if not _show_movement_range or _movement_range_overlay.is_empty():
+		return
+	var max_cost = _movement_range_max_cost()
+	for key in _movement_range_overlay:
+		var record: Dictionary = _movement_range_overlay[key]
+		var cell = record.get("cell", HexVector.zero())
+		var cost = float(record.get("cost", 0.0))
+		var fill = _movement_range_color_for_cost(cost, max_cost)
+		for visual_hex in _display_vectors(cell):
+			_draw_hex(
+				map_offset + HexMapTileAdapter.hex_to_local(visual_hex, HEX_SIZE, _flat_top),
+				_flat_top,
+				fill,
+				Color.TRANSPARENT
+			)
+
+
+func _movement_range_max_cost() -> float:
+	var result := 0.0
+	for record in _movement_range_overlay.values():
+		if record is Dictionary:
+			result = maxf(result, float(record.get("cost", 0.0)))
+	return result
+
+
+func _movement_range_color_for_cost(cost: float, max_cost: float) -> Color:
+	var ratio := 0.0 if max_cost <= 0.0 else clampf(cost / max_cost, 0.0, 1.0)
+	return RANGE_NEAR_COLOR.lerp(RANGE_FAR_COLOR, ratio)
 
 
 func _draw_cell_hit(map_offset: Vector2) -> void:

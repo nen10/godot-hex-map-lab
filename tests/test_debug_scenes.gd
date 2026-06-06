@@ -33,6 +33,27 @@ func _run() -> void:
 	_assert_true(HexMapGenerator.is_floor_connected(default_data), "default debug data is restored")
 	_assert_true(scene.get_current_path().size() > 1, "default debug data exposes a path")
 
+	scene.configure_for_test(
+		GeneratedMapDebug.SHAPE_RECTANGLE,
+		1201,
+		0.45,
+		HexMapGenerator.CONNECT_DENSE,
+		true,
+		-1,
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		true
+	)
+	var debug_range = scene.get_current_movement_range()
+	_assert_true(scene.is_movement_range_enabled(), "generated map debug exposes range toggle state")
+	_assert_true(debug_range.size() > 1, "generated map debug exposes movement range data")
+	_assert_true(debug_range.has(HexVector.zero().key()), "generated map debug range includes start")
+	_assert_eq(float(debug_range[HexVector.zero().key()]["cost"]), 0.0, "generated map debug range records start cost")
+
 	scene.configure_for_test(GeneratedMapDebug.SHAPE_HEXAGON, 246, 0.45, true, true)
 	var hexagon_data = scene.get_current_map_data()
 	_assert_eq(hexagon_data.cells.size(), 37, "generated map debug can show hexagon data")
