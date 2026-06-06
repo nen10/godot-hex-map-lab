@@ -122,9 +122,9 @@ Goal: object mode を marker から object placement / scene placement へ上げ
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
 | `OBJ-01` | `COMPLETE` | `LD2-01`, `CAT-01` | `docs/plan/2026-06-06_OBJ-01_OBJECT_DATABASE_V2/` | `HexObjectDatabaseResource v2` definitions | `hex_object_database_resource.gd`, new definition script if needed, `tests/test_hex_adapter.gd` | Definition has id/display_name/scene_path/tags/default_properties/preview. Existing Array loads through migration/fallback. |
-| `OBJ-02` | `READY` | `OBJ-01`, `LD2-04` | `docs/plan/2026-06-06_OBJ-02_OBJECT_PLACEMENT_SCHEMA/` | Object placement schema in document | document resource/adapter/tests | Placement has object_id/cell/rotation/variant/properties/spawn_condition; cleanup on deleted cell. |
-| `OBJ-03` | `BACKLOG` | `OBJ-02`, `LD2-05` | `docs/plan/2026-06-06_OBJ-03_OBJECT_EDITOR_UI/` | Object brush and property editor UI | `hex_map_edit_tool.gd`, tests | Object mode edits typed placements; property table state is saved and undoable. |
-| `OBJ-04` | `BACKLOG` | `OBJ-02`, `LST-02` | `docs/plan/2026-06-06_OBJ-04_OBJECT_LAYER_ADAPTER/` | Object layer adapter using scene tile or direct instance prototypes | `hex_tile_map_layer.gd`, object adapter helper, tests | Scene tile prototype and direct instance prototype both work; standard choice documented in policy. |
+| `OBJ-02` | `COMPLETE` | `OBJ-01`, `LD2-04` | `docs/plan/2026-06-06_OBJ-02_OBJECT_PLACEMENT_SCHEMA/` | Object placement schema in document | document resource/adapter/tests | Placement has object_id/cell/rotation/variant/properties/spawn_condition; cleanup on deleted cell. |
+| `OBJ-03` | `READY` | `OBJ-02`, `LD2-05` | `docs/plan/2026-06-06_OBJ-03_OBJECT_EDITOR_UI/` | Object brush and property editor UI | `hex_map_edit_tool.gd`, tests | Object mode edits typed placements; property table state is saved and undoable. |
+| `OBJ-04` | `READY` | `OBJ-02`, `LST-02` | `docs/plan/2026-06-06_OBJ-04_OBJECT_LAYER_ADAPTER/` | Object layer adapter using scene tile or direct instance prototypes | `hex_tile_map_layer.gd`, object adapter helper, tests | Scene tile prototype and direct instance prototype both work; standard choice documented in policy. |
 | `OBJ-05` | `BACKLOG` | `OBJ-03`, `OBJ-04`, `VAL-01` | `docs/plan/2026-06-06_OBJ-05_OBJECT_VALIDATION_RUNTIME_EXPORT/` | Object validation and runtime export policy | validation helper, runtime sample, docs | Detect missing scene, object on wall, duplicate unique object; runtime export keeps authoring/runtime state separate. |
 
 ---
@@ -198,7 +198,7 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `OBJ-02` is READY.
+Current recommended next task: `OBJ-03` is READY.
 
 Reason:
 
@@ -221,7 +221,9 @@ Reason:
 - `GAME-05` is `COMPLETE`.
 - `QA-01` is also `READY` because its dependencies are complete.
 - `OBJ-01` is `COMPLETE`.
-- `OBJ-02` is now the first READY task by queue order because `OBJ-01` and `LD2-04` are `COMPLETE`.
+- `OBJ-02` is `COMPLETE`.
+- `OBJ-03` is now the first READY task by queue order because `OBJ-02` and `LD2-05` are `COMPLETE`.
+- `OBJ-04` is also `READY` because `OBJ-02` and `LST-02` are `COMPLETE`.
 - `ARCH-02` is also `READY` because `ARCH-01` and `CATUI-01` are `COMPLETE`.
 - `ARCH-04` is also `READY` because `VAL-02` is `COMPLETE`.
 - Remaining `BACKLOG` tasks still have at least one dependency that is not `COMPLETE` or `COMPLETE_WITH_BACKLOG`.
@@ -229,6 +231,30 @@ Reason:
 ---
 
 ## 12. Completed task proof log
+
+### OBJ-02
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot
+plan: `docs/plan/2026-06-06_OBJ-02_OBJECT_PLACEMENT_SCHEMA/`
+review: `docs/review/autopilot/OBJ-02_SELF_REVIEW_2026-06-07.md`
+test result: `docs/review/autopilot/OBJ-02_TEST_RESULT_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+- docs:
+  - `docs/TEST.md`
+- major files:
+  - `addons/hex_map_kit/adapter/hex_map_document_adapter.gd`
+  - `tests/test_hex_adapter.gd`
+  - `docs/TEST.md`
+
+Notes:
+
+- Added adapter support and tests for full object placement schema fields.
+- `repair-now`: none.
 
 ### OBJ-01
 

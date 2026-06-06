@@ -71,6 +71,7 @@ func _run() -> void:
 	_test_hex_movement_profile_resource_roundtrips_gameplay_defaults()
 	_test_hex_gameplay_layer_data_uses_profile_catalog_and_objects()
 	_test_hex_map_document_adapter_roundtrips_v2_payload_entries()
+	_test_hex_map_document_object_placement_schema_mutates_and_cleans_deleted_cell()
 	_test_hex_map_document_adapter_cleans_v2_payloads_for_deleted_cell()
 	_test_hex_map_document_adapter_updates_wall_floor()
 	_test_hex_map_document_adapter_applies_tile_overrides()
@@ -578,9 +579,13 @@ func _test_hex_map_document_v2_schema_roundtrips_typed_resources() -> void:
 	placement.placement_id = "chest-001"
 	placement.object_id = "chest"
 	placement.cell = Vector3i(1, 0, 0)
+	placement.rotation_degrees = 45.0
 	placement.variant = "gold"
 	placement.properties = {"gold": 5}
 	placement.spawn_condition = "default"
+	placement.layer_id = "props"
+	placement.runtime_enabled = false
+	placement.metadata = {"unique": true}
 	document.object_placements.append(placement)
 
 	var label = HexMapDocumentLabelPlacementResource.new()
@@ -628,6 +633,12 @@ func _test_hex_map_document_v2_schema_roundtrips_typed_resources() -> void:
 	_assert_eq(loaded.overlay_layers[0].overlay.item_keys[0], "Treasure", "overlay layer preserves overlay resource")
 	_assert_eq(loaded.object_placements[0] is HexMapDocumentObjectPlacementResource, true, "object placement keeps typed resource")
 	_assert_eq(loaded.object_placements[0].properties["gold"], 5, "object placement preserves properties")
+	_assert_eq(loaded.object_placements[0].rotation_degrees, 45.0, "object placement preserves rotation")
+	_assert_eq(loaded.object_placements[0].variant, "gold", "object placement preserves variant")
+	_assert_eq(loaded.object_placements[0].spawn_condition, "default", "object placement preserves spawn condition")
+	_assert_eq(loaded.object_placements[0].layer_id, "props", "object placement preserves layer id")
+	_assert_eq(loaded.object_placements[0].runtime_enabled, false, "object placement preserves runtime flag")
+	_assert_eq(loaded.object_placements[0].metadata["unique"], true, "object placement preserves metadata")
 	_assert_eq(loaded.label_placements[0] is HexMapDocumentLabelPlacementResource, true, "label placement keeps typed resource")
 	_assert_eq(loaded.label_placements[0].text, "North", "label placement preserves text")
 	_assert_eq(loaded.zones[0] is HexMapDocumentZoneResource, true, "zone keeps typed resource")
@@ -699,8 +710,14 @@ func _test_hex_map_document_migrates_v1_to_v2_preserving_legacy_fields() -> void
 	document.objects = [{
 		"cell": Vector3i(1, 0, 0),
 		"object_id": "chest",
+		"placement_id": "chest-legacy",
 		"properties": {"gold": 8},
 		"variant": "rare",
+		"rotation": 30.0,
+		"spawn_condition": "night",
+		"layer_id": "props",
+		"runtime_enabled": false,
+		"metadata": {"unique": true},
 	}]
 	document.labels = [{
 		"cell": Vector3i.ZERO,
@@ -731,6 +748,13 @@ func _test_hex_map_document_migrates_v1_to_v2_preserving_legacy_fields() -> void
 	_assert_eq(migrated.object_placements.size(), 1, "migration creates object placement")
 	_assert_eq(migrated.object_placements[0].object_id, "chest", "object placement preserves object id")
 	_assert_eq(migrated.object_placements[0].properties["gold"], 8, "object placement preserves properties")
+	_assert_eq(migrated.object_placements[0].placement_id, "chest-legacy", "object placement preserves placement id")
+	_assert_eq(migrated.object_placements[0].rotation_degrees, 30.0, "object placement migrates legacy rotation")
+	_assert_eq(migrated.object_placements[0].variant, "rare", "object placement preserves variant")
+	_assert_eq(migrated.object_placements[0].spawn_condition, "night", "object placement preserves spawn condition")
+	_assert_eq(migrated.object_placements[0].layer_id, "props", "object placement preserves layer id")
+	_assert_eq(migrated.object_placements[0].runtime_enabled, false, "object placement preserves runtime flag")
+	_assert_eq(migrated.object_placements[0].metadata["unique"], true, "object placement preserves metadata")
 	_assert_eq(migrated.label_placements.size(), 1, "migration creates label placement")
 	_assert_eq(migrated.label_placements[0].text, "North Gate", "label placement preserves text")
 	_assert_eq(error, OK, "migrated document saves")
@@ -1233,9 +1257,15 @@ func _test_hex_map_document_adapter_roundtrips_v2_payload_entries() -> void:
 	document.overlay_layers.append(overlay_layer)
 
 	var placement = HexMapDocumentObjectPlacementResource.new()
+	placement.placement_id = "chest-003"
 	placement.object_id = "chest"
 	placement.cell = Vector3i.ZERO
+	placement.rotation_degrees = 15.0
+	placement.variant = "small"
 	placement.properties = {"gold": 3}
+	placement.spawn_condition = "always"
+	placement.layer_id = "props"
+	placement.metadata = {"unique": false}
 	document.object_placements.append(placement)
 
 	var label = HexMapDocumentLabelPlacementResource.new()
@@ -1259,9 +1289,65 @@ func _test_hex_map_document_adapter_roundtrips_v2_payload_entries() -> void:
 	_assert_eq(tile_entries[1]["item_key"], "Treasure", "v2 adapter fills overlay item key from layer")
 	_assert_eq(object_entries[0]["object_id"], "chest", "v2 adapter exposes object placement")
 	_assert_eq(object_entries[0]["properties"]["gold"], 3, "v2 adapter preserves object properties")
+	_assert_eq(object_entries[0]["placement_id"], "chest-003", "v2 adapter exposes object placement id")
+	_assert_eq(object_entries[0]["rotation_degrees"], 15.0, "v2 adapter exposes object rotation")
+	_assert_eq(object_entries[0]["rotation"], 15.0, "v2 adapter exposes object rotation alias")
+	_assert_eq(object_entries[0]["variant"], "small", "v2 adapter exposes object variant")
+	_assert_eq(object_entries[0]["spawn_condition"], "always", "v2 adapter exposes object spawn condition")
+	_assert_eq(object_entries[0]["layer_id"], "props", "v2 adapter exposes object layer id")
+	_assert_eq(object_entries[0]["metadata"]["unique"], false, "v2 adapter exposes object metadata")
 	_assert_eq(label_entries[0]["text"], "North", "v2 adapter exposes label placement")
 	_assert_eq(copy.terrain_layers[0] is HexMapDocumentTerrainLayerResource, true, "v2 duplicate preserves typed terrain layer")
 	_assert_eq(copy.object_placements[0] is HexMapDocumentObjectPlacementResource, true, "v2 duplicate preserves typed object placement")
+
+
+func _test_hex_map_document_object_placement_schema_mutates_and_cleans_deleted_cell() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	var document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(data))
+	document.ensure_v2_defaults()
+
+	HexMapDocumentAdapter.set_object(document, HexVector.q_axis(), {
+		"object_id": "chest",
+		"placement_id": "chest-placed",
+		"rotation_degrees": 120.0,
+		"variant": "rare",
+		"properties": {"gold": 13},
+		"spawn_condition": "flag:opened_gate",
+		"layer_id": "props",
+		"runtime_enabled": false,
+		"metadata": {"unique": true},
+	})
+	var entries = HexMapDocumentAdapter.document_object_entries(document)
+
+	_assert_eq(document.objects.size(), 1, "object placement mutation keeps legacy object fallback")
+	_assert_eq(document.object_placements.size(), 1, "object placement mutation creates typed placement")
+	_assert_eq(entries[0]["object_id"], "chest", "object placement entry has object id")
+	_assert_eq(entries[0]["cell"], Vector3i(1, 0, 0), "object placement entry has cell")
+	_assert_eq(entries[0]["rotation_degrees"], 120.0, "object placement entry has rotation")
+	_assert_eq(entries[0]["rotation"], 120.0, "object placement entry has rotation alias")
+	_assert_eq(entries[0]["variant"], "rare", "object placement entry has variant")
+	_assert_eq(entries[0]["properties"]["gold"], 13, "object placement entry has properties")
+	_assert_eq(entries[0]["spawn_condition"], "flag:opened_gate", "object placement entry has spawn condition")
+	_assert_eq(document.object_placements[0].placement_id, "chest-placed", "typed object placement has placement id")
+	_assert_eq(document.object_placements[0].rotation_degrees, 120.0, "typed object placement has rotation")
+	_assert_eq(document.object_placements[0].variant, "rare", "typed object placement has variant")
+	_assert_eq(document.object_placements[0].spawn_condition, "flag:opened_gate", "typed object placement has spawn condition")
+	_assert_eq(document.object_placements[0].layer_id, "props", "typed object placement has layer id")
+	_assert_eq(document.object_placements[0].runtime_enabled, false, "typed object placement has runtime flag")
+	_assert_eq(document.object_placements[0].metadata["unique"], true, "typed object placement has metadata")
+	_assert_eq(document.objects[0]["rotation_degrees"], 120.0, "legacy object fallback has rotation")
+	_assert_eq(document.objects[0]["spawn_condition"], "flag:opened_gate", "legacy object fallback has spawn condition")
+
+	var path = _test_resource_path("test_hex_map_document_object_placement_schema.tres")
+	var error = ResourceSaver.save(document, path)
+	var loaded = load(path)
+	_assert_eq(error, OK, "object placement schema document saves")
+	_assert_eq(loaded.object_placements[0].rotation_degrees, 120.0, "object placement schema roundtrip preserves rotation")
+	_assert_eq(loaded.object_placements[0].spawn_condition, "flag:opened_gate", "object placement schema roundtrip preserves spawn condition")
+
+	HexMapDocumentAdapter.set_cell_exists(document, HexVector.q_axis(), false)
+	_assert_eq(document.object_placements.size(), 0, "object placement schema cleanup removes typed placement")
+	_assert_eq(document.objects.size(), 0, "object placement schema cleanup removes legacy fallback")
 
 
 func _test_hex_map_document_adapter_cleans_v2_payloads_for_deleted_cell() -> void:

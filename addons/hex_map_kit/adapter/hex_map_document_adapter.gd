@@ -371,11 +371,7 @@ static func set_object(document, hex, payload: Dictionary) -> void:
 		if _document_is_v2(document):
 			_remove_v2_object_placement(document, cell)
 		return
-	var entry := {
-		"cell": cell,
-		"object_id": object_id,
-		"properties": payload.get("properties", {}).duplicate(true),
-	}
+	var entry := _object_entry(cell, payload)
 	_replace_entry(document.objects, entry, ["cell"])
 	if _document_is_v2(document):
 		_replace_v2_object_placement(document, cell, payload)
@@ -597,6 +593,12 @@ static func _duplicate_entries(entries: Array) -> Array[Dictionary]:
 	return result
 
 
+static func _duplicate_dictionary(value: Variant) -> Dictionary:
+	if value is Dictionary:
+		return value.duplicate(true)
+	return {}
+
+
 static func _duplicate_resources(entries: Array) -> Array[Resource]:
 	var result: Array[Resource] = []
 	for entry in entries:
@@ -654,13 +656,36 @@ static func _baseline_warning_count(document) -> int:
 
 
 static func _object_placement_entry(placement: Resource) -> Dictionary:
+	var rotation_degrees = float(placement.get("rotation_degrees"))
 	return {
+		"placement_id": String(placement.get("placement_id")),
 		"cell": placement.get("cell"),
 		"object_id": String(placement.get("object_id")),
-		"properties": placement.get("properties").duplicate(true),
+		"rotation_degrees": rotation_degrees,
+		"rotation": rotation_degrees,
 		"variant": String(placement.get("variant")),
-		"rotation_degrees": float(placement.get("rotation_degrees")),
+		"properties": _duplicate_dictionary(placement.get("properties")),
 		"spawn_condition": String(placement.get("spawn_condition")),
+		"layer_id": String(placement.get("layer_id")),
+		"runtime_enabled": bool(placement.get("runtime_enabled")),
+		"metadata": _duplicate_dictionary(placement.get("metadata")),
+	}
+
+
+static func _object_entry(cell: Vector3i, payload: Dictionary) -> Dictionary:
+	var rotation_degrees = float(payload.get("rotation_degrees", payload.get("rotation", 0.0)))
+	return {
+		"placement_id": String(payload.get("placement_id", "")),
+		"cell": cell,
+		"object_id": String(payload.get("object_id", "")),
+		"rotation_degrees": rotation_degrees,
+		"rotation": rotation_degrees,
+		"variant": String(payload.get("variant", "")),
+		"properties": _duplicate_dictionary(payload.get("properties", {})),
+		"spawn_condition": String(payload.get("spawn_condition", "")),
+		"layer_id": String(payload.get("layer_id", "objects")),
+		"runtime_enabled": bool(payload.get("runtime_enabled", true)),
+		"metadata": _duplicate_dictionary(payload.get("metadata", {})),
 	}
 
 
@@ -731,9 +756,16 @@ static func _replace_v2_object_placement(document, cell: Vector3i, payload: Dict
 	if placement == null:
 		placement = HexMapDocumentObjectPlacementResourceScript.new()
 		document.object_placements.append(placement)
+	placement.placement_id = String(payload.get("placement_id", ""))
 	placement.cell = cell
 	placement.object_id = String(payload.get("object_id", ""))
-	placement.properties = payload.get("properties", {}).duplicate(true)
+	placement.rotation_degrees = float(payload.get("rotation_degrees", payload.get("rotation", 0.0)))
+	placement.variant = String(payload.get("variant", ""))
+	placement.properties = _duplicate_dictionary(payload.get("properties", {}))
+	placement.spawn_condition = String(payload.get("spawn_condition", ""))
+	placement.layer_id = String(payload.get("layer_id", "objects"))
+	placement.runtime_enabled = bool(payload.get("runtime_enabled", true))
+	placement.metadata = _duplicate_dictionary(payload.get("metadata", {}))
 
 
 static func _remove_v2_object_placement(document, cell: Vector3i) -> void:
@@ -873,8 +905,11 @@ static func _v1_object_placement(entry: Dictionary) -> Resource:
 	placement.placement_id = String(entry.get("placement_id", ""))
 	placement.variant = String(entry.get("variant", ""))
 	placement.rotation_degrees = float(entry.get("rotation_degrees", entry.get("rotation", 0.0)))
-	placement.properties = entry.get("properties", {}).duplicate(true)
+	placement.properties = _duplicate_dictionary(entry.get("properties", {}))
 	placement.spawn_condition = String(entry.get("spawn_condition", ""))
+	placement.layer_id = String(entry.get("layer_id", "objects"))
+	placement.runtime_enabled = bool(entry.get("runtime_enabled", true))
+	placement.metadata = _duplicate_dictionary(entry.get("metadata", {}))
 	return placement
 
 
