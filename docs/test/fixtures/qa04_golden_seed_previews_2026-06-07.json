@@ -1,0 +1,78 @@
+{
+  "schema": "hex-map-kit/qa04-golden-seeds/v1",
+  "generated_on": "2026-06-07",
+  "scoring": "floors * 10 - walls + connected_bonus + cyclic_size; connected_bonus is 100 when connected, otherwise -100.",
+  "scenarios": [
+    {
+      "name": "rectangle_dense_20260607",
+      "generator": "rectangle",
+      "width": 4,
+      "height": 3,
+      "wall_probability": 0.42,
+      "seed": 20260607,
+      "connect_method": "dense",
+      "protected_floor": ["0,0,0"],
+      "expected": {
+        "summary": "cells=12 walls=7 floors=5 cyclic_size=0",
+        "score": 143,
+        "cells": 12,
+        "walls": 7,
+        "floors": 5,
+        "connected": true,
+        "cyclic_size": 0,
+        "wall_keys": [
+          "0,-1,0",
+          "0,-1,1",
+          "0,-2,0",
+          "0,0,1",
+          "0,0,2",
+          "2,0,0",
+          "3,0,0"
+        ],
+        "ascii_rows": [
+          "..##",
+          "##..",
+          "###."
+        ]
+      }
+    },
+    {
+      "name": "symmetric_toric_square_radius2_1402",
+      "generator": "symmetric_square",
+      "radius": 2,
+      "wall_probability": 0.45,
+      "seed": 1402,
+      "connect_method": "dense",
+      "protected_floor": ["0,0,0"],
+      "distribution_id": 20,
+      "connect_toric": true,
+      "expected": {
+        "summary": "cells=25 walls=9 floors=16 cyclic_size=5",
+        "score": 256,
+        "cells": 25,
+        "walls": 9,
+        "floors": 16,
+        "connected": true,
+        "cyclic_size": 5,
+        "wall_keys": [
+          "0,-1,2",
+          "0,-2,1",
+          "0,-3,0",
+          "0,-3,1",
+          "0,0,3",
+          "0,0,4",
+          "1,0,0",
+          "2,-2,0",
+          "3,-1,0"
+        ],
+        "ascii_rows": [
+          ".#...",
+          "....#",
+          "....#",
+          "####.",
+          "#..#."
+        ]
+      }
+    }
+  ]
+}

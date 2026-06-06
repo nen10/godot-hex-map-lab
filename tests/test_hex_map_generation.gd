@@ -9,6 +9,8 @@ const HexMapDebug = preload("res://addons/hex_map_kit/core/hex_map_debug.gd")
 const HexToricMapSplitRule = preload("res://addons/hex_map_kit/core/hex_toric_map_split_rule.gd")
 const HexGrid = preload("res://addons/hex_map_kit/core/hex_grid.gd")
 
+const QA04_GOLDEN_SEED_FIXTURE_PATH := "res://docs/test/fixtures/qa04_golden_seed_previews_2026-06-07.json"
+
 class ZeroDistribution:
 	var calls := 0
 
@@ -82,6 +84,7 @@ func _run() -> void:
 	_test_restore_terminal_connectivity_connects_only_requested_terminals()
 	_test_generate_symmetric_toric_square_can_restore_terminal_connectivity()
 	_test_generate_hexagon_can_restore_connectivity()
+	_test_golden_seed_fixtures_match_preview_data()
 	_test_debug_ascii_renders_wall_layout()
 	_test_debug_summary_reports_counts()
 	_test_dense_restores_line_with_single_wall()
@@ -1553,6 +1556,109 @@ func _test_generate_hexagon_can_restore_connectivity() -> void:
 	_assert_eq(data.cells.size(), 37, "generated radius 3 hexagon has expected cell count")
 	_assert_false(HexMapData.has_key(data.walls, HexVector.zero().key()), "protected hex cell remains floor")
 	_assert_true(HexMapGenerator.is_floor_connected(data), "generated hexagon can be restored")
+
+
+func _test_golden_seed_fixtures_match_preview_data() -> void:
+	var fixture_text := FileAccess.get_file_as_string(QA04_GOLDEN_SEED_FIXTURE_PATH)
+	_assert_true(fixture_text != "", "QA-04 golden seed fixture is readable")
+	var fixture = JSON.parse_string(fixture_text)
+	_assert_true(fixture is Dictionary, "QA-04 golden seed fixture parses as a dictionary")
+	if not fixture is Dictionary:
+		return
+	_assert_eq(fixture.get("schema", ""), "hex-map-kit/qa04-golden-seeds/v1", "QA-04 fixture schema is current")
+	var scenarios: Array = fixture.get("scenarios", [])
+	_assert_true(scenarios.size() >= 2, "QA-04 fixture records multiple important seeds")
+
+	for scenario in scenarios:
+		_assert_true(scenario is Dictionary, "QA-04 scenario is a dictionary")
+		if not scenario is Dictionary:
+			continue
+		var name := str(scenario.get("name", "unnamed"))
+		var expected = scenario.get("expected", {})
+		_assert_true(expected is Dictionary, "%s fixture has expected preview data" % name)
+		if not expected is Dictionary:
+			continue
+		var data = _golden_seed_data(scenario)
+		var actual = _golden_seed_preview(data)
+		_assert_eq(actual["summary"], expected.get("summary", ""), "%s summary matches fixture" % name)
+		_assert_eq(actual["score"], int(expected.get("score", -1)), "%s deterministic score matches fixture" % name)
+		_assert_eq(actual["cells"], int(expected.get("cells", -1)), "%s cell count matches fixture" % name)
+		_assert_eq(actual["walls"], int(expected.get("walls", -1)), "%s wall count matches fixture" % name)
+		_assert_eq(actual["floors"], int(expected.get("floors", -1)), "%s floor count matches fixture" % name)
+		_assert_eq(actual["connected"], bool(expected.get("connected", false)), "%s connected flag matches fixture" % name)
+		_assert_eq(actual["cyclic_size"], int(expected.get("cyclic_size", -1)), "%s cyclic size matches fixture" % name)
+		_assert_eq(actual["wall_keys"], expected.get("wall_keys", []), "%s wall keys match fixture" % name)
+		_assert_eq(actual["ascii_rows"], expected.get("ascii_rows", []), "%s ASCII preview rows match fixture" % name)
+
+
+func _golden_seed_data(scenario: Dictionary):
+	var protected_floor := _cells_from_keys(scenario.get("protected_floor", []))
+	var connect_method := _connect_method_from_key(str(scenario.get("connect_method", "none")))
+	match str(scenario.get("generator", "")):
+		"rectangle":
+			return HexMapGenerator.generate_rectangle(
+				int(scenario["width"]),
+				int(scenario["height"]),
+				float(scenario["wall_probability"]),
+				int(scenario["seed"]),
+				connect_method,
+				false,
+				protected_floor
+			)
+		"symmetric_square":
+			return HexMapGenerator.generate_symmetric_square(
+				int(scenario["radius"]),
+				float(scenario["wall_probability"]),
+				int(scenario["seed"]),
+				connect_method,
+				protected_floor,
+				int(scenario.get("distribution_id", 20)),
+				[],
+				bool(scenario.get("connect_toric", false))
+			)
+	_failures.append("QA-04 fixture uses unsupported generator %s" % str(scenario.get("generator", "")))
+	return HexMapData.from_cells([], [])
+
+
+func _golden_seed_preview(data) -> Dictionary:
+	var wall_keys := _keys(data.walls)
+	var ascii_rows := Array(HexMapDebug.render_ascii(data, ".", "#", " ", false).split("\n"))
+	var floors: int = data.floor_cells().size()
+	var connected := HexMapGenerator.is_floor_connected(data)
+	var cyclic_size := int(data.cyclic_size)
+	var score: int = (floors * 10) - wall_keys.size() + (100 if connected else -100) + cyclic_size
+	return {
+		"summary": HexMapDebug.render_summary(data),
+		"score": score,
+		"cells": data.cells.size(),
+		"walls": wall_keys.size(),
+		"floors": floors,
+		"connected": connected,
+		"cyclic_size": cyclic_size,
+		"wall_keys": wall_keys,
+		"ascii_rows": ascii_rows,
+	}
+
+
+func _connect_method_from_key(key: String) -> int:
+	match key:
+		"dense":
+			return HexMapGenerator.CONNECT_DENSE
+		"sparse":
+			return HexMapGenerator.CONNECT_SPARSE
+	return HexMapGenerator.CONNECT_NONE
+
+
+func _cells_from_keys(keys: Array) -> Array:
+	var result: Array = []
+	for key in keys:
+		result.append(_cell_from_key(str(key)))
+	return result
+
+
+func _cell_from_key(key: String):
+	var parts = key.split(",")
+	return HexVector.new(int(parts[0]), int(parts[1]), int(parts[2]))
 
 
 func _test_debug_ascii_renders_wall_layout() -> void:
