@@ -89,7 +89,10 @@ var _overlay_tile_payload := {
 var _overlay_item_key := "Overlay"
 var _object_payload := {
 	"object_id": "",
+	"rotation_degrees": 0.0,
+	"variant": "",
 	"properties": {},
+	"spawn_condition": "",
 }
 var _label_payload := {
 	"label_id": "",
@@ -163,7 +166,11 @@ var _overlay_item_key_edit: LineEdit
 var _overlay_item_key_option: OptionButton
 var _object_catalog_option: OptionButton
 var _object_id_edit: LineEdit
+var _object_rotation_spin: SpinBox
+var _object_variant_edit: LineEdit
 var _object_properties_edit: LineEdit
+var _object_properties_table: Tree
+var _object_spawn_condition_edit: LineEdit
 var _label_id_edit: LineEdit
 var _label_text_edit: LineEdit
 var _status_label: Label
@@ -610,10 +617,19 @@ func set_overlay_tile_payload(item_key: String, source_id: int, atlas_coords: Ve
 	_refresh_overlay_item_key_options()
 
 
-func set_object_payload(object_id: String, properties: Dictionary = {}) -> void:
+func set_object_payload(
+	object_id: String,
+	properties: Dictionary = {},
+	rotation_degrees: float = 0.0,
+	variant: String = "",
+	spawn_condition: String = ""
+) -> void:
 	_object_payload = {
 		"object_id": object_id,
+		"rotation_degrees": rotation_degrees,
+		"variant": variant,
 		"properties": properties.duplicate(true),
+		"spawn_condition": spawn_condition,
 	}
 	_sync_payload_controls()
 
@@ -928,6 +944,15 @@ func _build_ui() -> void:
 	_object_catalog_option.item_selected.connect(_on_object_catalog_selected)
 	root.add_child(_wrap_labeled("Object Catalog", _object_catalog_option))
 	root.add_child(_wrap_labeled("Object", _object_id_edit))
+	_object_rotation_spin = _new_int_spin(0, -360, 360)
+	_object_rotation_spin.value_changed.connect(_on_object_rotation_changed)
+	_object_variant_edit = LineEdit.new()
+	_object_variant_edit.placeholder_text = "variant"
+	_object_variant_edit.text_changed.connect(_on_object_payload_changed)
+	var object_variant_row = HBoxContainer.new()
+	object_variant_row.add_child(_wrap_labeled("Rotation", _object_rotation_spin))
+	object_variant_row.add_child(_wrap_labeled("Variant", _object_variant_edit))
+	root.add_child(object_variant_row)
 	if _can_use_editor_resource_picker():
 		_object_database_picker = EditorResourcePicker.new()
 		_object_database_picker.base_type = "HexObjectDatabaseResource"
@@ -937,6 +962,18 @@ func _build_ui() -> void:
 	_object_properties_edit.placeholder_text = "{\"key\":\"value\"}"
 	_object_properties_edit.text_changed.connect(_on_object_payload_changed)
 	root.add_child(_wrap_labeled("Properties", _object_properties_edit))
+	_object_properties_table = Tree.new()
+	_object_properties_table.columns = 2
+	_object_properties_table.hide_root = true
+	_object_properties_table.custom_minimum_size = Vector2(0.0, 72.0)
+	_object_properties_table.set_column_title(0, "Key")
+	_object_properties_table.set_column_title(1, "Value")
+	_object_properties_table.set_column_titles_visible(true)
+	root.add_child(_wrap_labeled("Property Table", _object_properties_table))
+	_object_spawn_condition_edit = LineEdit.new()
+	_object_spawn_condition_edit.placeholder_text = "spawn condition"
+	_object_spawn_condition_edit.text_changed.connect(_on_object_payload_changed)
+	root.add_child(_wrap_labeled("Spawn", _object_spawn_condition_edit))
 
 	_label_id_edit = LineEdit.new()
 	_label_id_edit.placeholder_text = "label_id"
@@ -1211,11 +1248,37 @@ func _payload_entry_for_hex(hex, payload: Dictionary) -> Dictionary:
 
 func _object_entry_for_hex(hex, payload: Dictionary) -> Dictionary:
 	var normalized = HexVector.apply_basis(hex.q, hex.s, hex.r)
+	var rotation_degrees = float(payload.get("rotation_degrees", payload.get("rotation", 0.0)))
 	return {
 		"cell": Vector3i(normalized.q, normalized.s, normalized.r),
 		"object_id": String(payload.get("object_id", "")),
-		"properties": payload.get("properties", {}).duplicate(true),
+		"rotation_degrees": rotation_degrees,
+		"rotation": rotation_degrees,
+		"variant": String(payload.get("variant", "")),
+		"properties": _object_properties_from_payload(payload),
+		"spawn_condition": String(payload.get("spawn_condition", "")),
 	}
+
+
+func _object_properties_from_payload(payload: Dictionary) -> Dictionary:
+	var properties = payload.get("properties", {})
+	if properties is Dictionary:
+		return properties.duplicate(true)
+	return {}
+
+
+func _refresh_object_properties_table() -> void:
+	if _object_properties_table == null:
+		return
+	_object_properties_table.clear()
+	var root_item = _object_properties_table.create_item()
+	var properties = _object_properties_from_payload(_object_payload)
+	var keys = properties.keys()
+	keys.sort()
+	for key in keys:
+		var row = _object_properties_table.create_item(root_item)
+		row.set_text(0, String(key))
+		row.set_text(1, str(properties[key]))
 
 
 func _label_entry_for_hex(hex, payload: Dictionary) -> Dictionary:
@@ -1809,10 +1872,22 @@ func _join_lines(lines: PackedStringArray) -> String:
 
 
 func _on_object_payload_changed(_text: String) -> void:
-	_object_payload["object_id"] = _object_id_edit.text
-	var parsed = JSON.parse_string(_object_properties_edit.text)
+	if _object_id_edit != null:
+		_object_payload["object_id"] = _object_id_edit.text
+	if _object_rotation_spin != null:
+		_object_payload["rotation_degrees"] = float(_object_rotation_spin.value)
+	if _object_variant_edit != null:
+		_object_payload["variant"] = _object_variant_edit.text
+	var parsed = JSON.parse_string(_object_properties_edit.text) if _object_properties_edit != null else {}
 	_object_payload["properties"] = parsed if parsed is Dictionary else {}
+	if _object_spawn_condition_edit != null:
+		_object_payload["spawn_condition"] = _object_spawn_condition_edit.text
+	_refresh_object_properties_table()
 	_select_catalog_option_by_key(_object_catalog_option, String(_object_payload.get("object_id", "")))
+
+
+func _on_object_rotation_changed(_value: float) -> void:
+	_on_object_payload_changed("")
 
 
 func _on_label_payload_changed(_text: String) -> void:
@@ -1862,7 +1937,11 @@ func _sync_payload_controls() -> void:
 		_overlay_item_key_edit.text = _overlay_item_key
 	if _object_id_edit != null:
 		_object_id_edit.text = String(_object_payload.get("object_id", ""))
+		_object_rotation_spin.set_value_no_signal(float(_object_payload.get("rotation_degrees", 0.0)))
+		_object_variant_edit.text = String(_object_payload.get("variant", ""))
 		_object_properties_edit.text = JSON.stringify(_object_payload.get("properties", {}))
+		_object_spawn_condition_edit.text = String(_object_payload.get("spawn_condition", ""))
+		_refresh_object_properties_table()
 		_populate_catalog_option(_object_catalog_option, "object", String(_object_payload.get("object_id", "")))
 	if _label_id_edit != null:
 		_label_id_edit.text = String(_label_payload.get("label_id", ""))
@@ -1885,7 +1964,11 @@ func _refresh_payload_controls_visibility() -> void:
 	_set_control_row_visible(_overlay_item_key_option, show_overlay)
 	_set_control_row_visible(_object_catalog_option, show_object)
 	_set_control_row_visible(_object_id_edit, show_object)
+	_set_control_row_visible(_object_rotation_spin, show_object)
+	_set_control_row_visible(_object_variant_edit, show_object)
 	_set_control_row_visible(_object_properties_edit, show_object)
+	_set_control_row_visible(_object_properties_table, show_object)
+	_set_control_row_visible(_object_spawn_condition_edit, show_object)
 	_set_control_row_visible(_object_database_picker, show_object)
 	_set_control_row_visible(_label_id_edit, show_label)
 	_set_control_row_visible(_label_text_edit, show_label)
@@ -2901,7 +2984,12 @@ func _edit_payload_summary() -> String:
 				int(_tile_payload.get("alternative_tile", 0)),
 			]
 		EditMode.OBJECT:
-			return "object=%s" % String(_object_payload.get("object_id", ""))
+			return "object=%s rot=%s variant=%s spawn=%s" % [
+				String(_object_payload.get("object_id", "")),
+				str(float(_object_payload.get("rotation_degrees", 0.0))),
+				String(_object_payload.get("variant", "")),
+				String(_object_payload.get("spawn_condition", "")),
+			]
 		EditMode.LABEL:
 			return "label=%s text=%s" % [
 				String(_label_payload.get("label_id", "")),
