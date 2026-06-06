@@ -134,6 +134,8 @@ func _run() -> void:
 	await _test_generation_dock_torus_connectivity_generation()
 	await _test_generation_dock_tracks_generation_progress_state()
 	await _test_generation_dock_debug_report_includes_validation_summary()
+	await _test_generation_dock_validates_generation_result_before_auto_apply()
+	await _test_generation_dock_captures_generation_validation_failure()
 	await _test_generation_dock_only_generates_from_generate_button()
 	await _test_generation_dock_wires_core_progress_and_cancel()
 	await _test_generation_dock_applies_configured_tile_entries()
@@ -2187,6 +2189,77 @@ func _test_generation_dock_debug_report_includes_validation_summary() -> void:
 	_assert_true(report.contains("Hex Map Generate Debug Report"), "generation debug report has a stable header")
 	_assert_true(report.contains("validation_summary:"), "generation debug report includes validation summary")
 	_assert_true(not dock._stats_label.text.contains("validation_summary"), "generation stats label does not include validation dump")
+
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_validates_generation_result_before_auto_apply() -> void:
+	var dock = await _new_ready_dock()
+	var scene_root = Node2D.new()
+	scene_root.name = "ValidationAutoApplyRoot"
+	root.add_child(scene_root)
+	var layer = TileMapLayer.new()
+	layer.name = "ValidationAutoApplyLayer"
+	scene_root.add_child(layer)
+	await process_frame
+
+	dock.refresh_tile_layer_options(scene_root)
+	dock._tile_layer_option.select(1)
+	_assert_true(dock.setup_sample_tiles_on_tile_map_layer(layer), "generation validation test configures sample tiles")
+
+	dock._generate_option.select(HexMapGenDock.GENERATE_SIMPLE)
+	dock._shape_option_simple.select(HexMapGenDock.SHAPE_RECTANGLE)
+	dock._rect_width_spin.set_value_no_signal(2)
+	dock._rect_height_spin.set_value_no_signal(1)
+	dock._wall_prob_slider.set_value_no_signal(0.0)
+	dock._refresh_controls()
+
+	_assert_true(not bool(dock.generation_validation_summary().get("validated", true)), "generation validation starts uncaptured")
+	dock._on_generate_pressed()
+	await _wait_for_progress_controls(dock, "validation Generate button generation")
+	await _wait_for_generation(dock, "validation Generate button generation")
+
+	var summary = dock.generation_validation_summary()
+	_assert_true(dock.generation_validation_result() != null, "generation validation stores raw result")
+	_assert_true(bool(summary.get("validated", false)), "generation validation summary records validation run")
+	_assert_true(bool(summary.get("passed", false)), "valid generated map passes validation")
+	_assert_eq(int(summary.get("errors", -1)), 0, "valid generated map records zero validation errors")
+	_assert_true(int(summary.get("capture_order", 0)) > 0, "generation validation records capture order")
+	_assert_true(
+		int(summary.get("apply_order", 0)) > int(summary.get("capture_order", 0)),
+		"generation validation is captured before auto apply"
+	)
+	_assert_eq(layer.get_used_cells().size(), 2, "generation still auto applies after validation capture")
+
+	scene_root.queue_free()
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_captures_generation_validation_failure() -> void:
+	var dock = await _new_ready_dock()
+	var document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	document.ensure_v2_defaults()
+	HexMapDocumentAdapter.set_label(document, HexVector.q_axis(), {
+		"label_id": "outside",
+		"text": "Outside",
+	})
+
+	var result = dock.validate_generation_document(document)
+	var summary = dock.generation_validation_summary()
+	_assert_true(result != null, "generation validation failure stores raw result")
+	_assert_true(bool(summary.get("validated", false)), "generation validation failure records validation run")
+	_assert_true(not bool(summary.get("passed", true)), "invalid generated document records failed validation")
+	_assert_true(int(summary.get("errors", 0)) >= 1, "invalid generated document records validation errors")
+	_assert_eq(int(summary.get("apply_order", -1)), 0, "direct validation capture does not mark auto apply")
+	_assert_eq(
+		String(result.issues[0].get("rule_id", "")),
+		"document.orphan_payload",
+		"invalid generated document records failing rule id"
+	)
 
 	dock.queue_free()
 	await process_frame

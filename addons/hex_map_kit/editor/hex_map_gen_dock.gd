@@ -234,6 +234,11 @@ var _generation_progress_hide_after_msec := 0
 var _suppress_tile_settings_apply := false
 var _current_overlay_data = null
 var _editor_session_state: HexMapEditorSessionState = null
+var _last_generation_validation_result = null
+var _last_generation_validation_summary: Dictionary = {}
+var _generation_event_order := 0
+var _last_generation_validation_capture_order := 0
+var _last_generation_apply_order := 0
 
 
 func _ready() -> void:
@@ -2274,8 +2279,12 @@ func _find_target_tile_map_layer_and_apply_current() -> bool:
 	if layer == null:
 		return false
 	if _overlay_mode_enabled() and _current_overlay_data != null:
+		_last_generation_apply_order = _next_generation_event_order()
+		_last_generation_validation_summary["apply_order"] = _last_generation_apply_order
 		return apply_current_overlay_data_to_tile_map_layer(layer)
 	if _current_data != null:
+		_last_generation_apply_order = _next_generation_event_order()
+		_last_generation_validation_summary["apply_order"] = _last_generation_apply_order
 		return apply_current_data_to_tile_map_layer(layer)
 	return false
 
@@ -2343,6 +2352,22 @@ func generation_status() -> Dictionary:
 	}
 
 
+func generation_validation_summary() -> Dictionary:
+	if _last_generation_validation_summary.is_empty():
+		return _validation_summary_from_result(null)
+	return _last_generation_validation_summary.duplicate(true)
+
+
+func generation_validation_result():
+	return _last_generation_validation_result
+
+
+func validate_generation_document(document, options: Dictionary = {}):
+	var result = HexMapDocumentValidator.validate_document(document, options)
+	_capture_generation_validation_result(result, document != null)
+	return result
+
+
 func debug_report_text() -> String:
 	var lines := PackedStringArray()
 	lines.append("Hex Map Generate Debug Report")
@@ -2352,33 +2377,86 @@ func debug_report_text() -> String:
 
 
 func validation_debug_summary() -> Dictionary:
+	if _last_generation_validation_result != null:
+		return generation_validation_summary()
 	return _validation_summary_from_result(_validation_result_for_report())
 
 
 func _validation_result_for_report():
 	if _current_data == null:
 		return null
-	var resource = HexMapResource.from_map_data(_current_data, _current_orientation)
-	var document = HexMapDocumentAdapter.from_map_resource(resource)
+	var document = _generated_document_snapshot()
 	return HexMapDocumentValidator.validate_document(document)
 
 
-func _validation_summary_from_result(result) -> Dictionary:
+func _validation_summary_from_result(result, generated_map_present: bool = false) -> Dictionary:
 	if result == null:
 		return {
-			"generated_map_present": false,
+			"generated_map_present": generated_map_present,
+			"validated": false,
+			"passed": false,
+			"capture_order": _last_generation_validation_capture_order,
+			"apply_order": _last_generation_apply_order,
 			"issues": 0,
 			"errors": 0,
 			"warnings": 0,
 			"infos": 0,
 		}
+	var error_count = result.error_count() if result.has_method("error_count") else 0
 	return {
 		"generated_map_present": true,
+		"validated": true,
+		"passed": error_count == 0,
+		"capture_order": _last_generation_validation_capture_order,
+		"apply_order": _last_generation_apply_order,
 		"issues": result.issue_count() if result.has_method("issue_count") else 0,
-		"errors": result.error_count() if result.has_method("error_count") else 0,
+		"errors": error_count,
 		"warnings": result.warning_count() if result.has_method("warning_count") else 0,
 		"infos": result.info_count() if result.has_method("info_count") else 0,
 	}
+
+
+func _capture_generation_validation_result(result, generated_map_present: bool) -> void:
+	_last_generation_validation_capture_order = _next_generation_event_order()
+	_last_generation_validation_result = result
+	_last_generation_validation_summary = _validation_summary_from_result(
+		result,
+		generated_map_present
+	)
+
+
+func _next_generation_event_order() -> int:
+	_generation_event_order += 1
+	return _generation_event_order
+
+
+func _validate_current_generation_result() -> bool:
+	var document = _generated_document_snapshot()
+	if document == null:
+		_capture_generation_validation_result(null, false)
+		return false
+	validate_generation_document(document)
+	return bool(_last_generation_validation_summary.get("passed", false))
+
+
+func _generated_document_snapshot():
+	_current_orientation = _tile_settings_orientation()
+	var data = _current_data
+	if data == null and _current_overlay_data != null:
+		data = HexMapData.from_cells(_current_overlay_data.occupied_cells())
+	if data == null:
+		return null
+	var resource = HexMapResource.from_map_data(data, _current_orientation)
+	var document = HexMapDocumentAdapter.from_map_resource(resource)
+	document.ensure_v2_defaults()
+	if _current_overlay_data != null:
+		for item_key in _current_overlay_data.item_keys():
+			for cell in _current_overlay_data.item_cells(item_key):
+				HexMapDocumentAdapter.set_tile_override(document, cell, {
+					"kind": HexMapDocumentAdapter.KIND_OVERLAY,
+					"item_key": item_key,
+				})
+	return document
 
 
 func _join_lines(lines: PackedStringArray) -> String:
@@ -3065,6 +3143,7 @@ func _generate_map(show_progress: bool = false) -> bool:
 	if _last_generation_cancelled:
 		return false
 
+	_validate_current_generation_result()
 	_find_target_tile_map_layer_and_apply_current()
 	return true
 
@@ -3725,6 +3804,11 @@ func _begin_generation(_generation_id_from_snapshot: int, show_progress: bool = 
 	_generation_progress_hide_after_msec = 0
 	_generation_running = true
 	_last_generation_cancelled = false
+	_last_generation_validation_result = null
+	_last_generation_validation_summary = {}
+	_generation_event_order = 0
+	_last_generation_validation_capture_order = 0
+	_last_generation_apply_order = 0
 	_set_generation_controls_disabled(true)
 	_set_generation_progress(0.0, "Preparing")
 	if show_progress:
