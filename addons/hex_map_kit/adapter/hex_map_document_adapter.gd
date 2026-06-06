@@ -156,6 +156,22 @@ static func document_label_entries(document) -> Array[Dictionary]:
 	return result
 
 
+static func replace_cell_payloads(document, hex, tile_entries: Array, object_entries: Array, label_entries: Array) -> void:
+	if document == null:
+		return
+	var normalized = _normalize_hex(hex)
+	_remove_cell_display_payloads(document, normalized)
+	for raw_entry in tile_entries:
+		if raw_entry is Dictionary:
+			set_tile_override(document, normalized, raw_entry as Dictionary)
+	for raw_entry in object_entries:
+		if raw_entry is Dictionary:
+			set_object(document, normalized, raw_entry as Dictionary)
+	for raw_entry in label_entries:
+		if raw_entry is Dictionary:
+			set_label(document, normalized, raw_entry as Dictionary)
+
+
 static func validation_result_for_document(document):
 	var result = HexMapValidationResultScript.new()
 	result.summary = document_summary(document)
@@ -286,8 +302,12 @@ static func set_tile_override(document, hex, payload: Dictionary) -> void:
 	var entry = _tile_override_entry(hex, payload)
 	if int(entry.get("source_id", 0)) < 0:
 		_remove_entry(document.tile_overrides, entry, ["cell", "kind", "item_key"])
+		if _document_is_v2(document):
+			_remove_v2_tile_assignment(document, entry)
 		return
 	_replace_entry(document.tile_overrides, entry, ["cell", "kind", "item_key"])
+	if _document_is_v2(document):
+		_replace_v2_tile_assignment(document, entry)
 
 
 static func set_object(document, hex, payload: Dictionary) -> void:
@@ -297,6 +317,8 @@ static func set_object(document, hex, payload: Dictionary) -> void:
 	var cell = _component_from_hex(hex)
 	if object_id == "":
 		_remove_entry(document.objects, {"cell": cell}, ["cell"])
+		if _document_is_v2(document):
+			_remove_v2_object_placement(document, cell)
 		return
 	var entry := {
 		"cell": cell,
@@ -304,6 +326,8 @@ static func set_object(document, hex, payload: Dictionary) -> void:
 		"properties": payload.get("properties", {}).duplicate(true),
 	}
 	_replace_entry(document.objects, entry, ["cell"])
+	if _document_is_v2(document):
+		_replace_v2_object_placement(document, cell, payload)
 
 
 static func set_label(document, hex, payload: Dictionary) -> void:
@@ -314,6 +338,8 @@ static func set_label(document, hex, payload: Dictionary) -> void:
 	var cell = _component_from_hex(hex)
 	if label_id == "" and text == "":
 		_remove_entry(document.labels, {"cell": cell}, ["cell"])
+		if _document_is_v2(document):
+			_remove_v2_label_placement(document, cell)
 		return
 	var entry := {
 		"cell": cell,
@@ -321,6 +347,8 @@ static func set_label(document, hex, payload: Dictionary) -> void:
 		"text": text,
 	}
 	_replace_entry(document.labels, entry, ["cell"])
+	if _document_is_v2(document):
+		_replace_v2_label_placement(document, cell, payload)
 
 
 static func _ensure_map(document) -> void:
@@ -356,6 +384,17 @@ static func _remove_cell_payloads(document, hex) -> void:
 	_remove_entry(document.objects, matcher, ["cell"])
 	_remove_entry(document.labels, matcher, ["cell"])
 	_remove_v2_cell_payloads(document, matcher["cell"])
+
+
+static func _remove_cell_display_payloads(document, hex) -> void:
+	var matcher = {"cell": _component_from_hex(hex)}
+	_remove_entry(document.tile_overrides, matcher, ["cell"])
+	_remove_entry(document.objects, matcher, ["cell"])
+	_remove_entry(document.labels, matcher, ["cell"])
+	if _document_is_v2(document):
+		_remove_v2_tile_assignments_for_cell(document, matcher["cell"])
+		_remove_v2_object_placement(document, matcher["cell"])
+		_remove_v2_label_placement(document, matcher["cell"])
 
 
 static func _replace_entry(entries: Array, entry: Dictionary, keys: Array) -> void:
@@ -411,6 +450,10 @@ static func _document_orientation(document) -> int:
 	return map_resource.orientation if map_resource != null else HexMapResourceScript.ORIENTATION_FLAT_TOP
 
 
+static func _document_is_v2(document) -> bool:
+	return document != null and document.has_method("is_v2") and document.is_v2()
+
+
 static func _document_object_count(document) -> int:
 	if document == null:
 		return 0
@@ -455,24 +498,119 @@ static func _label_placement_entry(placement: Resource) -> Dictionary:
 	}
 
 
-static func _remove_v2_cell_payloads(document, cell: Vector3i) -> void:
-	if document == null:
+static func _replace_v2_tile_assignment(document, entry: Dictionary) -> void:
+	if String(entry.get("kind", KIND_FLOOR)) == KIND_OVERLAY:
+		var overlay_layer = _ensure_overlay_layer(document, String(entry.get("item_key", "")))
+		if overlay_layer == null:
+			return
+		var overlay_entry = entry.duplicate(true)
+		overlay_entry.erase("kind")
+		_replace_entry(overlay_layer.tile_assignments, overlay_entry, ["cell"])
 		return
-	var key = _hex_from_component(cell).key()
+	var terrain_layer = _ensure_terrain_layer(document)
+	if terrain_layer == null:
+		return
+	_replace_entry(terrain_layer.tile_assignments, entry.duplicate(true), ["cell", "kind", "item_key"])
+
+
+static func _remove_v2_tile_assignment(document, entry: Dictionary) -> void:
+	if String(entry.get("kind", KIND_FLOOR)) == KIND_OVERLAY:
+		var item_key = String(entry.get("item_key", ""))
+		for layer in document.overlay_layers:
+			if layer == null:
+				continue
+			if item_key != "" and String(layer.get("item_key")) != item_key:
+				continue
+			_remove_entry(layer.get("tile_assignments"), entry, ["cell"])
+		return
 	for layer in document.terrain_layers:
 		if layer != null:
-			_remove_assignment_cells(layer.get("tile_assignments"), key)
+			_remove_entry(layer.get("tile_assignments"), entry, ["cell", "kind", "item_key"])
+
+
+static func _ensure_terrain_layer(document):
+	for layer in document.terrain_layers:
+		if layer is HexMapDocumentTerrainLayerResourceScript:
+			return layer
+	var layer = HexMapDocumentTerrainLayerResourceScript.new()
+	document.terrain_layers.append(layer)
+	return layer
+
+
+static func _ensure_overlay_layer(document, item_key: String):
 	for layer in document.overlay_layers:
-		if layer != null:
-			_remove_assignment_cells(layer.get("tile_assignments"), key)
+		if layer is HexMapDocumentOverlayLayerResourceScript and String(layer.get("item_key")) == item_key:
+			return layer
+	var layer = HexMapDocumentOverlayLayerResourceScript.new()
+	layer.item_key = item_key
+	if item_key != "":
+		layer.layer_id = "overlay_%s" % _safe_id(item_key)
+		layer.display_name = item_key
+	document.overlay_layers.append(layer)
+	return layer
+
+
+static func _replace_v2_object_placement(document, cell: Vector3i, payload: Dictionary) -> void:
+	var placement = _v2_object_placement_for_cell(document, cell)
+	if placement == null:
+		placement = HexMapDocumentObjectPlacementResourceScript.new()
+		document.object_placements.append(placement)
+	placement.cell = cell
+	placement.object_id = String(payload.get("object_id", ""))
+	placement.properties = payload.get("properties", {}).duplicate(true)
+
+
+static func _remove_v2_object_placement(document, cell: Vector3i) -> void:
+	var key = _hex_from_component(cell).key()
 	for index in range(document.object_placements.size() - 1, -1, -1):
 		var placement = document.object_placements[index]
 		if placement is Resource and _hex_from_component(placement.get("cell")).key() == key:
 			document.object_placements.remove_at(index)
+
+
+static func _v2_object_placement_for_cell(document, cell: Vector3i):
+	var key = _hex_from_component(cell).key()
+	for placement in document.object_placements:
+		if placement is Resource and _hex_from_component(placement.get("cell")).key() == key:
+			return placement
+	return null
+
+
+static func _replace_v2_label_placement(document, cell: Vector3i, payload: Dictionary) -> void:
+	var placement = _v2_label_placement_for_cell(document, cell)
+	if placement == null:
+		placement = HexMapDocumentLabelPlacementResourceScript.new()
+		document.label_placements.append(placement)
+	placement.cell = cell
+	placement.label_id = String(payload.get("label_id", ""))
+	placement.text = String(payload.get("text", ""))
+	placement.style_key = String(payload.get("style_key", ""))
+	placement.zone_id = String(payload.get("zone_id", ""))
+
+
+static func _remove_v2_label_placement(document, cell: Vector3i) -> void:
+	var key = _hex_from_component(cell).key()
 	for index in range(document.label_placements.size() - 1, -1, -1):
 		var placement = document.label_placements[index]
 		if placement is Resource and _hex_from_component(placement.get("cell")).key() == key:
 			document.label_placements.remove_at(index)
+
+
+static func _v2_label_placement_for_cell(document, cell: Vector3i):
+	var key = _hex_from_component(cell).key()
+	for placement in document.label_placements:
+		if placement is Resource and _hex_from_component(placement.get("cell")).key() == key:
+			return placement
+	return null
+
+
+static func _remove_v2_cell_payloads(document, cell: Vector3i) -> void:
+	if document == null:
+		return
+	var key = _hex_from_component(cell).key()
+	_remove_v2_tile_assignments_for_cell(document, cell)
+	_remove_v2_object_placement(document, cell)
+	_remove_v2_label_placement(document, cell)
 	for zone_index in range(document.zones.size() - 1, -1, -1):
 		var zone = document.zones[zone_index]
 		if not zone is Resource:
@@ -483,6 +621,16 @@ static func _remove_v2_cell_payloads(document, cell: Vector3i) -> void:
 				cells.remove_at(cell_index)
 		if cells.is_empty():
 			document.zones.remove_at(zone_index)
+
+
+static func _remove_v2_tile_assignments_for_cell(document, cell: Vector3i) -> void:
+	var key = _hex_from_component(cell).key()
+	for layer in document.terrain_layers:
+		if layer != null:
+			_remove_assignment_cells(layer.get("tile_assignments"), key)
+	for layer in document.overlay_layers:
+		if layer != null:
+			_remove_assignment_cells(layer.get("tile_assignments"), key)
 
 
 static func _remove_assignment_cells(assignments: Array, key: String) -> void:

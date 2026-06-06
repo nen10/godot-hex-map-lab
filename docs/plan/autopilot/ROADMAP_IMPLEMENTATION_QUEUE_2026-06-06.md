@@ -67,7 +67,7 @@ Goal: `HexMapDocumentResource` をゲーム制作で保存・検査・実行ロ�
 | `LD2-02` | `COMPLETE` | `LD2-01` | `docs/plan/2026-06-06_LD2-02_MIGRATION/` | v1 -> v2 migration helper and compatibility policy | `addons/hex_map_kit/adapter/hex_map_document_adapter.gd`, migration helper file if needed, `tests/test_hex_adapter.gd` | Migration preserves map/tile_overrides/objects/labels/version; has roundtrip tests and missing-field tests. |
 | `LD2-03` | `COMPLETE` | `LD2-01` | `docs/plan/2026-06-06_LD2-03_SUMMARY_VALIDATION_SCHEMA/` | Document summary and validation result schema | new `HexMapValidationResult` resource/script, adapter helpers, `tests/test_hex_adapter.gd` | Summary reports cells/walls/floors/objects/labels/zones/warnings/dependencies; validation result serializable and testable. |
 | `LD2-04` | `COMPLETE` | `LD2-02`, `LD2-03` | `docs/plan/2026-06-06_LD2-04_ADAPTER_ROUNDTRIP/` | Adapter roundtrip for v2 document | `hex_map_document_adapter.gd`, `hex_tile_map_layer.gd`, `tests/test_hex_adapter.gd`, `tests/test_hex_tile_map_layer.gd` | Roundtrip, payload cleanup, deleted cell cleanup, tile overrides, labels, objects, zones pass. |
-| `LD2-05` | `READY` | `LD2-04` | `docs/plan/2026-06-06_LD2-05_EDITOR_LOAD_SAVE/` | Edit Dock / Generate Dock document v2 load/save integration | `hex_map_edit_tool.gd`, `hex_map_gen_dock.gd`, `tests/test_editor_plugin.gd`, `docs/TEST.md` | Browse/Load/Save/Export/import flows work with v2 while v1 remains compatible. |
+| `LD2-05` | `COMPLETE` | `LD2-04` | `docs/plan/2026-06-06_LD2-05_EDITOR_LOAD_SAVE/` | Edit Dock / Generate Dock document v2 load/save integration | `hex_map_edit_tool.gd`, `hex_map_gen_dock.gd`, `tests/test_editor_plugin.gd`, `docs/TEST.md` | Browse/Load/Save/Export/import flows work with v2 while v1 remains compatible. |
 | `LD2-06` | `READY` | `LD2-04` | `docs/plan/2026-06-06_LD2-06_RUNTIME_LOAD_SAMPLE/` | Runtime load helper/sample for level document | `hex_tile_map_layer.gd`, `examples/basic_runtime` later or debug scene, `tests/test_debug_scenes.gd` | Runtime can load v2 document into `HexTileMapLayer`; no editor-only dependency in runtime path. |
 
 ---
@@ -160,7 +160,7 @@ Goal F は「別承認待ちの大改修」ではなく、feature task を通す
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `ARCH-01` | `BACKLOG` | `LD2-05` | `docs/plan/2026-06-06_ARCH-01_EDITOR_SESSION_STATE/` | Shared editor session state | new editor session script, `hex_map_gen_dock.gd`, `hex_map_edit_tool.gd`, tests | Generate/Edit target/document state sharing has tests; existing target auto behavior maintained. |
+| `ARCH-01` | `READY` | `LD2-05` | `docs/plan/2026-06-06_ARCH-01_EDITOR_SESSION_STATE/` | Shared editor session state | new editor session script, `hex_map_gen_dock.gd`, `hex_map_edit_tool.gd`, tests | Generate/Edit target/document state sharing has tests; existing target auto behavior maintained. |
 | `ARCH-02` | `BACKLOG` | `ARCH-01`, `CATUI-01` | `docs/plan/2026-06-06_ARCH-02_GENERATE_DOCK_STATE_EVALUATION_SPLIT/` | Separate Generate Dock state evaluation from UI construction | `hex_map_gen_dock.gd`, tests | Existing Generate Dock headless tests pass; catalog UI additions become smaller. |
 | `ARCH-03` | `BACKLOG` | `ARCH-01`, `OBJ-03` | `docs/plan/2026-06-06_ARCH-03_EDIT_TOOL_MUTATION_VIEWPORT_SPLIT/` | Separate Edit Tool mutation and viewport input adapter | `hex_map_edit_tool.gd`, tests | Viewport hit/edit/undo tests pass; object and validation UI can reuse mutation helpers. |
 | `ARCH-04` | `BACKLOG` | `VAL-02` | `docs/plan/2026-06-06_ARCH-04_DOCUMENT_INSPECTOR_COMPONENT/` | Document inspector / validation summary component | new editor component, edit/gen dock integration, tests | Validation/dashboard logic is not embedded only in giant dock file. |
@@ -198,13 +198,13 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `LD2-05`.
+Current recommended next task: `LD2-06`.
 
 Reason:
 
-- `LD2-04` is complete and provides v2 adapter roundtrip, payload normalization, and deleted-cell cleanup.
-- `LD2-05` is now READY because its dependency `LD2-04` is complete.
-- `LD2-06` is also READY, but `LD2-05` appears first in queue order.
+- `LD2-05` is complete and provides Edit Dock v2 document load/edit/save/export coverage.
+- `LD2-06` remains READY because its dependency `LD2-04` is complete.
+- `ARCH-01` is also READY because `LD2-05` is complete, but `LD2-06` appears first in queue order.
 
 ---
 
@@ -403,4 +403,30 @@ Notes:
 - Added v2-aware map and payload normalization helpers in `HexMapDocumentAdapter`.
 - Added v2 deleted-cell cleanup for terrain assignments, overlay assignments, object placements, label placements, and zones.
 - `HexTileMapLayer.apply_document()` now accepts pure v2 documents whose map lives on a terrain layer.
+- `repair-now`: none.
+
+### LD2-05
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot
+plan: `docs/plan/2026-06-06_LD2-05_EDITOR_LOAD_SAVE/`
+review: `docs/review/autopilot/LD2-05_SELF_REVIEW_2026-06-07.md`
+test result: `docs/review/autopilot/LD2-05_TEST_RESULT_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+- docs:
+  - `docs/TEST.md`
+- major files:
+  - `addons/hex_map_kit/adapter/hex_map_document_adapter.gd`
+  - `addons/hex_map_kit/editor/hex_map_edit_tool.gd`
+  - `tests/test_editor_plugin.gd`
+
+Notes:
+
+- Edit Dock now normalizes loaded/imported/target-derived documents through the v2 migration helper.
+- Save/export reads v2 map state through adapter helpers and no longer overwrites loaded v2 documents with target-side v1 snapshots.
+- Adapter setters now mirror tile/object/label edits into typed v2 payload resources while preserving legacy arrays.
 - `repair-now`: none.

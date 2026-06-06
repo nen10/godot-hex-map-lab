@@ -9,7 +9,12 @@ const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resourc
 const HexOverlayData = preload("res://addons/hex_map_kit/core/hex_overlay_data.gd")
 const HexOverlayResource = preload("res://addons/hex_map_kit/adapter/hex_overlay_resource.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
+const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
 const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
+const HexMapDocumentLabelPlacementResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_label_placement_resource.gd")
+const HexMapDocumentObjectPlacementResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_object_placement_resource.gd")
+const HexMapDocumentOverlayLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_overlay_layer_resource.gd")
+const HexMapDocumentTerrainLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_terrain_layer_resource.gd")
 const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
 const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
 const HexMapGenDock = preload("res://addons/hex_map_kit/editor/hex_map_gen_dock.gd")
@@ -75,6 +80,7 @@ func _run() -> void:
 	await _test_map_edit_tool_initializes_document_from_hex_target()
 	await _test_map_edit_tool_imports_generated_map_resource()
 	await _test_map_edit_tool_path_file_handlers_and_action_states()
+	await _test_map_edit_tool_loads_saves_v2_document_without_losing_typed_payloads()
 	await _test_map_edit_tool_click_updates_document_with_undo_redo()
 	await _test_map_edit_tool_debug_report_copy_includes_reportable_state()
 	await _test_map_edit_tool_forward_canvas_gui_input_uses_viewport_transform()
@@ -458,6 +464,73 @@ func _test_map_edit_tool_debug_report_copy_includes_reportable_state() -> void:
 
 	layer.queue_free()
 	tool.queue_free()
+	await process_frame
+
+
+func _test_map_edit_tool_loads_saves_v2_document_without_losing_typed_payloads() -> void:
+	var document = _sample_v2_editor_document()
+	var document_path = _test_resource_path("test_map_edit_v2_document.tres")
+	var saved_path = _test_resource_path("test_map_edit_v2_saved_document.tres")
+	var export_path = _test_resource_path("test_map_edit_v2_export.tres")
+	_save_resource(document_path, document)
+
+	var layer = HexTileMapLayer.new()
+	root.add_child(layer)
+	await process_frame
+	_assert_true(
+		layer.ensure_display_tiles(
+			HexMapTileAdapter.SAMPLE_TILE_SIZE,
+			4,
+			Vector2i(0, 0),
+			5,
+			Vector2i(1, 0)
+		),
+		"v2 document target display tiles are configured"
+	)
+
+	var tool = await _new_ready_edit_tool()
+	tool.set_target_layer(layer)
+	_assert_true(tool.load_document(document_path), "map edit tool loads v2 document from path")
+	_assert_eq(tool.document().version, HexMapDocumentResource.VERSION_V2, "loaded document remains v2")
+	_assert_eq(layer.hex_map.to_map_data().walls.size(), 1, "v2 document load applies terrain map to HexTileMapLayer")
+	var initial_state = layer.display_state_for_hex(HexVector.zero())
+	_assert_eq(initial_state["overlay_count"], 1, "v2 document load applies overlay assignment")
+	_assert_eq(initial_state["object_count"], 1, "v2 document load applies object placement")
+	_assert_eq(initial_state["label_count"], 1, "v2 document load applies label placement")
+
+	tool.set_edit_mode(HexMapEditTool.EditMode.FLOOR_TILE)
+	tool.set_tile_payload(0, Vector2i(2, 0), 0)
+	_assert_true(tool.apply_cell(HexVector.zero()), "map edit tool edits loaded v2 document")
+	_assert_eq(
+		tool.document().terrain_layers[0].tile_assignments[0]["atlas_coords"],
+		Vector2i(2, 0),
+		"v2 document edit updates typed terrain assignment"
+	)
+
+	_assert_true(tool.save_document(saved_path), "map edit tool saves loaded v2 document")
+	_assert_true(tool.export_map_resource_to_path(export_path), "map edit tool exports map from loaded v2 document")
+	var saved = ResourceLoader.load(saved_path, "", ResourceLoader.CACHE_MODE_IGNORE)
+	_assert_true(saved is HexMapDocumentResource, "saved v2 document loads as document resource")
+	_assert_eq(saved.version, HexMapDocumentResource.VERSION_V2, "saved document keeps v2 version")
+	_assert_eq(saved.terrain_layers.size(), 1, "saved document keeps typed terrain layer")
+	_assert_eq(saved.overlay_layers.size(), 1, "saved document keeps typed overlay layer")
+	_assert_eq(saved.object_placements.size(), 1, "saved document keeps typed object placement")
+	_assert_eq(saved.label_placements.size(), 1, "saved document keeps typed label placement")
+	_assert_eq(
+		saved.terrain_layers[0].tile_assignments[0]["atlas_coords"],
+		Vector2i(2, 0),
+		"saved document keeps edited typed terrain assignment"
+	)
+	var exported = ResourceLoader.load(export_path, "", ResourceLoader.CACHE_MODE_IGNORE)
+	_assert_true(exported is HexMapResource, "v2 document export loads as HexMapResource")
+	_assert_eq(exported.orientation, HexMapResource.ORIENTATION_POINTY_TOP, "v2 document export preserves orientation")
+	_assert_eq(exported.to_map_data().walls.size(), 1, "v2 document export preserves walls")
+	var save_status = tool.persistence_status()
+	_assert_eq(save_status["cell_count"], 2, "v2 document save status reports cells")
+	_assert_eq(save_status["wall_count"], 1, "v2 document save status reports walls")
+
+	tool.queue_free()
+	layer.queue_free()
 	await process_frame
 
 
@@ -3311,6 +3384,46 @@ func _connect_method_index(method: int) -> int:
 			return index
 	_failures.append("connect method %d is not listed in dock" % method)
 	return 0
+
+
+func _sample_v2_editor_document() -> HexMapDocumentResource:
+	var data = HexMapData.rectangle(2, 1)
+	data.set_walls([HexVector.q_axis()])
+	var document = HexMapDocumentResource.new()
+	document.ensure_v2_defaults()
+
+	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
+	terrain_layer.map = HexMapResource.from_map_data(data, HexMapResource.ORIENTATION_POINTY_TOP)
+	terrain_layer.tile_assignments.append({
+		"cell": Vector3i.ZERO,
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"source_id": 0,
+		"atlas_coords": Vector2i(1, 0),
+		"alternative_tile": 0,
+	})
+	document.terrain_layers.append(terrain_layer)
+
+	var overlay_layer = HexMapDocumentOverlayLayerResource.new()
+	overlay_layer.item_key = "Treasure"
+	overlay_layer.tile_assignments.append({
+		"cell": Vector3i.ZERO,
+		"source_id": 0,
+		"atlas_coords": Vector2i(1, 0),
+		"alternative_tile": 0,
+	})
+	document.overlay_layers.append(overlay_layer)
+
+	var placement = HexMapDocumentObjectPlacementResource.new()
+	placement.object_id = "chest"
+	placement.cell = Vector3i.ZERO
+	document.object_placements.append(placement)
+
+	var label = HexMapDocumentLabelPlacementResource.new()
+	label.label_id = "area"
+	label.cell = Vector3i.ZERO
+	label.text = "North"
+	document.label_placements.append(label)
+	return document
 
 
 func _new_ready_dock():

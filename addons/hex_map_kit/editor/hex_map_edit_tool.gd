@@ -177,8 +177,37 @@ func document() -> HexMapDocumentResource:
 	return _document
 
 
+func _document_for_editor(document: HexMapDocumentResource) -> HexMapDocumentResource:
+	if document == null:
+		return null
+	if document.has_method("is_v2") and document.is_v2():
+		return document
+	return HexMapDocumentAdapter.migrate_v1_to_v2(document)
+
+
+func _document_map_resource(document: HexMapDocumentResource) -> HexMapResource:
+	if document == null:
+		return null
+	return HexMapDocumentAdapter.to_map_resource(document)
+
+
+func _document_has_cell(document: HexMapDocumentResource, hex) -> bool:
+	var map_resource = _document_map_resource(document)
+	return map_resource != null and map_resource.to_map_data().has_cell(hex)
+
+
+func _document_has_wall(document: HexMapDocumentResource, hex) -> bool:
+	var map_resource = _document_map_resource(document)
+	return map_resource != null and map_resource.to_map_data().has_wall(hex)
+
+
+func _document_is_flat_top(document: HexMapDocumentResource) -> bool:
+	var map_resource = _document_map_resource(document)
+	return map_resource == null or map_resource.is_flat_top()
+
+
 func import_map_resource(resource: HexMapResource) -> HexMapDocumentResource:
-	_document = HexMapDocumentAdapter.from_map_resource(resource)
+	_document = _document_for_editor(HexMapDocumentAdapter.from_map_resource(resource))
 	_document_source = DOCUMENT_SOURCE_IMPORT if _document != null else DOCUMENT_SOURCE_NONE
 	_refresh_plain_target_tile_options_from_document(_document)
 	_read_target_tile_settings(false)
@@ -338,7 +367,7 @@ func load_document(path: String = "") -> bool:
 	if not resource is HexMapDocumentResource:
 		_set_status("Path is not a HexMapDocumentResource.")
 		return false
-	_document = resource
+	_document = _document_for_editor(resource)
 	_document_source = DOCUMENT_SOURCE_LOAD
 	set_document_path(actual_path)
 	_sync_resource_pickers()
@@ -492,7 +521,7 @@ func apply_cell(hex) -> bool:
 		"hex": hex,
 		"visual_hex": hex,
 		"local": Vector2.ZERO,
-		"exists": _document != null and _document.map != null and _document.map.to_map_data().has_cell(hex),
+		"exists": _document_has_cell(_document, hex),
 	})
 
 
@@ -977,36 +1006,27 @@ func _apply_hex_cell_state_to_document(document: HexMapDocumentResource, state: 
 	if document == null or state.is_empty() or not state.has("hex"):
 		return false
 	var hex = _state_hex(state)
-	if document.map == null:
-		document.map = HexMapResource.new()
-	document.map.orientation = HexMapResource.ORIENTATION_FLAT_TOP if _target_flat_top() else HexMapResource.ORIENTATION_POINTY_TOP
-	var component = Vector3i(hex.q, hex.s, hex.r)
 	var exists := bool(state.get("exists", true))
-	if exists:
-		_ensure_resource_component(document.map.cells, component)
-		if bool(state.get("wall", false)):
-			_ensure_resource_component(document.map.walls, component)
-		else:
-			_remove_resource_component(document.map.walls, component)
-	else:
-		_remove_resource_component(document.map.cells, component)
-		_remove_resource_component(document.map.walls, component)
-		_replace_document_entries_for_cell(document.tile_overrides, hex, [])
-		_replace_document_entries_for_cell(document.objects, hex, [])
-		_replace_document_entries_for_cell(document.labels, hex, [])
+	HexMapDocumentAdapter.set_cell_exists(document, hex, exists)
+	if not exists:
 		return true
+	HexMapDocumentAdapter.set_wall(document, hex, bool(state.get("wall", false)))
 	var tile_entries: Array = []
 	for entry in state.get("tile_overrides", []):
 		if entry is Dictionary:
 			tile_entries.append(_entry_with_cell(entry as Dictionary, hex))
 	for entry in state.get("overlay_tiles", []):
-		if entry is Dictionary:
-			var overlay_entry = _entry_with_cell(entry as Dictionary, hex)
-			overlay_entry["kind"] = HexMapDocumentAdapter.KIND_OVERLAY
-			tile_entries.append(overlay_entry)
-	_replace_document_entries_for_cell(document.tile_overrides, hex, tile_entries)
-	_replace_document_entries_for_cell(document.objects, hex, _state_entries_with_cell(state.get("objects", []), hex))
-	_replace_document_entries_for_cell(document.labels, hex, _state_entries_with_cell(state.get("labels", []), hex))
+			if entry is Dictionary:
+				var overlay_entry = _entry_with_cell(entry as Dictionary, hex)
+				overlay_entry["kind"] = HexMapDocumentAdapter.KIND_OVERLAY
+				tile_entries.append(overlay_entry)
+	HexMapDocumentAdapter.replace_cell_payloads(
+		document,
+		hex,
+		tile_entries,
+		_state_entries_with_cell(state.get("objects", []), hex),
+		_state_entries_with_cell(state.get("labels", []), hex)
+	)
 	return true
 
 
@@ -1137,10 +1157,10 @@ func _resource_component_index(components: Array, component: Vector3i) -> int:
 func _apply_mode_to_document(document: HexMapDocumentResource, hex) -> void:
 	match _edit_mode:
 		EditMode.SHAPE:
-			var exists = document.map != null and document.map.to_map_data().has_cell(hex)
+			var exists = _document_has_cell(document, hex)
 			HexMapDocumentAdapter.set_cell_exists(document, hex, not exists)
 		EditMode.WALL_FLOOR:
-			var is_wall = document.map != null and document.map.to_map_data().has_wall(hex)
+			var is_wall = _document_has_wall(document, hex)
 			HexMapDocumentAdapter.set_wall(document, hex, not is_wall)
 		EditMode.FLOOR_TILE:
 			var payload = _tile_payload.duplicate(true)
@@ -1236,29 +1256,25 @@ func _local_hit(local_pos: Vector2) -> Dictionary:
 		return (_target_layer as HexTileMapLayer).local_to_cell_hit(local_pos)
 	if _target_layer is TileMapLayer:
 		var map_cell = (_target_layer as TileMapLayer).local_to_map(local_pos)
-		var flat_top = true
-		if _document != null and _document.map != null:
-			flat_top = _document.map.is_flat_top()
+		var flat_top = _document_is_flat_top(_document)
 		var tile_hex = HexMapTileAdapter.map_cell_to_vector(map_cell, flat_top)
 		return {
 			"hex": tile_hex,
 			"visual_hex": tile_hex,
 			"local": local_pos,
-			"exists": _document != null and _document.map != null and _document.map.to_map_data().has_cell(tile_hex),
+			"exists": _document_has_cell(_document, tile_hex),
 		}
 	var hex = _local_to_hex(local_pos)
 	return {
 		"hex": hex,
 		"visual_hex": hex,
 		"local": local_pos,
-		"exists": _document != null and _document.map != null and _document.map.to_map_data().has_cell(hex),
+		"exists": _document_has_cell(_document, hex),
 	}
 
 
 func _local_to_hex(local_pos: Vector2):
-	var flat_top = true
-	if _document != null and _document.map != null:
-		flat_top = _document.map.is_flat_top()
+	var flat_top = _document_is_flat_top(_document)
 	var frac_q: float
 	var frac_r: float
 	var sqrt3 = sqrt(3.0)
@@ -1302,13 +1318,14 @@ func _on_import_map_path_changed(text: String) -> void:
 
 func _on_document_resource_changed(resource: Resource) -> void:
 	if resource is HexMapDocumentResource:
-		_document = resource
+		_document = _document_for_editor(resource)
 		_document_source = DOCUMENT_SOURCE_PROVIDED
 		if resource.resource_path != "":
 			set_document_path(resource.resource_path)
 	elif resource == null:
 		_document = null
 		_document_source = DOCUMENT_SOURCE_NONE
+	_refresh_plain_target_tile_options_from_document(_document)
 	_refresh_overlay_item_key_options()
 	_refresh_state_labels()
 
@@ -1684,7 +1701,7 @@ func _refresh_overlay_item_key_options() -> void:
 	if previous_key != "":
 		keys.append(previous_key)
 	if _document != null:
-		for entry in _document.tile_overrides:
+		for entry in HexMapDocumentAdapter.document_tile_entries(_document):
 			if not entry is Dictionary:
 				continue
 			if String(entry.get("kind", "")) != HexMapDocumentAdapter.KIND_OVERLAY:
@@ -1729,7 +1746,7 @@ func _ensure_document_from_target_if_needed() -> bool:
 	var hex_layer := _target_layer as HexTileMapLayer
 	if hex_layer.hex_map == null and hex_layer.get_cells().is_empty():
 		return false
-	_document = hex_layer.to_document_resource()
+	_document = _document_for_editor(hex_layer.to_document_resource())
 	_document_source = DOCUMENT_SOURCE_TARGET
 	_refresh_plain_target_tile_options_from_document(_document)
 	_sync_resource_pickers()
@@ -1742,11 +1759,9 @@ func _sync_document_snapshot_from_hex_target() -> bool:
 		return false
 	if not (_target_layer is HexTileMapLayer):
 		return false
-	if _document != null \
-		and _document_source != DOCUMENT_SOURCE_TARGET \
-		and not _last_applied_to_target:
+	if _document != null and _document_source != DOCUMENT_SOURCE_TARGET:
 		return false
-	var snapshot = (_target_layer as HexTileMapLayer).to_document_resource()
+	var snapshot = _document_for_editor((_target_layer as HexTileMapLayer).to_document_resource())
 	if _document == null:
 		_document = snapshot
 		_document_source = DOCUMENT_SOURCE_TARGET
@@ -2098,9 +2113,7 @@ func _apply_target_atlas_path(path: String, tile_size: Vector2i) -> bool:
 func _target_flat_top() -> bool:
 	if _target_layer is HexTileMapLayer:
 		return (_target_layer as HexTileMapLayer).flat_top
-	if _document != null and _document.map != null:
-		return _document.map.is_flat_top()
-	return true
+	return _document_is_flat_top(_document)
 
 
 func _target_tile_set_for_current_target():
@@ -2179,12 +2192,13 @@ func _refresh_plain_target_tile_options_from_document(document, force: bool = fa
 	if not (_target_layer is TileMapLayer) or _target_layer is HexTileMapLayer:
 		_sync_default_tile_controls_from_options(_plain_target_tile_options_for_apply())
 		return
-	if document == null or document.map == null:
+	var map_resource = _document_map_resource(document)
+	if map_resource == null:
 		_sync_default_tile_controls_from_options(_plain_target_tile_options_for_apply())
 		return
 	var tile_layer := _target_layer as TileMapLayer
-	var data = document.map.to_map_data()
-	var flat_top = document.map.is_flat_top()
+	var data = map_resource.to_map_data()
+	var flat_top = map_resource.is_flat_top()
 	var floor_entry = _first_display_tile_entry_for_hexes(tile_layer, data.floor_cells(), flat_top)
 	if not floor_entry.is_empty():
 		_plain_target_tile_options["floor_source_id"] = int(floor_entry["source_id"])
@@ -2533,14 +2547,15 @@ func _document_cell_state(document, hex) -> Dictionary:
 		"objects": [],
 		"labels": [],
 	}
-	if document == null or document.map == null:
+	var map_resource = _document_map_resource(document)
+	if map_resource == null:
 		return state
-	var data = document.map.to_map_data()
+	var data = map_resource.to_map_data()
 	state["exists"] = data.has_cell(hex)
 	state["wall"] = data.has_wall(hex)
-	state["tile_overrides"] = _entries_for_cell(document.tile_overrides, hex)
-	state["objects"] = _entries_for_cell(document.objects, hex)
-	state["labels"] = _entries_for_cell(document.labels, hex)
+	state["tile_overrides"] = _entries_for_cell(HexMapDocumentAdapter.document_tile_entries(document), hex)
+	state["objects"] = _entries_for_cell(HexMapDocumentAdapter.document_object_entries(document), hex)
+	state["labels"] = _entries_for_cell(HexMapDocumentAdapter.document_label_entries(document), hex)
 	return state
 
 
@@ -2582,9 +2597,7 @@ func _target_display_state(hex, visual_hex) -> Dictionary:
 	if _target_layer is HexTileMapLayer:
 		return (_target_layer as HexTileMapLayer).display_state_for_hex(hex, visual_hex)
 	if _target_layer is TileMapLayer:
-		var flat_top = true
-		if _document != null and _document.map != null:
-			flat_top = _document.map.is_flat_top()
+		var flat_top = _document_is_flat_top(_document)
 		var map_cell = HexMapTileAdapter.vector_to_map_cell(visual_hex, flat_top)
 		state["renderer"] = "TileMapLayer"
 		state["source_id"] = (_target_layer as TileMapLayer).get_cell_source_id(map_cell)
@@ -2632,12 +2645,12 @@ func _set_persistence_status(
 
 
 func _document_summary(document) -> Dictionary:
-	if document == null or document.map == null:
+	if document == null:
 		return {"cell_count": 0, "wall_count": 0}
-	var data = document.map.to_map_data()
+	var summary = HexMapDocumentAdapter.document_summary(document)
 	return {
-		"cell_count": data.cells.size(),
-		"wall_count": data.walls.size(),
+		"cell_count": int(summary.get("cells", 0)),
+		"wall_count": int(summary.get("walls", 0)),
 	}
 
 
