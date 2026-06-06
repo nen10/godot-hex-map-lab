@@ -65,6 +65,7 @@ func _run() -> void:
 	_test_hex_map_validation_result_serializes_summary_and_warnings()
 	_test_hex_map_document_validator_reports_core_rules()
 	_test_hex_map_document_validator_rule_matrix()
+	_test_hex_map_document_validator_profile_reachability()
 	_test_hex_movement_profile_resource_roundtrips_gameplay_defaults()
 	_test_hex_gameplay_layer_data_uses_profile_catalog_and_objects()
 	_test_hex_map_document_adapter_roundtrips_v2_payload_entries()
@@ -133,6 +134,16 @@ func _validation_has_issue(result, rule_id: String) -> bool:
 		if String(issue.get("rule_id", "")) == rule_id:
 			return true
 	return false
+
+
+func _validation_issue(result, rule_id: String, reason: String = "") -> Dictionary:
+	for issue in result.issues:
+		if String(issue.get("rule_id", "")) != rule_id:
+			continue
+		if reason != "" and String(issue.get("metadata", {}).get("reason", "")) != reason:
+			continue
+		return issue
+	return {}
 
 
 func _test_vector_to_map_cell_matches_flat_top_offset() -> void:
@@ -941,6 +952,92 @@ func _test_hex_map_document_validator_rule_matrix() -> void:
 		HexMapDocumentValidator.validate_document(object_on_floor_document),
 		"document.object_on_wall",
 		"rule matrix accepts object on floor"
+	)
+
+
+func _test_hex_map_document_validator_profile_reachability() -> void:
+	var data = HexMapData.rectangle(3, 1)
+	data.set_walls([HexVector.q_axis()])
+	var document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(data))
+	HexMapDocumentAdapter.set_label(document, HexVector.zero(), {
+		"label_id": "start",
+		"text": "Start",
+	})
+	HexMapDocumentAdapter.set_label(document, HexVector.q_axis().scaled(2), {
+		"label_id": "goal",
+		"text": "Goal",
+	})
+
+	var ground_profile = HexMovementProfileResource.new()
+	ground_profile.profile_id = "ground"
+	var no_profile_result = HexMapDocumentValidator.validate_document(document)
+	_assert_no_issue(
+		no_profile_result,
+		HexMapDocumentValidator.RULE_PROFILE_REACHABILITY,
+		"profile reachability is opt-in without movement profile"
+	)
+	var unreachable_result = HexMapDocumentValidator.validate_document(document, {
+		"movement_profile": ground_profile,
+	})
+	_assert_has_issue(
+		unreachable_result,
+		HexMapDocumentValidator.RULE_PROFILE_REACHABILITY,
+		"profile reachability detects disconnected important points"
+	)
+	var unreachable_issue = _validation_issue(
+		unreachable_result,
+		HexMapDocumentValidator.RULE_PROFILE_REACHABILITY,
+		"unreachable"
+	)
+	_assert_eq(
+		String(unreachable_issue.get("metadata", {}).get("profile_id", "")),
+		"ground",
+		"profile reachability issue reports profile id"
+	)
+
+	var passable_wall_profile = HexMovementProfileResource.new()
+	passable_wall_profile.profile_id = "passable-wall"
+	passable_wall_profile.wall_passable = true
+	passable_wall_profile.wall_cost = 1.0
+	_assert_no_issue(
+		HexMapDocumentValidator.validate_document(document, {
+			"movement_profile": passable_wall_profile,
+		}),
+		HexMapDocumentValidator.RULE_PROFILE_REACHABILITY,
+		"profile reachability accepts passable-wall profile"
+	)
+
+	var blocked_document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(data))
+	HexMapDocumentAdapter.set_label(blocked_document, HexVector.zero(), {
+		"label_id": "start",
+		"text": "Start",
+	})
+	HexMapDocumentAdapter.set_label(blocked_document, HexVector.q_axis(), {
+		"label_id": "wall",
+		"text": "Wall",
+	})
+	var blocked_result = HexMapDocumentValidator.validate_document(blocked_document, {
+		"movement_profiles": [ground_profile],
+	})
+	_assert_has_issue(
+		blocked_result,
+		HexMapDocumentValidator.RULE_PROFILE_REACHABILITY,
+		"profile reachability detects blocked important point"
+	)
+	var blocked_issue = _validation_issue(
+		blocked_result,
+		HexMapDocumentValidator.RULE_PROFILE_REACHABILITY,
+		"blocked"
+	)
+	_assert_eq(
+		String(blocked_issue.get("metadata", {}).get("profile_id", "")),
+		"ground",
+		"blocked profile reachability issue reports profile id"
+	)
+	_assert_eq(
+		(blocked_issue.get("metadata", {}).get("blockers", []) as Array).has("wall"),
+		true,
+		"blocked profile reachability issue records blocker keys"
 	)
 
 

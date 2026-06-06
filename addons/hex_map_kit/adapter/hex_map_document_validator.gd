@@ -3,8 +3,10 @@ extends RefCounted
 
 const HexMapDocumentAdapterScript = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
 const HexMapDocumentDependencyResourceScript = preload("res://addons/hex_map_kit/adapter/hex_map_document_dependency_resource.gd")
+const HexGameplayLayerDataScript = preload("res://addons/hex_map_kit/adapter/hex_gameplay_layer_data.gd")
 const HexMapValidationResultScript = preload("res://addons/hex_map_kit/adapter/hex_map_validation_result.gd")
 const HexTileCatalogEntryScript = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd")
+const HexGridScript = preload("res://addons/hex_map_kit/core/hex_grid.gd")
 const HexVectorScript = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 
 const RULE_PAYLOAD_OUTSIDE_MAP := "document.payload_outside_map"
@@ -13,6 +15,7 @@ const RULE_CATALOG_MISSING := "document.catalog_missing"
 const RULE_TILE_MISSING := "document.tile_missing"
 const RULE_DEPENDENCY_MISSING := "document.dependency_missing"
 const RULE_OBJECT_ON_WALL := "document.object_on_wall"
+const RULE_PROFILE_REACHABILITY := "movement.profile_reachability"
 
 
 static func validate_document(document, options: Dictionary = {}):
@@ -42,6 +45,7 @@ static func validate_document(document, options: Dictionary = {}):
 	_validate_object_entries(result, document, cell_set, wall_set)
 	_validate_label_entries(result, document, cell_set)
 	_validate_dependencies(result, document)
+	_validate_profile_reachability(result, document, data, options)
 	_update_counts(result)
 	return result
 
@@ -192,8 +196,127 @@ static func _validate_dependencies(result, document) -> void:
 			)
 
 
+static func _validate_profile_reachability(result, document, data, options: Dictionary) -> void:
+	var movement_profiles = _movement_profiles_from_options(options)
+	if movement_profiles.is_empty():
+		return
+	var important_points = _important_points(document, options, data.cell_set())
+	if important_points.size() < 2:
+		return
+
+	for movement_profile in movement_profiles:
+		var profile_id = _profile_id(movement_profile)
+		var gameplay = HexGameplayLayerDataScript.from_document(
+			document,
+			movement_profile,
+			options.get("tile_catalog", null)
+		)
+		var passable_points: Array = []
+		for point in important_points:
+			if not gameplay.has_cell(point):
+				continue
+			if not gameplay.is_passable(point):
+				result.add_error(
+					RULE_PROFILE_REACHABILITY,
+					"Important point is blocked by movement profile: %s." % profile_id,
+					HexMapValidationResultScript.SCOPE_CELL,
+					{
+						"cell": _component_from_hex(point),
+						"metadata": {
+							"profile_id": profile_id,
+							"reason": "blocked",
+							"blockers": Array(gameplay.blocker_keys(point)),
+						},
+					}
+				)
+				continue
+			passable_points.append(point)
+
+		if passable_points.size() < 2:
+			continue
+		var anchor = passable_points[0]
+		var reachable = HexGridScript.make_set(
+			HexGridScript.connected_area(anchor, gameplay.passable_cells(), data.cyclic_size)
+		)
+		for index in range(1, passable_points.size()):
+			var point = passable_points[index]
+			if reachable.has(point.key()):
+				continue
+			result.add_error(
+				RULE_PROFILE_REACHABILITY,
+				"Important point is unreachable by movement profile: %s." % profile_id,
+				HexMapValidationResultScript.SCOPE_CELL,
+				{
+					"cell": _component_from_hex(point),
+					"metadata": {
+						"profile_id": profile_id,
+						"reason": "unreachable",
+						"anchor_cell": _component_from_hex(anchor),
+					},
+				}
+			)
+
+
+static func _movement_profiles_from_options(options: Dictionary) -> Array:
+	var result: Array = []
+	if options.has("movement_profiles"):
+		var profiles = options.get("movement_profiles", [])
+		if profiles is Array:
+			for profile in profiles:
+				if profile != null:
+					result.append(profile)
+	if options.has("movement_profile") and options.get("movement_profile") != null:
+		result.append(options.get("movement_profile"))
+	return result
+
+
+static func _important_points(document, options: Dictionary, cell_set: Dictionary) -> Array:
+	var result: Array = []
+	var seen := {}
+	for point in options.get("important_points", []):
+		_append_important_point(result, seen, _hex_from_value(point), cell_set)
+	for entry in HexMapDocumentAdapterScript.document_object_entries(document):
+		_append_important_point(result, seen, _hex_from_component(entry.get("cell", Vector3i.ZERO)), cell_set)
+	for entry in HexMapDocumentAdapterScript.document_label_entries(document):
+		_append_important_point(result, seen, _hex_from_component(entry.get("cell", Vector3i.ZERO)), cell_set)
+	return result
+
+
+static func _append_important_point(result: Array, seen: Dictionary, point, cell_set: Dictionary) -> void:
+	if point == null:
+		return
+	var key = point.key()
+	if seen.has(key):
+		return
+	if not cell_set.has(key):
+		return
+	seen[key] = true
+	result.append(cell_set[key])
+
+
+static func _profile_id(profile) -> String:
+	if profile == null:
+		return "default"
+	var value = profile.get("profile_id")
+	if value == null:
+		return "default"
+	return String(value)
+
+
+static func _hex_from_value(value):
+	if value is Vector3i:
+		return _hex_from_component(value)
+	if value is HexVectorScript:
+		return HexVectorScript.apply_basis(value.q, value.s, value.r)
+	return null
+
+
 static func _hex_from_component(component: Vector3i):
 	return HexVectorScript.apply_basis(component.x, component.y, component.z)
+
+
+static func _component_from_hex(hex) -> Vector3i:
+	return Vector3i(hex.q, hex.s, hex.r)
 
 
 static func _update_counts(result) -> void:
