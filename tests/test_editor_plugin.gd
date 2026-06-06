@@ -136,6 +136,7 @@ func _run() -> void:
 	await _test_generation_dock_debug_report_includes_validation_summary()
 	await _test_generation_dock_validates_generation_result_before_auto_apply()
 	await _test_generation_dock_captures_generation_validation_failure()
+	await _test_generation_dock_batch_runner_scores_and_sorts()
 	await _test_generation_dock_only_generates_from_generate_button()
 	await _test_generation_dock_wires_core_progress_and_cancel()
 	await _test_generation_dock_applies_configured_tile_entries()
@@ -2260,6 +2261,46 @@ func _test_generation_dock_captures_generation_validation_failure() -> void:
 		"document.orphan_payload",
 		"invalid generated document records failing rule id"
 	)
+
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_batch_runner_scores_and_sorts() -> void:
+	var dock = await _new_ready_dock()
+	dock._current_data = HexMapData.rectangle(1, 1)
+	dock._generate_option.select(HexMapGenDock.GENERATE_SIMPLE)
+	dock._shape_option_simple.select(HexMapGenDock.SHAPE_RECTANGLE)
+	dock._rect_width_spin.set_value_no_signal(3)
+	dock._rect_height_spin.set_value_no_signal(2)
+	dock._wall_prob_slider.set_value_no_signal(0.45)
+	dock._connect_method_option.select(_connect_method_index(HexMapGenerator.CONNECT_DENSE))
+	dock._refresh_controls()
+
+	var rows = dock.run_generation_batch(3, {"seeds": [501, 502, 503]})
+	_assert_eq(rows.size(), 3, "generation batch creates one row per explicit seed")
+	_assert_eq(dock._current_data.cells.size(), 1, "generation batch does not promote candidate into current map")
+	for row in rows:
+		var summary: Dictionary = row["validation_summary"]
+		_assert_eq(String(row.get("status", "")), "generated", "generation batch row records generated status")
+		_assert_eq(int(row.get("cells", 0)), 6, "generation batch row records generated cell count")
+		_assert_true(row.has("score"), "generation batch row records score")
+		_assert_true(bool(summary.get("validated", false)), "generation batch row records validation summary")
+		_assert_true(bool(summary.get("passed", false)), "generation batch row passes validation")
+		_assert_eq(int(row.get("validation_errors", -1)), 0, "generation batch row flattens validation errors")
+
+	var score_table = dock.generation_batch_score_table("score", true)
+	_assert_eq(score_table.size(), 3, "score table returns every batch row")
+	for index in range(score_table.size() - 1):
+		_assert_true(
+			float(score_table[index].get("score", 0.0)) >= float(score_table[index + 1].get("score", 0.0)),
+			"score table sorts by descending score"
+		)
+	_assert_eq(int(score_table[0].get("rank", 0)), 1, "score table assigns first rank")
+
+	var seed_table = dock.generation_batch_score_table("seed", false)
+	_assert_eq(int(seed_table[0].get("seed", 0)), 501, "score table sorts by seed ascending")
+	_assert_eq(int(seed_table[2].get("seed", 0)), 503, "score table keeps seed ascending order")
 
 	dock.queue_free()
 	await process_frame

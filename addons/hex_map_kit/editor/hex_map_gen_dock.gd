@@ -239,6 +239,7 @@ var _last_generation_validation_summary: Dictionary = {}
 var _generation_event_order := 0
 var _last_generation_validation_capture_order := 0
 var _last_generation_apply_order := 0
+var _last_batch_generation_results: Array[Dictionary] = []
 
 
 func _ready() -> void:
@@ -2368,6 +2369,54 @@ func validate_generation_document(document, options: Dictionary = {}):
 	return result
 
 
+func run_generation_batch(seed_count: int, options: Dictionary = {}) -> Array[Dictionary]:
+	var seeds = _batch_seed_list(seed_count, options)
+	_last_batch_generation_results.clear()
+	if seeds.is_empty():
+		return []
+
+	var base_snapshot = options.get("snapshot", {})
+	if not base_snapshot is Dictionary or (base_snapshot as Dictionary).is_empty():
+		base_snapshot = _create_generation_snapshot()
+	else:
+		base_snapshot = (base_snapshot as Dictionary).duplicate(true)
+
+	var rows: Array[Dictionary] = []
+	for index in range(seeds.size()):
+		var snapshot: Dictionary = (base_snapshot as Dictionary).duplicate(true)
+		snapshot["seed"] = int(seeds[index])
+		snapshot["generation_id"] = int(snapshot.get("generation_id", _generation_id)) + index
+		var block_reason = _generation_block_reason_for_snapshot(snapshot)
+		if block_reason != "":
+			rows.append(_batch_blocked_row(index, snapshot, block_reason))
+			continue
+		var data = _generate_data_from_snapshot(snapshot, {})
+		rows.append(_batch_result_row(index, snapshot, data, options))
+
+	_last_batch_generation_results = _duplicate_batch_rows(rows)
+	return generation_batch_results()
+
+
+func generation_batch_results() -> Array[Dictionary]:
+	return _duplicate_batch_rows(_last_batch_generation_results)
+
+
+func generation_batch_score_table(sort_key: String = "score", descending: bool = true) -> Array[Dictionary]:
+	var rows = generation_batch_results()
+	for left_index in range(rows.size()):
+		var best_index = left_index
+		for right_index in range(left_index + 1, rows.size()):
+			if _batch_row_sorts_before(rows[right_index], rows[best_index], sort_key, descending):
+				best_index = right_index
+		if best_index != left_index:
+			var temp = rows[left_index]
+			rows[left_index] = rows[best_index]
+			rows[best_index] = temp
+	for index in range(rows.size()):
+		rows[index]["rank"] = index + 1
+	return rows
+
+
 func debug_report_text() -> String:
 	var lines := PackedStringArray()
 	lines.append("Hex Map Generate Debug Report")
@@ -2441,22 +2490,173 @@ func _validate_current_generation_result() -> bool:
 
 func _generated_document_snapshot():
 	_current_orientation = _tile_settings_orientation()
-	var data = _current_data
-	if data == null and _current_overlay_data != null:
-		data = HexMapData.from_cells(_current_overlay_data.occupied_cells())
+	return _generated_document_snapshot_for_data(_current_data, _current_overlay_data)
+
+
+func _generated_document_snapshot_for_data(primary_data, overlay_data):
+	var data = primary_data
+	if data == null and overlay_data != null:
+		data = HexMapData.from_cells(overlay_data.occupied_cells())
 	if data == null:
 		return null
 	var resource = HexMapResource.from_map_data(data, _current_orientation)
 	var document = HexMapDocumentAdapter.from_map_resource(resource)
 	document.ensure_v2_defaults()
-	if _current_overlay_data != null:
-		for item_key in _current_overlay_data.item_keys():
-			for cell in _current_overlay_data.item_cells(item_key):
+	if overlay_data != null:
+		for item_key in overlay_data.item_keys():
+			for cell in overlay_data.item_cells(item_key):
 				HexMapDocumentAdapter.set_tile_override(document, cell, {
 					"kind": HexMapDocumentAdapter.KIND_OVERLAY,
 					"item_key": item_key,
 				})
 	return document
+
+
+func _batch_seed_list(seed_count: int, options: Dictionary) -> Array[int]:
+	var explicit_seeds = options.get("seeds", [])
+	var result: Array[int] = []
+	if explicit_seeds is Array and not explicit_seeds.is_empty():
+		for seed in explicit_seeds:
+			result.append(int(seed))
+		return result
+	var count = max(0, seed_count)
+	var start_seed = int(options.get("start_seed", int(_seed_spin.value)))
+	for offset in range(count):
+		result.append(start_seed + offset)
+	return result
+
+
+func _batch_blocked_row(index: int, snapshot: Dictionary, block_reason: String) -> Dictionary:
+	return {
+		"index": index,
+		"seed": int(snapshot.get("seed", 0)),
+		"status": "blocked",
+		"block_reason": block_reason,
+		"overlay_mode": bool(snapshot.get("overlay_mode", false)),
+		"score": -100000.0,
+		"validation_summary": _batch_validation_summary(null, false),
+		"validation_errors": 0,
+		"validation_warnings": 0,
+	}
+
+
+func _batch_result_row(index: int, snapshot: Dictionary, data, options: Dictionary) -> Dictionary:
+	var overlay_mode = bool(snapshot.get("overlay_mode", false))
+	var document = _generated_document_snapshot_for_data(_current_data if overlay_mode else data, data if overlay_mode else null)
+	var validation_result = HexMapDocumentValidator.validate_document(document)
+	var validation_summary = _batch_validation_summary(validation_result, document != null)
+	var row: Dictionary = {
+		"index": index,
+		"seed": int(snapshot.get("seed", 0)),
+		"status": "generated" if data != null else "failed",
+		"overlay_mode": overlay_mode,
+		"validation_summary": validation_summary,
+		"validation_errors": int(validation_summary.get("errors", 0)),
+		"validation_warnings": int(validation_summary.get("warnings", 0)),
+	}
+	if data == null:
+		row["score"] = -100000.0
+		return row
+	if overlay_mode:
+		row["cells"] = data.cells.size()
+		row["occupied"] = data.occupied_cells().size()
+		row["item_counts"] = _overlay_item_counts(data)
+	else:
+		var floors = data.floor_cells().size()
+		var walls = data.walls.size()
+		var cells = data.cells.size()
+		row["cells"] = cells
+		row["walls"] = walls
+		row["floors"] = floors
+		row["wall_ratio"] = float(walls) / float(cells) if cells > 0 else 0.0
+		row["connected"] = HexMapGenerator.is_floor_connected(data)
+	row["score"] = _batch_score(row, options)
+	return row
+
+
+func _batch_validation_summary(result, generated_map_present: bool) -> Dictionary:
+	if result == null:
+		return {
+			"generated_map_present": generated_map_present,
+			"validated": false,
+			"passed": false,
+			"issues": 0,
+			"errors": 0,
+			"warnings": 0,
+			"infos": 0,
+		}
+	var error_count = result.error_count() if result.has_method("error_count") else 0
+	return {
+		"generated_map_present": generated_map_present,
+		"validated": true,
+		"passed": error_count == 0,
+		"issues": result.issue_count() if result.has_method("issue_count") else 0,
+		"errors": error_count,
+		"warnings": result.warning_count() if result.has_method("warning_count") else 0,
+		"infos": result.info_count() if result.has_method("info_count") else 0,
+	}
+
+
+func _batch_score(row: Dictionary, options: Dictionary) -> float:
+	var score = float(options.get("base_score", 1000.0))
+	score -= float(row.get("validation_errors", 0)) * 100.0
+	score -= float(row.get("validation_warnings", 0)) * 10.0
+	if bool(row.get("overlay_mode", false)):
+		score += float(row.get("occupied", 0))
+	else:
+		score += float(row.get("floors", 0))
+		score += 100.0 if bool(row.get("connected", false)) else -100.0
+		var target_wall_ratio = float(options.get("target_wall_ratio", 0.35))
+		score -= abs(float(row.get("wall_ratio", 0.0)) - target_wall_ratio) * 100.0
+	return score
+
+
+func _overlay_item_counts(data) -> Dictionary:
+	var result := {}
+	if data == null:
+		return result
+	for item_key in data.item_keys():
+		result[item_key] = data.item_cells(item_key).size()
+	return result
+
+
+func _duplicate_batch_rows(rows: Array[Dictionary]) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for row in rows:
+		result.append(row.duplicate(true))
+	return result
+
+
+func _batch_row_sorts_before(left: Dictionary, right: Dictionary, sort_key: String, descending: bool) -> bool:
+	var comparison = _compare_batch_values(left.get(sort_key, null), right.get(sort_key, null))
+	if comparison == 0:
+		return int(left.get("seed", 0)) < int(right.get("seed", 0))
+	return comparison > 0 if descending else comparison < 0
+
+
+func _compare_batch_values(left, right) -> int:
+	if left == right:
+		return 0
+	if _is_batch_numeric_value(left) and _is_batch_numeric_value(right):
+		var left_float = float(left)
+		var right_float = float(right)
+		if left_float < right_float:
+			return -1
+		if left_float > right_float:
+			return 1
+		return 0
+	var left_text = String(left)
+	var right_text = String(right)
+	if left_text < right_text:
+		return -1
+	if left_text > right_text:
+		return 1
+	return 0
+
+
+func _is_batch_numeric_value(value) -> bool:
+	var value_type = typeof(value)
+	return value_type == TYPE_INT or value_type == TYPE_FLOAT or value_type == TYPE_BOOL
 
 
 func _join_lines(lines: PackedStringArray) -> String:
