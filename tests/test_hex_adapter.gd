@@ -19,6 +19,7 @@ const HexMapDocumentValidator = preload("res://addons/hex_map_kit/adapter/hex_ma
 const HexMovementProfileResource = preload("res://addons/hex_map_kit/adapter/hex_movement_profile_resource.gd")
 const HexGameplayLayerData = preload("res://addons/hex_map_kit/adapter/hex_gameplay_layer_data.gd")
 const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
+const HexObjectDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_object_definition_resource.gd")
 const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
 const HexTileCatalogEntry = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd")
 const HexTileCatalogResource = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd")
@@ -57,6 +58,7 @@ func _run() -> void:
 	_test_map_resource_stores_map_data()
 	_test_map_resource_roundtrips_to_map_data()
 	_test_hex_map_document_roundtrips_map_and_payloads()
+	_test_hex_object_database_v2_migrates_legacy_arrays_and_roundtrips()
 	_test_hex_map_document_v2_schema_roundtrips_typed_resources()
 	_test_hex_map_document_v1_fixture_still_loads_with_v2_fields()
 	_test_hex_map_document_migrates_v1_to_v2_preserving_legacy_fields()
@@ -480,6 +482,66 @@ func _test_hex_map_document_roundtrips_map_and_payloads() -> void:
 	_assert_eq(loaded.labels[0]["text"], "North Gate", "hex map document preserves labels")
 	_assert_eq(object_db.objects[0]["object_id"], "chest", "object database stores object definitions")
 	_assert_eq(label_db.labels[0]["label_id"], "area", "label database stores label definitions")
+
+
+func _test_hex_object_database_v2_migrates_legacy_arrays_and_roundtrips() -> void:
+	var legacy_database = HexObjectDatabaseResource.new()
+	legacy_database.objects = [{
+		"object_id": "chest",
+		"display_name": "Chest",
+		"scene_path": "res://objects/chest.tscn",
+		"tags": ["loot", "blocking"],
+		"properties": {"gold": 5},
+		"preview_path": "res://icons/chest.png",
+	}]
+	legacy_database.ensure_v2_defaults()
+
+	var migrated = legacy_database.definition_for_id("chest")
+	_assert_eq(legacy_database.version, 2, "object database migration normalizes version")
+	_assert_eq(legacy_database.definitions.size(), 1, "object database migrates legacy objects to definitions")
+	_assert_eq(migrated.id, "chest", "object definition migrates object_id to id")
+	_assert_eq(migrated.object_id(), "chest", "object definition exposes object id compatibility")
+	_assert_eq(migrated.display_name, "Chest", "object definition migrates display name")
+	_assert_eq(migrated.scene_path, "res://objects/chest.tscn", "object definition migrates scene path")
+	_assert_eq(migrated.tags.has("loot"), true, "object definition migrates tags")
+	_assert_eq(migrated.default_properties["gold"], 5, "object definition migrates default properties")
+	_assert_eq(migrated.preview, "res://icons/chest.png", "object definition migrates preview path")
+	_assert_eq(legacy_database.objects[0]["id"], "chest", "object database syncs v2 id into legacy array")
+	_assert_eq(legacy_database.objects[0]["object_id"], "chest", "object database keeps legacy object_id fallback")
+
+	var spawn = HexObjectDefinitionResource.new()
+	spawn.id = "spawn"
+	spawn.display_name = "Spawn Point"
+	spawn.scene_path = "res://objects/spawn_point.tscn"
+	spawn.tags = PackedStringArray(["spawn"])
+	spawn.default_properties = {"team": "player"}
+	spawn.preview = "res://icons/spawn.png"
+	legacy_database.add_definition(spawn)
+	_assert_eq(legacy_database.definition_ids().size(), 2, "object database stores added v2 definition")
+	_assert_eq(legacy_database.definitions_with_tag("spawn").size(), 1, "object database filters definitions by tag")
+	_assert_eq(legacy_database.definition_for_id("spawn").default_properties["team"], "player", "object database resolves added definition")
+
+	var replacement = HexObjectDefinitionResource.from_dictionary({
+		"id": "spawn",
+		"display_name": "Hero Spawn",
+		"scene_path": "res://objects/hero_spawn.tscn",
+		"tags": PackedStringArray(["spawn", "hero"]),
+		"default_properties": {"team": "hero"},
+		"preview": "res://icons/hero_spawn.png",
+	})
+	legacy_database.add_definition(replacement)
+	_assert_eq(legacy_database.definition_ids().size(), 2, "object database replaces matching id instead of duplicating")
+	_assert_eq(legacy_database.definition_for_id("spawn").display_name, "Hero Spawn", "object database replaces definition by id")
+	_assert_eq(legacy_database.has_definition("missing"), false, "object database reports missing definitions")
+
+	var path = _test_resource_path("test_hex_object_database_v2.tres")
+	var error = ResourceSaver.save(legacy_database, path)
+	var loaded = load(path)
+	loaded.ensure_v2_defaults()
+	_assert_eq(error, OK, "object database v2 resource saves")
+	_assert_eq(loaded.definition_for_id("chest").scene_path, "res://objects/chest.tscn", "object database v2 roundtrip preserves migrated scene path")
+	_assert_eq(loaded.definition_for_id("spawn").preview, "res://icons/hero_spawn.png", "object database v2 roundtrip preserves preview")
+	_assert_eq(loaded.legacy_objects()[1]["object_id"], "spawn", "object database v2 roundtrip keeps legacy array fallback")
 
 
 func _test_hex_map_document_v2_schema_roundtrips_typed_resources() -> void:
