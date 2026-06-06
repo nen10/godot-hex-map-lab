@@ -20,6 +20,8 @@ const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_l
 const HexMapGenDock = preload("res://addons/hex_map_kit/editor/hex_map_gen_dock.gd")
 const HexMapGenStateEvaluator = preload("res://addons/hex_map_kit/editor/hex_map_gen_state_evaluator.gd")
 const HexMapEditTool = preload("res://addons/hex_map_kit/editor/hex_map_edit_tool.gd")
+const HexMapEditMutationBuilder = preload("res://addons/hex_map_kit/editor/hex_map_edit_mutation_builder.gd")
+const HexMapEditViewportInputAdapter = preload("res://addons/hex_map_kit/editor/hex_map_edit_viewport_input_adapter.gd")
 const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
 const HexDistEditor = preload("res://addons/hex_map_kit/editor/hex_dist_editor.gd")
 const HexAdjacencyRuleEditor = preload("res://addons/hex_map_kit/editor/hex_adjacency_rule_editor.gd")
@@ -78,6 +80,7 @@ func _run() -> void:
 	await _test_map_edit_tool_builds_dock_controls()
 	await _test_plugin_handles_canvas_item_when_map_edit_ready()
 	await _test_editor_session_state_shares_generate_target_and_edit_document()
+	_test_map_edit_tool_mutation_builder_and_viewport_adapter()
 	await _test_map_edit_tool_auto_target_uses_selected_layer()
 	await _test_map_edit_tool_auto_target_maps_hex_internal_layer_selection()
 	await _test_map_edit_tool_initializes_document_from_hex_target()
@@ -191,6 +194,140 @@ func _test_plugin_registration_files() -> void:
 	_assert_eq(config.get_value("plugin", "name", ""), "Hex Map Kit", "plugin.cfg has addon name")
 	var script_path = "res://addons/hex_map_kit/%s" % config.get_value("plugin", "script", "")
 	_assert_true(load(script_path) != null, "plugin.cfg script can be loaded")
+
+
+func _test_map_edit_tool_mutation_builder_and_viewport_adapter() -> void:
+	var document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	var edit = HexMapEditMutationBuilder.build_document_edit(
+		document,
+		HexVector.zero(),
+		HexMapEditTool.EditMode.WALL_FLOOR,
+		{},
+		"",
+		{},
+		{},
+		HexMapEditTool.EDIT_MODE_NAMES
+	)
+	_assert_true(not edit.is_empty(), "mutation builder creates document edit")
+	_assert_true(
+		not HexMapDocumentAdapter.to_map_resource(edit["before"]).to_map_data().has_wall(HexVector.zero()),
+		"mutation builder document edit captures before state"
+	)
+	_assert_true(
+		HexMapDocumentAdapter.to_map_resource(edit["after"]).to_map_data().has_wall(HexVector.zero()),
+		"mutation builder document edit captures after state"
+	)
+	_assert_eq(edit["mode"], "Wall / Floor", "mutation builder stores mode name")
+
+	var tile_payload = {
+		"source_id": 2,
+		"atlas_coords": Vector2i(3, 4),
+		"alternative_tile": 1,
+		"catalog_key": "",
+	}
+	var before_state = {
+		"hex": HexVector.zero(),
+		"exists": true,
+		"wall": false,
+		"tile_overrides": [],
+		"overlay_tiles": [],
+		"objects": [],
+		"labels": [],
+	}
+	var floor_command = HexMapEditMutationBuilder.build_hex_tile_map_layer_edit_command(
+		before_state,
+		HexVector.zero(),
+		HexMapEditTool.EditMode.FLOOR_TILE,
+		tile_payload,
+		"",
+		{},
+		{},
+		HexMapEditTool.EDIT_MODE_NAMES
+	)
+	_assert_true(not floor_command.is_empty(), "mutation builder creates HexTileMapLayer command")
+	var floor_after: Dictionary = floor_command["after"]
+	_assert_eq(floor_after["tile_overrides"].size(), 1, "mutation builder adds floor tile override")
+	_assert_eq(floor_after["tile_overrides"][0]["kind"], HexMapDocumentAdapter.KIND_FLOOR, "mutation builder marks floor tile kind")
+	_assert_eq(floor_after["tile_overrides"][0]["atlas_coords"], Vector2i(3, 4), "mutation builder keeps tile atlas")
+	_assert_eq(floor_command["payload"], "2:(3,4):1", "mutation builder keeps payload summary")
+
+	var missing_state = before_state.duplicate(true)
+	missing_state["exists"] = false
+	_assert_true(
+		HexMapEditMutationBuilder.build_hex_tile_map_layer_edit_command(
+			missing_state,
+			HexVector.zero(),
+			HexMapEditTool.EditMode.WALL_FLOOR,
+			tile_payload,
+			"",
+			{},
+			{},
+			HexMapEditTool.EDIT_MODE_NAMES
+		).is_empty(),
+		"mutation builder blocks non-shape edits for missing cells"
+	)
+	var delete_command = HexMapEditMutationBuilder.build_hex_tile_map_layer_edit_command(
+		{
+			"hex": HexVector.zero(),
+			"exists": true,
+			"wall": true,
+			"tile_overrides": [{"cell": Vector3i.ZERO, "kind": HexMapDocumentAdapter.KIND_WALL}],
+			"overlay_tiles": [{"cell": Vector3i.ZERO, "kind": HexMapDocumentAdapter.KIND_OVERLAY}],
+			"objects": [{"cell": Vector3i.ZERO, "object_id": "chest"}],
+			"labels": [{"cell": Vector3i.ZERO, "label_id": "area"}],
+		},
+		HexVector.zero(),
+		HexMapEditTool.EditMode.SHAPE,
+		{},
+		"",
+		{},
+		{},
+		HexMapEditTool.EDIT_MODE_NAMES
+	)
+	var delete_after: Dictionary = delete_command["after"]
+	_assert_true(not bool(delete_after["exists"]), "mutation builder shape delete clears existence")
+	_assert_true(not bool(delete_after["wall"]), "mutation builder shape delete clears wall")
+	_assert_eq(delete_after["tile_overrides"], [], "mutation builder shape delete clears tile overrides")
+	_assert_eq(delete_after["overlay_tiles"], [], "mutation builder shape delete clears overlay tiles")
+	_assert_eq(delete_after["objects"], [], "mutation builder shape delete clears objects")
+	_assert_eq(delete_after["labels"], [], "mutation builder shape delete clears labels")
+
+	var press = InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.pressed = true
+	_assert_true(HexMapEditViewportInputAdapter.accepts_mouse_press(press), "viewport adapter accepts left press")
+	var release = InputEventMouseButton.new()
+	release.button_index = MOUSE_BUTTON_LEFT
+	release.pressed = false
+	_assert_true(not HexMapEditViewportInputAdapter.accepts_mouse_press(release), "viewport adapter rejects release")
+	var right_press = InputEventMouseButton.new()
+	right_press.button_index = MOUSE_BUTTON_RIGHT
+	right_press.pressed = true
+	_assert_true(not HexMapEditViewportInputAdapter.accepts_mouse_press(right_press), "viewport adapter rejects non-left press")
+	_assert_true(
+		HexMapEditViewportInputAdapter.hit_is_editable({"exists": false}, HexMapEditTool.EditMode.SHAPE, HexMapEditTool.EditMode.SHAPE),
+		"viewport adapter allows shape edits for missing cells"
+	)
+	_assert_true(
+		not HexMapEditViewportInputAdapter.hit_is_editable({"exists": false}, HexMapEditTool.EditMode.WALL_FLOOR, HexMapEditTool.EditMode.SHAPE),
+		"viewport adapter blocks non-shape edits for missing cells"
+	)
+
+	var target = Node2D.new()
+	target.position = Vector2(3, 5)
+	root.add_child(target)
+	var trace = HexMapEditViewportInputAdapter.target_local_trace(Vector2(20, 30), Vector2(13, 17), target)
+	_assert_true(bool(trace["ok"]), "viewport adapter resolves target local trace")
+	_assert_vec2_approx(trace["local_position"], Vector2(10, 12), "viewport adapter converts scene to local")
+	var missing_trace = HexMapEditViewportInputAdapter.target_local_trace(Vector2.ZERO, Vector2.ZERO, null)
+	_assert_true(not bool(missing_trace["ok"]), "viewport adapter reports missing target")
+	_assert_eq(missing_trace["status"], "No editable target layer.", "viewport adapter keeps missing target status")
+	var hit = HexMapEditViewportInputAdapter.local_hit(Vector2.ZERO, null, document, 24.0)
+	_assert_vector_eq(hit["hex"], HexVector.zero(), "viewport adapter fallback local hit returns origin")
+	_assert_true(bool(hit["exists"]), "viewport adapter fallback local hit records document existence")
+	target.queue_free()
 
 
 func _test_map_edit_tool_builds_dock_controls() -> void:

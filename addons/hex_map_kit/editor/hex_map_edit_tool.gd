@@ -7,6 +7,8 @@ const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_
 const HexMapDocumentValidator = preload("res://addons/hex_map_kit/adapter/hex_map_document_validator.gd")
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
+const HexMapEditMutationBuilder = preload("res://addons/hex_map_kit/editor/hex_map_edit_mutation_builder.gd")
+const HexMapEditViewportInputAdapter = preload("res://addons/hex_map_kit/editor/hex_map_edit_viewport_input_adapter.gd")
 const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
 const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
 const HexMapValidationDashboard = preload("res://addons/hex_map_kit/editor/hex_map_validation_dashboard.gd")
@@ -658,14 +660,26 @@ func _apply_hit(hit: Dictionary) -> bool:
 	_target_layer = _resolve_target_layer()
 	if _target_layer is HexTileMapLayer and is_instance_valid(_target_layer):
 		return _apply_hex_tile_map_layer_hit(hit)
-	var before = HexMapDocumentAdapter.duplicate_document(_document)
-	var after = HexMapDocumentAdapter.duplicate_document(_document)
 	var hex = hit["hex"]
 	var visual_hex = hit.get("visual_hex", hex)
+	var edit = HexMapEditMutationBuilder.build_document_edit(
+		_document,
+		hex,
+		_edit_mode,
+		_tile_payload,
+		_overlay_item_key,
+		_object_payload,
+		_label_payload,
+		EDIT_MODE_NAMES
+	)
+	if edit.is_empty():
+		_set_status("No editable cell.")
+		return false
+	var before = edit["before"]
+	var after = edit["after"]
 	_refresh_plain_target_tile_options_from_document(before)
 	var target_used_cells_before = _target_used_cell_count()
 	var display_before = _target_display_state(hex, visual_hex)
-	_apply_mode_to_document(after, hex)
 	var applied = _commit_document_change(
 		before,
 		after,
@@ -697,21 +711,16 @@ func _apply_hit(hit: Dictionary) -> bool:
 
 func apply_local_position(local_pos: Vector2) -> bool:
 	var hit = _local_hit(local_pos)
-	if hit.is_empty():
-		_set_status("No editable cell.")
-		return false
-	if _edit_mode != EditMode.SHAPE and not bool(hit.get("exists", false)):
+	if not HexMapEditViewportInputAdapter.hit_is_editable(hit, _edit_mode, EditMode.SHAPE):
 		_set_status("No editable cell.")
 		return false
 	return _apply_hit(hit)
 
 
 func forward_canvas_gui_input(event: InputEvent) -> bool:
-	if not event is InputEventMouseButton:
+	if not HexMapEditViewportInputAdapter.accepts_mouse_press(event):
 		return false
 	var mouse_event := event as InputEventMouseButton
-	if mouse_event.button_index != MOUSE_BUTTON_LEFT or not mouse_event.pressed:
-		return false
 	var local_pos = _editor_viewport_event_to_target_local(mouse_event)
 	if local_pos == null:
 		return false
@@ -1059,77 +1068,16 @@ func _apply_hex_tile_map_layer_hit(hit: Dictionary) -> bool:
 
 func _build_hex_tile_map_layer_edit_command(hex_layer: HexTileMapLayer, hex) -> Dictionary:
 	var before = hex_layer.cell_edit_state(hex)
-	var after = before.duplicate(true)
-	after["hex"] = HexVector.apply_basis(hex.q, hex.s, hex.r)
-	match _edit_mode:
-		EditMode.SHAPE:
-			var next_exists = not bool(before.get("exists", false))
-			after["exists"] = next_exists
-			if not next_exists:
-				after["wall"] = false
-				after["tile_overrides"] = []
-				after["overlay_tiles"] = []
-				after["objects"] = []
-				after["labels"] = []
-		EditMode.WALL_FLOOR:
-			if not bool(before.get("exists", false)):
-				return {}
-			after["wall"] = not bool(before.get("wall", false))
-		EditMode.FLOOR_TILE:
-			if not bool(before.get("exists", false)):
-				return {}
-			var payload = _tile_payload.duplicate(true)
-			payload["kind"] = HexMapDocumentAdapter.KIND_FLOOR
-			after["tile_overrides"] = _replace_state_payload_entry(
-				after.get("tile_overrides", []),
-				_payload_entry_for_hex(hex, payload),
-				["cell", "kind"]
-			)
-		EditMode.WALL_TILE:
-			if not bool(before.get("exists", false)):
-				return {}
-			var payload = _tile_payload.duplicate(true)
-			payload["kind"] = HexMapDocumentAdapter.KIND_WALL
-			after["tile_overrides"] = _replace_state_payload_entry(
-				after.get("tile_overrides", []),
-				_payload_entry_for_hex(hex, payload),
-				["cell", "kind"]
-			)
-		EditMode.OVERLAY_TILE:
-			if not bool(before.get("exists", false)):
-				return {}
-			var payload = _tile_payload.duplicate(true)
-			payload["kind"] = HexMapDocumentAdapter.KIND_OVERLAY
-			payload["item_key"] = _overlay_item_key
-			after["overlay_tiles"] = _replace_state_payload_entry(
-				after.get("overlay_tiles", []),
-				_payload_entry_for_hex(hex, payload),
-				["cell", "kind", "item_key"]
-			)
-		EditMode.OBJECT:
-			if not bool(before.get("exists", false)):
-				return {}
-			after["objects"] = _replace_state_payload_entry(
-				after.get("objects", []),
-				_object_entry_for_hex(hex, _object_payload),
-				["cell"]
-			)
-		EditMode.LABEL:
-			if not bool(before.get("exists", false)):
-				return {}
-			after["labels"] = _replace_state_payload_entry(
-				after.get("labels", []),
-				_label_entry_for_hex(hex, _label_payload),
-				["cell"]
-			)
-	return {
-		"mode": EDIT_MODE_NAMES[_edit_mode],
-		"hex": HexVector.apply_basis(hex.q, hex.s, hex.r),
-		"payload": _edit_payload_summary(),
-		"before": before,
-		"after": after,
-		"snapshot_dirty": true,
-	}
+	return HexMapEditMutationBuilder.build_hex_tile_map_layer_edit_command(
+		before,
+		hex,
+		_edit_mode,
+		_tile_payload,
+		_overlay_item_key,
+		_object_payload,
+		_label_payload,
+		EDIT_MODE_NAMES
+	)
 
 
 func _commit_hex_tile_map_layer_edit_command(command: Dictionary, action_name: String, target_apply_reason: String) -> bool:
@@ -1195,71 +1143,6 @@ func _apply_hex_cell_state_to_document(document: HexMapDocumentResource, state: 
 	return true
 
 
-func _replace_state_payload_entry(entries_value, entry: Dictionary, keys: Array) -> Array:
-	var entries: Array = []
-	if entries_value is Array:
-		for raw_entry in entries_value:
-			if raw_entry is Dictionary:
-				entries.append((raw_entry as Dictionary).duplicate(true))
-	if _payload_entry_is_empty(entry):
-		return _entries_without_match(entries, entry, keys)
-	entries = _entries_without_match(entries, entry, keys)
-	entries.append(entry)
-	return entries
-
-
-func _entries_without_match(entries: Array, matcher: Dictionary, keys: Array) -> Array:
-	var result: Array = []
-	for raw_entry in entries:
-		if not raw_entry is Dictionary:
-			continue
-		var current := raw_entry as Dictionary
-		var matches := true
-		for key in keys:
-			if current.get(key) != matcher.get(key):
-				matches = false
-				break
-		if not matches:
-			result.append(current.duplicate(true))
-	return result
-
-
-func _payload_entry_is_empty(entry: Dictionary) -> bool:
-	if entry.has("source_id"):
-		return int(entry.get("source_id", 0)) < 0
-	if entry.has("object_id"):
-		return String(entry.get("object_id", "")) == ""
-	if entry.has("label_id") or entry.has("text"):
-		return String(entry.get("label_id", "")) == "" and String(entry.get("text", "")) == ""
-	return false
-
-
-func _payload_entry_for_hex(hex, payload: Dictionary) -> Dictionary:
-	var normalized = HexVector.apply_basis(hex.q, hex.s, hex.r)
-	return {
-		"cell": Vector3i(normalized.q, normalized.s, normalized.r),
-		"kind": String(payload.get("kind", HexMapDocumentAdapter.KIND_FLOOR)),
-		"item_key": String(payload.get("item_key", "")),
-		"source_id": int(payload.get("source_id", 0)),
-		"atlas_coords": payload.get("atlas_coords", Vector2i.ZERO),
-		"alternative_tile": int(payload.get("alternative_tile", 0)),
-	}
-
-
-func _object_entry_for_hex(hex, payload: Dictionary) -> Dictionary:
-	var normalized = HexVector.apply_basis(hex.q, hex.s, hex.r)
-	var rotation_degrees = float(payload.get("rotation_degrees", payload.get("rotation", 0.0)))
-	return {
-		"cell": Vector3i(normalized.q, normalized.s, normalized.r),
-		"object_id": String(payload.get("object_id", "")),
-		"rotation_degrees": rotation_degrees,
-		"rotation": rotation_degrees,
-		"variant": String(payload.get("variant", "")),
-		"properties": _object_properties_from_payload(payload),
-		"spawn_condition": String(payload.get("spawn_condition", "")),
-	}
-
-
 func _object_properties_from_payload(payload: Dictionary) -> Dictionary:
 	var properties = payload.get("properties", {})
 	if properties is Dictionary:
@@ -1279,15 +1162,6 @@ func _refresh_object_properties_table() -> void:
 		var row = _object_properties_table.create_item(root_item)
 		row.set_text(0, String(key))
 		row.set_text(1, str(properties[key]))
-
-
-func _label_entry_for_hex(hex, payload: Dictionary) -> Dictionary:
-	var normalized = HexVector.apply_basis(hex.q, hex.s, hex.r)
-	return {
-		"cell": Vector3i(normalized.q, normalized.s, normalized.r),
-		"label_id": String(payload.get("label_id", "")),
-		"text": String(payload.get("text", "")),
-	}
 
 
 func _state_entries_with_cell(entries_value, hex) -> Array:
@@ -1343,33 +1217,6 @@ func _resource_component_index(components: Array, component: Vector3i) -> int:
 		if components[index] == component:
 			return index
 	return -1
-
-
-func _apply_mode_to_document(document: HexMapDocumentResource, hex) -> void:
-	match _edit_mode:
-		EditMode.SHAPE:
-			var exists = _document_has_cell(document, hex)
-			HexMapDocumentAdapter.set_cell_exists(document, hex, not exists)
-		EditMode.WALL_FLOOR:
-			var is_wall = _document_has_wall(document, hex)
-			HexMapDocumentAdapter.set_wall(document, hex, not is_wall)
-		EditMode.FLOOR_TILE:
-			var payload = _tile_payload.duplicate(true)
-			payload["kind"] = HexMapDocumentAdapter.KIND_FLOOR
-			HexMapDocumentAdapter.set_tile_override(document, hex, payload)
-		EditMode.WALL_TILE:
-			var payload = _tile_payload.duplicate(true)
-			payload["kind"] = HexMapDocumentAdapter.KIND_WALL
-			HexMapDocumentAdapter.set_tile_override(document, hex, payload)
-		EditMode.OVERLAY_TILE:
-			var payload = _tile_payload.duplicate(true)
-			payload["kind"] = HexMapDocumentAdapter.KIND_OVERLAY
-			payload["item_key"] = _overlay_item_key
-			HexMapDocumentAdapter.set_tile_override(document, hex, payload)
-		EditMode.OBJECT:
-			HexMapDocumentAdapter.set_object(document, hex, _object_payload)
-		EditMode.LABEL:
-			HexMapDocumentAdapter.set_label(document, hex, _label_payload)
 
 
 func _commit_document_change(before, after, action_name: String, hex = null, target_apply_reason: String = "") -> bool:
@@ -1443,54 +1290,7 @@ func _apply_document_to_target() -> bool:
 
 
 func _local_hit(local_pos: Vector2) -> Dictionary:
-	if _target_layer is HexTileMapLayer:
-		return (_target_layer as HexTileMapLayer).local_to_cell_hit(local_pos)
-	if _target_layer is TileMapLayer:
-		var map_cell = (_target_layer as TileMapLayer).local_to_map(local_pos)
-		var flat_top = _document_is_flat_top(_document)
-		var tile_hex = HexMapTileAdapter.map_cell_to_vector(map_cell, flat_top)
-		return {
-			"hex": tile_hex,
-			"visual_hex": tile_hex,
-			"local": local_pos,
-			"exists": _document_has_cell(_document, tile_hex),
-		}
-	var hex = _local_to_hex(local_pos)
-	return {
-		"hex": hex,
-		"visual_hex": hex,
-		"local": local_pos,
-		"exists": _document_has_cell(_document, hex),
-	}
-
-
-func _local_to_hex(local_pos: Vector2):
-	var flat_top = _document_is_flat_top(_document)
-	var frac_q: float
-	var frac_r: float
-	var sqrt3 = sqrt(3.0)
-	if flat_top:
-		frac_q = (2.0 / 3.0 * local_pos.x) / hex_size
-		frac_r = (-1.0 / 3.0 * local_pos.x + sqrt3 / 3.0 * local_pos.y) / hex_size
-	else:
-		frac_q = (sqrt3 / 3.0 * local_pos.x - 1.0 / 3.0 * local_pos.y) / hex_size
-		frac_r = (2.0 / 3.0 * local_pos.y) / hex_size
-	return _cube_round(frac_q, frac_r)
-
-
-func _cube_round(frac_q: float, frac_r: float):
-	var frac_s = -frac_q - frac_r
-	var rq = roundi(frac_q)
-	var rr = roundi(frac_r)
-	var rs = roundi(frac_s)
-	var q_diff = abs(rq - frac_q)
-	var r_diff = abs(rr - frac_r)
-	var s_diff = abs(rs - frac_s)
-	if q_diff > r_diff and q_diff > s_diff:
-		rq = -rr - rs
-	elif r_diff > s_diff:
-		rr = -rq - rs
-	return HexVector.apply_basis(rq + rr, 0, rr)
+	return HexMapEditViewportInputAdapter.local_hit(local_pos, _target_layer, _document, hex_size)
 
 
 func _on_mode_selected(index: int) -> void:
@@ -2208,19 +2008,27 @@ func _select_target_in_editor_if_possible() -> void:
 func _editor_viewport_event_to_target_local(event: InputEventMouseButton):
 	_pending_viewport_trace = {}
 	_target_layer = _resolve_target_layer()
-	if _target_layer == null or not (_target_layer is CanvasItem):
-		_set_status("No editable target layer.")
-		_debug_viewport_input("target missing", event.position, Vector2.ZERO, Vector2.ZERO, {})
+	var trace = HexMapEditViewportInputAdapter.target_local_trace(event.position, null, _target_layer)
+	if not bool(trace.get("ok", false)) and String(trace.get("debug_stage", "")) == "target missing":
+		_set_status(String(trace.get("status", "No editable target layer.")))
+		_debug_viewport_input(String(trace.get("debug_stage", "target missing")), event.position, Vector2.ZERO, Vector2.ZERO, {})
 		return null
 	var scene_pos = _editor_viewport_position_to_scene_position(event.position)
-	if scene_pos == null:
-		_set_status("Cannot resolve editor viewport position.")
-		_debug_viewport_input("scene position missing", event.position, Vector2.ZERO, Vector2.ZERO, {})
+	trace = HexMapEditViewportInputAdapter.target_local_trace(event.position, scene_pos, _target_layer)
+	if not bool(trace.get("ok", false)):
+		_set_status(String(trace.get("status", "Cannot resolve editor viewport position.")))
+		_debug_viewport_input(
+			String(trace.get("debug_stage", "scene position missing")),
+			event.position,
+			trace.get("scene_position", Vector2.ZERO),
+			trace.get("local_position", Vector2.ZERO),
+			{}
+		)
 		return null
-	var local_pos = (_target_layer as CanvasItem).to_local(scene_pos)
+	var local_pos = trace["local_position"]
 	_pending_viewport_trace = {
-		"viewport_position": event.position,
-		"scene_position": scene_pos,
+		"viewport_position": trace["viewport_position"],
+		"scene_position": trace["scene_position"],
 		"local_position": local_pos,
 	}
 	if debug_viewport_input:
@@ -2969,34 +2777,14 @@ func _format_last_edit_detail(trace: Dictionary) -> String:
 
 
 func _edit_payload_summary() -> String:
-	match _edit_mode:
-		EditMode.FLOOR_TILE, EditMode.WALL_TILE:
-			return "%d:%s:%d" % [
-				int(_tile_payload.get("source_id", 0)),
-				_atlas_text(_tile_payload.get("atlas_coords", Vector2i.ZERO)),
-				int(_tile_payload.get("alternative_tile", 0)),
-			]
-		EditMode.OVERLAY_TILE:
-			return "overlay=%s %d:%s:%d" % [
-				_overlay_item_key,
-				int(_tile_payload.get("source_id", 0)),
-				_atlas_text(_tile_payload.get("atlas_coords", Vector2i.ZERO)),
-				int(_tile_payload.get("alternative_tile", 0)),
-			]
-		EditMode.OBJECT:
-			return "object=%s rot=%s variant=%s spawn=%s" % [
-				String(_object_payload.get("object_id", "")),
-				str(float(_object_payload.get("rotation_degrees", 0.0))),
-				String(_object_payload.get("variant", "")),
-				String(_object_payload.get("spawn_condition", "")),
-			]
-		EditMode.LABEL:
-			return "label=%s text=%s" % [
-				String(_label_payload.get("label_id", "")),
-				String(_label_payload.get("text", "")),
-			]
-		_:
-			return EDIT_MODE_NAMES[_edit_mode]
+	return HexMapEditMutationBuilder.edit_payload_summary(
+		_edit_mode,
+		_tile_payload,
+		_overlay_item_key,
+		_object_payload,
+		_label_payload,
+		EDIT_MODE_NAMES
+	)
 
 
 func _target_cell_apply_reason_for_mode() -> String:
