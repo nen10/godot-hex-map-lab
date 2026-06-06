@@ -19,6 +19,7 @@ const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_
 const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
 const HexTileCatalogEntry = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd")
 const HexTileCatalogResource = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd")
+const HexTileCatalogValidator = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_validator.gd")
 const HexOverlayResource = preload("res://addons/hex_map_kit/adapter/hex_overlay_resource.gd")
 const HexOverlayTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_overlay_tile_adapter.gd")
 const HexAdjacencyRuleSet = preload("res://addons/hex_map_kit/adapter/hex_adjacency_rule_set.gd")
@@ -65,6 +66,8 @@ func _run() -> void:
 	_test_hex_map_document_adapter_applies_tile_overrides()
 	_test_hex_tile_catalog_resource_resolves_logical_keys()
 	_test_sample_hex_tile_catalog_loads()
+	_test_hex_tile_catalog_validator_reports_missing_assets()
+	_test_hex_tile_catalog_validator_extracts_tags_and_custom_data()
 	_test_overlay_resource_roundtrips_to_overlay_data()
 	_test_adjacency_rule_set_parses_probability_rules()
 	_test_overlay_data_apply_policy_merge_replace_skip()
@@ -102,6 +105,23 @@ func _assert_keys_eq(actual: Array, expected: Array, message: String) -> void:
 	expected_keys.sort()
 	if actual_keys != expected_keys:
 		_failures.append("%s: expected %s, got %s" % [message, str(expected_keys), str(actual_keys)])
+
+
+func _assert_has_issue(result, rule_id: String, message: String) -> void:
+	if not _validation_has_issue(result, rule_id):
+		_failures.append("%s: missing issue %s in %s" % [message, rule_id, str(result.to_dictionary())])
+
+
+func _assert_no_issue(result, rule_id: String, message: String) -> void:
+	if _validation_has_issue(result, rule_id):
+		_failures.append("%s: unexpected issue %s in %s" % [message, rule_id, str(result.to_dictionary())])
+
+
+func _validation_has_issue(result, rule_id: String) -> bool:
+	for issue in result.issues:
+		if String(issue.get("rule_id", "")) == rule_id:
+			return true
+	return false
 
 
 func _test_vector_to_map_cell_matches_flat_top_offset() -> void:
@@ -994,6 +1014,98 @@ func _test_sample_hex_tile_catalog_loads() -> void:
 	_assert_eq(sample.entry_for_key("object.spawn_marker").scene_path, "res://addons/hex_map_kit/debug/hex_spawn_marker.tscn", "sample catalog preserves scene path")
 	_assert_eq(sample.entries_with_tag("terrain").size(), 2, "sample catalog terrain tags load")
 	_assert_eq(sample.entries_with_tag("blocking")[0].key, "terrain.wall", "sample catalog wall blocking tag loads")
+
+
+func _test_hex_tile_catalog_validator_reports_missing_assets() -> void:
+	var tile_set = TileSet.new()
+	HexMapTileAdapter.configure_sample_tile_set(tile_set)
+
+	var catalog = HexTileCatalogResource.new()
+	catalog.catalog_id = "broken-catalog"
+
+	var missing_source = HexTileCatalogEntry.new()
+	missing_source.key = "terrain.missing_source"
+	missing_source.source_id = 99
+	missing_source.atlas_coords = Vector2i.ZERO
+	catalog.add_entry(missing_source)
+
+	var invalid_atlas = HexTileCatalogEntry.new()
+	invalid_atlas.key = "terrain.invalid_atlas"
+	invalid_atlas.source_id = 0
+	invalid_atlas.atlas_coords = Vector2i(9, 9)
+	catalog.add_entry(invalid_atlas)
+
+	var missing_scene = HexTileCatalogEntry.new()
+	missing_scene.key = "object.missing_scene"
+	missing_scene.entry_type = HexTileCatalogEntry.TYPE_SCENE
+	missing_scene.source_id = 0
+	missing_scene.scene_path = "res://missing/catalog_scene.tscn"
+	catalog.add_entry(missing_scene)
+
+	var duplicate = HexTileCatalogEntry.new()
+	duplicate.key = "terrain.invalid_atlas"
+	duplicate.source_id = 0
+	duplicate.atlas_coords = Vector2i.ZERO
+	catalog.add_entry(duplicate)
+
+	var empty_key = HexTileCatalogEntry.new()
+	catalog.add_entry(empty_key)
+
+	var no_tileset_result = HexTileCatalogValidator.validate_catalog(catalog, null)
+	var result = HexTileCatalogValidator.validate_catalog(catalog, tile_set)
+
+	_assert_has_issue(no_tileset_result, HexTileCatalogValidator.RULE_TILE_SET_MISSING, "catalog validator detects missing TileSet")
+	_assert_has_issue(result, HexTileCatalogValidator.RULE_SOURCE_MISSING, "catalog validator detects missing source")
+	_assert_has_issue(result, HexTileCatalogValidator.RULE_ATLAS_COORDS_INVALID, "catalog validator detects invalid atlas coords")
+	_assert_has_issue(result, HexTileCatalogValidator.RULE_SCENE_MISSING, "catalog validator detects missing scene")
+	_assert_has_issue(result, HexTileCatalogValidator.RULE_SOURCE_TYPE_MISMATCH, "catalog validator detects scene source type mismatch")
+	_assert_has_issue(result, HexTileCatalogValidator.RULE_ENTRY_KEY_DUPLICATE, "catalog validator detects duplicate key")
+	_assert_has_issue(result, HexTileCatalogValidator.RULE_ENTRY_KEY_MISSING, "catalog validator detects missing key")
+	_assert_eq(result.summary["entries"], 5, "catalog validator summary reports entry count")
+	_assert_eq(result.summary["tile_set_present"], true, "catalog validator summary reports TileSet")
+	_assert_eq(result.summary["errors"], result.error_count(), "catalog validator summary reports error count")
+
+
+func _test_hex_tile_catalog_validator_extracts_tags_and_custom_data() -> void:
+	var tile_set = TileSet.new()
+	HexMapTileAdapter.configure_sample_tile_set(tile_set)
+	tile_set.add_custom_data_layer()
+	tile_set.set_custom_data_layer_name(0, "movement_cost")
+	tile_set.set_custom_data_layer_type(0, TYPE_INT)
+	tile_set.add_custom_data_layer()
+	tile_set.set_custom_data_layer_name(1, "blocks_path")
+	tile_set.set_custom_data_layer_type(1, TYPE_BOOL)
+	tile_set.add_custom_data_layer()
+	tile_set.set_custom_data_layer_name(2, "terrain_kind")
+	tile_set.set_custom_data_layer_type(2, TYPE_STRING)
+
+	var source = tile_set.get_source(0) as TileSetAtlasSource
+	var tile_data = source.get_tile_data(Vector2i.ZERO, 0)
+	tile_data.set_custom_data("movement_cost", 3)
+	tile_data.set_custom_data("blocks_path", false)
+	tile_data.set_custom_data("terrain_kind", "grass")
+
+	var catalog = HexTileCatalogResource.new()
+	var floor = HexTileCatalogEntry.new()
+	floor.key = "terrain.grass"
+	floor.entry_type = HexTileCatalogEntry.TYPE_ATLAS
+	floor.source_id = 0
+	floor.atlas_coords = Vector2i.ZERO
+	floor.tags = PackedStringArray(["terrain", "grass", "cost:3"])
+	catalog.add_entry(floor)
+
+	var result = HexTileCatalogValidator.validate_catalog(catalog, tile_set)
+	var extracted = HexTileCatalogValidator.catalog_key_tags_and_custom_data(catalog, "terrain.grass", tile_set)
+	var missing = HexTileCatalogValidator.catalog_key_tags_and_custom_data(catalog, "missing", tile_set)
+
+	_assert_eq(result.error_count(), 0, "catalog validator accepts valid atlas entry")
+	_assert_no_issue(result, HexTileCatalogValidator.RULE_TILE_SET_MISSING, "catalog validator has TileSet for valid entry")
+	_assert_eq(extracted["tags"], PackedStringArray(["terrain", "grass", "cost:3"]), "catalog validator extracts tags")
+	_assert_eq(extracted["custom_data"]["movement_cost"], 3, "catalog validator extracts integer custom data")
+	_assert_eq(extracted["custom_data"]["blocks_path"], false, "catalog validator extracts bool custom data")
+	_assert_eq(extracted["custom_data"]["terrain_kind"], "grass", "catalog validator extracts string custom data")
+	_assert_eq(missing["tags"], PackedStringArray(), "catalog validator returns empty tags for missing key")
+	_assert_eq(missing["custom_data"], {}, "catalog validator returns empty custom data for missing key")
 
 
 func _test_overlay_resource_roundtrips_to_overlay_data() -> void:

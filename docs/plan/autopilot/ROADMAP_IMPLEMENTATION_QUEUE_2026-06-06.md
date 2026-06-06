@@ -79,7 +79,7 @@ Goal: `source_id / atlas_coords` の数値入力を、logical key と layer stac
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
 | `CAT-01` | `COMPLETE` | `LD2-01` | `docs/plan/2026-06-06_CAT-01_CATALOG_RESOURCE/` | `HexTileCatalogResource` and `HexTileCatalogEntry` | new adapter/resource files, sample catalog resource, `tests/test_hex_adapter.gd` | Logical key maps to atlas tile, scene tile, tags, fallback fields. Sample catalog loads. |
-| `CAT-02` | `READY` | `CAT-01` | `docs/plan/2026-06-06_CAT-02_CATALOG_VALIDATION/` | Catalog validation and custom data reader | catalog validation helper, `tests/test_hex_adapter.gd` | Detect missing source, invalid atlas coords, missing scene, missing TileSet, tag/custom data extraction. |
+| `CAT-02` | `COMPLETE` | `CAT-01` | `docs/plan/2026-06-06_CAT-02_CATALOG_VALIDATION/` | Catalog validation and custom data reader | catalog validation helper, `tests/test_hex_adapter.gd` | Detect missing source, invalid atlas coords, missing scene, missing TileSet, tag/custom data extraction. |
 | `CAT-03` | `READY` | `CAT-01`, `LD2-04` | `docs/plan/2026-06-06_CAT-03_CATALOG_BACKED_ADAPTERS/` | Catalog-backed map/overlay tile adapters | `hex_map_tile_adapter.gd`, `hex_overlay_tile_adapter.gd`, `hex_map_document_adapter.gd`, tests | Floor/wall/overlay item key resolves by catalog key; numeric fallback remains advanced/debug path. |
 | `LST-01` | `READY` | `LD2-01` | `docs/plan/2026-06-06_LST-01_LAYER_STACK_RESOURCE/` | `HexLayerStackResource` and templates | new resource/helper files, `tests/test_hex_tile_map_layer.gd` | Terrain/decoration/object/collision/navigation/overlay/debug roles defined; templates create expected role names. |
 | `LST-02` | `BACKLOG` | `LST-01`, `CAT-03` | `docs/plan/2026-06-06_LST-02_APPLY_DOCUMENT_TO_LAYER_STACK/` | `apply_document_to_layer_stack()` primary path | `hex_tile_map_layer.gd`, adapter helpers, `tests/test_hex_tile_map_layer.gd` | v2 document applies to child layers by role; single plain TileMapLayer path remains compatibility path. |
@@ -94,7 +94,7 @@ Goal: document / catalog / object / cell の不整合を UI と debug report で
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `VAL-01` | `BACKLOG` | `LD2-03`, `CAT-02` | `docs/plan/2026-06-06_VAL-01_VALIDATION_ENGINE/` | Validation engine core rules | validation helper, `tests/test_hex_adapter.gd` | Detect outside map, orphan payload, missing catalog, missing tile, missing dependency, object on wall. |
+| `VAL-01` | `READY` | `LD2-03`, `CAT-02` | `docs/plan/2026-06-06_VAL-01_VALIDATION_ENGINE/` | Validation engine core rules | validation helper, `tests/test_hex_adapter.gd` | Detect outside map, orphan payload, missing catalog, missing tile, missing dependency, object on wall. |
 | `VAL-02` | `BACKLOG` | `VAL-01`, `LD2-05` | `docs/plan/2026-06-06_VAL-02_DASHBOARD_UI/` | Validate tab/panel and error list | `hex_map_edit_tool.gd`, maybe shared dashboard script, `tests/test_editor_plugin.gd` | Validate button produces grouped errors/warnings; clicking cell-scoped error updates selected/focus state in headless-testable way. |
 | `VAL-03` | `BACKLOG` | `VAL-02` | `docs/plan/2026-06-06_VAL-03_DEBUG_REPORT_INTEGRATION/` | Validation summary in Copy Debug Report | `hex_map_edit_tool.gd`, `hex_map_gen_dock.gd`, `tests/test_editor_plugin.gd` | Debug report includes validation summary without bloating normal status. |
 | `VAL-04` | `BACKLOG` | `VAL-01` | `docs/plan/2026-06-06_VAL-04_VALIDATION_RULE_MATRIX/` | Rule matrix fixtures and docs | `tests/test_hex_adapter.gd`, `tests/test_editor_plugin.gd`, `docs/TEST.md` | Each validation rule has at least one failing and passing fixture. |
@@ -198,15 +198,16 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `CAT-02`.
+Current recommended next task: `CAT-03`.
 
 Reason:
 
 - Dependency sweep completed on 2026-06-07.
 - `CAT-01` is `COMPLETE`.
-- `CAT-02` is `READY` because `CAT-01` is `COMPLETE`.
+- `CAT-02` is `COMPLETE`.
 - `CAT-03` is also `READY` because `CAT-01` and `LD2-04` are `COMPLETE`.
 - `LST-01` is also `READY` because `LD2-01` is `COMPLETE`.
+- `VAL-01` is also `READY` because `LD2-03` and `CAT-02` are `COMPLETE`.
 - `OBJ-01` is also `READY` because `LD2-01` and `CAT-01` are `COMPLETE`.
 - Remaining `BACKLOG` tasks still have at least one dependency that is not `COMPLETE` or `COMPLETE_WITH_BACKLOG`.
 
@@ -513,4 +514,29 @@ Notes:
 - Added typed tile catalog and catalog entry resources.
 - Sample catalog loads and includes atlas, overlay, and scene-style entries.
 - Catalog tests cover logical key lookup, scene tile fields, tags, fallback fields, duplicate key determinism, and saved resource roundtrip.
+- `repair-now`: none.
+
+### CAT-02
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot
+plan: `docs/plan/2026-06-06_CAT-02_CATALOG_VALIDATION/`
+review: `docs/review/autopilot/CAT-02_SELF_REVIEW_2026-06-07.md`
+test result: `docs/review/autopilot/CAT-02_TEST_RESULT_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+- docs:
+  - `docs/TEST.md`
+- major files:
+  - `addons/hex_map_kit/adapter/hex_tile_catalog_validator.gd`
+  - `tests/test_hex_adapter.gd`
+
+Notes:
+
+- Added catalog validation helper returning `HexMapValidationResult`.
+- Validation detects missing TileSet, missing source, invalid atlas coordinates, missing scene path, duplicate keys, and missing keys.
+- Added tag and TileSet custom-data extraction by catalog key.
 - `repair-now`: none.
