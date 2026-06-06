@@ -11,9 +11,12 @@ const HexMapDocumentTerrainLayerResource = preload("res://addons/hex_map_kit/ada
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
 const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
+const HexObjectLayerAdapter = preload("res://addons/hex_map_kit/adapter/hex_object_layer_adapter.gd")
 const HexLayerStackEntryResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_entry_resource.gd")
 const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
 const HexMovementProfileResource = preload("res://addons/hex_map_kit/adapter/hex_movement_profile_resource.gd")
+const HexTileCatalogEntry = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd")
+const HexTileCatalogResource = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 
 class RuntimeSignalRecorder:
@@ -51,6 +54,7 @@ func _run() -> void:
 	await _test_layer_stack_standard_template_roles()
 	await _test_layer_stack_resource_roundtrips()
 	await _test_apply_document_to_layer_stack_routes_v2_roles()
+	await _test_object_layer_adapter_applies_scene_tiles_and_direct_instances()
 	await _test_ensure_display_tiles_uses_custom_floor_wall_sources()
 	await _test_display_tile_size_syncs_hex_size_and_overlay()
 	await _test_display_tile_set_resource_persists_through_packed_scene()
@@ -412,6 +416,80 @@ func _test_apply_document_to_layer_stack_routes_v2_roles() -> void:
 	_assert_eq(plain_layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(1, 0), "plain TileMapLayer document apply remains compatible")
 	_assert_eq(plain_layer.get_cell_atlas_coords(Vector2i(1, 0)), Vector2i(0, 0), "plain TileMapLayer wall apply remains compatible")
 	plain_layer.free()
+
+	layer.queue_free()
+	await process_frame
+
+
+func _test_object_layer_adapter_applies_scene_tiles_and_direct_instances() -> void:
+	var document = HexMapDocumentResource.new()
+	document.ensure_v2_defaults()
+	document.map = HexMapResource.from_map_data(HexMapData.rectangle(2, 1))
+	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
+	terrain_layer.map = HexMapResource.from_map_data(HexMapData.rectangle(2, 1))
+	document.terrain_layers.append(terrain_layer)
+	var placement = HexMapDocumentObjectPlacementResource.new()
+	placement.object_id = "object.crate"
+	placement.cell = Vector3i.ZERO
+	placement.rotation_degrees = 30.0
+	placement.variant = "rare"
+	placement.properties = {"loot": true}
+	placement.spawn_condition = "always"
+	document.object_placements.append(placement)
+
+	var prototype_node = Node2D.new()
+	prototype_node.name = "CratePrototype"
+	var packed_scene = PackedScene.new()
+	_assert_eq(packed_scene.pack(prototype_node), OK, "object layer direct prototype packs")
+	prototype_node.free()
+
+	var scene_source = TileSetScenesCollectionSource.new()
+	var scene_tile_id = scene_source.create_scene_tile(packed_scene)
+	var catalog = HexTileCatalogResource.new()
+	var catalog_entry = HexTileCatalogEntry.new()
+	catalog_entry.key = "object.crate"
+	catalog_entry.entry_type = HexTileCatalogEntry.TYPE_SCENE
+	catalog_entry.source_id = 7
+	catalog_entry.atlas_coords = Vector2i(scene_tile_id, 0)
+	catalog_entry.scene_path = "res://objects/crate.tscn"
+	catalog.entries.append(catalog_entry)
+
+	var layer = HexTileMapLayer.new()
+	root.add_child(layer)
+	await process_frame
+	_assert_true(
+		layer.ensure_display_tiles(HexMapTileAdapter.SAMPLE_TILE_SIZE, 2, Vector2i(0, 0), 3, Vector2i(1, 0)),
+		"object layer adapter configures terrain display tiles"
+	)
+	layer.display_tile_map_layer().tile_set.add_source(scene_source, 7)
+
+	_assert_true(
+		layer.apply_document_to_layer_stack(document, HexLayerStackResource.standard_template(), {"tile_catalog": catalog}),
+		"object layer adapter applies document to stack"
+	)
+	var object_node = layer.layer_for_stack_role(HexLayerStackResource.ROLE_OBJECT) as TileMapLayer
+	_assert_true(object_node != null, "object layer adapter creates object role TileMapLayer")
+	_assert_eq(object_node.get_cell_source_id(Vector2i.ZERO), 7, "object layer adapter places scene tile source")
+	_assert_eq(object_node.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(scene_tile_id, 0), "object layer adapter places scene tile id")
+
+	var direct_count = layer.apply_object_instances(document, null, {"scene_prototypes": {"object.crate": packed_scene}})
+	var instance_layer = layer.object_instance_layer()
+	_assert_eq(direct_count, 1, "object layer adapter instantiates direct prototype")
+	_assert_eq(instance_layer.get_child_count(), 1, "object layer adapter stores managed direct instance")
+	var instance = instance_layer.get_child(0)
+	_assert_eq(String(instance.get_meta("object_id")), "object.crate", "object layer direct instance records object id")
+	_assert_eq(String(instance.get_meta("variant")), "rare", "object layer direct instance records variant")
+	_assert_eq(instance.get_meta("properties")["loot"], true, "object layer direct instance records properties")
+	_assert_eq((instance as Node2D).rotation_degrees, 30.0, "object layer direct instance applies rotation")
+	_assert_eq(
+		(instance as Node2D).position,
+		HexMapTileAdapter.hex_to_local(HexVector.zero(), layer.hex_size, layer.flat_top),
+		"object layer direct instance applies cell position"
+	)
+
+	var cleared_count = layer.apply_object_instances(document, null, {"scene_prototypes": {}})
+	_assert_eq(cleared_count, 0, "object layer adapter skips missing direct prototype")
+	_assert_eq(instance_layer.get_child_count(), 0, "object layer adapter clears previous direct instances before apply")
 
 	layer.queue_free()
 	await process_frame

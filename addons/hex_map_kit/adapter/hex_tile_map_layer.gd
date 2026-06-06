@@ -7,6 +7,7 @@ const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_
 const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexOverlayTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_overlay_tile_adapter.gd")
+const HexObjectLayerAdapter = preload("res://addons/hex_map_kit/adapter/hex_object_layer_adapter.gd")
 const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
 const HexGameplayLayerData = preload("res://addons/hex_map_kit/adapter/hex_gameplay_layer_data.gd")
 const HexGrid = preload("res://addons/hex_map_kit/core/hex_grid.gd")
@@ -26,6 +27,7 @@ const BASE_TILE_MAP_NAME := "TileMapLayer"
 const LOOP_TILE_MAP_NAME := "LoopTileMapLayer"
 const OVERLAY_TILE_MAP_NAME := "OverlayTileMapLayer"
 const OVERLAY_NAME := "OverlayLayer"
+const OBJECT_INSTANCE_LAYER_NAME := "ObjectInstanceLayer"
 const EDIT_MODE_SHAPE := "shape"
 const EDIT_MODE_WALL_FLOOR := "wall_floor"
 const EDIT_MODE_FLOOR_TILE := "floor_tile"
@@ -106,6 +108,7 @@ class OverlayCanvas:
 var _tile_map: TileMapLayer
 var _loop_tile_map: TileMapLayer
 var _overlay_tile_map: TileMapLayer
+var _object_instance_layer: Node2D
 var _overlay: OverlayCanvas
 var _data = null
 var _highlights: Dictionary = {}
@@ -308,12 +311,17 @@ func apply_document_to_layer_stack(
 	var overlay_layer = role_layers.get(HexLayerStackResource.ROLE_OVERLAY, null)
 	if overlay_layer is TileMapLayer:
 		_overlay_tile_map = overlay_layer
+	var object_layer = role_layers.get(HexLayerStackResource.ROLE_OBJECT, null)
 
 	_apply_layer_stack_tile_options(options)
 	_configure_tile_map()
 	_sync_stack_tile_map_sets(role_layers)
 	apply_map(resource)
 	_apply_document_payloads(snapshot)
+	if object_layer is TileMapLayer:
+		apply_object_scene_tiles_to_layer(snapshot, object_layer as TileMapLayer, options)
+	if bool(options.get("apply_object_instances", false)):
+		apply_object_instances(snapshot, null, options)
 	return true
 
 
@@ -327,6 +335,33 @@ func layer_for_stack_role(role: String):
 	if node_name == "":
 		return null
 	return get_node_or_null(NodePath(node_name))
+
+
+func apply_object_scene_tiles_to_layer(document, object_layer: TileMapLayer = null, options: Dictionary = {}) -> int:
+	var target_layer = object_layer
+	if target_layer == null:
+		var stack_layer = layer_for_stack_role(HexLayerStackResource.ROLE_OBJECT)
+		if stack_layer is TileMapLayer:
+			target_layer = stack_layer
+	if target_layer == null:
+		return 0
+	var adapter_options = options.duplicate(true)
+	adapter_options["flat_top"] = flat_top
+	return HexObjectLayerAdapter.apply_scene_tile_prototypes(target_layer, document, adapter_options)
+
+
+func apply_object_instances(document, parent: Node = null, options: Dictionary = {}) -> int:
+	var target_parent = parent
+	if target_parent == null:
+		target_parent = _ensure_object_instance_layer()
+	var adapter_options = options.duplicate(true)
+	adapter_options["flat_top"] = flat_top
+	adapter_options["hex_size"] = hex_size
+	return HexObjectLayerAdapter.apply_direct_instance_prototypes(target_parent, document, adapter_options)
+
+
+func object_instance_layer() -> Node2D:
+	return _object_instance_layer
 
 
 func apply_document_cell(document, hex: HexVector) -> bool:
@@ -1569,6 +1604,8 @@ func _ensure_tile_map_layers() -> void:
 			_overlay_tile_map = child
 		elif child is OverlayCanvas and child.name == OVERLAY_NAME:
 			_overlay = child
+		elif child is Node2D and child.name == OBJECT_INSTANCE_LAYER_NAME:
+			_object_instance_layer = child
 		elif child is TileMapLayer and _tile_map == null:
 			_tile_map = child
 	if _tile_map == null:
@@ -1587,10 +1624,26 @@ func _ensure_tile_map_layers() -> void:
 		_overlay = OverlayCanvas.new()
 		_overlay.name = OVERLAY_NAME
 		add_child(_overlay, false, INTERNAL_MODE_FRONT)
+	if _object_instance_layer == null:
+		_object_instance_layer = Node2D.new()
+		_object_instance_layer.name = OBJECT_INSTANCE_LAYER_NAME
+		add_child(_object_instance_layer, false, INTERNAL_MODE_FRONT)
 	_overlay_tile_map.z_index = 50
+	_object_instance_layer.z_index = 60
 	_overlay.layer = self
 	_overlay.z_index = 100
 	_overlay.position = Vector2.ZERO
+
+
+func _ensure_object_instance_layer() -> Node2D:
+	if _object_instance_layer == null or not is_instance_valid(_object_instance_layer):
+		_object_instance_layer = get_node_or_null(NodePath(OBJECT_INSTANCE_LAYER_NAME)) as Node2D
+	if _object_instance_layer == null:
+		_object_instance_layer = Node2D.new()
+		_object_instance_layer.name = OBJECT_INSTANCE_LAYER_NAME
+		add_child(_object_instance_layer, false, INTERNAL_MODE_FRONT)
+	_object_instance_layer.z_index = 60
+	return _object_instance_layer
 
 
 func _layer_stack_node_name(role: String) -> String:
