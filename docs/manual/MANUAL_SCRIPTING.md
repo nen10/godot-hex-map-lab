@@ -171,6 +171,27 @@ var path = HexGrid.shortest_path(
 
 toric map では `cyclic_size` を渡すことで、端を越える近傍が wrap されます。
 
+Weighted path と movement range は `HexGrid.weighted_path()` / `HexGrid.movement_range()`、または `HexTileMapLayer.find_weighted_path()` / `HexTileMapLayer.movement_range()` を使います。Level Document v2 を runtime で読み込む最小例は `examples/basic_runtime/runtime_query_sample.gd` です。
+
+```gdscript
+const HexRuntimeQuerySample = preload("res://examples/basic_runtime/runtime_query_sample.gd")
+const HexMovementProfileResource = preload("res://addons/hex_map_kit/adapter/hex_movement_profile_resource.gd")
+
+var profile = HexMovementProfileResource.new()
+profile.wall_passable = true
+
+var result = HexRuntimeQuerySample.query_document_path(
+	"res://maps/level_document.tres",
+	HexVector.zero(),
+	HexVector.q_axis(),
+	4.0,
+	profile
+)
+
+print(result["path_count"])
+print(result["range_count"])
+```
+
 ## 6. Godot 表示層との接続
 
 ### HexMapTileAdapter
@@ -249,6 +270,9 @@ func _unhandled_input(event: InputEvent) -> void:
 - `set_wall(hex)`, `set_floor(hex)`
 - `get_cells()`, `get_floor_cells()`
 - `find_path(start, goal)`
+- `find_weighted_path(start, goal, movement_profile)`
+- `movement_range(start, movement_budget, movement_profile)`
+- `show_movement_range(start, movement_budget, movement_profile)`
 - `draw_path(path, color)`, `clear_path()`
 - `highlight_cell(hex, color)`, `clear_highlights()`
 - `is_map_connected()`, `connected_component(hex)`

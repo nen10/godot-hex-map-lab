@@ -13,8 +13,10 @@ const HexMapDocumentLabelPlacementResource = preload("res://addons/hex_map_kit/a
 const HexMapDocumentObjectPlacementResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_object_placement_resource.gd")
 const HexMapDocumentOverlayLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_overlay_layer_resource.gd")
 const HexMapDocumentTerrainLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_terrain_layer_resource.gd")
+const HexMovementProfileResource = preload("res://addons/hex_map_kit/adapter/hex_movement_profile_resource.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
+const HexRuntimeQuerySample = preload("res://examples/basic_runtime/runtime_query_sample.gd")
 
 var _failures: Array[String] = []
 
@@ -376,6 +378,28 @@ func _run() -> void:
 	_assert_eq(runtime_state["object_count"], 1, "runtime helper applies v2 object placement")
 	_assert_eq(runtime_state["label_count"], 1, "runtime helper applies v2 label placement")
 	document_layer.queue_free()
+
+	var movement_profile = HexMovementProfileResource.new()
+	movement_profile.profile_id = "runtime-sample"
+	movement_profile.wall_passable = true
+	movement_profile.wall_cost = 1.0
+	var query_result = HexRuntimeQuerySample.query_document_path(
+		document_path,
+		HexVector.zero(),
+		HexVector.q_axis(),
+		1.0,
+		movement_profile
+	)
+	_assert_true(query_result["loaded"], "runtime query sample loads v2 document path")
+	_assert_eq(query_result["profile_id"], "runtime-sample", "runtime query sample reports movement profile id")
+	_assert_eq(query_result["path_count"], 2, "runtime query sample returns weighted path")
+	_assert_eq(query_result["range_count"], 2, "runtime query sample returns movement range")
+	_assert_true(
+		(query_result["range"] as Dictionary).has(HexVector.q_axis().key()),
+		"runtime query sample range includes passable wall cell"
+	)
+	var missing_query = HexRuntimeQuerySample.query_document_path(_test_resource_path("missing_runtime_query_document.tres"))
+	_assert_true(not bool(missing_query["loaded"]), "runtime query sample reports missing document path")
 
 	scene.queue_free()
 	await process_frame
