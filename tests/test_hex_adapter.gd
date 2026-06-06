@@ -14,6 +14,7 @@ const HexMapDocumentObjectPlacementResource = preload("res://addons/hex_map_kit/
 const HexMapDocumentOverlayLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_overlay_layer_resource.gd")
 const HexMapDocumentTerrainLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_terrain_layer_resource.gd")
 const HexMapDocumentZoneResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_zone_resource.gd")
+const HexMapValidationResult = preload("res://addons/hex_map_kit/adapter/hex_map_validation_result.gd")
 const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
 const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
 const HexOverlayResource = preload("res://addons/hex_map_kit/adapter/hex_overlay_resource.gd")
@@ -54,6 +55,8 @@ func _run() -> void:
 	_test_hex_map_document_v1_fixture_still_loads_with_v2_fields()
 	_test_hex_map_document_migrates_v1_to_v2_preserving_legacy_fields()
 	_test_hex_map_document_migration_handles_missing_fields()
+	_test_hex_map_document_summary_reports_v2_counts()
+	_test_hex_map_validation_result_serializes_summary_and_warnings()
 	_test_hex_map_document_adapter_updates_wall_floor()
 	_test_hex_map_document_adapter_applies_tile_overrides()
 	_test_overlay_resource_roundtrips_to_overlay_data()
@@ -647,6 +650,73 @@ func _test_hex_map_document_migration_handles_missing_fields() -> void:
 	_assert_eq(null_migrated.version, HexMapDocumentResource.VERSION_V2, "null document migrates to v2")
 	_assert_eq(null_migrated.metadata.custom_properties["source_version"], 0, "null migration records missing source version")
 	_assert_eq(null_migrated.terrain_layers.size(), 0, "null migration creates no terrain layer")
+
+
+func _test_hex_map_document_summary_reports_v2_counts() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	data.set_walls([HexVector.q_axis()])
+	var document = HexMapDocumentResource.new()
+	document.ensure_v2_defaults()
+
+	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
+	terrain_layer.map = HexMapResource.from_map_data(data)
+	document.terrain_layers.append(terrain_layer)
+
+	var placement = HexMapDocumentObjectPlacementResource.new()
+	placement.object_id = "chest"
+	placement.cell = Vector3i(1, 0, 0)
+	document.object_placements.append(placement)
+
+	var label = HexMapDocumentLabelPlacementResource.new()
+	label.label_id = "area"
+	label.cell = Vector3i.ZERO
+	label.text = "North"
+	document.label_placements.append(label)
+
+	var zone = HexMapDocumentZoneResource.new()
+	zone.zone_id = "spawn"
+	var zone_cells: Array[Vector3i] = [Vector3i.ZERO]
+	zone.cells = zone_cells
+	document.zones.append(zone)
+
+	var dependency = HexMapDocumentDependencyResource.new()
+	dependency.kind = HexMapDocumentDependencyResource.KIND_TILE_SET
+	dependency.dependency_path = "res://addons/hex_map_kit/assets/sample_hex_tiles.png"
+	document.dependencies.append(dependency)
+
+	var summary = HexMapDocumentAdapter.document_summary(document)
+
+	_assert_eq(summary["version"], HexMapDocumentResource.VERSION_V2, "summary reports version")
+	_assert_eq(summary["cells"], 2, "summary reports cells")
+	_assert_eq(summary["walls"], 1, "summary reports walls")
+	_assert_eq(summary["floors"], 1, "summary reports floors")
+	_assert_eq(summary["objects"], 1, "summary reports objects")
+	_assert_eq(summary["labels"], 1, "summary reports labels")
+	_assert_eq(summary["zones"], 1, "summary reports zones")
+	_assert_eq(summary["dependencies"], 1, "summary reports dependencies")
+	_assert_eq(summary["warnings"], 0, "summary reports warning count")
+
+
+func _test_hex_map_validation_result_serializes_summary_and_warnings() -> void:
+	var document = HexMapDocumentResource.new()
+	var result = HexMapDocumentAdapter.validation_result_for_document(document)
+	var null_result = HexMapDocumentAdapter.validation_result_for_document(null)
+	var path = _test_resource_path("test_hex_map_validation_result.tres")
+	var error = ResourceSaver.save(result, path)
+	var loaded = load(path)
+
+	_assert_eq(result is HexMapValidationResult, true, "validation helper returns validation result resource")
+	_assert_eq(result.warning_count(), 2, "validation result counts warnings")
+	_assert_eq(result.error_count(), 0, "validation result has no errors for empty document")
+	_assert_eq(result.summary["warnings"], 2, "validation summary reports warnings")
+	_assert_eq(result.issues[0]["rule_id"], "document.map_missing", "validation result records missing map warning")
+	_assert_eq(result.issues[1]["scope"], HexMapValidationResult.SCOPE_DEPENDENCY, "validation result records dependency scope")
+	_assert_eq(null_result.error_count(), 1, "null validation result reports missing document error")
+	_assert_eq(error, OK, "validation result saves")
+	_assert_eq(loaded is HexMapValidationResult, true, "validation result loads as typed resource")
+	_assert_eq(loaded.warning_count(), 2, "loaded validation result counts warnings")
+	_assert_eq(loaded.summary["warnings"], 2, "loaded validation result preserves summary")
+	_assert_eq(loaded.issues[1]["rule_id"], "document.dependencies_empty", "loaded validation result preserves issues")
 
 
 func _test_hex_map_document_adapter_updates_wall_floor() -> void:

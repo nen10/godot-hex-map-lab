@@ -6,6 +6,7 @@ const HexMapDocumentLabelPlacementResourceScript = preload("res://addons/hex_map
 const HexMapDocumentObjectPlacementResourceScript = preload("res://addons/hex_map_kit/adapter/hex_map_document_object_placement_resource.gd")
 const HexMapDocumentOverlayLayerResourceScript = preload("res://addons/hex_map_kit/adapter/hex_map_document_overlay_layer_resource.gd")
 const HexMapDocumentTerrainLayerResourceScript = preload("res://addons/hex_map_kit/adapter/hex_map_document_terrain_layer_resource.gd")
+const HexMapValidationResultScript = preload("res://addons/hex_map_kit/adapter/hex_map_validation_result.gd")
 const HexMapResourceScript = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
 const HexMapTileAdapterScript = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexMapDataScript = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
@@ -83,6 +84,55 @@ static func migrate_v1_to_v2(document):
 		migrated.label_placements.append(_v1_label_placement(entry))
 
 	return migrated
+
+
+static func document_summary(document) -> Dictionary:
+	var data = _document_map_data(document)
+	var cell_count = data.cells.size() if data != null else 0
+	var wall_count = data.walls.size() if data != null else 0
+	return {
+		"version": int(document.version) if document != null else 0,
+		"cells": cell_count,
+		"walls": wall_count,
+		"floors": max(0, cell_count - wall_count),
+		"objects": _document_object_count(document),
+		"labels": _document_label_count(document),
+		"zones": document.zones.size() if document != null else 0,
+		"warnings": _baseline_warning_count(document),
+		"dependencies": document.dependencies.size() if document != null else 0,
+		"terrain_layers": document.terrain_layers.size() if document != null else 0,
+		"overlay_layers": document.overlay_layers.size() if document != null else 0,
+	}
+
+
+static func validation_result_for_document(document):
+	var result = HexMapValidationResultScript.new()
+	result.summary = document_summary(document)
+	if document == null:
+		result.add_error(
+			"document.missing",
+			"Document is missing.",
+			HexMapValidationResultScript.SCOPE_DOCUMENT
+		)
+		result.summary["errors"] = result.error_count()
+		result.summary["warnings"] = result.warning_count()
+		return result
+
+	if _document_map_data(document) == null:
+		result.add_warning(
+			"document.map_missing",
+			"Document has no map or terrain layer map.",
+			HexMapValidationResultScript.SCOPE_DOCUMENT
+		)
+	if document.dependencies.is_empty():
+		result.add_warning(
+			"document.dependencies_empty",
+			"Document has no dependency records.",
+			HexMapValidationResultScript.SCOPE_DEPENDENCY
+		)
+	result.summary["errors"] = result.error_count()
+	result.summary["warnings"] = result.warning_count()
+	return result
 
 
 static func copy_document_state(target, source) -> void:
@@ -282,6 +332,40 @@ static func _duplicate_resources(entries: Array) -> Array[Resource]:
 		if entry is Resource:
 			result.append(entry.duplicate(true))
 	return result
+
+
+static func _document_map_data(document):
+	if document == null:
+		return null
+	if document.map != null:
+		return document.map.to_map_data()
+	for layer in document.terrain_layers:
+		if layer != null and layer.get("map") != null:
+			return layer.get("map").to_map_data()
+	return null
+
+
+static func _document_object_count(document) -> int:
+	if document == null:
+		return 0
+	return document.object_placements.size() if not document.object_placements.is_empty() else document.objects.size()
+
+
+static func _document_label_count(document) -> int:
+	if document == null:
+		return 0
+	return document.label_placements.size() if not document.label_placements.is_empty() else document.labels.size()
+
+
+static func _baseline_warning_count(document) -> int:
+	if document == null:
+		return 0
+	var count := 0
+	if _document_map_data(document) == null:
+		count += 1
+	if document.dependencies.is_empty():
+		count += 1
+	return count
 
 
 static func _v1_terrain_tile_assignments(entries: Array) -> Array[Dictionary]:
