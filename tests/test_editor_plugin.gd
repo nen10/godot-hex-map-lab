@@ -93,6 +93,7 @@ func _run() -> void:
 	await _test_map_edit_tool_preserves_plain_target_tile_settings_when_redrawing()
 	await _test_map_edit_tool_applies_explicit_default_tile_settings()
 	await _test_map_edit_tool_target_atlas_settings_use_target_tileset()
+	await _test_map_edit_tool_catalog_selectors_drive_defaults_and_payloads()
 	await _test_map_edit_tool_target_status_reports_tileset_and_overlay_payload()
 	await _test_map_edit_tool_last_edit_trace_distinguishes_document_and_redraw()
 	await _test_map_edit_tool_last_edit_trace_reports_target_apply_failure()
@@ -154,6 +155,7 @@ func _run() -> void:
 	await _test_generation_dock_adjacency_generated_reference_snapshot()
 	await _test_generation_dock_adjacency_generated_reference_changes_result()
 	await _test_generation_dock_overlay_item_pool_tile_mapping()
+	await _test_generation_dock_catalog_selectors_drive_tile_defaults()
 	await _test_generation_dock_mapdata_source_registry_load_reload_clear()
 	await _test_generation_dock_path_action_labels_and_failure_status()
 	await _test_generation_dock_mapdata_query_rows_evaluate_offset_and_toric()
@@ -219,6 +221,10 @@ func _test_map_edit_tool_builds_dock_controls() -> void:
 	_assert_true(tool._copy_debug_report_button != null, "map edit tool exposes debug report copy button")
 	_assert_eq(tool._mode_option.item_count, HexMapEditTool.EDIT_MODE_NAMES.size(), "map edit tool lists edit modes")
 	_assert_true(tool._object_properties_edit != null, "map edit tool exposes object properties payload control")
+	_assert_true(tool._default_floor_catalog_option != null, "map edit tool exposes default floor catalog control")
+	_assert_true(tool._default_wall_catalog_option != null, "map edit tool exposes default wall catalog control")
+	_assert_true(tool._tile_catalog_option != null, "map edit tool exposes tile payload catalog control")
+	_assert_true(tool._object_catalog_option != null, "map edit tool exposes object catalog control")
 	_assert_true(tool._default_floor_source_spin != null, "map edit tool exposes default floor source control")
 	_assert_true(tool._default_wall_atlas_x_spin != null, "map edit tool exposes default wall atlas control")
 	_assert_true(tool._default_tile_read_button != null, "map edit tool exposes default tile read button")
@@ -937,6 +943,62 @@ func _test_map_edit_tool_target_atlas_settings_use_target_tileset() -> void:
 	_assert_eq(hex_layer.display_tile_set(), replacement, "explicit Target TileSet is stored on HexTileMapLayer display layer")
 
 	hex_layer.queue_free()
+	tool.queue_free()
+	await process_frame
+
+
+func _test_map_edit_tool_catalog_selectors_drive_defaults_and_payloads() -> void:
+	var tool = await _new_ready_edit_tool()
+	_assert_true(tool.tile_catalog() != null, "map edit tool loads sample tile catalog")
+	_assert_true(tool._default_floor_catalog_option.item_count >= 2, "map edit tool default floor catalog lists sample entries")
+	_assert_true(tool._default_wall_catalog_option.item_count >= 2, "map edit tool default wall catalog lists sample entries")
+
+	tool._select_catalog_option_by_key(tool._default_floor_catalog_option, "terrain.floor")
+	tool._on_default_floor_catalog_selected(tool._default_floor_catalog_option.selected)
+	tool._select_catalog_option_by_key(tool._default_wall_catalog_option, "terrain.wall")
+	tool._on_default_wall_catalog_selected(tool._default_wall_catalog_option.selected)
+	var defaults = tool._default_tile_settings_from_controls()
+	_assert_eq(defaults["floor_catalog_key"], "terrain.floor", "default floor selector stores catalog key")
+	_assert_eq(defaults["floor_atlas_coords"], Vector2i(0, 0), "default floor selector resolves atlas coords")
+	_assert_eq(defaults["wall_catalog_key"], "terrain.wall", "default wall selector stores catalog key")
+	_assert_eq(defaults["wall_atlas_coords"], Vector2i(1, 0), "default wall selector resolves atlas coords")
+
+	tool._select_catalog_option_by_key(tool._default_wall_catalog_option, "")
+	tool._default_wall_source_spin.set_value_no_signal(8)
+	tool._default_wall_atlas_x_spin.set_value_no_signal(3)
+	tool._default_wall_atlas_y_spin.set_value_no_signal(4)
+	tool._on_default_tile_setting_changed(0.0)
+	defaults = tool._default_tile_settings_from_controls()
+	_assert_eq(defaults["wall_catalog_key"], "", "default wall fallback keeps catalog key empty")
+	_assert_eq(defaults["wall_source_id"], 8, "default wall fallback keeps numeric source")
+	_assert_eq(defaults["wall_atlas_coords"], Vector2i(3, 4), "default wall fallback keeps numeric atlas")
+
+	tool.set_edit_mode(HexMapEditTool.EditMode.FLOOR_TILE)
+	tool._select_catalog_option_by_key(tool._tile_catalog_option, "terrain.floor")
+	tool._on_tile_catalog_selected(tool._tile_catalog_option.selected)
+	_assert_eq(tool._floor_tile_payload["catalog_key"], "terrain.floor", "floor tile payload stores catalog key")
+	_assert_eq(tool._floor_tile_payload["atlas_coords"], Vector2i(0, 0), "floor tile payload resolves catalog atlas")
+
+	tool.set_edit_mode(HexMapEditTool.EditMode.WALL_TILE)
+	tool._select_catalog_option_by_key(tool._tile_catalog_option, "terrain.wall")
+	tool._on_tile_catalog_selected(tool._tile_catalog_option.selected)
+	_assert_eq(tool._wall_tile_payload["catalog_key"], "terrain.wall", "wall tile payload stores catalog key")
+	_assert_eq(tool._wall_tile_payload["atlas_coords"], Vector2i(1, 0), "wall tile payload resolves catalog atlas")
+
+	tool.set_edit_mode(HexMapEditTool.EditMode.OVERLAY_TILE)
+	tool._select_catalog_option_by_key(tool._tile_catalog_option, "overlay.treasure")
+	tool._on_tile_catalog_selected(tool._tile_catalog_option.selected)
+	_assert_eq(tool._overlay_tile_payload["catalog_key"], "overlay.treasure", "overlay tile payload stores catalog key")
+	tool.set_tile_payload(9, Vector2i(5, 6), 1)
+	_assert_eq(tool._overlay_tile_payload["catalog_key"], "", "numeric tile payload setter clears catalog key fallback")
+	_assert_eq(tool._overlay_tile_payload["source_id"], 9, "numeric tile payload fallback stores source")
+
+	tool.set_edit_mode(HexMapEditTool.EditMode.OBJECT)
+	tool._select_catalog_option_by_key(tool._object_catalog_option, "object.spawn_marker")
+	tool._on_object_catalog_selected(tool._object_catalog_option.selected)
+	_assert_eq(tool._object_payload["object_id"], "object.spawn_marker", "object selector stores catalog key as object default")
+	_assert_eq(tool._object_id_edit.text, "object.spawn_marker", "object selector mirrors object id text fallback")
+
 	tool.queue_free()
 	await process_frame
 
@@ -2834,6 +2896,46 @@ func _test_generation_dock_overlay_item_pool_tile_mapping() -> void:
 	_assert_true(not fake_overlay_layer.cleared, "Apply Write Add Item preserves existing Overlay layer cells")
 
 	layer.free()
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_catalog_selectors_drive_tile_defaults() -> void:
+	var dock = await _new_ready_dock()
+	_assert_true(dock.tile_catalog() != null, "generation dock loads sample tile catalog")
+	_assert_true(dock._floor_catalog_option.item_count >= 2, "generation dock floor catalog lists sample entries")
+	_assert_true(dock._wall_catalog_option.item_count >= 2, "generation dock wall catalog lists sample entries")
+
+	dock._select_catalog_option_by_key(dock._floor_catalog_option, "terrain.floor")
+	dock._on_floor_catalog_selected(dock._floor_catalog_option.selected)
+	dock._select_catalog_option_by_key(dock._wall_catalog_option, "terrain.wall")
+	dock._on_wall_catalog_selected(dock._wall_catalog_option.selected)
+	_assert_eq(dock._catalog_key_from_option(dock._floor_catalog_option), "terrain.floor", "generation floor selector stores catalog key")
+	_assert_eq(dock._floor_atlas_x_spin.value, 0.0, "generation floor selector resolves atlas x")
+	_assert_eq(dock._floor_atlas_y_spin.value, 0.0, "generation floor selector resolves atlas y")
+	_assert_eq(dock._catalog_key_from_option(dock._wall_catalog_option), "terrain.wall", "generation wall selector stores catalog key")
+	_assert_eq(dock._wall_atlas_x_spin.value, 1.0, "generation wall selector resolves atlas x")
+	_assert_eq(dock._wall_atlas_y_spin.value, 0.0, "generation wall selector resolves atlas y")
+
+	dock._overlay_item_pool_rows[0]["name"].text = "Treasure"
+	var overlay_option: OptionButton = dock._overlay_item_pool_rows[0]["catalog_option"]
+	dock._select_catalog_option_by_key(overlay_option, "overlay.treasure")
+	dock._on_overlay_item_catalog_selected(overlay_option.selected, dock._overlay_item_pool_rows[0])
+	_assert_eq(dock._catalog_key_from_option(overlay_option), "overlay.treasure", "overlay item pool selector stores catalog key")
+	dock._current_overlay_data = HexOverlayData.from_cells([HexVector.zero()], {"Treasure": [HexVector.zero()]})
+	var catalog_configs = dock._overlay_item_tile_configs()
+	_assert_eq(catalog_configs["Treasure"]["catalog_key"], "overlay.treasure", "overlay item pool config preserves catalog key")
+	_assert_eq(catalog_configs["Treasure"]["atlas_coords"], Vector2i(0, 0), "overlay item pool catalog resolves atlas coords")
+
+	dock._select_catalog_option_by_key(overlay_option, "")
+	dock._overlay_item_pool_rows[0]["tile_source"].set_value_no_signal(7)
+	dock._overlay_item_pool_rows[0]["tile_atlas_x"].set_value_no_signal(8)
+	dock._overlay_item_pool_rows[0]["tile_atlas_y"].set_value_no_signal(9)
+	var fallback_configs = dock._overlay_item_tile_configs()
+	_assert_true(not fallback_configs["Treasure"].has("catalog_key"), "overlay item numeric fallback has no catalog key")
+	_assert_eq(fallback_configs["Treasure"]["source_id"], 7, "overlay item numeric fallback keeps source")
+	_assert_eq(fallback_configs["Treasure"]["atlas_coords"], Vector2i(8, 9), "overlay item numeric fallback keeps atlas")
+
 	dock.queue_free()
 	await process_frame
 

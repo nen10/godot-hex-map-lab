@@ -12,6 +12,7 @@ const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_l
 const HexOverlayData = preload("res://addons/hex_map_kit/core/hex_overlay_data.gd")
 const HexOverlayResource = preload("res://addons/hex_map_kit/adapter/hex_overlay_resource.gd")
 const HexOverlayTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_overlay_tile_adapter.gd")
+const HexTileCatalogResource = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd")
 const HexAdjacencyRuleSet = preload("res://addons/hex_map_kit/adapter/hex_adjacency_rule_set.gd")
 const HexAdjacencyRuleEditor = preload("res://addons/hex_map_kit/editor/hex_adjacency_rule_editor.gd")
 const HexCellButtonPanel = preload("res://addons/hex_map_kit/editor/hex_cell_button_panel.gd")
@@ -86,6 +87,8 @@ const QUERY_HEX_CELL_DEFAULT_PADDING := 2.0
 const QUERY_KIND_MASK := "mask"
 const QUERY_KIND_REFERENCE := "reference"
 const QUERY_KIND_DEDUCTOR_FLOOR := "deductor_floor"
+const SAMPLE_TILE_CATALOG_PATH := "res://addons/hex_map_kit/assets/sample_hex_tile_catalog.tres"
+const CATALOG_FALLBACK_LABEL := "Advanced numeric fallback"
 
 var _generator_row: HBoxContainer
 var _generate_option: OptionButton
@@ -130,6 +133,9 @@ var _test_selected_tile_map_layer: Node = null
 var _tile_orientation_option: OptionButton
 var _tile_width_spin: SpinBox
 var _tile_height_spin: SpinBox
+var _tile_catalog: HexTileCatalogResource
+var _floor_catalog_option: OptionButton
+var _wall_catalog_option: OptionButton
 var _floor_source_spin: SpinBox
 var _floor_atlas_x_spin: SpinBox
 var _floor_atlas_y_spin: SpinBox
@@ -811,6 +817,15 @@ func _build_tile_layer_controls() -> Control:
 	size_row.add_child(_tile_height_spin)
 	box.add_child(size_row)
 
+	var catalog_row = HBoxContainer.new()
+	_floor_catalog_option = _new_catalog_option("floor")
+	_floor_catalog_option.item_selected.connect(_on_floor_catalog_selected)
+	catalog_row.add_child(_wrap_labeled("Floor Catalog", _floor_catalog_option))
+	_wall_catalog_option = _new_catalog_option("wall")
+	_wall_catalog_option.item_selected.connect(_on_wall_catalog_selected)
+	catalog_row.add_child(_wrap_labeled("Wall Catalog", _wall_catalog_option))
+	box.add_child(catalog_row)
+
 	var floor_row = HBoxContainer.new()
 	floor_row.add_child(_build_small_label("Floor"))
 	_floor_source_spin = _new_int_spin(0, 0, 1024)
@@ -890,6 +905,13 @@ func _new_int_spin(value: int, min_value: int, max_value: int) -> SpinBox:
 	return spin
 
 
+func _new_catalog_option(tag: String, selected_key: String = "") -> OptionButton:
+	var option = OptionButton.new()
+	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_populate_catalog_option(option, tag, selected_key)
+	return option
+
+
 func _new_float_spin(value: float, min_value: float, max_value: float, step: float = 0.1) -> SpinBox:
 	var spin = SpinBox.new()
 	spin.min_value = min_value
@@ -921,6 +943,112 @@ func _configure_scrollable_option(option: OptionButton) -> void:
 	var popup = option.get_popup()
 	if popup != null:
 		popup.max_size = Vector2i(420, 260)
+
+
+func set_tile_catalog(catalog: HexTileCatalogResource) -> void:
+	_tile_catalog = catalog
+	_refresh_catalog_options()
+
+
+func tile_catalog() -> HexTileCatalogResource:
+	return _ensure_tile_catalog()
+
+
+func _ensure_tile_catalog() -> HexTileCatalogResource:
+	if _tile_catalog == null:
+		_tile_catalog = load(SAMPLE_TILE_CATALOG_PATH) as HexTileCatalogResource
+	return _tile_catalog
+
+
+func _refresh_catalog_options() -> void:
+	_populate_catalog_option(_floor_catalog_option, "floor", _catalog_key_from_option(_floor_catalog_option))
+	_populate_catalog_option(_wall_catalog_option, "wall", _catalog_key_from_option(_wall_catalog_option))
+	for item_row in _overlay_item_pool_rows:
+		_populate_catalog_option(
+			item_row.get("catalog_option", null),
+			"overlay",
+			_catalog_key_from_option(item_row.get("catalog_option", null))
+		)
+
+
+func _populate_catalog_option(option: OptionButton, tag: String, selected_key: String = "") -> void:
+	if option == null:
+		return
+	option.clear()
+	option.add_item(CATALOG_FALLBACK_LABEL)
+	option.set_item_metadata(0, "")
+	var selected_index := 0
+	var catalog = _ensure_tile_catalog()
+	if catalog != null:
+		for entry in catalog.entries_with_tag(tag):
+			if entry == null:
+				continue
+			var key = String(entry.get("key"))
+			if key == "":
+				continue
+			var label = String(entry.get("display_name"))
+			if label == "":
+				label = key
+			else:
+				label = "%s (%s)" % [label, key]
+			option.add_item(label)
+			var index = option.item_count - 1
+			option.set_item_metadata(index, key)
+			if key == selected_key:
+				selected_index = index
+	option.select(selected_index)
+
+
+func _catalog_key_from_option(option: OptionButton, index: int = -1) -> String:
+	if option == null or option.item_count <= 0:
+		return ""
+	var selected_index = option.selected if index < 0 else index
+	if selected_index < 0 or selected_index >= option.item_count:
+		return ""
+	return String(option.get_item_metadata(selected_index))
+
+
+func _select_catalog_option_by_key(option: OptionButton, key: String) -> void:
+	if option == null:
+		return
+	for index in range(option.item_count):
+		if String(option.get_item_metadata(index)) == key:
+			option.select(index)
+			return
+	option.select(0)
+
+
+func _catalog_tile_config(key: String, fallback: Dictionary = {}) -> Dictionary:
+	return HexMapTileAdapter.tile_config_from_catalog(_ensure_tile_catalog(), key, fallback)
+
+
+func _floor_tile_fallback() -> Dictionary:
+	return HexMapTileAdapter.tile_config(
+		int(_floor_source_spin.value),
+		Vector2i(int(_floor_atlas_x_spin.value), int(_floor_atlas_y_spin.value))
+	)
+
+
+func _wall_tile_fallback() -> Dictionary:
+	return HexMapTileAdapter.tile_config(
+		int(_wall_source_spin.value),
+		Vector2i(int(_wall_atlas_x_spin.value), int(_wall_atlas_y_spin.value))
+	)
+
+
+func _apply_catalog_config_to_spins(
+	config: Dictionary,
+	source_spin: SpinBox,
+	atlas_x_spin: SpinBox,
+	atlas_y_spin: SpinBox
+) -> bool:
+	if int(config.get("source_id", -1)) < 0:
+		return false
+	source_spin.set_value_no_signal(int(config.get("source_id", 0)))
+	var atlas = config.get("atlas_coords", Vector2i.ZERO)
+	atlas_x_spin.set_value_no_signal(int(atlas.x))
+	atlas_y_spin.set_value_no_signal(int(atlas.y))
+	return true
 
 
 func _build_section_label(text: String) -> Label:
@@ -1561,6 +1689,8 @@ func _add_overlay_item_pool_row(item_name: String = "", amount: float = 1.0) -> 
 	var tile_label = Label.new()
 	tile_label.text = "Tile"
 	row.add_child(tile_label)
+	var catalog_option = _new_catalog_option("overlay")
+	row.add_child(catalog_option)
 	var tile_source_spin = _new_int_spin(0, 0, 1024)
 	tile_source_spin.value_changed.connect(_on_option_changed)
 	row.add_child(tile_source_spin)
@@ -1592,6 +1722,7 @@ func _add_overlay_item_pool_row(item_name: String = "", amount: float = 1.0) -> 
 		"name": name_edit,
 		"amount_label": amount_label,
 		"amount": amount_spin,
+		"catalog_option": catalog_option,
 		"tile_source": tile_source_spin,
 		"tile_atlas_x": tile_atlas_x_spin,
 		"tile_atlas_y": tile_atlas_y_spin,
@@ -1600,6 +1731,7 @@ func _add_overlay_item_pool_row(item_name: String = "", amount: float = 1.0) -> 
 		"remove": remove_button,
 	}
 	_overlay_item_pool_rows.append(entry)
+	catalog_option.item_selected.connect(_on_overlay_item_catalog_selected.bind(entry))
 	copy_floor_button.pressed.connect(_on_overlay_item_tile_copy_pressed.bind(entry, false))
 	copy_wall_button.pressed.connect(_on_overlay_item_tile_copy_pressed.bind(entry, true))
 	_refresh_overlay_item_pool_rows()
@@ -1633,6 +1765,31 @@ func _refresh_overlay_item_pool_rows() -> void:
 		copy_wall_button.disabled = _generation_running
 
 
+func _on_overlay_item_catalog_selected(index: int, item_row: Dictionary) -> void:
+	var catalog_option: OptionButton = item_row.get("catalog_option", null)
+	var key = _catalog_key_from_option(catalog_option, index)
+	if key == "":
+		return
+	var source_spin: SpinBox = item_row["tile_source"]
+	var atlas_x_spin: SpinBox = item_row["tile_atlas_x"]
+	var atlas_y_spin: SpinBox = item_row["tile_atlas_y"]
+	var fallback = HexOverlayTileAdapter.tile_config(
+		int(source_spin.value),
+		Vector2i(
+			int(atlas_x_spin.value),
+			int(atlas_y_spin.value)
+		)
+	)
+	var config = _catalog_tile_config(key, fallback)
+	if _apply_catalog_config_to_spins(
+		config,
+		source_spin,
+		atlas_x_spin,
+		atlas_y_spin
+	):
+		_on_option_changed(0)
+
+
 func _on_overlay_add_item_pressed() -> void:
 	_add_overlay_item_pool_row("", 1.0)
 
@@ -1649,10 +1806,12 @@ func _on_overlay_item_tile_copy_pressed(item_row: Dictionary, wall_tile: bool) -
 		source_spin.set_value_no_signal(int(_wall_source_spin.value))
 		atlas_x_spin.set_value_no_signal(int(_wall_atlas_x_spin.value))
 		atlas_y_spin.set_value_no_signal(int(_wall_atlas_y_spin.value))
+		_select_catalog_option_by_key(item_row.get("catalog_option", null), _catalog_key_from_option(_wall_catalog_option))
 	else:
 		source_spin.set_value_no_signal(int(_floor_source_spin.value))
 		atlas_x_spin.set_value_no_signal(int(_floor_atlas_x_spin.value))
 		atlas_y_spin.set_value_no_signal(int(_floor_atlas_y_spin.value))
+		_select_catalog_option_by_key(item_row.get("catalog_option", null), _catalog_key_from_option(_floor_catalog_option))
 	_on_option_changed(0)
 
 
@@ -1837,6 +1996,32 @@ func _on_tile_setting_changed(_value: float) -> void:
 	if _suppress_tile_settings_apply:
 		return
 	_apply_tile_settings_to_current_layer()
+
+
+func _on_floor_catalog_selected(index: int) -> void:
+	var key = _catalog_key_from_option(_floor_catalog_option, index)
+	if key == "":
+		return
+	if _apply_catalog_config_to_spins(
+		_catalog_tile_config(key, _floor_tile_fallback()),
+		_floor_source_spin,
+		_floor_atlas_x_spin,
+		_floor_atlas_y_spin
+	):
+		_apply_tile_settings_to_current_layer()
+
+
+func _on_wall_catalog_selected(index: int) -> void:
+	var key = _catalog_key_from_option(_wall_catalog_option, index)
+	if key == "":
+		return
+	if _apply_catalog_config_to_spins(
+		_catalog_tile_config(key, _wall_tile_fallback()),
+		_wall_source_spin,
+		_wall_atlas_x_spin,
+		_wall_atlas_y_spin
+	):
+		_apply_tile_settings_to_current_layer()
 
 
 func _on_generate_pressed() -> void:
@@ -2066,13 +2251,16 @@ func _overlay_item_tile_configs() -> Dictionary:
 		var tile_source_spin: SpinBox = item_row["tile_source"]
 		var tile_atlas_x_spin: SpinBox = item_row["tile_atlas_x"]
 		var tile_atlas_y_spin: SpinBox = item_row["tile_atlas_y"]
-		result[_overlay_item_pool_row_name(item_row, index)] = HexOverlayTileAdapter.tile_config(
+		var item_name = _overlay_item_pool_row_name(item_row, index)
+		var fallback = HexOverlayTileAdapter.tile_config(
 			int(tile_source_spin.value),
 			Vector2i(
 				int(tile_atlas_x_spin.value),
 				int(tile_atlas_y_spin.value)
 			)
 		)
+		var catalog_key = _catalog_key_from_option(item_row.get("catalog_option", null))
+		result[item_name] = _catalog_tile_config(catalog_key, fallback) if catalog_key != "" else fallback
 	for item_key in _current_overlay_data.item_keys():
 		if not result.has(item_key):
 			result[item_key] = fallback_config
@@ -3611,6 +3799,17 @@ func _set_generation_controls_disabled(disabled: bool) -> void:
 		_torus_connectivity_check,
 		_dist_option,
 		_dist_edit_button,
+		_tile_orientation_option,
+		_tile_width_spin,
+		_tile_height_spin,
+		_floor_catalog_option,
+		_wall_catalog_option,
+		_floor_source_spin,
+		_floor_atlas_x_spin,
+		_floor_atlas_y_spin,
+		_wall_source_spin,
+		_wall_atlas_x_spin,
+		_wall_atlas_y_spin,
 		_overlay_mode_check,
 		_overlay_item_name_edit,
 		_overlay_item_limit_check,
@@ -3642,6 +3841,7 @@ func _set_generation_controls_disabled(disabled: bool) -> void:
 	for item_row in _overlay_item_pool_rows:
 		_set_control_disabled(item_row["name"], disabled)
 		_set_control_disabled(item_row["amount"], disabled)
+		_set_control_disabled(item_row["catalog_option"], disabled)
 		_set_control_disabled(item_row["tile_source"], disabled)
 		_set_control_disabled(item_row["tile_atlas_x"], disabled)
 		_set_control_disabled(item_row["tile_atlas_y"], disabled)

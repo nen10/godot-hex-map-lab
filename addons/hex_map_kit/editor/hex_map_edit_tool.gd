@@ -8,6 +8,7 @@ const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resourc
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
 const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
+const HexTileCatalogResource = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 
@@ -20,6 +21,8 @@ const DOCUMENT_SOURCE_IMPORT := "import"
 const DOCUMENT_SOURCE_LOAD := "load"
 const DOCUMENT_SOURCE_TARGET := "target"
 const DOCUMENT_SOURCE_SAVE := "save"
+const SAMPLE_TILE_CATALOG_PATH := "res://addons/hex_map_kit/assets/sample_hex_tile_catalog.tres"
+const CATALOG_FALLBACK_LABEL := "Advanced numeric fallback"
 
 enum EditMode {
 	SHAPE,
@@ -55,26 +58,31 @@ var _target_layer_scan_root: Node = null
 var _undo_redo = null
 var _object_database: Resource
 var _label_database: Resource
+var _tile_catalog: HexTileCatalogResource
 var _edit_mode := EditMode.WALL_FLOOR
 var _tile_payload := {
 	"source_id": 0,
 	"atlas_coords": Vector2i.ZERO,
 	"alternative_tile": 0,
+	"catalog_key": "",
 }
 var _floor_tile_payload := {
 	"source_id": 0,
 	"atlas_coords": Vector2i.ZERO,
 	"alternative_tile": 0,
+	"catalog_key": "",
 }
 var _wall_tile_payload := {
 	"source_id": 0,
 	"atlas_coords": Vector2i.ZERO,
 	"alternative_tile": 0,
+	"catalog_key": "",
 }
 var _overlay_tile_payload := {
 	"source_id": 0,
 	"atlas_coords": Vector2i.ZERO,
 	"alternative_tile": 0,
+	"catalog_key": "",
 }
 var _overlay_item_key := "Overlay"
 var _object_payload := {
@@ -126,10 +134,13 @@ var _tile_source_spin: SpinBox
 var _tile_atlas_x_spin: SpinBox
 var _tile_atlas_y_spin: SpinBox
 var _tile_alternative_spin: SpinBox
+var _tile_catalog_option: OptionButton
+var _default_floor_catalog_option: OptionButton
 var _default_floor_source_spin: SpinBox
 var _default_floor_atlas_x_spin: SpinBox
 var _default_floor_atlas_y_spin: SpinBox
 var _default_floor_alternative_spin: SpinBox
+var _default_wall_catalog_option: OptionButton
 var _default_wall_source_spin: SpinBox
 var _default_wall_atlas_x_spin: SpinBox
 var _default_wall_atlas_y_spin: SpinBox
@@ -145,6 +156,7 @@ var _target_sample_apply_button: Button
 var _select_display_layer_button: Button
 var _overlay_item_key_edit: LineEdit
 var _overlay_item_key_option: OptionButton
+var _object_catalog_option: OptionButton
 var _object_id_edit: LineEdit
 var _object_properties_edit: LineEdit
 var _label_id_edit: LineEdit
@@ -353,6 +365,15 @@ func label_database() -> Resource:
 	return _label_database
 
 
+func set_tile_catalog(catalog: HexTileCatalogResource) -> void:
+	_tile_catalog = catalog
+	_refresh_catalog_options()
+
+
+func tile_catalog() -> HexTileCatalogResource:
+	return _ensure_tile_catalog()
+
+
 func set_document_path(path: String) -> void:
 	_document_path = path
 	if _document_path_edit != null:
@@ -522,6 +543,7 @@ func set_tile_payload(source_id: int, atlas_coords: Vector2i, alternative_tile: 
 		"source_id": source_id,
 		"atlas_coords": atlas_coords,
 		"alternative_tile": alternative_tile,
+		"catalog_key": "",
 	}
 	_store_current_tile_payload_for_mode()
 	_sync_payload_controls()
@@ -728,6 +750,14 @@ func _build_ui() -> void:
 	var default_tiles_title = Label.new()
 	default_tiles_title.text = "Default Target Tiles"
 	root.add_child(default_tiles_title)
+	var default_catalog_row = HBoxContainer.new()
+	_default_floor_catalog_option = _new_catalog_option("floor")
+	_default_floor_catalog_option.item_selected.connect(_on_default_floor_catalog_selected)
+	default_catalog_row.add_child(_wrap_labeled("Floor Catalog", _default_floor_catalog_option))
+	_default_wall_catalog_option = _new_catalog_option("wall")
+	_default_wall_catalog_option.item_selected.connect(_on_default_wall_catalog_selected)
+	default_catalog_row.add_child(_wrap_labeled("Wall Catalog", _default_wall_catalog_option))
+	root.add_child(default_catalog_row)
 	var default_floor_row = HBoxContainer.new()
 	_default_floor_source_spin = _new_int_spin(0, -1, 4096)
 	_default_floor_atlas_x_spin = _new_int_spin(0, -1, 4096)
@@ -808,6 +838,9 @@ func _build_ui() -> void:
 	sample_row.add_child(_select_display_layer_button)
 	root.add_child(sample_row)
 
+	_tile_catalog_option = _new_catalog_option("floor")
+	_tile_catalog_option.item_selected.connect(_on_tile_catalog_selected)
+	root.add_child(_wrap_labeled("Tile Catalog", _tile_catalog_option))
 	_tile_source_spin = _new_int_spin(0, -1, 4096)
 	_tile_source_spin.value_changed.connect(_on_tile_payload_changed)
 	root.add_child(_wrap_labeled("Tile Source", _tile_source_spin))
@@ -838,6 +871,9 @@ func _build_ui() -> void:
 	_object_id_edit = LineEdit.new()
 	_object_id_edit.placeholder_text = "object_id"
 	_object_id_edit.text_changed.connect(_on_object_payload_changed)
+	_object_catalog_option = _new_catalog_option("object")
+	_object_catalog_option.item_selected.connect(_on_object_catalog_selected)
+	root.add_child(_wrap_labeled("Object Catalog", _object_catalog_option))
 	root.add_child(_wrap_labeled("Object", _object_id_edit))
 	if _can_use_editor_resource_picker():
 		_object_database_picker = EditorResourcePicker.new()
@@ -1278,7 +1314,7 @@ func _apply_document_to_target() -> bool:
 	HexMapDocumentAdapter.apply_to_tile_map_layer(
 		_document,
 		_target_layer,
-		_plain_target_tile_options_for_apply()
+		_plain_target_tile_options_for_document_apply()
 	)
 	_last_applied_to_target = true
 	_last_target_apply_reason = "Applied document to TileMapLayer."
@@ -1471,7 +1507,33 @@ func _on_tile_payload_changed(_value: float) -> void:
 		"source_id": int(_tile_source_spin.value),
 		"atlas_coords": Vector2i(int(_tile_atlas_x_spin.value), int(_tile_atlas_y_spin.value)),
 		"alternative_tile": int(_tile_alternative_spin.value),
+		"catalog_key": "",
 	}
+	_select_catalog_option_by_key(_tile_catalog_option, "")
+	_store_current_tile_payload_for_mode()
+	_refresh_target_status_detail()
+
+
+func _on_tile_catalog_selected(index: int) -> void:
+	var key = _catalog_key_from_option(_tile_catalog_option, index)
+	if key == "":
+		return
+	var fallback = HexMapTileAdapter.tile_config(
+		int(_tile_source_spin.value),
+		Vector2i(int(_tile_atlas_x_spin.value), int(_tile_atlas_y_spin.value)),
+		int(_tile_alternative_spin.value)
+	)
+	var config = _catalog_tile_config(key, fallback)
+	if not _apply_catalog_config_to_spins(
+		config,
+		_tile_source_spin,
+		_tile_atlas_x_spin,
+		_tile_atlas_y_spin,
+		_tile_alternative_spin
+	):
+		return
+	_tile_payload = config.duplicate(true)
+	_tile_payload["catalog_key"] = key
 	_store_current_tile_payload_for_mode()
 	_refresh_target_status_detail()
 
@@ -1575,6 +1637,44 @@ func _on_apply_default_tiles_pressed() -> void:
 		_set_status("No editable target layer.")
 
 
+func _on_default_floor_catalog_selected(index: int) -> void:
+	var key = _catalog_key_from_option(_default_floor_catalog_option, index)
+	if key == "":
+		return
+	var fallback = HexMapTileAdapter.tile_config(
+		int(_default_floor_source_spin.value),
+		Vector2i(int(_default_floor_atlas_x_spin.value), int(_default_floor_atlas_y_spin.value)),
+		int(_default_floor_alternative_spin.value)
+	)
+	if _apply_catalog_config_to_spins(
+		_catalog_tile_config(key, fallback),
+		_default_floor_source_spin,
+		_default_floor_atlas_x_spin,
+		_default_floor_atlas_y_spin,
+		_default_floor_alternative_spin
+	):
+		_on_default_tile_setting_changed(0)
+
+
+func _on_default_wall_catalog_selected(index: int) -> void:
+	var key = _catalog_key_from_option(_default_wall_catalog_option, index)
+	if key == "":
+		return
+	var fallback = HexMapTileAdapter.tile_config(
+		int(_default_wall_source_spin.value),
+		Vector2i(int(_default_wall_atlas_x_spin.value), int(_default_wall_atlas_y_spin.value)),
+		int(_default_wall_alternative_spin.value)
+	)
+	if _apply_catalog_config_to_spins(
+		_catalog_tile_config(key, fallback),
+		_default_wall_source_spin,
+		_default_wall_atlas_x_spin,
+		_default_wall_atlas_y_spin,
+		_default_wall_alternative_spin
+	):
+		_on_default_tile_setting_changed(0)
+
+
 func _on_copy_debug_report_pressed() -> void:
 	if copy_debug_report_to_clipboard():
 		_set_status("Copied debug report.")
@@ -1641,11 +1741,22 @@ func _on_object_payload_changed(_text: String) -> void:
 	_object_payload["object_id"] = _object_id_edit.text
 	var parsed = JSON.parse_string(_object_properties_edit.text)
 	_object_payload["properties"] = parsed if parsed is Dictionary else {}
+	_select_catalog_option_by_key(_object_catalog_option, String(_object_payload.get("object_id", "")))
 
 
 func _on_label_payload_changed(_text: String) -> void:
 	_label_payload["label_id"] = _label_id_edit.text
 	_label_payload["text"] = _label_text_edit.text
+
+
+func _on_object_catalog_selected(index: int) -> void:
+	var key = _catalog_key_from_option(_object_catalog_option, index)
+	if key == "":
+		return
+	_object_payload["object_id"] = key
+	if _object_id_edit != null:
+		_object_id_edit.text = key
+	_refresh_target_status_detail()
 
 
 func _store_current_tile_payload_for_mode() -> void:
@@ -1675,11 +1786,13 @@ func _sync_payload_controls() -> void:
 		_tile_atlas_x_spin.set_value_no_signal(int(_tile_payload.get("atlas_coords", Vector2i.ZERO).x))
 		_tile_atlas_y_spin.set_value_no_signal(int(_tile_payload.get("atlas_coords", Vector2i.ZERO).y))
 		_tile_alternative_spin.set_value_no_signal(int(_tile_payload.get("alternative_tile", 0)))
+		_populate_catalog_option(_tile_catalog_option, _tile_catalog_tag_for_mode(), String(_tile_payload.get("catalog_key", "")))
 	if _overlay_item_key_edit != null:
 		_overlay_item_key_edit.text = _overlay_item_key
 	if _object_id_edit != null:
 		_object_id_edit.text = String(_object_payload.get("object_id", ""))
 		_object_properties_edit.text = JSON.stringify(_object_payload.get("properties", {}))
+		_populate_catalog_option(_object_catalog_option, "object", String(_object_payload.get("object_id", "")))
 	if _label_id_edit != null:
 		_label_id_edit.text = String(_label_payload.get("label_id", ""))
 		_label_text_edit.text = String(_label_payload.get("text", ""))
@@ -1692,12 +1805,14 @@ func _refresh_payload_controls_visibility() -> void:
 	var show_overlay = _edit_mode == EditMode.OVERLAY_TILE
 	var show_object = _edit_mode == EditMode.OBJECT
 	var show_label = _edit_mode == EditMode.LABEL
+	_set_control_row_visible(_tile_catalog_option, show_tile)
 	_set_control_row_visible(_tile_source_spin, show_tile)
 	_set_control_row_visible(_tile_atlas_x_spin, show_tile)
 	_set_control_row_visible(_tile_atlas_y_spin, show_tile)
 	_set_control_row_visible(_tile_alternative_spin, show_tile)
 	_set_control_row_visible(_overlay_item_key_edit, show_overlay)
 	_set_control_row_visible(_overlay_item_key_option, show_overlay)
+	_set_control_row_visible(_object_catalog_option, show_object)
 	_set_control_row_visible(_object_id_edit, show_object)
 	_set_control_row_visible(_object_properties_edit, show_object)
 	_set_control_row_visible(_object_database_picker, show_object)
@@ -1999,12 +2114,14 @@ func _default_tile_settings_from_controls() -> Dictionary:
 			int(_default_floor_atlas_y_spin.value)
 		),
 		"floor_alternative_tile": int(_default_floor_alternative_spin.value),
+		"floor_catalog_key": _catalog_key_from_option(_default_floor_catalog_option),
 		"wall_source_id": int(_default_wall_source_spin.value),
 		"wall_atlas_coords": Vector2i(
 			int(_default_wall_atlas_x_spin.value),
 			int(_default_wall_atlas_y_spin.value)
 		),
 		"wall_alternative_tile": int(_default_wall_alternative_spin.value),
+		"wall_catalog_key": _catalog_key_from_option(_default_wall_catalog_option),
 		"clear_layer": true,
 	}
 
@@ -2017,11 +2134,13 @@ func _sync_default_tile_controls_from_options(options: Dictionary) -> void:
 	_default_floor_atlas_x_spin.set_value_no_signal(int(floor_atlas.x))
 	_default_floor_atlas_y_spin.set_value_no_signal(int(floor_atlas.y))
 	_default_floor_alternative_spin.set_value_no_signal(int(options.get("floor_alternative_tile", 0)))
+	_select_catalog_option_by_key(_default_floor_catalog_option, String(options.get("floor_catalog_key", "")))
 	_default_wall_source_spin.set_value_no_signal(int(options.get("wall_source_id", 0)))
 	var wall_atlas = options.get("wall_atlas_coords", Vector2i(1, 0))
 	_default_wall_atlas_x_spin.set_value_no_signal(int(wall_atlas.x))
 	_default_wall_atlas_y_spin.set_value_no_signal(int(wall_atlas.y))
 	_default_wall_alternative_spin.set_value_no_signal(int(options.get("wall_alternative_tile", 0)))
+	_select_catalog_option_by_key(_default_wall_catalog_option, String(options.get("wall_catalog_key", "")))
 
 
 func _read_target_tile_settings(mark_explicit: bool = true) -> bool:
@@ -2231,13 +2350,21 @@ func _plain_target_tile_options_for_apply() -> Dictionary:
 		"floor_source_id": 0,
 		"floor_atlas_coords": Vector2i.ZERO,
 		"floor_alternative_tile": 0,
+		"floor_catalog_key": "",
 		"wall_source_id": 0,
 		"wall_atlas_coords": Vector2i(1, 0),
 		"wall_alternative_tile": 0,
+		"wall_catalog_key": "",
 		"clear_layer": true,
 	}
 	for key in _plain_target_tile_options:
 		options[key] = _plain_target_tile_options[key]
+	return options
+
+
+func _plain_target_tile_options_for_document_apply() -> Dictionary:
+	var options = _plain_target_tile_options_for_apply()
+	options["tile_catalog"] = _ensure_tile_catalog()
 	return options
 
 
@@ -2826,6 +2953,104 @@ func _new_int_spin(value: int, min_value: int, max_value: int) -> SpinBox:
 	spin.allow_greater = true
 	spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	return spin
+
+
+func _new_catalog_option(tag: String, selected_key: String = "") -> OptionButton:
+	var option = OptionButton.new()
+	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_populate_catalog_option(option, tag, selected_key)
+	return option
+
+
+func _ensure_tile_catalog() -> HexTileCatalogResource:
+	if _tile_catalog == null:
+		_tile_catalog = load(SAMPLE_TILE_CATALOG_PATH) as HexTileCatalogResource
+	return _tile_catalog
+
+
+func _refresh_catalog_options() -> void:
+	_populate_catalog_option(_default_floor_catalog_option, "floor", _catalog_key_from_option(_default_floor_catalog_option))
+	_populate_catalog_option(_default_wall_catalog_option, "wall", _catalog_key_from_option(_default_wall_catalog_option))
+	_populate_catalog_option(_tile_catalog_option, _tile_catalog_tag_for_mode(), String(_tile_payload.get("catalog_key", "")))
+	_populate_catalog_option(_object_catalog_option, "object", String(_object_payload.get("object_id", "")))
+
+
+func _populate_catalog_option(option: OptionButton, tag: String, selected_key: String = "") -> void:
+	if option == null:
+		return
+	option.clear()
+	option.add_item(CATALOG_FALLBACK_LABEL)
+	option.set_item_metadata(0, "")
+	var selected_index := 0
+	var catalog = _ensure_tile_catalog()
+	if catalog != null:
+		for entry in catalog.entries_with_tag(tag):
+			if entry == null:
+				continue
+			var key = String(entry.get("key"))
+			if key == "":
+				continue
+			var label = String(entry.get("display_name"))
+			if label == "":
+				label = key
+			else:
+				label = "%s (%s)" % [label, key]
+			option.add_item(label)
+			var index = option.item_count - 1
+			option.set_item_metadata(index, key)
+			if key == selected_key:
+				selected_index = index
+	option.select(selected_index)
+
+
+func _tile_catalog_tag_for_mode() -> String:
+	match _edit_mode:
+		EditMode.WALL_TILE:
+			return "wall"
+		EditMode.OVERLAY_TILE:
+			return "overlay"
+		_:
+			return "floor"
+
+
+func _catalog_key_from_option(option: OptionButton, index: int = -1) -> String:
+	if option == null or option.item_count <= 0:
+		return ""
+	var selected_index = option.selected if index < 0 else index
+	if selected_index < 0 or selected_index >= option.item_count:
+		return ""
+	return String(option.get_item_metadata(selected_index))
+
+
+func _select_catalog_option_by_key(option: OptionButton, key: String) -> void:
+	if option == null:
+		return
+	for index in range(option.item_count):
+		if String(option.get_item_metadata(index)) == key:
+			option.select(index)
+			return
+	option.select(0)
+
+
+func _catalog_tile_config(key: String, fallback: Dictionary = {}) -> Dictionary:
+	return HexMapTileAdapter.tile_config_from_catalog(_ensure_tile_catalog(), key, fallback)
+
+
+func _apply_catalog_config_to_spins(
+	config: Dictionary,
+	source_spin: SpinBox,
+	atlas_x_spin: SpinBox,
+	atlas_y_spin: SpinBox,
+	alternative_spin: SpinBox
+) -> bool:
+	if int(config.get("source_id", -1)) < 0:
+		return false
+	source_spin.set_value_no_signal(int(config.get("source_id", 0)))
+	var atlas = config.get("atlas_coords", Vector2i.ZERO)
+	atlas_x_spin.set_value_no_signal(int(atlas.x))
+	atlas_y_spin.set_value_no_signal(int(atlas.y))
+	alternative_spin.set_value_no_signal(int(config.get("alternative_tile", 0)))
+	return true
 
 
 func _wrap_labeled(label_text: String, control: Control) -> Control:
