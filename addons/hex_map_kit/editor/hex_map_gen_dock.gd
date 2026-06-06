@@ -9,6 +9,7 @@ const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
 const HexMapDocumentValidator = preload("res://addons/hex_map_kit/adapter/hex_map_document_validator.gd")
+const HexMapDocumentTerrainLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_terrain_layer_resource.gd")
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 const HexOverlayData = preload("res://addons/hex_map_kit/core/hex_overlay_data.gd")
@@ -240,6 +241,7 @@ var _generation_event_order := 0
 var _last_generation_validation_capture_order := 0
 var _last_generation_apply_order := 0
 var _last_batch_generation_results: Array[Dictionary] = []
+var _last_promoted_generation_document = null
 
 
 func _ready() -> void:
@@ -2417,6 +2419,43 @@ func generation_batch_score_table(sort_key: String = "score", descending: bool =
 	return rows
 
 
+func promoted_generation_document():
+	return _last_promoted_generation_document
+
+
+func promote_generation_batch_row(row: Dictionary, options: Dictionary = {}):
+	if row.is_empty():
+		return null
+	var promote_options = options.duplicate(true)
+	if row.has("snapshot") and row["snapshot"] is Dictionary:
+		promote_options["snapshot"] = (row["snapshot"] as Dictionary).duplicate(true)
+	promote_options["score_row"] = row.duplicate(true)
+	return promote_generation_seed_to_document(int(row.get("seed", 0)), promote_options)
+
+
+func promote_generation_seed_to_document(seed: int, options: Dictionary = {}):
+	var snapshot = _promotion_snapshot_for_seed(seed, options)
+	var block_reason = _generation_block_reason_for_snapshot(snapshot)
+	if block_reason != "":
+		push_warning(block_reason)
+		return null
+	var data = _generate_data_from_snapshot(snapshot, {})
+	if data == null:
+		return null
+	var overlay_mode = bool(snapshot.get("overlay_mode", false))
+	var document = _generated_document_snapshot_for_data(
+		_current_data if overlay_mode else data,
+		data if overlay_mode else null
+	)
+	if document == null:
+		return null
+	var validation_result = HexMapDocumentValidator.validate_document(document)
+	var validation_summary = _batch_validation_summary(validation_result, true)
+	_attach_generation_metadata(document, snapshot, seed, validation_summary, options)
+	_last_promoted_generation_document = document
+	return document
+
+
 func debug_report_text() -> String:
 	var lines := PackedStringArray()
 	lines.append("Hex Map Generate Debug Report")
@@ -2494,6 +2533,7 @@ func _generated_document_snapshot():
 
 
 func _generated_document_snapshot_for_data(primary_data, overlay_data):
+	_current_orientation = _tile_settings_orientation()
 	var data = primary_data
 	if data == null and overlay_data != null:
 		data = HexMapData.from_cells(overlay_data.occupied_cells())
@@ -2502,6 +2542,7 @@ func _generated_document_snapshot_for_data(primary_data, overlay_data):
 	var resource = HexMapResource.from_map_data(data, _current_orientation)
 	var document = HexMapDocumentAdapter.from_map_resource(resource)
 	document.ensure_v2_defaults()
+	_ensure_generated_document_terrain_layer(document, data)
 	if overlay_data != null:
 		for item_key in overlay_data.item_keys():
 			for cell in overlay_data.item_cells(item_key):
@@ -2510,6 +2551,17 @@ func _generated_document_snapshot_for_data(primary_data, overlay_data):
 					"item_key": item_key,
 				})
 	return document
+
+
+func _ensure_generated_document_terrain_layer(document, data) -> void:
+	if document == null or data == null:
+		return
+	for layer in document.terrain_layers:
+		if layer != null and layer.get("map") != null:
+			return
+	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
+	terrain_layer.map = HexMapResource.from_map_data(data, _current_orientation)
+	document.terrain_layers.append(terrain_layer)
 
 
 func _batch_seed_list(seed_count: int, options: Dictionary) -> Array[int]:
@@ -2533,6 +2585,8 @@ func _batch_blocked_row(index: int, snapshot: Dictionary, block_reason: String) 
 		"status": "blocked",
 		"block_reason": block_reason,
 		"overlay_mode": bool(snapshot.get("overlay_mode", false)),
+		"snapshot": snapshot.duplicate(true),
+		"generation_snapshot": _metadata_generation_snapshot(snapshot),
 		"score": -100000.0,
 		"validation_summary": _batch_validation_summary(null, false),
 		"validation_errors": 0,
@@ -2550,6 +2604,8 @@ func _batch_result_row(index: int, snapshot: Dictionary, data, options: Dictiona
 		"seed": int(snapshot.get("seed", 0)),
 		"status": "generated" if data != null else "failed",
 		"overlay_mode": overlay_mode,
+		"snapshot": snapshot.duplicate(true),
+		"generation_snapshot": _metadata_generation_snapshot(snapshot),
 		"validation_summary": validation_summary,
 		"validation_errors": int(validation_summary.get("errors", 0)),
 		"validation_warnings": int(validation_summary.get("warnings", 0)),
@@ -2657,6 +2713,48 @@ func _compare_batch_values(left, right) -> int:
 func _is_batch_numeric_value(value) -> bool:
 	var value_type = typeof(value)
 	return value_type == TYPE_INT or value_type == TYPE_FLOAT or value_type == TYPE_BOOL
+
+
+func _promotion_snapshot_for_seed(seed: int, options: Dictionary) -> Dictionary:
+	var snapshot = options.get("snapshot", {})
+	if snapshot is Dictionary and not (snapshot as Dictionary).is_empty():
+		snapshot = (snapshot as Dictionary).duplicate(true)
+	else:
+		snapshot = _create_generation_snapshot()
+	snapshot["seed"] = seed
+	return snapshot
+
+
+func _attach_generation_metadata(
+	document,
+	snapshot: Dictionary,
+	seed: int,
+	validation_summary: Dictionary,
+	options: Dictionary
+) -> void:
+	document.ensure_v2_defaults()
+	document.metadata.generation_seed = seed
+	document.metadata.generation_snapshot = _metadata_generation_snapshot(snapshot)
+	document.metadata.custom_properties["generation_source"] = "hex_map_gen_dock"
+	document.metadata.custom_properties["generation_validation_summary"] = validation_summary.duplicate(true)
+	var score_row = options.get("score_row", {})
+	if score_row is Dictionary:
+		document.metadata.custom_properties["generation_score"] = float((score_row as Dictionary).get("score", 0.0))
+		document.metadata.custom_properties["generation_batch_index"] = int((score_row as Dictionary).get("index", -1))
+
+
+func _metadata_generation_snapshot(snapshot: Dictionary) -> Dictionary:
+	var result = snapshot.duplicate(true)
+	var custom_distribution = result.get("custom_distribution", null)
+	result.erase("custom_distribution")
+	if custom_distribution is Resource:
+		var distribution_resource = custom_distribution as Resource
+		result["custom_distribution_path"] = distribution_resource.resource_path
+		result["custom_distribution_class"] = distribution_resource.get_class()
+	result.erase("generation_id")
+	result.erase("chunk_size")
+	result.erase("progress_delay_usec")
+	return result
 
 
 func _join_lines(lines: PackedStringArray) -> String:

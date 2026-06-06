@@ -137,6 +137,7 @@ func _run() -> void:
 	await _test_generation_dock_validates_generation_result_before_auto_apply()
 	await _test_generation_dock_captures_generation_validation_failure()
 	await _test_generation_dock_batch_runner_scores_and_sorts()
+	await _test_generation_dock_promotes_batch_seed_to_v2_document()
 	await _test_generation_dock_only_generates_from_generate_button()
 	await _test_generation_dock_wires_core_progress_and_cancel()
 	await _test_generation_dock_applies_configured_tile_entries()
@@ -2301,6 +2302,66 @@ func _test_generation_dock_batch_runner_scores_and_sorts() -> void:
 	var seed_table = dock.generation_batch_score_table("seed", false)
 	_assert_eq(int(seed_table[0].get("seed", 0)), 501, "score table sorts by seed ascending")
 	_assert_eq(int(seed_table[2].get("seed", 0)), 503, "score table keeps seed ascending order")
+
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_promotes_batch_seed_to_v2_document() -> void:
+	var dock = await _new_ready_dock()
+	dock._generate_option.select(HexMapGenDock.GENERATE_SIMPLE)
+	dock._shape_option_simple.select(HexMapGenDock.SHAPE_RECTANGLE)
+	dock._rect_width_spin.set_value_no_signal(2)
+	dock._rect_height_spin.set_value_no_signal(1)
+	dock._wall_prob_slider.set_value_no_signal(0.0)
+	dock._connect_method_option.select(_connect_method_index(HexMapGenerator.CONNECT_DENSE))
+	dock._refresh_controls()
+
+	dock.run_generation_batch(2, {"seeds": [801, 802]})
+	var chosen = dock.generation_batch_score_table("score", true)[0]
+	var document = dock.promote_generation_batch_row(chosen)
+	_assert_true(document is HexMapDocumentResource, "promoted seed creates a document resource")
+	_assert_eq(document.version, HexMapDocumentResource.VERSION_V2, "promoted seed creates v2 document")
+	_assert_true(document.metadata != null, "promoted seed creates document metadata")
+	_assert_eq(document.map.to_map_data().cells.size(), 2, "promoted seed stores generated map cells")
+	_assert_eq(document.terrain_layers.size(), 1, "promoted seed stores typed terrain layer")
+	_assert_true(document.terrain_layers[0].map != null, "promoted terrain layer stores map resource")
+	_assert_eq(document.metadata.generation_seed, int(chosen.get("seed", 0)), "promoted metadata stores chosen seed")
+	_assert_eq(
+		int(document.metadata.generation_snapshot.get("seed", 0)),
+		int(chosen.get("seed", 0)),
+		"promoted metadata stores generation snapshot seed"
+	)
+	_assert_eq(
+		int(document.metadata.generation_snapshot.get("rect_width", 0)),
+		2,
+		"promoted metadata stores generation snapshot settings"
+	)
+	_assert_true(
+		not document.metadata.generation_snapshot.has("generation_id"),
+		"promoted metadata omits transient generation id"
+	)
+	_assert_eq(
+		int(document.metadata.custom_properties.get("generation_batch_index", -1)),
+		int(chosen.get("index", -2)),
+		"promoted metadata stores source batch index"
+	)
+	_assert_true(
+		document.metadata.custom_properties.get("generation_validation_summary", {}) is Dictionary,
+		"promoted metadata stores validation summary"
+	)
+
+	var path = _test_resource_path("test_generation_seed_promoted_document.tres")
+	_save_resource(path, document)
+	var loaded = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
+	_assert_true(loaded is HexMapDocumentResource, "promoted seed saved document reloads as document")
+	_assert_eq(loaded.version, HexMapDocumentResource.VERSION_V2, "reloaded promoted document stays v2")
+	_assert_eq(loaded.metadata.generation_seed, document.metadata.generation_seed, "reloaded promoted document keeps seed")
+	_assert_eq(
+		int(loaded.metadata.generation_snapshot.get("seed", 0)),
+		document.metadata.generation_seed,
+		"reloaded promoted document keeps generation snapshot"
+	)
 
 	dock.queue_free()
 	await process_frame

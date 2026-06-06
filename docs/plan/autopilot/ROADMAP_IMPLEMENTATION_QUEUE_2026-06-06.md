@@ -137,8 +137,8 @@ Goal: 生成結果を validation / score / seed promotion に接続する。
 |---|---|---|---|---|---|---|
 | `QA-01` | `COMPLETE` | `VAL-01`, `LD2-04` | `docs/plan/2026-06-06_QA-01_VALIDATION_SUITE_ON_GENERATION/` | Apply validation suite to generation result | generator/editor helpers, tests | Generated map can be validated before promotion; pass/fail result captured. |
 | `QA-02` | `COMPLETE` | `QA-01` | `docs/plan/2026-06-06_QA-02_BATCH_RUNNER_SCORE_TABLE/` | Batch generation runner and score table | `hex_map_gen_dock.gd`, generator helpers, tests | N seeds generate, validation summary and scores sortable/headless-testable. |
-| `QA-03` | `READY` | `QA-02`, `LD2-05` | `docs/plan/2026-06-06_QA-03_SEED_PROMOTION/` | Promote chosen seed to Level Document | generator/editor adapter/tests | Chosen seed creates v2 document with generation snapshot metadata. |
-| `QA-04` | `BACKLOG` | `QA-03` | `docs/plan/2026-06-06_QA-04_GOLDEN_SEED_FIXTURES/` | Golden seed tests and preview artifacts | `tests/test_hex_map_generation.gd`, docs/test fixtures | Deterministic scores/fixtures guard important seeds; preview data exists without requiring visual assertion. |
+| `QA-03` | `COMPLETE` | `QA-02`, `LD2-05` | `docs/plan/2026-06-06_QA-03_SEED_PROMOTION/` | Promote chosen seed to Level Document | generator/editor adapter/tests | Chosen seed creates v2 document with generation snapshot metadata. |
+| `QA-04` | `READY` | `QA-03` | `docs/plan/2026-06-06_QA-04_GOLDEN_SEED_FIXTURES/` | Golden seed tests and preview artifacts | `tests/test_hex_map_generation.gd`, docs/test fixtures | Deterministic scores/fixtures guard important seeds; preview data exists without requiring visual assertion. |
 
 ---
 
@@ -198,11 +198,11 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `QA-03` is READY.
+Current recommended next task: `QA-04` is READY.
 
 Reason:
 
-- Dependency sweep completed on 2026-06-07 after QA-02 completion.
+- Dependency sweep completed on 2026-06-07 after QA-03 completion.
 - `CAT-01` is `COMPLETE`.
 - `CAT-02` is `COMPLETE`.
 - `CAT-03` is `COMPLETE`.
@@ -226,7 +226,8 @@ Reason:
 - `OBJ-05` is `COMPLETE`.
 - `QA-01` is `COMPLETE`.
 - `QA-02` is `COMPLETE`.
-- `QA-03` is now the first READY task by queue order because `QA-02` and `LD2-05` are `COMPLETE`.
+- `QA-03` is `COMPLETE`.
+- `QA-04` is now the first READY task by queue order because `QA-03` is `COMPLETE`.
 - `PKG-01` is also `READY` because `LD2-06`, `GAME-05`, and `OBJ-05` are `COMPLETE`.
 - `ARCH-03` is also `READY` because `ARCH-01` and `OBJ-03` are `COMPLETE`.
 - `ARCH-02` is also `READY` because `ARCH-01` and `CATUI-01` are `COMPLETE`.
@@ -236,6 +237,32 @@ Reason:
 ---
 
 ## 12. Completed task proof log
+
+### QA-03
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot
+plan: `docs/plan/2026-06-06_QA-03_SEED_PROMOTION/`
+review: `docs/review/autopilot/QA-03_SELF_REVIEW_2026-06-07.md`
+test result: `docs/review/autopilot/QA-03_TEST_RESULT_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+- docs:
+  - `docs/TEST.md`
+  - `docs/review/autopilot/QA-03_SELF_REVIEW_2026-06-07.md`
+  - `docs/review/autopilot/QA-03_TEST_RESULT_2026-06-07.md`
+- major files:
+  - `addons/hex_map_kit/editor/hex_map_gen_dock.gd`
+  - `tests/test_editor_plugin.gd`
+
+Notes:
+
+- Chosen batch rows can now be promoted to v2 documents with generation snapshot metadata.
+- `QA-04` was promoted to READY by dependency sweep.
+- No `repair-now` items remain.
 
 ### QA-02
 
