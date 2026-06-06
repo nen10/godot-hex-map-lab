@@ -28,8 +28,15 @@ Hex 座標系・ランダム壁生成・通路生成(連結性回復)処理を G
 セットアップと利用方法は以下を参照してください。
 
 - `docs/manual/MANUAL_SETUP.md`
+- `docs/manual/MANUAL_WORKFLOW.md`
 - `docs/manual/MANUAL_SCRIPTING.md`
 - `docs/manual/MANUAL_EDITOR_PLUGIN.md`
+- `docs/api/API_REFERENCE.md`
+
+Examples:
+
+- `examples/basic_runtime/`
+- `examples/editor_workflow/`
 
 アルゴリズム詳細:
 
@@ -71,6 +78,8 @@ addons/hex_map_kit/
   editor/    EditorPlugin UI
 debug/       視覚確認用 scene
 docs/        manual、algorithm note、plan、test note
+docs/api/    public API reference
+examples/    runtime and editor-workflow samples
 tests/       headless Godot test scripts
 tools/       test/debug 起動 script
 ```

@@ -149,8 +149,8 @@ Goal: v2 API に合わせた package、examples、manual、migration guide を�
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
 | `PKG-01` | `COMPLETE` | `LD2-06`, `GAME-05`, `OBJ-05` | `docs/plan/2026-06-06_PKG-01_EXAMPLES/` | `examples/basic_runtime` and `examples/editor_workflow` | examples, debug scene tests | Examples load without editor-only errors; test/debug scene checks resource paths. |
-| `PKG-02` | `READY` | `PKG-01`, `CATUI-01`, `VAL-03` | `docs/plan/2026-06-06_PKG-02_DOCS_API_MANUAL_SPLIT/` | API docs and workflow manual split | `docs/api`, `docs/manual`, `README.md` | Docs explain setup, document v2, catalog/layer stack, validation, runtime query. |
-| `PKG-03` | `BACKLOG` | `PKG-02` | `docs/plan/2026-06-06_PKG-03_PACKAGE_ADDON/` | package script, manifest test, migration guide | `tools/package_addon.sh`, `dist`, tests | Addon-only zip can be built; manifest excludes dev-only files; migration guide v0.2 -> v0.3 exists. Human check only before public release upload. |
+| `PKG-02` | `COMPLETE` | `PKG-01`, `CATUI-01`, `VAL-03` | `docs/plan/2026-06-06_PKG-02_DOCS_API_MANUAL_SPLIT/` | API docs and workflow manual split | `docs/api`, `docs/manual`, `README.md` | Docs explain setup, document v2, catalog/layer stack, validation, runtime query. |
+| `PKG-03` | `READY` | `PKG-02` | `docs/plan/2026-06-06_PKG-03_PACKAGE_ADDON/` | package script, manifest test, migration guide | `tools/package_addon.sh`, `dist`, tests | Addon-only zip can be built; manifest excludes dev-only files; migration guide v0.2 -> v0.3 exists. Human check only before public release upload. |
 
 ---
 
@@ -198,11 +198,11 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `PKG-02` is READY.
+Current recommended next task: `PKG-03` is READY.
 
 Reason:
 
-- Dependency sweep completed on 2026-06-07 after PKG-01 completion.
+- Dependency sweep completed on 2026-06-07 after PKG-02 completion.
 - `CAT-01` is `COMPLETE`.
 - `CAT-02` is `COMPLETE`.
 - `CAT-03` is `COMPLETE`.
@@ -229,8 +229,9 @@ Reason:
 - `QA-03` is `COMPLETE`.
 - `QA-04` is `COMPLETE`.
 - `PKG-01` is `COMPLETE`.
-- `PKG-02` was promoted to READY because `PKG-01`, `CATUI-01`, and `VAL-03` are `COMPLETE`.
-- `PKG-02` is now the first READY task by queue order.
+- `PKG-02` is `COMPLETE`.
+- `PKG-03` was promoted to READY because `PKG-02` is `COMPLETE`.
+- `PKG-03` is now the first READY task by queue order.
 - `ARCH-03` is also `READY` because `ARCH-01` and `OBJ-03` are `COMPLETE`.
 - `ARCH-02` is also `READY` because `ARCH-01` and `CATUI-01` are `COMPLETE`.
 - `ARCH-04` is also `READY` because `VAL-02` is `COMPLETE`.
@@ -239,6 +240,36 @@ Reason:
 ---
 
 ## 12. Completed task proof log
+
+### PKG-02
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot
+plan: `docs/plan/2026-06-06_PKG-02_DOCS_API_MANUAL_SPLIT/`
+review: `docs/review/autopilot/PKG-02_SELF_REVIEW_2026-06-07.md`
+test result: `docs/review/autopilot/PKG-02_TEST_RESULT_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+- docs:
+  - `docs/api/API_REFERENCE.md`
+  - `docs/manual/MANUAL_WORKFLOW.md`
+  - `docs/manual/MANUAL_SCRIPTING.md`
+  - `README.md`
+  - `docs/review/autopilot/PKG-02_SELF_REVIEW_2026-06-07.md`
+  - `docs/review/autopilot/PKG-02_TEST_RESULT_2026-06-07.md`
+- major files:
+  - `docs/api/API_REFERENCE.md`
+  - `docs/manual/MANUAL_WORKFLOW.md`
+  - `README.md`
+
+Notes:
+
+- Docs now split concise API reference from workflow manual coverage for setup, document v2, catalog/layer stack, validation, runtime query, and examples.
+- `PKG-03` was promoted to READY by dependency sweep.
+- No `repair-now` items remain.
 
 ### PKG-01
 
