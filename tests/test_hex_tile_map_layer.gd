@@ -49,6 +49,7 @@ func _run() -> void:
 	await _test_apply_v2_document_payloads_create_visible_tile_and_markers()
 	await _test_layer_stack_standard_template_roles()
 	await _test_layer_stack_resource_roundtrips()
+	await _test_apply_document_to_layer_stack_routes_v2_roles()
 	await _test_ensure_display_tiles_uses_custom_floor_wall_sources()
 	await _test_display_tile_size_syncs_hex_size_and_overlay()
 	await _test_display_tile_set_resource_persists_through_packed_scene()
@@ -344,6 +345,73 @@ func _test_layer_stack_resource_roundtrips() -> void:
 	_assert_true(loaded.layers[0] is HexLayerStackEntryResource, "loaded layer stack preserves typed entries")
 	_assert_eq(loaded.first_layer_for_role(HexLayerStackResource.ROLE_TERRAIN).node_name, "TerrainTileMapLayer", "loaded layer stack preserves node name")
 	_assert_eq(loaded.metadata["template"], "standard", "loaded layer stack preserves metadata")
+	await process_frame
+
+
+func _test_apply_document_to_layer_stack_routes_v2_roles() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	data.set_walls([HexVector.q_axis()])
+	var document = HexMapDocumentResource.new()
+	document.ensure_v2_defaults()
+
+	var terrain_layer_resource = HexMapDocumentTerrainLayerResource.new()
+	terrain_layer_resource.map = HexMapResource.from_map_data(data)
+	terrain_layer_resource.tile_assignments.append({
+		"cell": Vector3i.ZERO,
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"source_id": 0,
+		"atlas_coords": Vector2i(1, 0),
+	})
+	terrain_layer_resource.tile_assignments.append({
+		"cell": Vector3i(1, 0, 0),
+		"kind": HexMapDocumentAdapter.KIND_WALL,
+		"source_id": 0,
+		"atlas_coords": Vector2i(0, 0),
+	})
+	document.terrain_layers.append(terrain_layer_resource)
+
+	var overlay_layer_resource = HexMapDocumentOverlayLayerResource.new()
+	overlay_layer_resource.item_key = "Treasure"
+	overlay_layer_resource.tile_assignments.append({
+		"cell": Vector3i.ZERO,
+		"source_id": 0,
+		"atlas_coords": Vector2i(1, 0),
+	})
+	document.overlay_layers.append(overlay_layer_resource)
+
+	var stack = HexLayerStackResource.standard_template()
+	var layer = HexTileMapLayer.new()
+	root.add_child(layer)
+	await process_frame
+
+	_assert_true(layer.apply_document_to_layer_stack(document, stack), "layer stack apply returns success")
+	var terrain_node = layer.layer_for_stack_role(HexLayerStackResource.ROLE_TERRAIN)
+	var overlay_node = layer.layer_for_stack_role(HexLayerStackResource.ROLE_OVERLAY)
+	var object_node = layer.layer_for_stack_role(HexLayerStackResource.ROLE_OBJECT)
+	var collision_node = layer.layer_for_stack_role(HexLayerStackResource.ROLE_COLLISION)
+	var navigation_node = layer.layer_for_stack_role(HexLayerStackResource.ROLE_NAVIGATION)
+	var debug_node = layer.layer_for_stack_role(HexLayerStackResource.ROLE_DEBUG)
+
+	_assert_true(terrain_node is TileMapLayer, "layer stack creates terrain TileMapLayer")
+	_assert_true(overlay_node is TileMapLayer, "layer stack creates overlay TileMapLayer")
+	_assert_true(object_node is TileMapLayer, "layer stack creates object role layer")
+	_assert_true(collision_node is TileMapLayer, "layer stack creates collision role layer")
+	_assert_true(navigation_node is TileMapLayer, "layer stack creates navigation role layer")
+	_assert_true(debug_node is TileMapLayer, "layer stack creates debug role layer")
+	_assert_true(layer.display_tile_map_layer() == terrain_node, "display tile map uses terrain role in stack mode")
+	_assert_eq((terrain_node as TileMapLayer).get_cell_atlas_coords(Vector2i.ZERO), Vector2i(1, 0), "terrain role receives floor tile override")
+	_assert_eq((terrain_node as TileMapLayer).get_cell_atlas_coords(Vector2i(1, 0)), Vector2i(0, 0), "terrain role receives wall tile override")
+	_assert_eq((overlay_node as TileMapLayer).get_cell_atlas_coords(Vector2i.ZERO), Vector2i(1, 0), "overlay role receives overlay tile")
+	_assert_eq((collision_node as CanvasItem).visible, false, "collision role visibility follows template")
+	_assert_eq((navigation_node as CanvasItem).visible, false, "navigation role visibility follows template")
+
+	var plain_layer = TileMapLayer.new()
+	HexMapDocumentAdapter.apply_to_tile_map_layer(document, plain_layer)
+	_assert_eq(plain_layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(1, 0), "plain TileMapLayer document apply remains compatible")
+	_assert_eq(plain_layer.get_cell_atlas_coords(Vector2i(1, 0)), Vector2i(0, 0), "plain TileMapLayer wall apply remains compatible")
+	plain_layer.free()
+
+	layer.queue_free()
 	await process_frame
 
 

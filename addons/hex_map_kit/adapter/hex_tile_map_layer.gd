@@ -7,6 +7,7 @@ const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_
 const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexOverlayTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_overlay_tile_adapter.gd")
+const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
 const HexGrid = preload("res://addons/hex_map_kit/core/hex_grid.gd")
 const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
@@ -66,6 +67,7 @@ class OverlayCanvas:
 		display_tile_set_resource = v
 		if is_node_ready():
 			_apply_display_tile_set_resource()
+@export var layer_stack_resource: HexLayerStackResource
 
 @export var floor_source_id: int = 0
 @export var floor_atlas_coords: Vector2i = Vector2i.ZERO
@@ -249,6 +251,57 @@ func apply_document(document) -> void:
 		return
 	apply_map(resource)
 	_apply_document_payloads(snapshot)
+
+
+func apply_document_to_layer_stack(
+	document,
+	stack: HexLayerStackResource = null,
+	options: Dictionary = {}
+) -> bool:
+	if document == null:
+		return false
+	var active_stack = stack
+	if active_stack == null:
+		active_stack = layer_stack_resource
+	if active_stack == null:
+		active_stack = HexLayerStackResource.minimal_runtime_template()
+	layer_stack_resource = active_stack
+
+	var snapshot = HexMapDocumentAdapter.duplicate_document(document)
+	var resource = HexMapDocumentAdapter.to_map_resource(snapshot)
+	_hex_map_setter_suppressed = true
+	hex_map = resource
+	_hex_map_setter_suppressed = false
+	if not is_node_ready():
+		_pending_document_payloads = snapshot
+		return true
+
+	var role_layers = _ensure_layer_stack_layers(active_stack)
+	var terrain_layer = role_layers.get(HexLayerStackResource.ROLE_TERRAIN, null)
+	if terrain_layer is TileMapLayer:
+		_tile_map = terrain_layer
+	var overlay_layer = role_layers.get(HexLayerStackResource.ROLE_OVERLAY, null)
+	if overlay_layer is TileMapLayer:
+		_overlay_tile_map = overlay_layer
+
+	_apply_layer_stack_tile_options(options)
+	_configure_tile_map()
+	_sync_stack_tile_map_sets(role_layers)
+	apply_map(resource)
+	_apply_document_payloads(snapshot)
+	return true
+
+
+func layer_for_stack_role(role: String):
+	if layer_stack_resource == null:
+		return null
+	var layer_entry = layer_stack_resource.first_layer_for_role(role)
+	if layer_entry == null:
+		return null
+	var node_name = String(layer_entry.get("node_name"))
+	if node_name == "":
+		return null
+	return get_node_or_null(NodePath(node_name))
 
 
 func apply_document_cell(document, hex: HexVector) -> bool:
@@ -1382,12 +1435,18 @@ func _queue_visual_redraw() -> void:
 
 
 func _ensure_tile_map_layers() -> void:
+	var stack_terrain_name = _layer_stack_node_name(HexLayerStackResource.ROLE_TERRAIN)
+	var stack_overlay_name = _layer_stack_node_name(HexLayerStackResource.ROLE_OVERLAY)
 	for child in get_children(true):
-		if child is TileMapLayer and child.name == BASE_TILE_MAP_NAME:
+		if child is TileMapLayer and stack_terrain_name != "" and child.name == stack_terrain_name:
+			_tile_map = child
+		elif child is TileMapLayer and stack_overlay_name != "" and child.name == stack_overlay_name:
+			_overlay_tile_map = child
+		elif child is TileMapLayer and child.name == BASE_TILE_MAP_NAME and _tile_map == null:
 			_tile_map = child
 		elif child is TileMapLayer and child.name == LOOP_TILE_MAP_NAME:
 			_loop_tile_map = child
-		elif child is TileMapLayer and child.name == OVERLAY_TILE_MAP_NAME:
+		elif child is TileMapLayer and child.name == OVERLAY_TILE_MAP_NAME and _overlay_tile_map == null:
 			_overlay_tile_map = child
 		elif child is OverlayCanvas and child.name == OVERLAY_NAME:
 			_overlay = child
@@ -1413,6 +1472,66 @@ func _ensure_tile_map_layers() -> void:
 	_overlay.layer = self
 	_overlay.z_index = 100
 	_overlay.position = Vector2.ZERO
+
+
+func _layer_stack_node_name(role: String) -> String:
+	if layer_stack_resource == null:
+		return ""
+	var entry = layer_stack_resource.first_layer_for_role(role)
+	if entry == null:
+		return ""
+	return String(entry.get("node_name"))
+
+
+func _ensure_layer_stack_layers(stack: HexLayerStackResource) -> Dictionary:
+	var result := {}
+	if stack == null:
+		return result
+	for layer_entry in stack.sorted_layers():
+		if layer_entry == null:
+			continue
+		var node_name = String(layer_entry.get("node_name"))
+		var role = String(layer_entry.get("role"))
+		if node_name == "" or role == "":
+			continue
+		var child = get_node_or_null(NodePath(node_name))
+		if child == null:
+			child = TileMapLayer.new()
+			child.name = node_name
+			add_child(child)
+		if child is CanvasItem:
+			var canvas_item = child as CanvasItem
+			canvas_item.z_index = int(layer_entry.get("z_index"))
+			canvas_item.visible = bool(layer_entry.get("visible"))
+		result[role] = child
+	return result
+
+
+func _apply_layer_stack_tile_options(options: Dictionary) -> void:
+	if options.has("floor_source_id"):
+		floor_source_id = int(options.get("floor_source_id", floor_source_id))
+	if options.has("floor_atlas_coords"):
+		floor_atlas_coords = options.get("floor_atlas_coords", floor_atlas_coords)
+	if options.has("floor_alternative_tile"):
+		floor_alternative_tile = int(options.get("floor_alternative_tile", floor_alternative_tile))
+	if options.has("wall_source_id"):
+		wall_source_id = int(options.get("wall_source_id", wall_source_id))
+	if options.has("wall_atlas_coords"):
+		wall_atlas_coords = options.get("wall_atlas_coords", wall_atlas_coords)
+	if options.has("wall_alternative_tile"):
+		wall_alternative_tile = int(options.get("wall_alternative_tile", wall_alternative_tile))
+
+
+func _sync_stack_tile_map_sets(role_layers: Dictionary) -> void:
+	if _tile_map == null:
+		return
+	if _tile_map.tile_set == null:
+		_configure_tile_map()
+	for role in role_layers:
+		var layer = role_layers[role]
+		if layer is TileMapLayer:
+			(layer as TileMapLayer).tile_set = _tile_map.tile_set
+			(layer as TileMapLayer).position = _tile_map.position
 
 
 func _configure_tile_map() -> void:
