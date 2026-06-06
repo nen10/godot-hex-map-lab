@@ -62,6 +62,7 @@ func _run() -> void:
 	_test_hex_map_document_summary_reports_v2_counts()
 	_test_hex_map_validation_result_serializes_summary_and_warnings()
 	_test_hex_map_document_validator_reports_core_rules()
+	_test_hex_map_document_validator_rule_matrix()
 	_test_hex_map_document_adapter_roundtrips_v2_payload_entries()
 	_test_hex_map_document_adapter_cleans_v2_payloads_for_deleted_cell()
 	_test_hex_map_document_adapter_updates_wall_floor()
@@ -807,6 +808,163 @@ func _test_hex_map_document_validator_reports_core_rules() -> void:
 		"tile_set": tile_set,
 	})
 	_assert_has_issue(missing_tile_result, "document.tile_missing", "validator detects missing catalog tile")
+
+
+func _test_hex_map_document_validator_rule_matrix() -> void:
+	var outside_tile_document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	HexMapDocumentAdapter.set_tile_override(outside_tile_document, HexVector.q_axis(), {
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"source_id": 0,
+		"atlas_coords": Vector2i.ZERO,
+	})
+	_assert_has_issue(
+		HexMapDocumentValidator.validate_document(outside_tile_document),
+		"document.payload_outside_map",
+		"rule matrix detects outside tile payload"
+	)
+	var inside_tile_document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	HexMapDocumentAdapter.set_tile_override(inside_tile_document, HexVector.zero(), {
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"source_id": 0,
+		"atlas_coords": Vector2i.ZERO,
+	})
+	_assert_no_issue(
+		HexMapDocumentValidator.validate_document(inside_tile_document),
+		"document.payload_outside_map",
+		"rule matrix accepts in-map tile payload"
+	)
+
+	var orphan_label_document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	HexMapDocumentAdapter.set_label(orphan_label_document, HexVector.q_axis(), {
+		"label_id": "outside",
+		"text": "Outside",
+	})
+	_assert_has_issue(
+		HexMapDocumentValidator.validate_document(orphan_label_document),
+		"document.orphan_payload",
+		"rule matrix detects orphan label payload"
+	)
+	var attached_label_document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	HexMapDocumentAdapter.set_label(attached_label_document, HexVector.zero(), {
+		"label_id": "inside",
+		"text": "Inside",
+	})
+	_assert_no_issue(
+		HexMapDocumentValidator.validate_document(attached_label_document),
+		"document.orphan_payload",
+		"rule matrix accepts attached label payload"
+	)
+
+	var catalog_document = _catalog_key_document("terrain.floor")
+	_assert_has_issue(
+		HexMapDocumentValidator.validate_document(catalog_document),
+		"document.catalog_missing",
+		"rule matrix detects missing catalog"
+	)
+	var valid_catalog = _catalog_with_atlas_entry("terrain.floor", 0, Vector2i.ZERO)
+	_assert_no_issue(
+		HexMapDocumentValidator.validate_document(catalog_document, {"tile_catalog": valid_catalog}),
+		"document.catalog_missing",
+		"rule matrix accepts provided catalog"
+	)
+
+	var tile_set = TileSet.new()
+	HexMapTileAdapter.configure_sample_tile_set(tile_set)
+	var missing_tile_catalog = _catalog_with_atlas_entry("terrain.floor", 99, Vector2i.ZERO)
+	_assert_has_issue(
+		HexMapDocumentValidator.validate_document(catalog_document, {
+			"tile_catalog": missing_tile_catalog,
+			"tile_set": tile_set,
+		}),
+		"document.tile_missing",
+		"rule matrix detects missing catalog tile"
+	)
+	_assert_no_issue(
+		HexMapDocumentValidator.validate_document(catalog_document, {
+			"tile_catalog": valid_catalog,
+			"tile_set": tile_set,
+		}),
+		"document.tile_missing",
+		"rule matrix accepts present catalog tile"
+	)
+
+	var missing_dependency_document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	var missing_dependency = HexMapDocumentDependencyResource.new()
+	missing_dependency.dependency_id = "missing"
+	missing_dependency.dependency_path = "res://missing_dependency_for_rule_matrix.tres"
+	missing_dependency_document.dependencies.append(missing_dependency)
+	_assert_has_issue(
+		HexMapDocumentValidator.validate_document(missing_dependency_document),
+		"document.dependency_missing",
+		"rule matrix detects missing required dependency"
+	)
+	var optional_dependency_document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	var optional_dependency = HexMapDocumentDependencyResource.new()
+	optional_dependency.dependency_id = "optional-missing"
+	optional_dependency.dependency_path = "res://missing_optional_dependency_for_rule_matrix.tres"
+	optional_dependency.required = false
+	optional_dependency_document.dependencies.append(optional_dependency)
+	_assert_no_issue(
+		HexMapDocumentValidator.validate_document(optional_dependency_document),
+		"document.dependency_missing",
+		"rule matrix accepts optional missing dependency"
+	)
+
+	var wall_data = HexMapData.rectangle(2, 1)
+	wall_data.set_walls([HexVector.q_axis()])
+	var object_on_wall_document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(wall_data))
+	HexMapDocumentAdapter.set_object(object_on_wall_document, HexVector.q_axis(), {"object_id": "chest"})
+	_assert_has_issue(
+		HexMapDocumentValidator.validate_document(object_on_wall_document),
+		"document.object_on_wall",
+		"rule matrix detects object on wall"
+	)
+	var object_on_floor_document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(wall_data))
+	HexMapDocumentAdapter.set_object(object_on_floor_document, HexVector.zero(), {"object_id": "chest"})
+	_assert_no_issue(
+		HexMapDocumentValidator.validate_document(object_on_floor_document),
+		"document.object_on_wall",
+		"rule matrix accepts object on floor"
+	)
+
+
+func _catalog_key_document(catalog_key: String) -> HexMapDocumentResource:
+	var document = HexMapDocumentResource.new()
+	document.ensure_v2_defaults()
+	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
+	terrain_layer.map = HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	terrain_layer.tile_assignments.append({
+		"cell": Vector3i.ZERO,
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"catalog_key": catalog_key,
+		"source_id": 0,
+		"atlas_coords": Vector2i.ZERO,
+	})
+	document.terrain_layers.append(terrain_layer)
+	return document
+
+
+func _catalog_with_atlas_entry(key: String, source_id: int, atlas_coords: Vector2i) -> HexTileCatalogResource:
+	var catalog = HexTileCatalogResource.new()
+	var entry = HexTileCatalogEntry.new()
+	entry.key = key
+	entry.entry_type = HexTileCatalogEntry.TYPE_ATLAS
+	entry.source_id = source_id
+	entry.atlas_coords = atlas_coords
+	catalog.add_entry(entry)
+	return catalog
 
 
 func _test_hex_map_document_adapter_roundtrips_v2_payload_entries() -> void:
