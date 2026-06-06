@@ -15,6 +15,8 @@ const HexMapDocumentOverlayLayerResource = preload("res://addons/hex_map_kit/ada
 const HexMapDocumentTerrainLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_terrain_layer_resource.gd")
 const HexMovementProfileResource = preload("res://addons/hex_map_kit/adapter/hex_movement_profile_resource.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
+const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
+const HexObjectDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_object_definition_resource.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 const HexRuntimeQuerySample = preload("res://examples/basic_runtime/runtime_query_sample.gd")
 
@@ -400,6 +402,26 @@ func _run() -> void:
 	)
 	var missing_query = HexRuntimeQuerySample.query_document_path(_test_resource_path("missing_runtime_query_document.tres"))
 	_assert_true(not bool(missing_query["loaded"]), "runtime query sample reports missing document path")
+
+	var runtime_export_document = _runtime_v2_document()
+	runtime_export_document.object_placements[0].properties = {"loot": true}
+	runtime_export_document.object_placements[0].rotation_degrees = 15.0
+	var object_database = HexObjectDatabaseResource.new()
+	var object_definition = HexObjectDefinitionResource.new()
+	object_definition.id = "chest"
+	object_definition.scene_path = "res://objects/chest.tscn"
+	object_database.add_definition(object_definition)
+	var object_export = HexRuntimeQuerySample.export_runtime_objects(runtime_export_document, object_database)
+	_assert_true(object_export["loaded"], "runtime object export sample returns loaded result")
+	_assert_eq(object_export["authoring_count"], 1, "runtime object export reports authoring count")
+	_assert_eq(object_export["runtime_objects"][0]["object_id"], "chest", "runtime object export keeps object id")
+	_assert_eq(object_export["runtime_objects"][0]["scene_path"], "res://objects/chest.tscn", "runtime object export resolves scene path")
+	_assert_eq(object_export["runtime_objects"][0]["rotation_degrees"], 15.0, "runtime object export keeps rotation")
+	object_export["runtime_objects"][0]["properties"]["runtime_only"] = true
+	_assert_true(
+		not runtime_export_document.object_placements[0].properties.has("runtime_only"),
+		"runtime object export does not mutate authoring properties"
+	)
 
 	scene.queue_free()
 	await process_frame

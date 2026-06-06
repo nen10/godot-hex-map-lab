@@ -125,7 +125,7 @@ Goal: object mode を marker から object placement / scene placement へ上げ
 | `OBJ-02` | `COMPLETE` | `OBJ-01`, `LD2-04` | `docs/plan/2026-06-06_OBJ-02_OBJECT_PLACEMENT_SCHEMA/` | Object placement schema in document | document resource/adapter/tests | Placement has object_id/cell/rotation/variant/properties/spawn_condition; cleanup on deleted cell. |
 | `OBJ-03` | `COMPLETE` | `OBJ-02`, `LD2-05` | `docs/plan/2026-06-06_OBJ-03_OBJECT_EDITOR_UI/` | Object brush and property editor UI | `hex_map_edit_tool.gd`, tests | Object mode edits typed placements; property table state is saved and undoable. |
 | `OBJ-04` | `COMPLETE` | `OBJ-02`, `LST-02` | `docs/plan/2026-06-06_OBJ-04_OBJECT_LAYER_ADAPTER/` | Object layer adapter using scene tile or direct instance prototypes | `hex_tile_map_layer.gd`, object adapter helper, tests | Scene tile prototype and direct instance prototype both work; standard choice documented in policy. |
-| `OBJ-05` | `READY` | `OBJ-03`, `OBJ-04`, `VAL-01` | `docs/plan/2026-06-06_OBJ-05_OBJECT_VALIDATION_RUNTIME_EXPORT/` | Object validation and runtime export policy | validation helper, runtime sample, docs | Detect missing scene, object on wall, duplicate unique object; runtime export keeps authoring/runtime state separate. |
+| `OBJ-05` | `COMPLETE` | `OBJ-03`, `OBJ-04`, `VAL-01` | `docs/plan/2026-06-06_OBJ-05_OBJECT_VALIDATION_RUNTIME_EXPORT/` | Object validation and runtime export policy | validation helper, runtime sample, docs | Detect missing scene, object on wall, duplicate unique object; runtime export keeps authoring/runtime state separate. |
 
 ---
 
@@ -148,7 +148,7 @@ Goal: v2 API に合わせた package、examples、manual、migration guide を�
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `PKG-01` | `BACKLOG` | `LD2-06`, `GAME-05`, `OBJ-05` | `docs/plan/2026-06-06_PKG-01_EXAMPLES/` | `examples/basic_runtime` and `examples/editor_workflow` | examples, debug scene tests | Examples load without editor-only errors; test/debug scene checks resource paths. |
+| `PKG-01` | `READY` | `LD2-06`, `GAME-05`, `OBJ-05` | `docs/plan/2026-06-06_PKG-01_EXAMPLES/` | `examples/basic_runtime` and `examples/editor_workflow` | examples, debug scene tests | Examples load without editor-only errors; test/debug scene checks resource paths. |
 | `PKG-02` | `BACKLOG` | `PKG-01`, `CATUI-01`, `VAL-03` | `docs/plan/2026-06-06_PKG-02_DOCS_API_MANUAL_SPLIT/` | API docs and workflow manual split | `docs/api`, `docs/manual`, `README.md` | Docs explain setup, document v2, catalog/layer stack, validation, runtime query. |
 | `PKG-03` | `BACKLOG` | `PKG-02` | `docs/plan/2026-06-06_PKG-03_PACKAGE_ADDON/` | package script, manifest test, migration guide | `tools/package_addon.sh`, `dist`, tests | Addon-only zip can be built; manifest excludes dev-only files; migration guide v0.2 -> v0.3 exists. Human check only before public release upload. |
 
@@ -162,7 +162,7 @@ Goal F は「別承認待ちの大改修」ではなく、feature task を通す
 |---|---|---|---|---|---|---|
 | `ARCH-01` | `COMPLETE` | `LD2-05` | `docs/plan/2026-06-06_ARCH-01_EDITOR_SESSION_STATE/` | Shared editor session state | new editor session script, `hex_map_gen_dock.gd`, `hex_map_edit_tool.gd`, tests | Generate/Edit target/document state sharing has tests; existing target auto behavior maintained. |
 | `ARCH-02` | `READY` | `ARCH-01`, `CATUI-01` | `docs/plan/2026-06-06_ARCH-02_GENERATE_DOCK_STATE_EVALUATION_SPLIT/` | Separate Generate Dock state evaluation from UI construction | `hex_map_gen_dock.gd`, tests | Existing Generate Dock headless tests pass; catalog UI additions become smaller. |
-| `ARCH-03` | `BACKLOG` | `ARCH-01`, `OBJ-03` | `docs/plan/2026-06-06_ARCH-03_EDIT_TOOL_MUTATION_VIEWPORT_SPLIT/` | Separate Edit Tool mutation and viewport input adapter | `hex_map_edit_tool.gd`, tests | Viewport hit/edit/undo tests pass; object and validation UI can reuse mutation helpers. |
+| `ARCH-03` | `READY` | `ARCH-01`, `OBJ-03` | `docs/plan/2026-06-06_ARCH-03_EDIT_TOOL_MUTATION_VIEWPORT_SPLIT/` | Separate Edit Tool mutation and viewport input adapter | `hex_map_edit_tool.gd`, tests | Viewport hit/edit/undo tests pass; object and validation UI can reuse mutation helpers. |
 | `ARCH-04` | `READY` | `VAL-02` | `docs/plan/2026-06-06_ARCH-04_DOCUMENT_INSPECTOR_COMPONENT/` | Document inspector / validation summary component | new editor component, edit/gen dock integration, tests | Validation/dashboard logic is not embedded only in giant dock file. |
 
 Autopilot selection rule:
@@ -198,7 +198,7 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `OBJ-05` is READY.
+Current recommended next task: `QA-01` is READY.
 
 Reason:
 
@@ -219,12 +219,14 @@ Reason:
 - `GAME-03` is `COMPLETE`.
 - `GAME-04` is `COMPLETE`.
 - `GAME-05` is `COMPLETE`.
-- `QA-01` is also `READY` because its dependencies are complete.
 - `OBJ-01` is `COMPLETE`.
 - `OBJ-02` is `COMPLETE`.
 - `OBJ-03` is `COMPLETE`.
 - `OBJ-04` is `COMPLETE`.
-- `OBJ-05` is now the first READY task by queue order because `OBJ-03`, `OBJ-04`, and `VAL-01` are `COMPLETE`.
+- `OBJ-05` is `COMPLETE`.
+- `QA-01` is now the first READY task by queue order because `VAL-01` and `LD2-04` are `COMPLETE`.
+- `PKG-01` is also `READY` because `LD2-06`, `GAME-05`, and `OBJ-05` are `COMPLETE`.
+- `ARCH-03` is also `READY` because `ARCH-01` and `OBJ-03` are `COMPLETE`.
 - `ARCH-02` is also `READY` because `ARCH-01` and `CATUI-01` are `COMPLETE`.
 - `ARCH-04` is also `READY` because `VAL-02` is `COMPLETE`.
 - Remaining `BACKLOG` tasks still have at least one dependency that is not `COMPLETE` or `COMPLETE_WITH_BACKLOG`.
@@ -232,6 +234,32 @@ Reason:
 ---
 
 ## 12. Completed task proof log
+
+### OBJ-05
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot
+plan: `docs/plan/2026-06-06_OBJ-05_OBJECT_VALIDATION_RUNTIME_EXPORT/`
+review: `docs/review/autopilot/OBJ-05_SELF_REVIEW_2026-06-07.md`
+test result: `docs/review/autopilot/OBJ-05_TEST_RESULT_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+- docs:
+  - `docs/TEST.md`
+  - `examples/basic_runtime/README.md`
+- major files:
+  - `addons/hex_map_kit/adapter/hex_map_document_validator.gd`
+  - `examples/basic_runtime/runtime_query_sample.gd`
+  - `tests/test_hex_adapter.gd`
+  - `tests/test_debug_scenes.gd`
+
+Notes:
+
+- Added object scene missing and duplicate unique validation plus runtime object export copy behavior.
+- `repair-now`: none.
 
 ### OBJ-04
 

@@ -71,6 +71,21 @@ static func query_document(
 	}
 
 
+static func export_runtime_objects(document: HexMapDocumentResource, object_database = null) -> Dictionary:
+	if document == null:
+		return _error_result("Document is missing.")
+	var authoring_entries = HexMapDocumentAdapter.document_object_entries(document)
+	var runtime_objects: Array[Dictionary] = []
+	for entry in authoring_entries:
+		runtime_objects.append(_runtime_object_entry(entry, object_database))
+	return {
+		"loaded": true,
+		"error": "",
+		"authoring_count": authoring_entries.size(),
+		"runtime_objects": runtime_objects,
+	}
+
+
 static func _error_result(message: String) -> Dictionary:
 	return {
 		"loaded": false,
@@ -83,6 +98,28 @@ static func _error_result(message: String) -> Dictionary:
 		"range": {},
 		"range_count": 0,
 	}
+
+
+static func _runtime_object_entry(entry: Dictionary, object_database = null) -> Dictionary:
+	var object_id = String(entry.get("object_id", ""))
+	return {
+		"object_id": object_id,
+		"cell": entry.get("cell", Vector3i.ZERO),
+		"rotation_degrees": float(entry.get("rotation_degrees", entry.get("rotation", 0.0))),
+		"variant": String(entry.get("variant", "")),
+		"properties": entry.get("properties", {}).duplicate(true) if entry.get("properties", {}) is Dictionary else {},
+		"spawn_condition": String(entry.get("spawn_condition", "")),
+		"scene_path": _object_scene_path(entry, object_database, object_id),
+	}
+
+
+static func _object_scene_path(entry: Dictionary, object_database, object_id: String) -> String:
+	var scene_path = String(entry.get("scene_path", ""))
+	if scene_path == "" and object_database != null and object_database.has_method("definition_for_id"):
+		var definition = object_database.definition_for_id(object_id)
+		if definition != null:
+			scene_path = String(definition.get("scene_path"))
+	return scene_path
 
 
 static func _hex_or_default(value, fallback):

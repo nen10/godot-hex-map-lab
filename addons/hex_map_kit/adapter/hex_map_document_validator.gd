@@ -15,6 +15,8 @@ const RULE_CATALOG_MISSING := "document.catalog_missing"
 const RULE_TILE_MISSING := "document.tile_missing"
 const RULE_DEPENDENCY_MISSING := "document.dependency_missing"
 const RULE_OBJECT_ON_WALL := "document.object_on_wall"
+const RULE_OBJECT_SCENE_MISSING := "document.object_scene_missing"
+const RULE_OBJECT_DUPLICATE_UNIQUE := "document.object_duplicate_unique"
 const RULE_PROFILE_REACHABILITY := "movement.profile_reachability"
 
 
@@ -42,7 +44,7 @@ static func validate_document(document, options: Dictionary = {}):
 	var cell_set = data.cell_set()
 	var wall_set = data.wall_set()
 	_validate_tile_entries(result, document, cell_set, options)
-	_validate_object_entries(result, document, cell_set, wall_set)
+	_validate_object_entries(result, document, cell_set, wall_set, options)
 	_validate_label_entries(result, document, cell_set)
 	_validate_dependencies(result, document)
 	_validate_profile_reachability(result, document, data, options)
@@ -136,13 +138,18 @@ static func _validate_catalog_entry_tile(result, entry, tile_set: TileSet, detai
 			result.add_error(RULE_TILE_MISSING, "Catalog scene tile resource is missing.", HexMapValidationResultScript.SCOPE_DEPENDENCY, details)
 
 
-static func _validate_object_entries(result, document, cell_set: Dictionary, wall_set: Dictionary) -> void:
+static func _validate_object_entries(result, document, cell_set: Dictionary, wall_set: Dictionary, options: Dictionary) -> void:
+	var object_database = options.get("object_database", null)
+	var require_object_scenes = bool(options.get("require_object_scenes", object_database != null))
+	var unique_first_cells := {}
 	for entry in HexMapDocumentAdapterScript.document_object_entries(document):
 		var cell = entry.get("cell", Vector3i.ZERO)
 		var hex = _hex_from_component(cell)
+		var object_id = String(entry.get("object_id", ""))
+		var definition = _object_definition(object_database, object_id)
 		var details = {
 			"cell": cell,
-			"object_id": String(entry.get("object_id", "")),
+			"object_id": object_id,
 		}
 		if not cell_set.has(hex.key()):
 			result.add_error(
@@ -158,6 +165,60 @@ static func _validate_object_entries(result, document, cell_set: Dictionary, wal
 				HexMapValidationResultScript.SCOPE_OBJECT,
 				details
 			)
+		if require_object_scenes:
+			var scene_path = _object_scene_path(entry, definition)
+			if scene_path == "" or not ResourceLoader.exists(scene_path):
+				var scene_details = details.duplicate(true)
+				scene_details["scene_path"] = scene_path
+				result.add_error(
+					RULE_OBJECT_SCENE_MISSING,
+					"Object scene is missing: %s." % object_id,
+					HexMapValidationResultScript.SCOPE_OBJECT,
+					scene_details
+				)
+		if object_id != "" and _object_is_unique(entry, definition):
+			if unique_first_cells.has(object_id):
+				var duplicate_details = details.duplicate(true)
+				duplicate_details["metadata"] = {
+					"first_cell": unique_first_cells[object_id],
+				}
+				result.add_error(
+					RULE_OBJECT_DUPLICATE_UNIQUE,
+					"Unique object is placed more than once: %s." % object_id,
+					HexMapValidationResultScript.SCOPE_OBJECT,
+					duplicate_details
+				)
+			else:
+				unique_first_cells[object_id] = cell
+
+
+static func _object_definition(object_database, object_id: String):
+	if object_database == null or object_id == "" or not object_database.has_method("definition_for_id"):
+		return null
+	return object_database.definition_for_id(object_id)
+
+
+static func _object_scene_path(entry: Dictionary, definition) -> String:
+	var scene_path = String(entry.get("scene_path", ""))
+	if scene_path == "" and definition != null:
+		scene_path = String(definition.get("scene_path"))
+	return scene_path
+
+
+static func _object_is_unique(entry: Dictionary, definition) -> bool:
+	var properties = entry.get("properties", {})
+	if properties is Dictionary and bool((properties as Dictionary).get("unique", false)):
+		return true
+	if definition != null:
+		var default_properties = definition.get("default_properties")
+		if default_properties is Dictionary and bool((default_properties as Dictionary).get("unique", false)):
+			return true
+		var tags = definition.get("tags")
+		if tags is PackedStringArray and tags.has("unique"):
+			return true
+		if tags is Array and tags.has("unique"):
+			return true
+	return false
 
 
 static func _validate_label_entries(result, document, cell_set: Dictionary) -> void:

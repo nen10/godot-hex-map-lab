@@ -1040,6 +1040,55 @@ func _test_hex_map_document_validator_rule_matrix() -> void:
 		"rule matrix accepts object on floor"
 	)
 
+	var object_scene_path = _test_resource_path("test_object_scene.tscn")
+	var object_scene_node = Node2D.new()
+	var object_scene = PackedScene.new()
+	_assert_eq(object_scene.pack(object_scene_node), OK, "rule matrix packs object scene")
+	object_scene_node.free()
+	_assert_eq(ResourceSaver.save(object_scene, object_scene_path), OK, "rule matrix saves object scene")
+
+	var missing_scene_database = HexObjectDatabaseResource.new()
+	var missing_scene_definition = HexObjectDefinitionResource.new()
+	missing_scene_definition.id = "missing-scene-object"
+	missing_scene_definition.scene_path = "res://missing_object_scene_for_rule_matrix.tscn"
+	missing_scene_database.add_definition(missing_scene_definition)
+	var missing_scene_document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(HexMapData.rectangle(1, 1)))
+	HexMapDocumentAdapter.set_object(missing_scene_document, HexVector.zero(), {"object_id": "missing-scene-object"})
+	_assert_has_issue(
+		HexMapDocumentValidator.validate_document(missing_scene_document, {"object_database": missing_scene_database}),
+		HexMapDocumentValidator.RULE_OBJECT_SCENE_MISSING,
+		"rule matrix detects missing object scene"
+	)
+	missing_scene_definition.scene_path = object_scene_path
+	missing_scene_database.add_definition(missing_scene_definition)
+	_assert_no_issue(
+		HexMapDocumentValidator.validate_document(missing_scene_document, {"object_database": missing_scene_database}),
+		HexMapDocumentValidator.RULE_OBJECT_SCENE_MISSING,
+		"rule matrix accepts present object scene"
+	)
+
+	var unique_database = HexObjectDatabaseResource.new()
+	var unique_definition = HexObjectDefinitionResource.new()
+	unique_definition.id = "boss"
+	unique_definition.scene_path = object_scene_path
+	unique_definition.default_properties = {"unique": true}
+	unique_database.add_definition(unique_definition)
+	var duplicate_unique_document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(HexMapData.rectangle(2, 1)))
+	HexMapDocumentAdapter.set_object(duplicate_unique_document, HexVector.zero(), {"object_id": "boss"})
+	HexMapDocumentAdapter.set_object(duplicate_unique_document, HexVector.q_axis(), {"object_id": "boss"})
+	_assert_has_issue(
+		HexMapDocumentValidator.validate_document(duplicate_unique_document, {"object_database": unique_database}),
+		HexMapDocumentValidator.RULE_OBJECT_DUPLICATE_UNIQUE,
+		"rule matrix detects duplicate unique object"
+	)
+	unique_definition.default_properties = {}
+	unique_database.add_definition(unique_definition)
+	_assert_no_issue(
+		HexMapDocumentValidator.validate_document(duplicate_unique_document, {"object_database": unique_database}),
+		HexMapDocumentValidator.RULE_OBJECT_DUPLICATE_UNIQUE,
+		"rule matrix accepts duplicate non-unique object"
+	)
+
 
 func _test_hex_map_document_validator_profile_reachability() -> void:
 	var data = HexMapData.rectangle(3, 1)

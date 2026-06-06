@@ -17,3 +17,5 @@ print(result["range_count"])
 ```
 
 The sample uses core/adapter scripts only and does not depend on editor plugin classes.
+
+For object placements, `HexRuntimeQuerySample.export_runtime_objects(document, object_database)` returns copied runtime dictionaries with resolved `scene_path`, rotation, variant, properties, and spawn condition. The helper does not mutate authoring `object_placements`; runtime code can instantiate from the returned data while the document remains an editor/source-of-truth resource.
