@@ -1,0 +1,224 @@
+# Roadmap Implementation Queue 2026-06-06
+
+作成日: 2026-06-06  
+Source roadmap: `docs/review/roadmap/HEX_MAP_KIT_BRAINSTORM_UX_ROADMAP_2026-06-06.md`  
+Orchestration: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
+Commit policy: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
+
+この queue は、人間 validate 済みロードマップを Codex が連続実装するための task 分割である。Plan 作成は承認ゲートではない。各 task は、必要な plan files を作ったら同じ Autopilot run で実装・テスト・self-review・queue 更新まで進める。
+
+---
+
+## 0. Queue operation rules
+
+### status
+
+- `READY`: 依存が満たされた。Codex が次に実装してよい。
+- `BACKLOG`: 依存未完了。
+- `RUNNING`: 現在の Autopilot run 対象。
+- `REPAIR_NOW`: acceptance 未達。次 task へ進まず修正する。
+- `BLOCKED_BY_TEST_ENV`: Godot / CI など環境不足で completion proof を作れない。
+- `COMPLETE`: acceptance と test proof を満たす。
+- `COMPLETE_WITH_BACKLOG`: acceptance は満たし、非blocking follow-up を queue へ追加済み。
+- `SUPERSEDED`: 他 task に吸収済み。
+
+### required proof
+
+各 task の完了時、該当行の `proof` に以下を書く。
+
+```text
+proof:
+  plan: docs/plan/<date>_<TASK_ID>_<slug>/
+  review: docs/review/autopilot/<TASK_ID>_SELF_REVIEW_<date>.md
+  tests:
+    - ./tools/test.sh
+  docs:
+    - docs/TEST.md
+  major files:
+    - ...
+```
+
+### dependency rule
+
+`dependencies` がすべて `COMPLETE` または `COMPLETE_WITH_BACKLOG` になったら、Codex は `BACKLOG` を `READY` に更新してよい。
+
+---
+
+## 1. Phase 0: Autopilot foundation and baseline
+
+Phase 0 は人間承認ゲートではない。後続実装を迷わせないための実行足場である。
+
+| id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
+|---|---|---|---|---|---|---|
+| `AUTO-00` | `COMPLETE` | none | `docs/process/` | Autopilot orchestration docs, queue, repository skill | `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`, `docs/plan/autopilot/ROADMAP_IMPLEMENTATION_QUEUE_2026-06-06.md`, `.agents/skills/hex-map-codex-autopilot/SKILL.md`, `AGENTS.md` | docs-only. Confirm files exist and AGENTS references Autopilot. |
+| `P0-01` | `READY` | `AUTO-00` | `docs/plan/2026-06-06_P0-01_CAPABILITY_MATRIX/` | Current capability matrix and risk register | `docs/review/roadmap/CURRENT_CAPABILITY_MATRIX_2026-06-06.md`, `docs/review/roadmap/RISK_REGISTER_2026-06-06.md` | Docs classify Generate/Edit/Runtime/Document/Test, plain TileMapLayer vs HexTileMapLayer, object/label/overlay schema. No code required. |
+| `P0-02` | `BACKLOG` | `P0-01` | `docs/plan/2026-06-06_P0-02_SCHEMA_BOUNDARY_DECISIONS/` | Non-blocking schema boundary decision record | `docs/review/roadmap/SCHEMA_BOUNDARY_DECISIONS_2026-06-06.md` | Decide maintain/migrate/remove for object labels overlays, TileSet/scene/custom data boundaries. No human approval. |
+| `P0-03` | `BACKLOG` | `AUTO-00` | `docs/plan/2026-06-06_P0-03_TEST_BASELINE/` | Test baseline and environment report | `docs/review/autopilot/P0-03_TEST_BASELINE_2026-06-06.md` | Run `./tools/test.sh`. If Godot missing, mark `BLOCKED_BY_TEST_ENV`; do not mark implementation phases complete. |
+
+---
+
+## 2. Phase 1: Level Document v2
+
+Goal: `HexMapDocumentResource` をゲーム制作で保存・検査・実行ロードできる level document へ育てる。
+
+| id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
+|---|---|---|---|---|---|---|
+| `LD2-01` | `BACKLOG` | `P0-02`, `P0-03` | `docs/plan/2026-06-06_LD2-01_RESOURCE_SCHEMA/` | Level Document v2 typed resource schema | `addons/hex_map_kit/adapter/hex_map_document_resource.gd`, new v2 resource classes if needed, `tests/test_hex_adapter.gd` | v2 fields cover `terrain_layers`, `overlay_layers`, `object_placements`, `labels`, `zones`, `metadata`, `dependencies`; v1 fixtures still load. |
+| `LD2-02` | `BACKLOG` | `LD2-01` | `docs/plan/2026-06-06_LD2-02_MIGRATION/` | v1 -> v2 migration helper and compatibility policy | `addons/hex_map_kit/adapter/hex_map_document_adapter.gd`, migration helper file if needed, `tests/test_hex_adapter.gd` | Migration preserves map/tile_overrides/objects/labels/version; has roundtrip tests and missing-field tests. |
+| `LD2-03` | `BACKLOG` | `LD2-01` | `docs/plan/2026-06-06_LD2-03_SUMMARY_VALIDATION_SCHEMA/` | Document summary and validation result schema | new `HexMapValidationResult` resource/script, adapter helpers, `tests/test_hex_adapter.gd` | Summary reports cells/walls/floors/objects/labels/zones/warnings/dependencies; validation result serializable and testable. |
+| `LD2-04` | `BACKLOG` | `LD2-02`, `LD2-03` | `docs/plan/2026-06-06_LD2-04_ADAPTER_ROUNDTRIP/` | Adapter roundtrip for v2 document | `hex_map_document_adapter.gd`, `hex_tile_map_layer.gd`, `tests/test_hex_adapter.gd`, `tests/test_hex_tile_map_layer.gd` | Roundtrip, payload cleanup, deleted cell cleanup, tile overrides, labels, objects, zones pass. |
+| `LD2-05` | `BACKLOG` | `LD2-04` | `docs/plan/2026-06-06_LD2-05_EDITOR_LOAD_SAVE/` | Edit Dock / Generate Dock document v2 load/save integration | `hex_map_edit_tool.gd`, `hex_map_gen_dock.gd`, `tests/test_editor_plugin.gd`, `docs/TEST.md` | Browse/Load/Save/Export/import flows work with v2 while v1 remains compatible. |
+| `LD2-06` | `BACKLOG` | `LD2-04` | `docs/plan/2026-06-06_LD2-06_RUNTIME_LOAD_SAMPLE/` | Runtime load helper/sample for level document | `hex_tile_map_layer.gd`, `examples/basic_runtime` later or debug scene, `tests/test_debug_scenes.gd` | Runtime can load v2 document into `HexTileMapLayer`; no editor-only dependency in runtime path. |
+
+---
+
+## 3. Phase 2: Tile Catalog + Layer Stack MVP
+
+Goal: `source_id / atlas_coords` の数値入力を、logical key と layer stack に置き換える。
+
+| id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
+|---|---|---|---|---|---|---|
+| `CAT-01` | `BACKLOG` | `LD2-01` | `docs/plan/2026-06-06_CAT-01_CATALOG_RESOURCE/` | `HexTileCatalogResource` and `HexTileCatalogEntry` | new adapter/resource files, sample catalog resource, `tests/test_hex_adapter.gd` | Logical key maps to atlas tile, scene tile, tags, fallback fields. Sample catalog loads. |
+| `CAT-02` | `BACKLOG` | `CAT-01` | `docs/plan/2026-06-06_CAT-02_CATALOG_VALIDATION/` | Catalog validation and custom data reader | catalog validation helper, `tests/test_hex_adapter.gd` | Detect missing source, invalid atlas coords, missing scene, missing TileSet, tag/custom data extraction. |
+| `CAT-03` | `BACKLOG` | `CAT-01`, `LD2-04` | `docs/plan/2026-06-06_CAT-03_CATALOG_BACKED_ADAPTERS/` | Catalog-backed map/overlay tile adapters | `hex_map_tile_adapter.gd`, `hex_overlay_tile_adapter.gd`, `hex_map_document_adapter.gd`, tests | Floor/wall/overlay item key resolves by catalog key; numeric fallback remains advanced/debug path. |
+| `LST-01` | `BACKLOG` | `LD2-01` | `docs/plan/2026-06-06_LST-01_LAYER_STACK_RESOURCE/` | `HexLayerStackResource` and templates | new resource/helper files, `tests/test_hex_tile_map_layer.gd` | Terrain/decoration/object/collision/navigation/overlay/debug roles defined; templates create expected role names. |
+| `LST-02` | `BACKLOG` | `LST-01`, `CAT-03` | `docs/plan/2026-06-06_LST-02_APPLY_DOCUMENT_TO_LAYER_STACK/` | `apply_document_to_layer_stack()` primary path | `hex_tile_map_layer.gd`, adapter helpers, `tests/test_hex_tile_map_layer.gd` | v2 document applies to child layers by role; single plain TileMapLayer path remains compatibility path. |
+| `CATUI-01` | `BACKLOG` | `CAT-03`, `LST-02`, `LD2-05` | `docs/plan/2026-06-06_CATUI-01_CATALOG_SELECTOR_UI/` | Generate/Edit catalog key selectors and advanced fallback UI | `hex_map_gen_dock.gd`, `hex_map_edit_tool.gd`, `tests/test_editor_plugin.gd` | Floor/Wall/Overlay/Object default assignment uses catalog selector; old spin boxes are advanced fallback. |
+| `CAT-04` | `BACKLOG` | `CATUI-01` | `docs/plan/2026-06-06_CAT-04_EXISTING_DOCUMENT_COMPATIBILITY/` | Existing document apply compatibility through catalog/layer stack | adapter + editor tests | Existing v1/v2 docs without catalog still display via fallback with warnings, not silent wrong tiles. |
+
+---
+
+## 4. Phase 3: Validation Dashboard
+
+Goal: document / catalog / object / cell の不整合を UI と debug report で検出できるようにする。
+
+| id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
+|---|---|---|---|---|---|---|
+| `VAL-01` | `BACKLOG` | `LD2-03`, `CAT-02` | `docs/plan/2026-06-06_VAL-01_VALIDATION_ENGINE/` | Validation engine core rules | validation helper, `tests/test_hex_adapter.gd` | Detect outside map, orphan payload, missing catalog, missing tile, missing dependency, object on wall. |
+| `VAL-02` | `BACKLOG` | `VAL-01`, `LD2-05` | `docs/plan/2026-06-06_VAL-02_DASHBOARD_UI/` | Validate tab/panel and error list | `hex_map_edit_tool.gd`, maybe shared dashboard script, `tests/test_editor_plugin.gd` | Validate button produces grouped errors/warnings; clicking cell-scoped error updates selected/focus state in headless-testable way. |
+| `VAL-03` | `BACKLOG` | `VAL-02` | `docs/plan/2026-06-06_VAL-03_DEBUG_REPORT_INTEGRATION/` | Validation summary in Copy Debug Report | `hex_map_edit_tool.gd`, `hex_map_gen_dock.gd`, `tests/test_editor_plugin.gd` | Debug report includes validation summary without bloating normal status. |
+| `VAL-04` | `BACKLOG` | `VAL-01` | `docs/plan/2026-06-06_VAL-04_VALIDATION_RULE_MATRIX/` | Rule matrix fixtures and docs | `tests/test_hex_adapter.gd`, `tests/test_editor_plugin.gd`, `docs/TEST.md` | Each validation rule has at least one failing and passing fixture. |
+
+---
+
+## 5. Phase 4: Gameplay Query Layer MVP
+
+Goal: movement cost / blocker / reachability / range preview を game-facing API として提供する。
+
+| id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
+|---|---|---|---|---|---|---|
+| `GAME-01` | `BACKLOG` | `LD2-04`, `VAL-01` | `docs/plan/2026-06-06_GAME-01_MOVEMENT_PROFILE_RESOURCE/` | `HexMovementProfileResource` and gameplay layer data | new resource/core files, `tests/test_hex_core.gd`, `tests/test_hex_adapter.gd` | Movement profile defines passability, costs, blocker keys, default behavior. |
+| `GAME-02` | `BACKLOG` | `GAME-01` | `docs/plan/2026-06-06_GAME-02_WEIGHTED_PATH_AND_RANGE/` | Weighted pathfinding and movement range API | `hex_grid.gd` or helper, `hex_tile_map_layer.gd`, tests | Weighted path, blocked cells, profile-specific range, existing unweighted path compatibility. |
+| `GAME-03` | `BACKLOG` | `GAME-02`, `VAL-02` | `docs/plan/2026-06-06_GAME-03_DEBUG_OVERLAY/` | Movement/range/debug overlay | `hex_tile_map_layer.gd`, editor/debug scene files, `tests/test_hex_tile_map_layer.gd`, `tests/test_debug_scenes.gd` | Debug overlay can show reachable cells/cost heat data in headless-checkable state. |
+| `GAME-04` | `BACKLOG` | `GAME-02`, `VAL-01` | `docs/plan/2026-06-06_GAME-04_PROFILE_REACHABILITY_VALIDATION/` | Profile-specific reachability validation | validation helpers/tests | Important points mutually reachable per movement profile; validation reports profile id. |
+| `GAME-05` | `BACKLOG` | `GAME-02`, `LD2-06` | `docs/plan/2026-06-06_GAME-05_RUNTIME_QUERY_SAMPLE/` | Runtime query API sample | `examples/basic_runtime` or debug scene, docs/manual | Runtime script can load document and ask movement/path/range queries. |
+
+---
+
+## 6. Phase 5: Object / Scene Placement MVP
+
+Goal: object mode を marker から object placement / scene placement へ上げる。
+
+| id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
+|---|---|---|---|---|---|---|
+| `OBJ-01` | `BACKLOG` | `LD2-01`, `CAT-01` | `docs/plan/2026-06-06_OBJ-01_OBJECT_DATABASE_V2/` | `HexObjectDatabaseResource v2` definitions | `hex_object_database_resource.gd`, new definition script if needed, `tests/test_hex_adapter.gd` | Definition has id/display_name/scene_path/tags/default_properties/preview. Existing Array loads through migration/fallback. |
+| `OBJ-02` | `BACKLOG` | `OBJ-01`, `LD2-04` | `docs/plan/2026-06-06_OBJ-02_OBJECT_PLACEMENT_SCHEMA/` | Object placement schema in document | document resource/adapter/tests | Placement has object_id/cell/rotation/variant/properties/spawn_condition; cleanup on deleted cell. |
+| `OBJ-03` | `BACKLOG` | `OBJ-02`, `LD2-05` | `docs/plan/2026-06-06_OBJ-03_OBJECT_EDITOR_UI/` | Object brush and property editor UI | `hex_map_edit_tool.gd`, tests | Object mode edits typed placements; property table state is saved and undoable. |
+| `OBJ-04` | `BACKLOG` | `OBJ-02`, `LST-02` | `docs/plan/2026-06-06_OBJ-04_OBJECT_LAYER_ADAPTER/` | Object layer adapter using scene tile or direct instance prototypes | `hex_tile_map_layer.gd`, object adapter helper, tests | Scene tile prototype and direct instance prototype both work; standard choice documented in policy. |
+| `OBJ-05` | `BACKLOG` | `OBJ-03`, `OBJ-04`, `VAL-01` | `docs/plan/2026-06-06_OBJ-05_OBJECT_VALIDATION_RUNTIME_EXPORT/` | Object validation and runtime export policy | validation helper, runtime sample, docs | Detect missing scene, object on wall, duplicate unique object; runtime export keeps authoring/runtime state separate. |
+
+---
+
+## 7. Phase 6: Generation QA / Seed Lab
+
+Goal: 生成結果を validation / score / seed promotion に接続する。
+
+| id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
+|---|---|---|---|---|---|---|
+| `QA-01` | `BACKLOG` | `VAL-01`, `LD2-04` | `docs/plan/2026-06-06_QA-01_VALIDATION_SUITE_ON_GENERATION/` | Apply validation suite to generation result | generator/editor helpers, tests | Generated map can be validated before promotion; pass/fail result captured. |
+| `QA-02` | `BACKLOG` | `QA-01` | `docs/plan/2026-06-06_QA-02_BATCH_RUNNER_SCORE_TABLE/` | Batch generation runner and score table | `hex_map_gen_dock.gd`, generator helpers, tests | N seeds generate, validation summary and scores sortable/headless-testable. |
+| `QA-03` | `BACKLOG` | `QA-02`, `LD2-05` | `docs/plan/2026-06-06_QA-03_SEED_PROMOTION/` | Promote chosen seed to Level Document | generator/editor adapter/tests | Chosen seed creates v2 document with generation snapshot metadata. |
+| `QA-04` | `BACKLOG` | `QA-03` | `docs/plan/2026-06-06_QA-04_GOLDEN_SEED_FIXTURES/` | Golden seed tests and preview artifacts | `tests/test_hex_map_generation.gd`, docs/test fixtures | Deterministic scores/fixtures guard important seeds; preview data exists without requiring visual assertion. |
+
+---
+
+## 8. Phase 7: Public Package / Examples
+
+Goal: v2 API に合わせた package、examples、manual、migration guide を作る。
+
+| id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
+|---|---|---|---|---|---|---|
+| `PKG-01` | `BACKLOG` | `LD2-06`, `GAME-05`, `OBJ-05` | `docs/plan/2026-06-06_PKG-01_EXAMPLES/` | `examples/basic_runtime` and `examples/editor_workflow` | examples, debug scene tests | Examples load without editor-only errors; test/debug scene checks resource paths. |
+| `PKG-02` | `BACKLOG` | `PKG-01`, `CATUI-01`, `VAL-03` | `docs/plan/2026-06-06_PKG-02_DOCS_API_MANUAL_SPLIT/` | API docs and workflow manual split | `docs/api`, `docs/manual`, `README.md` | Docs explain setup, document v2, catalog/layer stack, validation, runtime query. |
+| `PKG-03` | `BACKLOG` | `PKG-02` | `docs/plan/2026-06-06_PKG-03_PACKAGE_ADDON/` | package script, manifest test, migration guide | `tools/package_addon.sh`, `dist`, tests | Addon-only zip can be built; manifest excludes dev-only files; migration guide v0.2 -> v0.3 exists. Human check only before public release upload. |
+
+---
+
+## 9. Cross-cutting Editor Architecture Refactor lane
+
+Goal F は「別承認待ちの大改修」ではなく、feature task を通すための companion refactor として queue に置く。Feature implementation を止めるのではなく、巨大 file への増築が acceptance を壊す地点で実行する。
+
+| id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
+|---|---|---|---|---|---|---|
+| `ARCH-01` | `BACKLOG` | `LD2-05` | `docs/plan/2026-06-06_ARCH-01_EDITOR_SESSION_STATE/` | Shared editor session state | new editor session script, `hex_map_gen_dock.gd`, `hex_map_edit_tool.gd`, tests | Generate/Edit target/document state sharing has tests; existing target auto behavior maintained. |
+| `ARCH-02` | `BACKLOG` | `ARCH-01`, `CATUI-01` | `docs/plan/2026-06-06_ARCH-02_GENERATE_DOCK_STATE_EVALUATION_SPLIT/` | Separate Generate Dock state evaluation from UI construction | `hex_map_gen_dock.gd`, tests | Existing Generate Dock headless tests pass; catalog UI additions become smaller. |
+| `ARCH-03` | `BACKLOG` | `ARCH-01`, `OBJ-03` | `docs/plan/2026-06-06_ARCH-03_EDIT_TOOL_MUTATION_VIEWPORT_SPLIT/` | Separate Edit Tool mutation and viewport input adapter | `hex_map_edit_tool.gd`, tests | Viewport hit/edit/undo tests pass; object and validation UI can reuse mutation helpers. |
+| `ARCH-04` | `BACKLOG` | `VAL-02` | `docs/plan/2026-06-06_ARCH-04_DOCUMENT_INSPECTOR_COMPONENT/` | Document inspector / validation summary component | new editor component, edit/gen dock integration, tests | Validation/dashboard logic is not embedded only in giant dock file. |
+
+Autopilot selection rule:
+
+- If a feature task can be implemented without increasing giant-file coupling, continue feature task.
+- If a feature task would add broad state logic to `hex_map_gen_dock.gd` or `hex_map_edit_tool.gd`, run the corresponding `ARCH-*` task first.
+- No human approval is required to schedule an `ARCH-*` task when it reduces implementation risk and has test proof.
+
+---
+
+## 10. Dynamic follow-up queue area
+
+Codex appends tasks here when self-review finds `follow-up-ready` work.
+
+Template:
+
+```md
+### <TASK-ID> <title>
+
+status: READY | BACKLOG  
+dependencies: ...  
+source_review: docs/review/autopilot/<...>.md  
+plan_dir: docs/plan/<date>_<TASK-ID>_<slug>/
+
+deliverable:
+- ...
+
+acceptance / test path:
+- ...
+```
+
+---
+
+## 11. Current pointer
+
+Current recommended next task: `P0-01`.
+
+Reason:
+
+- `AUTO-00` is docs foundation complete in this patch.
+- `P0-01` creates the capability matrix used by schema boundary and Level Document v2 implementation.
+- This is not a human approval gate; after `P0-01`, Codex should automatically run `P0-02`, then `P0-03`, then unlock `LD2-01`.
+
+---
+
+## 12. Completed task proof log
+
+### AUTO-00
+
+status: COMPLETE  
+plan: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md` and `docs/plan/autopilot/ROADMAP_IMPLEMENTATION_QUEUE_2026-06-06.md`  
+review: `docs/review/autopilot/AUTO-00_SELF_REVIEW_2026-06-06.md`  
+test result: `docs/review/autopilot/AUTO-00_TEST_RESULT_2026-06-06.md`
+
+Notes:
+
+- Docs-only foundation created.
+- `./tools/test.sh` was attempted but the current environment lacks Godot: `Godot executable not found. Set GODOT_BIN=/path/to/Godot.`
+- This is recorded as `known-env-failure`; `P0-03` remains the baseline test task for a Godot-capable environment.
