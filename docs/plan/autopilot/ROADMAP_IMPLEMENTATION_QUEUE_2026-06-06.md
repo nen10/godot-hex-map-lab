@@ -78,10 +78,10 @@ Goal: `source_id / atlas_coords` の数値入力を、logical key と layer stac
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `CAT-01` | `BACKLOG` | `LD2-01` | `docs/plan/2026-06-06_CAT-01_CATALOG_RESOURCE/` | `HexTileCatalogResource` and `HexTileCatalogEntry` | new adapter/resource files, sample catalog resource, `tests/test_hex_adapter.gd` | Logical key maps to atlas tile, scene tile, tags, fallback fields. Sample catalog loads. |
+| `CAT-01` | `READY` | `LD2-01` | `docs/plan/2026-06-06_CAT-01_CATALOG_RESOURCE/` | `HexTileCatalogResource` and `HexTileCatalogEntry` | new adapter/resource files, sample catalog resource, `tests/test_hex_adapter.gd` | Logical key maps to atlas tile, scene tile, tags, fallback fields. Sample catalog loads. |
 | `CAT-02` | `BACKLOG` | `CAT-01` | `docs/plan/2026-06-06_CAT-02_CATALOG_VALIDATION/` | Catalog validation and custom data reader | catalog validation helper, `tests/test_hex_adapter.gd` | Detect missing source, invalid atlas coords, missing scene, missing TileSet, tag/custom data extraction. |
 | `CAT-03` | `BACKLOG` | `CAT-01`, `LD2-04` | `docs/plan/2026-06-06_CAT-03_CATALOG_BACKED_ADAPTERS/` | Catalog-backed map/overlay tile adapters | `hex_map_tile_adapter.gd`, `hex_overlay_tile_adapter.gd`, `hex_map_document_adapter.gd`, tests | Floor/wall/overlay item key resolves by catalog key; numeric fallback remains advanced/debug path. |
-| `LST-01` | `BACKLOG` | `LD2-01` | `docs/plan/2026-06-06_LST-01_LAYER_STACK_RESOURCE/` | `HexLayerStackResource` and templates | new resource/helper files, `tests/test_hex_tile_map_layer.gd` | Terrain/decoration/object/collision/navigation/overlay/debug roles defined; templates create expected role names. |
+| `LST-01` | `READY` | `LD2-01` | `docs/plan/2026-06-06_LST-01_LAYER_STACK_RESOURCE/` | `HexLayerStackResource` and templates | new resource/helper files, `tests/test_hex_tile_map_layer.gd` | Terrain/decoration/object/collision/navigation/overlay/debug roles defined; templates create expected role names. |
 | `LST-02` | `BACKLOG` | `LST-01`, `CAT-03` | `docs/plan/2026-06-06_LST-02_APPLY_DOCUMENT_TO_LAYER_STACK/` | `apply_document_to_layer_stack()` primary path | `hex_tile_map_layer.gd`, adapter helpers, `tests/test_hex_tile_map_layer.gd` | v2 document applies to child layers by role; single plain TileMapLayer path remains compatibility path. |
 | `CATUI-01` | `BACKLOG` | `CAT-03`, `LST-02`, `LD2-05` | `docs/plan/2026-06-06_CATUI-01_CATALOG_SELECTOR_UI/` | Generate/Edit catalog key selectors and advanced fallback UI | `hex_map_gen_dock.gd`, `hex_map_edit_tool.gd`, `tests/test_editor_plugin.gd` | Floor/Wall/Overlay/Object default assignment uses catalog selector; old spin boxes are advanced fallback. |
 | `CAT-04` | `BACKLOG` | `CATUI-01` | `docs/plan/2026-06-06_CAT-04_EXISTING_DOCUMENT_COMPATIBILITY/` | Existing document apply compatibility through catalog/layer stack | adapter + editor tests | Existing v1/v2 docs without catalog still display via fallback with warnings, not silent wrong tiles. |
@@ -198,13 +198,15 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: none. No task is currently marked `READY`.
+Current recommended next task: `CAT-01`.
 
 Reason:
 
-- `ARCH-01` is complete and provides shared Generate/Edit editor session state.
-- `ARCH-02` and `ARCH-03` still have unmet feature dependencies.
-- Remaining backlog tasks are not marked `READY` in this queue revision.
+- Dependency sweep completed on 2026-06-07.
+- `CAT-01` is `READY` because `LD2-01` is `COMPLETE`.
+- `LST-01` is also `READY` because `LD2-01` is `COMPLETE`.
+- The dispatcher selects `CAT-01` first by queue order.
+- Remaining `BACKLOG` tasks still have at least one dependency that is not `COMPLETE` or `COMPLETE_WITH_BACKLOG`.
 
 ---
 

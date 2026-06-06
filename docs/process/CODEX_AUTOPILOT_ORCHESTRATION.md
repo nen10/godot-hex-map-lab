@@ -208,7 +208,18 @@ followups:
   - <追加task id or none>
 ```
 
-完了後、Dispatcher は次の `READY` task へ進む。
+Task を `COMPLETE` / `COMPLETE_WITH_BACKLOG` / `BLOCKED_BY_TEST_ENV` / `SPLIT_REQUIRED` / `SUPERSEDED` のいずれかで閉じたら、同じ queue update 内で dependency sweep を必ず行う。
+
+Dependency sweep の手順:
+
+1. queue 全体の task status を読み、`COMPLETE` と `COMPLETE_WITH_BACKLOG` だけを完了済み dependency として扱う。
+2. `BACKLOG` task の `dependencies` を全件確認する。
+3. すべての dependency が完了済みなら、その task を `READY` に変更する。
+4. `RUNNING` / `VERIFYING` / `REPAIR_NOW` / `BLOCKED_BY_TEST_ENV` / `SPLIT_REQUIRED` / `SUPERSEDED` / `COMPLETE` / `COMPLETE_WITH_BACKLOG` は dependency sweep で別 status に変えない。
+5. `READY` task の dependency が満たされていることを再確認する。満たされていない `READY` があれば、queue inconsistency として `BACKLOG` に戻し、理由を current pointer または proof log に記録する。
+6. `Current pointer` は sweep 後の先頭 `READY` task と、必要なら他の `READY` task を示すよう更新する。
+
+完了後、Dispatcher は sweep 後の先頭 `READY` task へ進む。先頭は queue 記載順を基本とし、schema / adapter foundation task が UI task と競合する場合は schema / adapter を優先する。
 
 ---
 
@@ -293,8 +304,9 @@ Process:
 6. Run ./tools/test.sh.
 7. If tests fail, diagnose and repair repair-now issues, then rerun.
 8. Write self-review under docs/review/autopilot/.
-9. Update the queue status to COMPLETE, COMPLETE_WITH_BACKLOG, REPAIR_NOW, or BLOCKED_BY_TEST_ENV.
-10. If COMPLETE, select the next READY task and continue only if this invocation still has enough context; otherwise leave the queue ready for the next invocation.
+9. Update the queue status to COMPLETE, COMPLETE_WITH_BACKLOG, REPAIR_NOW, BLOCKED_BY_TEST_ENV, SPLIT_REQUIRED, or SUPERSEDED.
+10. Run the dependency sweep: change every BACKLOG task whose dependencies are all COMPLETE or COMPLETE_WITH_BACKLOG to READY, and update Current pointer.
+11. If COMPLETE, select the next READY task and continue only if this invocation still has enough context; otherwise leave the queue ready for the next invocation.
 
 Decision policy:
 - The roadmap UX is already validated.
@@ -351,6 +363,7 @@ Rules:
 - Do not ask for approval.
 - Do not convert repair-now to backlog.
 - Do not mark complete without test proof.
+- After any task status change, run the dependency sweep and update Current pointer.
 - Preserve roadmap order unless dependency changes make a different order mechanically necessary.
 
 Done when:
@@ -428,6 +441,7 @@ Autopilot が止まってよいのは以下だけである。
 - `tools/test.sh` の結果が記録されている。
 - self-review があり、`repair-now` が残っていない。
 - follow-up がある場合は queue に task として追加されている。
+- queue の dependency sweep が実行され、依存が満たされた `BACKLOG` task が `READY` になっている。
 
 Phase の `COMPLETE` 条件:
 
