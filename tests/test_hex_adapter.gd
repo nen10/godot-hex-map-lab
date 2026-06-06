@@ -64,6 +64,7 @@ func _run() -> void:
 	_test_hex_map_document_adapter_cleans_v2_payloads_for_deleted_cell()
 	_test_hex_map_document_adapter_updates_wall_floor()
 	_test_hex_map_document_adapter_applies_tile_overrides()
+	_test_hex_map_document_catalog_compatibility_warnings_preserve_fallback_display()
 	_test_hex_tile_catalog_resource_resolves_logical_keys()
 	_test_sample_hex_tile_catalog_loads()
 	_test_hex_tile_catalog_validator_reports_missing_assets()
@@ -927,6 +928,55 @@ func _test_hex_map_document_adapter_applies_tile_overrides() -> void:
 	_assert_eq(layer.get_cell_source_id(Vector2i(1, 0)), 11, "document adapter applies wall tile override source")
 	_assert_eq(layer.get_cell_atlas_coords(Vector2i(1, 0)), Vector2i(12, 13), "document adapter applies wall tile override atlas")
 	layer.free()
+
+
+func _test_hex_map_document_catalog_compatibility_warnings_preserve_fallback_display() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	data.set_walls([HexVector.q_axis()])
+	var document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(data))
+	HexMapDocumentAdapter.set_tile_override(document, HexVector.zero(), {
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"source_id": 8,
+		"atlas_coords": Vector2i(4, 5),
+	})
+	var options = {
+		"floor_source_id": 1,
+		"floor_atlas_coords": Vector2i(2, 3),
+		"wall_source_id": 2,
+		"wall_atlas_coords": Vector2i(1, 0),
+	}
+	var layer = TileMapLayer.new()
+	HexMapDocumentAdapter.apply_to_tile_map_layer(document, layer, options)
+	_assert_eq(layer.get_cell_source_id(Vector2i.ZERO), 8, "v1 catalogless document keeps numeric tile override source")
+	_assert_eq(layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(4, 5), "v1 catalogless document keeps numeric tile override atlas")
+	_assert_eq(layer.get_cell_source_id(Vector2i(1, 0)), 2, "v1 catalogless document keeps numeric wall default source")
+	var warnings = HexMapDocumentAdapter.catalog_compatibility_warnings(document, options)
+	_assert_eq(warnings.size() >= 3, true, "v1 catalogless document reports fallback warnings")
+	var has_entry_key_warning := false
+	for warning in warnings:
+		if String(warning.get("rule_id", "")) == "catalog.entry_key_missing":
+			has_entry_key_warning = true
+	_assert_eq(has_entry_key_warning, true, "v1 catalogless tile override reports missing catalog key warning")
+	layer.free()
+
+	var v2_document = HexMapDocumentResource.new()
+	v2_document.ensure_v2_defaults()
+	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
+	terrain_layer.map = HexMapResource.from_map_data(data)
+	terrain_layer.tile_assignments.append({
+		"cell": Vector3i.ZERO,
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"source_id": 6,
+		"atlas_coords": Vector2i(7, 8),
+	})
+	v2_document.terrain_layers.append(terrain_layer)
+	var v2_layer = TileMapLayer.new()
+	HexMapDocumentAdapter.apply_to_tile_map_layer(v2_document, v2_layer, options)
+	_assert_eq(v2_layer.get_cell_source_id(Vector2i.ZERO), 6, "v2 catalogless document keeps numeric tile assignment source")
+	_assert_eq(v2_layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(7, 8), "v2 catalogless document keeps numeric tile assignment atlas")
+	var v2_warnings = HexMapDocumentAdapter.catalog_compatibility_warnings(v2_document, options)
+	_assert_eq(v2_warnings.size() >= 3, true, "v2 catalogless document reports fallback warnings")
+	v2_layer.free()
 
 
 func _test_hex_tile_catalog_resource_resolves_logical_keys() -> void:

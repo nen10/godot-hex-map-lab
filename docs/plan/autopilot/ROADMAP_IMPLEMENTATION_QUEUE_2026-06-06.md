@@ -84,7 +84,7 @@ Goal: `source_id / atlas_coords` の数値入力を、logical key と layer stac
 | `LST-01` | `COMPLETE` | `LD2-01` | `docs/plan/2026-06-06_LST-01_LAYER_STACK_RESOURCE/` | `HexLayerStackResource` and templates | new resource/helper files, `tests/test_hex_tile_map_layer.gd` | Terrain/decoration/object/collision/navigation/overlay/debug roles defined; templates create expected role names. |
 | `LST-02` | `COMPLETE` | `LST-01`, `CAT-03` | `docs/plan/2026-06-06_LST-02_APPLY_DOCUMENT_TO_LAYER_STACK/` | `apply_document_to_layer_stack()` primary path | `hex_tile_map_layer.gd`, adapter helpers, `tests/test_hex_tile_map_layer.gd` | v2 document applies to child layers by role; single plain TileMapLayer path remains compatibility path. |
 | `CATUI-01` | `COMPLETE` | `CAT-03`, `LST-02`, `LD2-05` | `docs/plan/2026-06-06_CATUI-01_CATALOG_SELECTOR_UI/` | Generate/Edit catalog key selectors and advanced fallback UI | `hex_map_gen_dock.gd`, `hex_map_edit_tool.gd`, `tests/test_editor_plugin.gd` | Floor/Wall/Overlay/Object default assignment uses catalog selector; old spin boxes are advanced fallback. |
-| `CAT-04` | `READY` | `CATUI-01` | `docs/plan/2026-06-06_CAT-04_EXISTING_DOCUMENT_COMPATIBILITY/` | Existing document apply compatibility through catalog/layer stack | adapter + editor tests | Existing v1/v2 docs without catalog still display via fallback with warnings, not silent wrong tiles. |
+| `CAT-04` | `COMPLETE` | `CATUI-01` | `docs/plan/2026-06-06_CAT-04_EXISTING_DOCUMENT_COMPATIBILITY/` | Existing document apply compatibility through catalog/layer stack | adapter + editor tests | Existing v1/v2 docs without catalog still display via fallback with warnings, not silent wrong tiles. |
 
 ---
 
@@ -198,7 +198,7 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `CAT-04` is READY.
+Current recommended next task: `VAL-01` is READY.
 
 Reason:
 
@@ -209,8 +209,8 @@ Reason:
 - `LST-01` is `COMPLETE`.
 - `LST-02` is `COMPLETE`.
 - `CATUI-01` is `COMPLETE`.
-- `CAT-04` is `READY` because `CATUI-01` is `COMPLETE`.
-- `VAL-01` is also `READY` because `LD2-03` and `CAT-02` are `COMPLETE`.
+- `CAT-04` is `COMPLETE`.
+- `VAL-01` is `READY` because `LD2-03` and `CAT-02` are `COMPLETE`.
 - `OBJ-01` is also `READY` because `LD2-01` and `CAT-01` are `COMPLETE`.
 - `ARCH-02` is also `READY` because `ARCH-01` and `CATUI-01` are `COMPLETE`.
 - Remaining `BACKLOG` tasks still have at least one dependency that is not `COMPLETE` or `COMPLETE_WITH_BACKLOG`.
@@ -649,4 +649,31 @@ Notes:
 - Generate Dock now exposes floor/wall catalog selectors and per-overlay-item catalog selectors.
 - Edit Dock now exposes default floor/wall catalog selectors, mode-specific tile payload selectors, and an object assignment catalog selector.
 - Existing numeric spin boxes remain visible and tested as advanced fallback.
+- `repair-now`: none.
+
+### CAT-04
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot
+plan: `docs/plan/2026-06-06_CAT-04_EXISTING_DOCUMENT_COMPATIBILITY/`
+review: `docs/review/autopilot/CAT-04_SELF_REVIEW_2026-06-07.md`
+test result: `docs/review/autopilot/CAT-04_TEST_RESULT_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+- docs:
+  - `docs/TEST.md`
+- major files:
+  - `addons/hex_map_kit/adapter/hex_map_document_adapter.gd`
+  - `addons/hex_map_kit/editor/hex_map_edit_tool.gd`
+  - `tests/test_hex_adapter.gd`
+  - `tests/test_editor_plugin.gd`
+
+Notes:
+
+- Existing v1/v2 catalogless documents continue drawing through numeric fallback values.
+- `HexMapDocumentAdapter.catalog_compatibility_warnings()` reports structured fallback warnings for missing default keys, missing entry keys, missing catalog resources, and missing catalog entries.
+- Edit Dock target status/debug report includes catalog warning counts and details.
 - `repair-now`: none.

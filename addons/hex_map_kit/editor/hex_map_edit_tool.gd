@@ -2448,6 +2448,8 @@ func _build_target_readiness_status() -> Dictionary:
 		"overlay_tile_z_index": 0,
 		"overlay_canvas_visible": false,
 		"overlay_canvas_z_index": 0,
+		"catalog_warning_count": 0,
+		"catalog_warnings": [],
 		"used_cell_count": 0,
 		"loop_display_mode": HexTileMapLayer.LOOP_DISPLAY_NONE,
 		"target_resolution_reason": _last_target_resolution_reason,
@@ -2498,7 +2500,19 @@ func _build_target_readiness_status() -> Dictionary:
 	status["message"] = "ready" if bool(status["ready"]) else "TileSet missing."
 	if _document == null and _target_layer is HexTileMapLayer and not bool(status["target_hex_map_present"]):
 		status["message"] = "No document selected."
+	var catalog_warnings = _catalog_compatibility_warnings_for_status()
+	status["catalog_warning_count"] = catalog_warnings.size()
+	status["catalog_warnings"] = catalog_warnings
 	return status
+
+
+func _catalog_compatibility_warnings_for_status() -> Array[Dictionary]:
+	if _document == null:
+		return []
+	return HexMapDocumentAdapter.catalog_compatibility_warnings(
+		_document,
+		_plain_target_tile_options_for_document_apply()
+	)
 
 
 func _format_target_status_detail(status: Dictionary) -> String:
@@ -2511,7 +2525,7 @@ func _format_target_status_detail(status: Dictionary) -> String:
 	var loop_text = ""
 	if bool(status.get("is_hex_tile_map_layer", false)):
 		loop_text = " loop=%s" % _loop_mode_name(int(status.get("loop_display_mode", 0)))
-	return "%s %s document=%s:%s:%s tiles=%s path=%s sources=%d size=%s floor=%d:%s:%d wall=%d:%s:%d overlay=%s:%d:%s:%d ov_visible=%s/%s used=%d%s %s %s" % [
+	return "%s %s document=%s:%s:%s tiles=%s path=%s sources=%d size=%s floor=%d:%s:%d wall=%d:%s:%d overlay=%s:%d:%s:%d catalog_warnings=%d ov_visible=%s/%s used=%d%s %s %s" % [
 		String(status.get("target_class", "")),
 		String(status.get("target_path", "")),
 		"yes" if bool(status.get("document_present", false)) else "no",
@@ -2531,6 +2545,7 @@ func _format_target_status_detail(status: Dictionary) -> String:
 		int(status.get("overlay_source_id", 0)),
 		_atlas_text(status.get("overlay_atlas_coords", Vector2i.ZERO)),
 		int(status.get("overlay_alternative_tile", 0)),
+		int(status.get("catalog_warning_count", 0)),
 		_bool_text(bool(status.get("overlay_tile_visible", false))),
 		_bool_text(bool(status.get("overlay_canvas_visible", false))),
 		int(status.get("used_cell_count", 0)),

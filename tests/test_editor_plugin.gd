@@ -94,6 +94,7 @@ func _run() -> void:
 	await _test_map_edit_tool_applies_explicit_default_tile_settings()
 	await _test_map_edit_tool_target_atlas_settings_use_target_tileset()
 	await _test_map_edit_tool_catalog_selectors_drive_defaults_and_payloads()
+	await _test_map_edit_tool_reports_catalog_fallback_warnings()
 	await _test_map_edit_tool_target_status_reports_tileset_and_overlay_payload()
 	await _test_map_edit_tool_last_edit_trace_distinguishes_document_and_redraw()
 	await _test_map_edit_tool_last_edit_trace_reports_target_apply_failure()
@@ -999,6 +1000,38 @@ func _test_map_edit_tool_catalog_selectors_drive_defaults_and_payloads() -> void
 	_assert_eq(tool._object_payload["object_id"], "object.spawn_marker", "object selector stores catalog key as object default")
 	_assert_eq(tool._object_id_edit.text, "object.spawn_marker", "object selector mirrors object id text fallback")
 
+	tool.queue_free()
+	await process_frame
+
+
+func _test_map_edit_tool_reports_catalog_fallback_warnings() -> void:
+	var data = HexMapData.rectangle(1, 1)
+	var document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(data))
+	HexMapDocumentAdapter.set_tile_override(document, HexVector.zero(), {
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"source_id": 8,
+		"atlas_coords": Vector2i(4, 5),
+	})
+	var layer = TileMapLayer.new()
+	layer.name = "CatalogFallbackLayer"
+	root.add_child(layer)
+	await process_frame
+
+	var tool = await _new_ready_edit_tool()
+	tool.set_document(document)
+	tool.set_target_layer(layer)
+	_assert_true(tool._apply_document_to_target(), "map edit tool applies catalogless document through numeric fallback")
+	_assert_eq(layer.get_cell_source_id(Vector2i.ZERO), 8, "catalogless editor document displays numeric fallback source")
+	_assert_eq(layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(4, 5), "catalogless editor document displays numeric fallback atlas")
+	var status = tool.target_readiness_status()
+	_assert_true(int(status.get("catalog_warning_count", 0)) > 0, "target status reports catalog fallback warning count")
+	_assert_true((status.get("catalog_warnings", []) as Array).size() > 0, "target status reports catalog fallback warning details")
+	_assert_true(tool._target_status_label.text.contains("catalog_warnings="), "target status label includes catalog warning count")
+	var report = tool.debug_report_text()
+	_assert_true(report.contains("catalog_warning_count"), "debug report includes catalog warning count")
+	_assert_true(report.contains("catalog.entry_key_missing"), "debug report includes catalog warning rule id")
+
+	layer.queue_free()
 	tool.queue_free()
 	await process_frame
 

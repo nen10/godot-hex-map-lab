@@ -272,6 +272,40 @@ static func apply_to_tile_map_layer(document, layer, options: Dictionary = {}) -
 		_apply_tile_override(layer, _resolve_catalog_tile_entry(entry, tile_catalog), flat_top)
 
 
+static func catalog_compatibility_warnings(document, options: Dictionary = {}) -> Array[Dictionary]:
+	var warnings: Array[Dictionary] = []
+	if document == null:
+		return warnings
+	var tile_catalog = options.get("tile_catalog", null)
+	var floor_key = String(options.get("floor_catalog_key", ""))
+	if floor_key == "":
+		floor_key = _document_default_terrain_key(document, "default_floor_key")
+	var wall_key = String(options.get("wall_catalog_key", ""))
+	if wall_key == "":
+		wall_key = _document_default_terrain_key(document, "default_wall_key")
+	_append_catalog_default_warning(
+		warnings,
+		"default_floor",
+		floor_key,
+		tile_catalog,
+		int(options.get("floor_source_id", 0)),
+		options.get("floor_atlas_coords", Vector2i.ZERO),
+		int(options.get("floor_alternative_tile", 0))
+	)
+	_append_catalog_default_warning(
+		warnings,
+		"default_wall",
+		wall_key,
+		tile_catalog,
+		int(options.get("wall_source_id", 0)),
+		options.get("wall_atlas_coords", Vector2i(1, 0)),
+		int(options.get("wall_alternative_tile", 0))
+	)
+	for entry in document_tile_entries(document):
+		_append_catalog_entry_warning(warnings, entry, tile_catalog)
+	return warnings
+
+
 static func set_wall(document, hex, wall: bool) -> void:
 	var map_resource = _document_map_resource(document)
 	if document == null or map_resource == null:
@@ -423,6 +457,101 @@ static func _resolve_catalog_tile_entry(entry: Dictionary, catalog) -> Dictionar
 	resolved["alternative_tile"] = int(config.get("alternative_tile", resolved.get("alternative_tile", 0)))
 	resolved["catalog_key"] = catalog_key
 	return resolved
+
+
+static func _append_catalog_default_warning(
+	warnings: Array[Dictionary],
+	role: String,
+	catalog_key: String,
+	catalog,
+	source_id: int,
+	atlas_coords: Vector2i,
+	alternative_tile: int
+) -> void:
+	var fallback = {
+		"source_id": source_id,
+		"atlas_coords": atlas_coords,
+		"alternative_tile": alternative_tile,
+	}
+	if catalog_key == "":
+		warnings.append(_catalog_warning(
+			"catalog.default_key_missing",
+			role,
+			catalog_key,
+			fallback
+		))
+		return
+	if catalog == null:
+		warnings.append(_catalog_warning(
+			"catalog.resource_missing",
+			role,
+			catalog_key,
+			fallback
+		))
+		return
+	if catalog.has_method("has_key") and not catalog.has_key(catalog_key):
+		warnings.append(_catalog_warning(
+			"catalog.key_missing",
+			role,
+			catalog_key,
+			fallback
+		))
+
+
+static func _append_catalog_entry_warning(
+	warnings: Array[Dictionary],
+	entry: Dictionary,
+	catalog
+) -> void:
+	var catalog_key = String(entry.get("catalog_key", ""))
+	var kind = String(entry.get("kind", KIND_FLOOR))
+	if catalog_key == "" and kind == KIND_OVERLAY:
+		catalog_key = String(entry.get("item_key", ""))
+	var fallback = {
+		"cell": entry.get("cell", Vector3i.ZERO),
+		"kind": kind,
+		"source_id": int(entry.get("source_id", -1)),
+		"atlas_coords": entry.get("atlas_coords", Vector2i.ZERO),
+		"alternative_tile": int(entry.get("alternative_tile", 0)),
+	}
+	if catalog_key == "":
+		warnings.append(_catalog_warning(
+			"catalog.entry_key_missing",
+			kind,
+			catalog_key,
+			fallback
+		))
+		return
+	if catalog == null:
+		warnings.append(_catalog_warning(
+			"catalog.resource_missing",
+			kind,
+			catalog_key,
+			fallback
+		))
+		return
+	if catalog.has_method("has_key") and not catalog.has_key(catalog_key):
+		warnings.append(_catalog_warning(
+			"catalog.key_missing",
+			kind,
+			catalog_key,
+			fallback
+		))
+
+
+static func _catalog_warning(
+	rule_id: String,
+	subject: String,
+	catalog_key: String,
+	fallback: Dictionary
+) -> Dictionary:
+	return {
+		"rule_id": rule_id,
+		"subject": subject,
+		"catalog_key": catalog_key,
+		"fallback": fallback.duplicate(true),
+		"severity": "warning",
+	}
 
 
 static func _remove_cell_payloads(document, hex) -> void:
