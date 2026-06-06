@@ -9,6 +9,7 @@ const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
 const HexMapDocumentValidator = preload("res://addons/hex_map_kit/adapter/hex_map_document_validator.gd")
+const HexMapDocumentInspector = preload("res://addons/hex_map_kit/editor/hex_map_document_inspector.gd")
 const HexMapDocumentTerrainLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_terrain_layer_resource.gd")
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
@@ -2479,30 +2480,16 @@ func _validation_result_for_report():
 
 
 func _validation_summary_from_result(result, generated_map_present: bool = false) -> Dictionary:
-	if result == null:
-		return {
-			"generated_map_present": generated_map_present,
-			"validated": false,
-			"passed": false,
-			"capture_order": _last_generation_validation_capture_order,
-			"apply_order": _last_generation_apply_order,
-			"issues": 0,
-			"errors": 0,
-			"warnings": 0,
-			"infos": 0,
-		}
-	var error_count = result.error_count() if result.has_method("error_count") else 0
-	return {
-		"generated_map_present": true,
-		"validated": true,
-		"passed": error_count == 0,
+	var summary = HexMapDocumentInspector.validation_summary_from_result(result, {
+		"generated_map_present": true if result != null else generated_map_present,
+		"validated": result != null,
+		"passed": false,
 		"capture_order": _last_generation_validation_capture_order,
 		"apply_order": _last_generation_apply_order,
-		"issues": result.issue_count() if result.has_method("issue_count") else 0,
-		"errors": error_count,
-		"warnings": result.warning_count() if result.has_method("warning_count") else 0,
-		"infos": result.info_count() if result.has_method("info_count") else 0,
-	}
+	})
+	if result != null:
+		summary["passed"] = int(summary.get("errors", 0)) == 0
+	return summary
 
 
 func _capture_generation_validation_result(result, generated_map_present: bool) -> void:
@@ -2632,26 +2619,14 @@ func _batch_result_row(index: int, snapshot: Dictionary, data, options: Dictiona
 
 
 func _batch_validation_summary(result, generated_map_present: bool) -> Dictionary:
-	if result == null:
-		return {
-			"generated_map_present": generated_map_present,
-			"validated": false,
-			"passed": false,
-			"issues": 0,
-			"errors": 0,
-			"warnings": 0,
-			"infos": 0,
-		}
-	var error_count = result.error_count() if result.has_method("error_count") else 0
-	return {
+	var summary = HexMapDocumentInspector.validation_summary_from_result(result, {
 		"generated_map_present": generated_map_present,
-		"validated": true,
-		"passed": error_count == 0,
-		"issues": result.issue_count() if result.has_method("issue_count") else 0,
-		"errors": error_count,
-		"warnings": result.warning_count() if result.has_method("warning_count") else 0,
-		"infos": result.info_count() if result.has_method("info_count") else 0,
-	}
+		"validated": result != null,
+		"passed": false,
+	})
+	if result != null:
+		summary["passed"] = int(summary.get("errors", 0)) == 0
+	return summary
 
 
 func _batch_score(row: Dictionary, options: Dictionary) -> float:

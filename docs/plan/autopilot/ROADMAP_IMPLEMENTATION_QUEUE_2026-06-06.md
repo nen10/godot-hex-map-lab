@@ -163,7 +163,7 @@ Goal F は「別承認待ちの大改修」ではなく、feature task を通す
 | `ARCH-01` | `COMPLETE` | `LD2-05` | `docs/plan/2026-06-06_ARCH-01_EDITOR_SESSION_STATE/` | Shared editor session state | new editor session script, `hex_map_gen_dock.gd`, `hex_map_edit_tool.gd`, tests | Generate/Edit target/document state sharing has tests; existing target auto behavior maintained. |
 | `ARCH-02` | `COMPLETE` | `ARCH-01`, `CATUI-01` | `docs/plan/2026-06-06_ARCH-02_GENERATE_DOCK_STATE_EVALUATION_SPLIT/` | Separate Generate Dock state evaluation from UI construction | `hex_map_gen_dock.gd`, tests | Existing Generate Dock headless tests pass; catalog UI additions become smaller. |
 | `ARCH-03` | `COMPLETE` | `ARCH-01`, `OBJ-03` | `docs/plan/2026-06-06_ARCH-03_EDIT_TOOL_MUTATION_VIEWPORT_SPLIT/` | Separate Edit Tool mutation and viewport input adapter | `hex_map_edit_tool.gd`, tests | Viewport hit/edit/undo tests pass; object and validation UI can reuse mutation helpers. |
-| `ARCH-04` | `READY` | `VAL-02` | `docs/plan/2026-06-06_ARCH-04_DOCUMENT_INSPECTOR_COMPONENT/` | Document inspector / validation summary component | new editor component, edit/gen dock integration, tests | Validation/dashboard logic is not embedded only in giant dock file. |
+| `ARCH-04` | `COMPLETE` | `VAL-02` | `docs/plan/2026-06-06_ARCH-04_DOCUMENT_INSPECTOR_COMPONENT/` | Document inspector / validation summary component | new editor component, edit/gen dock integration, tests | Validation/dashboard logic is not embedded only in giant dock file. |
 
 Autopilot selection rule:
 
@@ -198,11 +198,11 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `ARCH-04` is READY.
+Current recommended next task: none. Explicit queue exhaustion: no eligible READY task remains.
 
 Reason:
 
-- Dependency sweep completed on 2026-06-07 after ARCH-03 completion.
+- Dependency sweep completed on 2026-06-07 after ARCH-04 completion.
 - `CAT-01` is `COMPLETE`.
 - `CAT-02` is `COMPLETE`.
 - `CAT-03` is `COMPLETE`.
@@ -233,12 +233,44 @@ Reason:
 - `PKG-03` is `COMPLETE`.
 - `ARCH-02` is `COMPLETE`.
 - `ARCH-03` is `COMPLETE`.
-- `ARCH-04` is now the first READY task by queue order because `VAL-02` is `COMPLETE`.
+- `ARCH-04` is `COMPLETE`.
+- No concrete task remains in `READY` status.
 - No additional concrete `BACKLOG` task entries are present outside the dynamic follow-up template.
 
 ---
 
 ## 12. Completed task proof log
+
+### ARCH-04
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot
+plan: `docs/plan/2026-06-06_ARCH-04_DOCUMENT_INSPECTOR_COMPONENT/`
+review: `docs/review/autopilot/ARCH-04_SELF_REVIEW_2026-06-07.md`
+test result: `docs/review/autopilot/ARCH-04_TEST_RESULT_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/arch04_test_editor_plugin.log --path . --script res://tests/test_editor_plugin.gd` PASS
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+- docs:
+  - `docs/TEST.md`
+  - `docs/review/autopilot/ARCH-04_SELF_REVIEW_2026-06-07.md`
+  - `docs/review/autopilot/ARCH-04_TEST_RESULT_2026-06-07.md`
+- major files:
+  - `addons/hex_map_kit/editor/hex_map_document_inspector.gd`
+  - `addons/hex_map_kit/editor/hex_map_edit_tool.gd`
+  - `addons/hex_map_kit/editor/hex_map_gen_dock.gd`
+  - `tests/test_editor_plugin.gd`
+
+Notes:
+
+- Edit Dock now exposes `HexMapDocumentInspector` for compact document and validation summary state.
+- Edit Dock and Generate Dock delegate validation summary formatting to the inspector helper.
+- Existing validation dashboard, debug report, issue focus, and generation validation tests still pass.
+- Explicit queue exhaustion: no eligible READY task remains.
+- `repair-now`: none.
 
 ### ARCH-03
 

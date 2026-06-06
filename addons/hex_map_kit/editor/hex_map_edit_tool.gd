@@ -5,6 +5,7 @@ extends Control
 const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
 const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
 const HexMapDocumentValidator = preload("res://addons/hex_map_kit/adapter/hex_map_document_validator.gd")
+const HexMapDocumentInspector = preload("res://addons/hex_map_kit/editor/hex_map_document_inspector.gd")
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexMapEditMutationBuilder = preload("res://addons/hex_map_kit/editor/hex_map_edit_mutation_builder.gd")
@@ -123,6 +124,7 @@ var _test_viewport_canvas_transform_enabled := false
 var _test_viewport_canvas_transform := Transform2D.IDENTITY
 
 var _document_label: Label
+var _document_inspector: HexMapDocumentInspector
 var _document_resource_picker
 var _document_path_edit: LineEdit
 var _document_browse_button: Button
@@ -368,6 +370,12 @@ func validation_dashboard_summary() -> Dictionary:
 	return _validation_dashboard.validation_summary()
 
 
+func document_inspector_summary() -> Dictionary:
+	if _document_inspector == null:
+		return {}
+	return _document_inspector.inspector_summary()
+
+
 func selected_validation_issue() -> Dictionary:
 	return _selected_validation_issue.duplicate(true)
 
@@ -398,6 +406,7 @@ func validate_document_now() -> bool:
 		_validation_focus_status.clear()
 		if _validation_dashboard != null:
 			_validation_dashboard.clear_result("No document selected.")
+		_refresh_document_inspector()
 		_set_status("No document selected.")
 		return false
 	_last_validation_result = HexMapDocumentValidator.validate_document(_document, _validation_options())
@@ -405,6 +414,7 @@ func validate_document_now() -> bool:
 	_validation_focus_status.clear()
 	if _validation_dashboard != null:
 		_validation_dashboard.set_validation_result(_last_validation_result)
+	_refresh_document_inspector()
 	_set_status("Validation complete: %d issue(s)." % _last_validation_result.issue_count())
 	return true
 
@@ -748,6 +758,8 @@ func _build_ui() -> void:
 
 	_document_label = Label.new()
 	root.add_child(_document_label)
+	_document_inspector = HexMapDocumentInspector.new()
+	root.add_child(_document_inspector)
 	if _can_use_editor_resource_picker():
 		_document_resource_picker = EditorResourcePicker.new()
 		_document_resource_picker.base_type = "HexMapDocumentResource"
@@ -1852,6 +1864,7 @@ func _refresh_state_labels() -> void:
 			_document_path if _document_path != "" else "(unsaved)",
 			" Unsaved target document" if _document_source == DOCUMENT_SOURCE_TARGET else "",
 		]
+	_refresh_document_inspector()
 	if _target_label != null:
 		var target_name = "none"
 		if _target_layer != null and is_instance_valid(_target_layer):
@@ -1860,6 +1873,22 @@ func _refresh_state_labels() -> void:
 	_refresh_target_status_detail()
 	_refresh_overlay_item_key_options()
 	_refresh_action_button_states()
+
+
+func _refresh_document_inspector() -> void:
+	if _document_inspector == null:
+		return
+	_document_inspector.set_document_state(
+		_document,
+		_document_source,
+		_document_path,
+		_document_source == DOCUMENT_SOURCE_TARGET
+	)
+	_document_inspector.set_validation_summary(
+		HexMapDocumentInspector.validation_summary_from_result(_last_validation_result, {
+			"document_present": _document != null,
+		})
+	)
 
 
 func _ensure_document_from_target_if_needed() -> bool:
@@ -2506,51 +2535,17 @@ func _validation_result_for_report():
 
 
 func _validation_summary_from_result(result) -> Dictionary:
-	if result == null:
-		return {
-			"document_present": false,
-			"issues": 0,
-			"errors": 0,
-			"warnings": 0,
-			"infos": 0,
-		}
-	return {
-		"document_present": true,
-		"issues": result.issue_count() if result.has_method("issue_count") else 0,
-		"errors": result.error_count() if result.has_method("error_count") else 0,
-		"warnings": result.warning_count() if result.has_method("warning_count") else 0,
-		"infos": result.info_count() if result.has_method("info_count") else 0,
-	}
+	return HexMapDocumentInspector.validation_summary_from_result(result, {
+		"document_present": result != null,
+	})
 
 
 func _validation_issue_report_rows(result, limit: int = 8) -> Array[String]:
-	var rows: Array[String] = []
-	if result == null:
-		return rows
-	var issues = result.get("issues") if result is Object else []
-	if not issues is Array:
-		return rows
-	for issue in issues:
-		if rows.size() >= limit:
-			break
-		if not issue is Dictionary:
-			continue
-		rows.append(_validation_issue_report_row(issue as Dictionary))
-	return rows
+	return HexMapDocumentInspector.validation_issue_report_rows(result, limit)
 
 
 func _validation_issue_report_row(issue: Dictionary) -> String:
-	var cell_text = ""
-	var cell = issue.get("cell", null)
-	if cell is Vector3i:
-		cell_text = " cell=(%d,%d,%d)" % [cell.x, cell.y, cell.z]
-	return "%s/%s/%s%s %s" % [
-		String(issue.get("severity", "")),
-		String(issue.get("scope", "")),
-		String(issue.get("rule_id", "")),
-		cell_text,
-		String(issue.get("message", "")),
-	]
+	return HexMapDocumentInspector.validation_issue_report_row(issue)
 
 
 func _focus_validation_issue(issue: Dictionary) -> bool:
@@ -2903,13 +2898,7 @@ func _set_persistence_status(
 
 
 func _document_summary(document) -> Dictionary:
-	if document == null:
-		return {"cell_count": 0, "wall_count": 0}
-	var summary = HexMapDocumentAdapter.document_summary(document)
-	return {
-		"cell_count": int(summary.get("cells", 0)),
-		"wall_count": int(summary.get("walls", 0)),
-	}
+	return HexMapDocumentInspector.document_summary(document)
 
 
 func _refresh_persistence_detail() -> void:

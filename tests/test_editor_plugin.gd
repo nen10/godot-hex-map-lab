@@ -15,6 +15,7 @@ const HexMapDocumentLabelPlacementResource = preload("res://addons/hex_map_kit/a
 const HexMapDocumentObjectPlacementResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_object_placement_resource.gd")
 const HexMapDocumentOverlayLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_overlay_layer_resource.gd")
 const HexMapDocumentTerrainLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_terrain_layer_resource.gd")
+const HexMapValidationResult = preload("res://addons/hex_map_kit/adapter/hex_map_validation_result.gd")
 const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
 const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
 const HexMapGenDock = preload("res://addons/hex_map_kit/editor/hex_map_gen_dock.gd")
@@ -22,6 +23,7 @@ const HexMapGenStateEvaluator = preload("res://addons/hex_map_kit/editor/hex_map
 const HexMapEditTool = preload("res://addons/hex_map_kit/editor/hex_map_edit_tool.gd")
 const HexMapEditMutationBuilder = preload("res://addons/hex_map_kit/editor/hex_map_edit_mutation_builder.gd")
 const HexMapEditViewportInputAdapter = preload("res://addons/hex_map_kit/editor/hex_map_edit_viewport_input_adapter.gd")
+const HexMapDocumentInspector = preload("res://addons/hex_map_kit/editor/hex_map_document_inspector.gd")
 const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
 const HexDistEditor = preload("res://addons/hex_map_kit/editor/hex_dist_editor.gd")
 const HexAdjacencyRuleEditor = preload("res://addons/hex_map_kit/editor/hex_adjacency_rule_editor.gd")
@@ -81,6 +83,7 @@ func _run() -> void:
 	await _test_plugin_handles_canvas_item_when_map_edit_ready()
 	await _test_editor_session_state_shares_generate_target_and_edit_document()
 	_test_map_edit_tool_mutation_builder_and_viewport_adapter()
+	await _test_document_inspector_component_summarizes_document_and_validation()
 	await _test_map_edit_tool_auto_target_uses_selected_layer()
 	await _test_map_edit_tool_auto_target_maps_hex_internal_layer_selection()
 	await _test_map_edit_tool_initializes_document_from_hex_target()
@@ -330,6 +333,49 @@ func _test_map_edit_tool_mutation_builder_and_viewport_adapter() -> void:
 	target.queue_free()
 
 
+func _test_document_inspector_component_summarizes_document_and_validation() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	data.set_walls([HexVector.q_axis()])
+	var document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(data))
+	HexMapDocumentAdapter.set_object(document, HexVector.zero(), {"object_id": "marker"})
+	HexMapDocumentAdapter.set_label(document, HexVector.q_axis(), {"label_id": "area", "text": "East"})
+
+	var inspector = HexMapDocumentInspector.new()
+	root.add_child(inspector)
+	await process_frame
+	inspector.set_document_state(document, HexMapEditTool.DOCUMENT_SOURCE_PROVIDED, "res://map.tres")
+	var summary = inspector.inspector_summary()
+	_assert_eq(summary["document"]["cell_count"], 2, "document inspector reports cell count")
+	_assert_eq(summary["document"]["wall_count"], 1, "document inspector reports wall count")
+	_assert_eq(summary["document"]["object_count"], 1, "document inspector reports object count")
+	_assert_eq(summary["document"]["label_count"], 1, "document inspector reports label count")
+	_assert_eq(summary["document"]["source"], HexMapEditTool.DOCUMENT_SOURCE_PROVIDED, "document inspector reports document source")
+	_assert_true(inspector._document_summary_label.text.contains("cells=2"), "document inspector renders document summary")
+
+	var result = HexMapValidationResult.new()
+	result.add_error(
+		"document.object_on_wall",
+		"Object is on a wall.",
+		HexMapValidationResult.SCOPE_CELL,
+		{"cell": Vector3i(1, 0, 0)}
+	)
+	result.add_warning("document.optional", "Optional warning.")
+	var validation_summary = HexMapDocumentInspector.validation_summary_from_result(result, {"document_present": true})
+	inspector.set_validation_summary(validation_summary)
+	summary = inspector.inspector_summary()
+	_assert_eq(summary["validation"]["issues"], 2, "document inspector reports validation issues")
+	_assert_eq(summary["validation"]["errors"], 1, "document inspector reports validation errors")
+	_assert_eq(summary["validation"]["warnings"], 1, "document inspector reports validation warnings")
+	_assert_true(inspector._validation_summary_label.text.contains("errors=1"), "document inspector renders validation summary")
+	var rows = HexMapDocumentInspector.validation_issue_report_rows(result)
+	_assert_eq(rows.size(), 2, "document inspector formats validation issue rows")
+	_assert_true(rows[0].contains("document.object_on_wall"), "document inspector issue row includes rule id")
+	_assert_true(rows[0].contains("cell=(1,0,0)"), "document inspector issue row includes cell")
+
+	inspector.queue_free()
+	await process_frame
+
+
 func _test_map_edit_tool_builds_dock_controls() -> void:
 	var scene_root = Node2D.new()
 	scene_root.name = "SceneRoot"
@@ -365,6 +411,7 @@ func _test_map_edit_tool_builds_dock_controls() -> void:
 	_assert_true(tool._import_map_button != null, "map edit tool exposes HexMapResource import button")
 	_assert_true(tool._export_button != null, "map edit tool exposes map export button")
 	_assert_true(tool._export_save_as_button != null, "map edit tool exposes map export save-as button")
+	_assert_true(tool._document_inspector != null, "map edit tool exposes document inspector")
 	_assert_true(tool._validation_dashboard != null, "map edit tool exposes validation dashboard")
 	_assert_true(tool._validation_dashboard._validate_button != null, "validation dashboard exposes Validate button")
 	_assert_true(tool._copy_debug_report_button != null, "map edit tool exposes debug report copy button")
@@ -1226,6 +1273,9 @@ func _test_map_edit_tool_validation_dashboard_groups_and_focuses_cell_issue() ->
 	var summary = tool.validation_dashboard_summary()
 	_assert_true(int(summary.get("errors", 0)) >= 2, "validation dashboard reports error count")
 	_assert_true(int(summary.get("groups", 0)) >= 2, "validation dashboard groups validation rows")
+	var inspector_summary = tool.document_inspector_summary()
+	_assert_true(int(inspector_summary["validation"].get("errors", 0)) >= 2, "document inspector mirrors validation error count")
+	_assert_true(tool._document_inspector._validation_summary_label.text.contains("errors="), "document inspector shows validation summary")
 	var rows = tool._validation_dashboard.issue_rows()
 	_assert_true(rows.size() >= 2, "validation dashboard exposes issue rows")
 	_assert_true(String(rows[0].get("group_key", "")).contains("/"), "validation issue row stores grouped key")
