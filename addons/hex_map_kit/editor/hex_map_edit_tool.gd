@@ -367,6 +367,14 @@ func validation_focus_status() -> Dictionary:
 	return _validation_focus_status.duplicate(true)
 
 
+func validation_debug_summary() -> Dictionary:
+	return _validation_summary_from_result(_validation_result_for_report())
+
+
+func validation_debug_issue_rows(limit: int = 8) -> Array[String]:
+	return _validation_issue_report_rows(_validation_result_for_report(), limit)
+
+
 func select_validation_issue(index: int) -> bool:
 	if _validation_dashboard == null:
 		return false
@@ -1764,6 +1772,8 @@ func debug_report_text() -> String:
 	lines.append("target_status: %s" % (_target_status_label.text if _target_status_label != null else ""))
 	lines.append("last_edit: %s" % (_last_edit_detail_label.text if _last_edit_detail_label != null else ""))
 	lines.append("save_export: %s" % (_persistence_detail_label.text if _persistence_detail_label != null else ""))
+	lines.append("validation_summary: %s" % var_to_str(validation_debug_summary()))
+	lines.append("validation_issues: %s" % var_to_str(validation_debug_issue_rows()))
 	lines.append("target_readiness_status: %s" % var_to_str(_target_status_detail))
 	lines.append("last_edit_status: %s" % var_to_str(_last_edit_status))
 	lines.append("persistence_status: %s" % var_to_str(_last_persistence_status))
@@ -2595,6 +2605,61 @@ func _target_tile_set_for_validation():
 	if _target_layer is TileMapLayer:
 		return (_target_layer as TileMapLayer).tile_set
 	return null
+
+
+func _validation_result_for_report():
+	_sync_document_snapshot_from_hex_target()
+	if _document == null:
+		return null
+	return HexMapDocumentValidator.validate_document(_document, _validation_options())
+
+
+func _validation_summary_from_result(result) -> Dictionary:
+	if result == null:
+		return {
+			"document_present": false,
+			"issues": 0,
+			"errors": 0,
+			"warnings": 0,
+			"infos": 0,
+		}
+	return {
+		"document_present": true,
+		"issues": result.issue_count() if result.has_method("issue_count") else 0,
+		"errors": result.error_count() if result.has_method("error_count") else 0,
+		"warnings": result.warning_count() if result.has_method("warning_count") else 0,
+		"infos": result.info_count() if result.has_method("info_count") else 0,
+	}
+
+
+func _validation_issue_report_rows(result, limit: int = 8) -> Array[String]:
+	var rows: Array[String] = []
+	if result == null:
+		return rows
+	var issues = result.get("issues") if result is Object else []
+	if not issues is Array:
+		return rows
+	for issue in issues:
+		if rows.size() >= limit:
+			break
+		if not issue is Dictionary:
+			continue
+		rows.append(_validation_issue_report_row(issue as Dictionary))
+	return rows
+
+
+func _validation_issue_report_row(issue: Dictionary) -> String:
+	var cell_text = ""
+	var cell = issue.get("cell", null)
+	if cell is Vector3i:
+		cell_text = " cell=(%d,%d,%d)" % [cell.x, cell.y, cell.z]
+	return "%s/%s/%s%s %s" % [
+		String(issue.get("severity", "")),
+		String(issue.get("scope", "")),
+		String(issue.get("rule_id", "")),
+		cell_text,
+		String(issue.get("message", "")),
+	]
 
 
 func _focus_validation_issue(issue: Dictionary) -> bool:

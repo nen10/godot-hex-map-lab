@@ -7,6 +7,8 @@ signal generation_finished(cancelled: bool)
 const HexMapData = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
 const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
+const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
+const HexMapDocumentValidator = preload("res://addons/hex_map_kit/adapter/hex_map_document_validator.gd")
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 const HexOverlayData = preload("res://addons/hex_map_kit/core/hex_overlay_data.gd")
@@ -2339,6 +2341,53 @@ func generation_status() -> Dictionary:
 		"progress": _generation_progress,
 		"status": _generation_status,
 	}
+
+
+func debug_report_text() -> String:
+	var lines := PackedStringArray()
+	lines.append("Hex Map Generate Debug Report")
+	lines.append("generation_status: %s" % var_to_str(generation_status()))
+	lines.append("validation_summary: %s" % var_to_str(validation_debug_summary()))
+	return _join_lines(lines)
+
+
+func validation_debug_summary() -> Dictionary:
+	return _validation_summary_from_result(_validation_result_for_report())
+
+
+func _validation_result_for_report():
+	if _current_data == null:
+		return null
+	var resource = HexMapResource.from_map_data(_current_data, _current_orientation)
+	var document = HexMapDocumentAdapter.from_map_resource(resource)
+	return HexMapDocumentValidator.validate_document(document)
+
+
+func _validation_summary_from_result(result) -> Dictionary:
+	if result == null:
+		return {
+			"generated_map_present": false,
+			"issues": 0,
+			"errors": 0,
+			"warnings": 0,
+			"infos": 0,
+		}
+	return {
+		"generated_map_present": true,
+		"issues": result.issue_count() if result.has_method("issue_count") else 0,
+		"errors": result.error_count() if result.has_method("error_count") else 0,
+		"warnings": result.warning_count() if result.has_method("warning_count") else 0,
+		"infos": result.info_count() if result.has_method("info_count") else 0,
+	}
+
+
+func _join_lines(lines: PackedStringArray) -> String:
+	var result := ""
+	for index in range(lines.size()):
+		if index > 0:
+			result += "\n"
+		result += lines[index]
+	return result
 
 
 func request_generation_cancel() -> void:

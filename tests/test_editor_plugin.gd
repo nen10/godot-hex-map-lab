@@ -96,6 +96,7 @@ func _run() -> void:
 	await _test_map_edit_tool_catalog_selectors_drive_defaults_and_payloads()
 	await _test_map_edit_tool_reports_catalog_fallback_warnings()
 	await _test_map_edit_tool_validation_dashboard_groups_and_focuses_cell_issue()
+	await _test_map_edit_tool_debug_report_includes_validation_summary_without_status_bloat()
 	await _test_map_edit_tool_target_status_reports_tileset_and_overlay_payload()
 	await _test_map_edit_tool_last_edit_trace_distinguishes_document_and_redraw()
 	await _test_map_edit_tool_last_edit_trace_reports_target_apply_failure()
@@ -132,6 +133,7 @@ func _run() -> void:
 	await _test_generation_dock_torus_connectivity_controls()
 	await _test_generation_dock_torus_connectivity_generation()
 	await _test_generation_dock_tracks_generation_progress_state()
+	await _test_generation_dock_debug_report_includes_validation_summary()
 	await _test_generation_dock_only_generates_from_generate_button()
 	await _test_generation_dock_wires_core_progress_and_cancel()
 	await _test_generation_dock_applies_configured_tile_entries()
@@ -1083,6 +1085,28 @@ func _test_map_edit_tool_validation_dashboard_groups_and_focuses_cell_issue() ->
 	_assert_true(hex_layer._highlights.has(HexVector.q_axis().key()), "cell-scoped validation issue highlights HexTileMapLayer target")
 
 	hex_layer.queue_free()
+	tool.queue_free()
+	await process_frame
+
+
+func _test_map_edit_tool_debug_report_includes_validation_summary_without_status_bloat() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	data.set_walls([HexVector.q_axis()])
+	var document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(data))
+	HexMapDocumentAdapter.set_object(document, HexVector.q_axis(), {"object_id": "chest"})
+	var tool = await _new_ready_edit_tool()
+	tool.set_document(document)
+	tool.validate_document_now()
+
+	var report = tool.debug_report_text()
+	_assert_true(report.contains("validation_summary:"), "edit debug report includes validation summary")
+	_assert_true(report.contains("validation_issues:"), "edit debug report includes validation issue rows")
+	_assert_true(report.contains("document.object_on_wall"), "edit debug report includes validation rule id")
+	_assert_true(
+		not tool._target_status_label.text.contains("document.object_on_wall"),
+		"target status label does not include validation issue dump"
+	)
+
 	tool.queue_free()
 	await process_frame
 
@@ -2123,6 +2147,23 @@ func _test_generation_dock_tracks_generation_progress_state() -> void:
 	_assert_true(not cancelled_status["cancel_requested"], "generation dock clears cancel request after cancelled finish")
 	_assert_eq(cancelled_status["status"], "Cancelled", "generation dock reports cancelled status")
 	_assert_true(_progress_controls_hidden(dock), "generation dock hides progress after cancellation")
+
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_debug_report_includes_validation_summary() -> void:
+	var dock = await _new_ready_dock()
+	dock._current_data = HexMapData.rectangle(1, 1)
+	dock._current_orientation = HexMapResource.ORIENTATION_FLAT_TOP
+
+	var summary = dock.validation_debug_summary()
+	var report = dock.debug_report_text()
+	_assert_eq(bool(summary.get("generated_map_present", false)), true, "generation validation summary sees current map")
+	_assert_eq(int(summary.get("errors", -1)), 0, "generation validation summary reports no errors for valid map")
+	_assert_true(report.contains("Hex Map Generate Debug Report"), "generation debug report has a stable header")
+	_assert_true(report.contains("validation_summary:"), "generation debug report includes validation summary")
+	_assert_true(not dock._stats_label.text.contains("validation_summary"), "generation stats label does not include validation dump")
 
 	dock.queue_free()
 	await process_frame

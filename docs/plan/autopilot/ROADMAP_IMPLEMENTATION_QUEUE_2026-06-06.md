@@ -96,7 +96,7 @@ Goal: document / catalog / object / cell の不整合を UI と debug report で
 |---|---|---|---|---|---|---|
 | `VAL-01` | `COMPLETE` | `LD2-03`, `CAT-02` | `docs/plan/2026-06-06_VAL-01_VALIDATION_ENGINE/` | Validation engine core rules | validation helper, `tests/test_hex_adapter.gd` | Detect outside map, orphan payload, missing catalog, missing tile, missing dependency, object on wall. |
 | `VAL-02` | `COMPLETE` | `VAL-01`, `LD2-05` | `docs/plan/2026-06-06_VAL-02_DASHBOARD_UI/` | Validate tab/panel and error list | `hex_map_edit_tool.gd`, maybe shared dashboard script, `tests/test_editor_plugin.gd` | Validate button produces grouped errors/warnings; clicking cell-scoped error updates selected/focus state in headless-testable way. |
-| `VAL-03` | `READY` | `VAL-02` | `docs/plan/2026-06-06_VAL-03_DEBUG_REPORT_INTEGRATION/` | Validation summary in Copy Debug Report | `hex_map_edit_tool.gd`, `hex_map_gen_dock.gd`, `tests/test_editor_plugin.gd` | Debug report includes validation summary without bloating normal status. |
+| `VAL-03` | `COMPLETE` | `VAL-02` | `docs/plan/2026-06-06_VAL-03_DEBUG_REPORT_INTEGRATION/` | Validation summary in Copy Debug Report | `hex_map_edit_tool.gd`, `hex_map_gen_dock.gd`, `tests/test_editor_plugin.gd` | Debug report includes validation summary without bloating normal status. |
 | `VAL-04` | `READY` | `VAL-01` | `docs/plan/2026-06-06_VAL-04_VALIDATION_RULE_MATRIX/` | Rule matrix fixtures and docs | `tests/test_hex_adapter.gd`, `tests/test_editor_plugin.gd`, `docs/TEST.md` | Each validation rule has at least one failing and passing fixture. |
 
 ---
@@ -198,11 +198,11 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `VAL-03` is READY.
+Current recommended next task: `VAL-04` is READY.
 
 Reason:
 
-- Dependency sweep completed on 2026-06-07 after VAL-02 completion.
+- Dependency sweep completed on 2026-06-07 after VAL-03 completion.
 - `CAT-01` is `COMPLETE`.
 - `CAT-02` is `COMPLETE`.
 - `CAT-03` is `COMPLETE`.
@@ -212,8 +212,9 @@ Reason:
 - `CAT-04` is `COMPLETE`.
 - `VAL-01` is `COMPLETE`.
 - `VAL-02` is `COMPLETE`.
-- `VAL-03` is now the first READY task by queue order because `VAL-02` is `COMPLETE`.
-- `VAL-04`, `GAME-01`, and `QA-01` were also promoted to `READY` because their dependencies are complete.
+- `VAL-03` is `COMPLETE`.
+- `VAL-04` is now the first READY task by queue order because `VAL-01` is `COMPLETE`.
+- `GAME-01` and `QA-01` are also `READY` because their dependencies are complete.
 - `OBJ-01` is also `READY` because `LD2-01` and `CAT-01` are `COMPLETE`.
 - `ARCH-02` is also `READY` because `ARCH-01` and `CATUI-01` are `COMPLETE`.
 - `ARCH-04` is also `READY` because `VAL-02` is `COMPLETE`.
@@ -731,4 +732,30 @@ Notes:
 - Added an Edit Dock validation dashboard with Validate command, summary counts, grouped issue rows, and selected issue state.
 - Cell-scoped validation issue selection records focus state and highlights existing `HexTileMapLayer` cells in headless-testable state.
 - `VAL-03` and `ARCH-04` were promoted after dependency sweep.
+- `repair-now`: none.
+
+### VAL-03
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot
+plan: `docs/plan/2026-06-06_VAL-03_DEBUG_REPORT_INTEGRATION/`
+review: `docs/review/autopilot/VAL-03_SELF_REVIEW_2026-06-07.md`
+test result: `docs/review/autopilot/VAL-03_TEST_RESULT_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+- docs:
+  - `docs/TEST.md`
+- major files:
+  - `addons/hex_map_kit/editor/hex_map_edit_tool.gd`
+  - `addons/hex_map_kit/editor/hex_map_gen_dock.gd`
+  - `tests/test_editor_plugin.gd`
+
+Notes:
+
+- Edit Dock debug reports now include validation summary and compact issue rows.
+- Generate Dock debug reports now include generated-map validation summary.
+- Normal target/generation status labels remain free of validation issue dumps.
 - `repair-now`: none.
