@@ -3,6 +3,7 @@ extends SceneTree
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const HexRandomizer = preload("res://addons/hex_map_kit/core/hex_randomizer.gd")
 const HexMapData = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
+const HexOverlayData = preload("res://addons/hex_map_kit/core/hex_overlay_data.gd")
 const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
 const HexMapDebug = preload("res://addons/hex_map_kit/core/hex_map_debug.gd")
 const HexToricMapSplitRule = preload("res://addons/hex_map_kit/core/hex_toric_map_split_rule.gd")
@@ -39,8 +40,22 @@ func _run() -> void:
 	_test_distribution_probabilities_match_unity_tables()
 	_test_rectangle_map_data()
 	_test_hexagon_map_data()
+	_test_primary_map_data_exposes_item_keys()
+	_test_overlay_data_stores_user_item_keys()
+	_test_item_query_combines_primary_and_overlay_sources()
 	_test_random_walls_are_seeded_and_protect_floor_cells()
 	_test_interruptible_random_walls_reports_progress_and_cancel()
+	_test_random_items_use_weighted_pool_and_mask()
+	_test_limited_items_respect_item_limits()
+	_test_interruptible_item_generation_reports_progress_and_cancel()
+	_test_toric_adjacency_items_use_count_component_rules()
+	_test_toric_adjacency_items_wrap_reference_neighbors()
+	_test_toric_adjacency_items_can_reference_generated_item()
+	_test_toric_adjacency_generated_reference_wraps()
+	_test_toric_adjacency_generated_reference_preserves_cancel()
+	_test_symmetric_toric_items_respect_target_and_blocked_cells()
+	_test_symmetric_toric_items_are_seeded_and_interruptible()
+	_test_overlay_deductor_restores_item_blocked_connectivity()
 	_test_connection_detection_uses_wall_set()
 	_test_restore_connectivity_removes_blocking_walls()
 	_test_toric_connection_detection_wraps_edges()
@@ -62,6 +77,7 @@ func _run() -> void:
 	_test_phase2_edge_area_runs_from_center_for_radius_multiple_of_three()
 	_test_symmetric_generation_matches_unity_source_sequence()
 	_test_symmetric_square_torus_and_hex_shape_outputs_share_source_walls()
+	_test_generated_hexagon_shapes_share_canonical_cells()
 	_test_minimum_radius_symmetric_generation_uses_unified_flow()
 	_test_restore_terminal_connectivity_connects_only_requested_terminals()
 	_test_generate_symmetric_toric_square_can_restore_terminal_connectivity()
@@ -132,6 +148,21 @@ func _line_cells(length: int) -> Array:
 
 func _rect_cell(q: int, r: int):
 	return HexVector.apply_basis(q, 0, r)
+
+
+func _canonical_hexagon_cells(radius: int) -> Array:
+	if radius == 0:
+		return [HexVector.zero()]
+	var rule = HexToricMapSplitRule.new(radius)
+	var trimmed_keys := {}
+	for area_index in [0, 7]:
+		for point in rule.split_canvas[area_index]:
+			trimmed_keys[point.key()] = true
+	var result: Array = []
+	for cell in HexMapData.square(radius * 2 + 1, false).cells:
+		if not trimmed_keys.has(cell.key()):
+			result.append(cell)
+	return result
 
 
 func _ring_bridge_tie_data():
@@ -358,11 +389,70 @@ func _test_hexagon_map_data() -> void:
 
 	_assert_eq(data.cells.size(), 19, "radius 2 hexagon has 1 + 3r(r + 1) cells")
 	_assert_eq(data.cyclic_size, 0, "hexagon map is non-toric")
-	for direction in HexVector.directions():
-		_assert_true(
-			data.has_cell(direction.scaled(2)),
-			"hexagon includes every radius corner"
-		)
+	_assert_keys_eq(data.cells, _canonical_hexagon_cells(2), "radius 2 hexagon uses square with split 0 and 7 trimmed")
+	_assert_keys_eq(HexMapData.hexagon(0).cells, [HexVector.zero()], "radius 0 hexagon is the origin cell")
+
+
+func _test_primary_map_data_exposes_item_keys() -> void:
+	var data = HexMapData.rectangle(3, 1)
+	data.set_walls([_rect_cell(1, 0)])
+
+	_assert_eq(data.item_keys(), ["Any", "Floor", "Wall"], "primary map data exposes fixed item keys")
+	_assert_keys_eq(data.item_cells("Any"), data.cells, "primary Any item contains every cell")
+	_assert_keys_eq(data.item_cells("Floor"), [_rect_cell(0, 0), _rect_cell(2, 0)], "primary Floor item excludes walls")
+	_assert_keys_eq(data.item_cells("Wall"), [_rect_cell(1, 0)], "primary Wall item contains walls")
+	_assert_true(data.item_set("Floor").has(_rect_cell(0, 0).key()), "primary item_set exposes floor membership")
+	_assert_eq(data.item_cells("Treasure"), [], "primary unknown item key is empty")
+
+
+func _test_overlay_data_stores_user_item_keys() -> void:
+	var cells = HexMapData.rectangle(3, 1).cells
+	var overlay = HexOverlayData.from_cells(cells, {
+		"Treasure": [_rect_cell(0, 0), _rect_cell(9, 9)],
+		"Wall": [_rect_cell(1, 0), _rect_cell(1, 0)],
+	})
+	overlay.add_item_cell("Shop", _rect_cell(2, 0))
+	overlay.add_item_cell("Shop", _rect_cell(9, 9))
+
+	_assert_eq(overlay.item_keys(), ["Shop", "Treasure", "Wall"], "overlay data exposes sorted user item keys")
+	_assert_keys_eq(overlay.item_cells("Treasure"), [_rect_cell(0, 0)], "overlay data filters item cells by known cells")
+	_assert_keys_eq(overlay.item_cells("Wall"), [_rect_cell(1, 0)], "overlay item names may match primary item names")
+	_assert_keys_eq(overlay.item_cells("Shop"), [_rect_cell(2, 0)], "overlay add_item_cell stores valid cells")
+	_assert_true(overlay.has_item(_rect_cell(1, 0), "Wall"), "overlay has_item checks item membership")
+	_assert_eq(overlay.items_at(_rect_cell(2, 0)), ["Shop"], "overlay items_at returns item keys for a cell")
+	_assert_keys_eq(overlay.occupied_cells(), [_rect_cell(0, 0), _rect_cell(1, 0), _rect_cell(2, 0)], "overlay occupied_cells unions item cells")
+
+
+func _test_item_query_combines_primary_and_overlay_sources() -> void:
+	var primary = HexMapData.rectangle(4, 1)
+	primary.set_walls([_rect_cell(1, 0)])
+	var overlay = HexOverlayData.from_cells(primary.cells, {
+		"Treasure": [_rect_cell(0, 0), _rect_cell(2, 0)],
+		"Shop": [_rect_cell(3, 0)],
+	})
+
+	var floor_selector = HexOverlayData.item_selector(primary, "Floor")
+	var treasure_selector = HexOverlayData.item_selector(overlay, "Treasure")
+	var shop_selector = HexOverlayData.item_selector(overlay, "Shop")
+	_assert_keys_eq(
+		HexOverlayData.query_item_cells([floor_selector, treasure_selector], HexOverlayData.ITEM_QUERY_OR),
+		[_rect_cell(0, 0), _rect_cell(2, 0), _rect_cell(3, 0)],
+		"item query OR unions Primary and Overlay item cells"
+	)
+	_assert_keys_eq(
+		HexOverlayData.query_item_cells([floor_selector, treasure_selector], HexOverlayData.ITEM_QUERY_AND),
+		[_rect_cell(0, 0), _rect_cell(2, 0)],
+		"item query AND intersects Primary and Overlay item cells"
+	)
+	_assert_eq(
+		HexOverlayData.query_item_cells([treasure_selector, shop_selector], HexOverlayData.ITEM_QUERY_AND),
+		[],
+		"item query AND returns empty when selected overlay items do not overlap"
+	)
+	_assert_true(
+		HexOverlayData.query_item_set([treasure_selector]).has(_rect_cell(0, 0).key()),
+		"item query set exposes selected cell membership"
+	)
 
 
 func _test_random_walls_are_seeded_and_protect_floor_cells() -> void:
@@ -403,6 +493,278 @@ func _test_interruptible_random_walls_reports_progress_and_cancel() -> void:
 	_assert_true(recorder.progress_events.size() >= 3, "interruptible random walls emits start and chunk progress")
 	_assert_eq(recorder.progress_events[0]["progress"], 0.0, "interruptible random walls starts at zero progress")
 	_assert_eq(recorder.progress_events[recorder.progress_events.size() - 1]["steps"], 2, "interruptible random walls last progress matches cancellation")
+
+
+func _test_random_items_use_weighted_pool_and_mask() -> void:
+	var cells = HexMapData.rectangle(4, 1).cells
+	var blocked = [_rect_cell(1, 0)]
+	var item_pool = [
+		{"name": "Treasure", "weight": 0.0},
+		{"name": "Wall", "weight": 1.0},
+	]
+	var overlay_a = HexMapGenerator.generate_random_items(cells, 1.0, item_pool, 123, blocked)
+	var overlay_b = HexMapGenerator.generate_random_items(cells, 1.0, item_pool, 123, blocked)
+
+	_assert_keys_eq(overlay_a.cells, [_rect_cell(0, 0), _rect_cell(2, 0), _rect_cell(3, 0)], "random items use unblocked cells as generation candidates")
+	_assert_eq(overlay_a.item_keys(), ["Wall"], "random items ignore zero weight items")
+	_assert_keys_eq(overlay_a.item_cells("Wall"), overlay_a.cells, "probability one fills every candidate with weighted item")
+	_assert_keys_eq(overlay_a.item_cells("Wall"), overlay_b.item_cells("Wall"), "random item generation is seeded")
+
+	var empty_overlay = HexMapGenerator.generate_random_items(cells, 0.0, item_pool, 123)
+	_assert_eq(empty_overlay.occupied_cells().size(), 0, "zero placement probability creates no overlay items")
+
+
+func _test_limited_items_respect_item_limits() -> void:
+	var cells = HexMapData.rectangle(6, 1).cells
+	var blocked = [_rect_cell(5, 0)]
+	var item_pool = [
+		{"name": "Treasure", "limit": 2},
+		{"name": "Wall", "limit": 1},
+	]
+	var overlay = HexMapGenerator.generate_limited_items(cells, item_pool, 456, blocked)
+
+	_assert_eq(overlay.cells.size(), 5, "limited items use unblocked cells as generation candidates")
+	_assert_eq(overlay.item_cells("Treasure").size(), 2, "limited items place the requested Treasure count")
+	_assert_eq(overlay.item_cells("Wall").size(), 1, "limited items place the requested Wall count")
+	_assert_eq(overlay.occupied_cells().size(), 3, "limited items stop at the total requested limit")
+	_assert_false(HexMapData.make_set(overlay.occupied_cells()).has(_rect_cell(5, 0).key()), "limited items do not use blocked cells")
+
+
+func _test_interruptible_item_generation_reports_progress_and_cancel() -> void:
+	var cells = HexMapData.rectangle(4, 1).cells
+	var options = _cancel_interrupt_options(2)
+	var result = HexMapGenerator.generate_random_items_interruptible(
+		cells,
+		1.0,
+		[{"name": "Treasure", "weight": 1.0}],
+		77,
+		[],
+		options
+	)
+	var recorder = options["_recorder"]
+
+	_assert_true(result["cancelled"], "interruptible random items reports cancelled result")
+	_assert_true(options["cancelled"], "interruptible random items records cancelled option state")
+	_assert_eq(result["data"].occupied_cells().size(), 2, "interruptible random items stops after requested step")
+	_assert_eq(options["phase"], "random_items", "interruptible random items records phase")
+	_assert_true(recorder.progress_events.size() >= 3, "interruptible random items emits start and chunk progress")
+	_assert_eq(recorder.progress_events[0]["progress"], 0.0, "interruptible random items starts at zero progress")
+
+
+func _test_toric_adjacency_items_use_count_component_rules() -> void:
+	var directions = HexGrid.directions()
+	var connected_candidate = HexVector.zero()
+	var split_candidate = _rect_cell(10, 10)
+	var reference_cells = [
+		connected_candidate.add(directions[0]),
+		connected_candidate.add(directions[1]),
+		split_candidate.add(directions[0]),
+		split_candidate.add(directions[3]),
+	]
+	var overlay = HexMapGenerator.generate_toric_adjacency_items(
+		[connected_candidate, split_candidate],
+		"Cluster",
+		reference_cells,
+		{
+			"default": 0.0,
+			"2,1": 1.0,
+			"2,2": 0.0,
+		},
+		99
+	)
+
+	_assert_keys_eq(overlay.item_cells("Cluster"), [connected_candidate], "adjacency item generator uses neighbor count and component rule")
+
+
+func _test_toric_adjacency_items_wrap_reference_neighbors() -> void:
+	var cells = HexMapData.square(3, true).cells
+	var candidate = HexVector.zero()
+	var reference = _rect_cell(2, 0)
+	var overlay = HexMapGenerator.generate_toric_adjacency_items(
+		cells,
+		"Portal",
+		[reference],
+		{
+			"default": 0.0,
+			"1,1": 1.0,
+		},
+		7,
+		[],
+		3
+	)
+
+	_assert_true(overlay.has_item(candidate, "Portal"), "adjacency item generator wraps toric reference neighbors")
+
+
+func _test_toric_adjacency_items_can_reference_generated_item() -> void:
+	var first_candidate = HexVector.zero()
+	var second_candidate = HexVector.q_axis()
+	var reference = HexVector.q_axis().scaled(-1)
+	var rules = {
+		"default": 0.0,
+		"1,1": 1.0,
+	}
+	var static_only = HexMapGenerator.generate_toric_adjacency_items(
+		[first_candidate, second_candidate],
+		"Vine",
+		[reference],
+		rules,
+		11
+	)
+	var dynamic = HexMapGenerator.generate_toric_adjacency_items(
+		[first_candidate, second_candidate],
+		"Vine",
+		[reference],
+		rules,
+		11,
+		[],
+		0,
+		1,
+		true
+	)
+
+	_assert_keys_eq(static_only.item_cells("Vine"), [first_candidate], "adjacency generated reference defaults to static reference cells")
+	_assert_keys_eq(dynamic.item_cells("Vine"), [first_candidate, second_candidate], "adjacency generated reference adds placed target items to later reference stats")
+
+
+func _test_toric_adjacency_generated_reference_wraps() -> void:
+	var edge_candidate = _rect_cell(2, 0)
+	var wrapped_candidate = HexVector.zero()
+	var reference = edge_candidate.add(HexVector.r_axis())
+	var rules = {
+		"default": 0.0,
+		"1,1": 1.0,
+	}
+	var static_only = HexMapGenerator.generate_toric_adjacency_items(
+		[edge_candidate, wrapped_candidate],
+		"Portal",
+		[reference],
+		rules,
+		12,
+		[],
+		3
+	)
+	var dynamic = HexMapGenerator.generate_toric_adjacency_items(
+		[edge_candidate, wrapped_candidate],
+		"Portal",
+		[reference],
+		rules,
+		12,
+		[],
+		3,
+		1,
+		true
+	)
+
+	_assert_keys_eq(static_only.item_cells("Portal"), [edge_candidate], "toric generated reference starts from static reference cells only")
+	_assert_keys_eq(dynamic.item_cells("Portal"), [edge_candidate, wrapped_candidate], "toric generated reference uses wrapped generated item representatives")
+
+
+func _test_toric_adjacency_generated_reference_preserves_cancel() -> void:
+	var first_candidate = HexVector.zero()
+	var second_candidate = HexVector.q_axis()
+	var third_candidate = HexVector.q_axis().scaled(2)
+	var reference = HexVector.q_axis().scaled(-1)
+	var options = _cancel_interrupt_options(1)
+	var result = HexMapGenerator.generate_toric_adjacency_items_interruptible(
+		[first_candidate, second_candidate, third_candidate],
+		"Vine",
+		[reference],
+		{
+			"default": 0.0,
+			"1,1": 1.0,
+		},
+		13,
+		[],
+		0,
+		1,
+		options,
+		true
+	)
+
+	_assert_true(result["cancelled"], "generated reference adjacency reports cancelled result")
+	_assert_true(options["cancelled"], "generated reference adjacency records cancelled option state")
+	_assert_eq(result["steps"], 1, "generated reference adjacency stops at requested cancel step")
+	_assert_keys_eq(result["data"].item_cells("Vine"), [first_candidate], "generated reference adjacency returns partial data at cancellation")
+
+
+func _test_symmetric_toric_items_respect_target_and_blocked_cells() -> void:
+	var radius := 2
+	var cells = HexMapData.square(radius * 2 + 1, true).cells
+	var target_cells = [
+		cells[0],
+		cells[1],
+		cells[2],
+		cells[3],
+	]
+	var blocked = [cells[1]]
+	var overlay = HexMapGenerator.generate_symmetric_toric_items(
+		radius,
+		"Decor",
+		target_cells,
+		1.0,
+		12,
+		20,
+		blocked
+	)
+
+	_assert_keys_eq(overlay.cells, [cells[0], cells[2], cells[3]], "symmetric toric items use target cells minus blocked cells as candidates")
+	_assert_keys_eq(overlay.item_cells("Decor"), overlay.cells, "probability one fills every unblocked target item cell")
+	_assert_false(overlay.has_item(cells[1], "Decor"), "symmetric toric items exclude blocked target cells")
+
+
+func _test_symmetric_toric_items_are_seeded_and_interruptible() -> void:
+	var radius := 2
+	var cells = HexMapData.square(radius * 2 + 1, true).cells
+	var target_cells = cells.slice(0, 10)
+	var overlay_a = HexMapGenerator.generate_symmetric_toric_items(
+		radius,
+		"Decor",
+		target_cells,
+		0.45,
+		345,
+		20
+	)
+	var overlay_b = HexMapGenerator.generate_symmetric_toric_items(
+		radius,
+		"Decor",
+		target_cells,
+		0.45,
+		345,
+		20
+	)
+	_assert_keys_eq(overlay_a.item_cells("Decor"), overlay_b.item_cells("Decor"), "symmetric toric item generation is seeded")
+
+	var options = _phase_cancel_interrupt_options("symmetric_toric")
+	var result = HexMapGenerator.generate_symmetric_toric_items_interruptible(
+		radius,
+		"Decor",
+		target_cells,
+		0.45,
+		345,
+		20,
+		[],
+		null,
+		options
+	)
+	_assert_true(result["cancelled"], "interruptible symmetric toric items reports cancelled result")
+	_assert_true(options["cancelled"], "interruptible symmetric toric items records cancelled option state")
+	_assert_true(result["data"] is HexOverlayData, "interruptible symmetric toric items returns overlay data")
+
+
+func _test_overlay_deductor_restores_item_blocked_connectivity() -> void:
+	var cells = _line_cells(3)
+	var overlay = HexOverlayData.from_item_cells(cells, "Block", [HexVector.q_axis()])
+	var removed = HexMapGenerator.deduct_items_for_connectivity(
+		overlay,
+		"Block",
+		cells,
+		HexMapGenerator.CONNECT_DENSE,
+		101
+	)
+
+	_assert_keys_eq(removed, [HexVector.q_axis()], "overlay deductor removes item blocking floor connectivity")
+	_assert_false(overlay.has_item(HexVector.q_axis(), "Block"), "overlay deductor updates overlay item cells")
 
 
 func _test_connection_detection_uses_wall_set() -> void:
@@ -1028,18 +1390,11 @@ func _test_symmetric_square_torus_and_hex_shape_outputs_share_source_walls() -> 
 		_assert_keys_eq(square.cells, torus.cells, "radius %d symmetric square and torus share cells" % radius)
 		_assert_keys_eq(square.walls, torus.walls, "radius %d raw symmetric square and torus share source walls" % radius)
 
-		var rule = HexToricMapSplitRule.new(radius)
-		var edge_keys := {}
-		for area_index in [0, 7]:
-			for point in rule.split_canvas[area_index]:
-				edge_keys[point.key()] = true
-		var expected_hex_cells: Array = []
-		for cell in square.cells:
-			if not edge_keys.has(cell.key()):
-				expected_hex_cells.append(cell)
+		var expected_hex_cells = _canonical_hexagon_cells(radius)
+		var expected_hex_cell_set = HexMapData.make_set(expected_hex_cells)
 		var expected_hex_walls: Array = []
 		for wall in square.walls:
-			if not edge_keys.has(wall.key()):
+			if expected_hex_cell_set.has(wall.key()):
 				expected_hex_walls.append(wall)
 		var hexagon = HexMapGenerator.generate_symmetric_hexagon(
 			radius,
@@ -1050,6 +1405,26 @@ func _test_symmetric_square_torus_and_hex_shape_outputs_share_source_walls() -> 
 		)
 		_assert_keys_eq(hexagon.cells, expected_hex_cells, "radius %d symmetric hexagon filters split 0 and 7 cells" % radius)
 		_assert_keys_eq(hexagon.walls, expected_hex_walls, "radius %d symmetric hexagon filters split 0 and 7 walls" % radius)
+
+
+func _test_generated_hexagon_shapes_share_canonical_cells() -> void:
+	for radius in [1, 2, 3]:
+		var simple = HexMapGenerator.generate_hexagon(
+			radius,
+			0.0,
+			4000 + radius,
+			HexMapGenerator.CONNECT_NONE
+		)
+		var symmetric = HexMapGenerator.generate_symmetric_hexagon(
+			radius,
+			0.0,
+			5000 + radius,
+			HexMapGenerator.CONNECT_NONE
+		)
+		var expected = _canonical_hexagon_cells(radius)
+		_assert_keys_eq(simple.cells, expected, "radius %d simple hexagon uses canonical cells" % radius)
+		_assert_keys_eq(symmetric.cells, expected, "radius %d symmetric hexagon uses canonical cells" % radius)
+		_assert_keys_eq(simple.cells, symmetric.cells, "radius %d simple and symmetric hexagon share cells" % radius)
 
 
 func _test_minimum_radius_symmetric_generation_uses_unified_flow() -> void:

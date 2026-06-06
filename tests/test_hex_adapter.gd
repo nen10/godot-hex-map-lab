@@ -3,10 +3,19 @@ extends SceneTree
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const HexPoint = preload("res://addons/hex_map_kit/core/hex_point.gd")
 const HexMapData = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
+const HexOverlayData = preload("res://addons/hex_map_kit/core/hex_overlay_data.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
+const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
+const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
+const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
+const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
+const HexOverlayResource = preload("res://addons/hex_map_kit/adapter/hex_overlay_resource.gd")
+const HexOverlayTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_overlay_tile_adapter.gd")
+const HexAdjacencyRuleSet = preload("res://addons/hex_map_kit/adapter/hex_adjacency_rule_set.gd")
 
 var _failures: Array[String] = []
+var _test_output_root := ""
 
 
 func _init() -> void:
@@ -16,6 +25,7 @@ func _init() -> void:
 func _run() -> void:
 	_test_vector_to_map_cell_matches_flat_top_offset()
 	_test_vector_to_map_cell_matches_pointy_top_offset()
+	_test_map_cell_to_vector_roundtrips_offset_cells()
 	_test_to_tile_entries_marks_floor_and_wall()
 	_test_entries_are_sorted_for_stable_scene_generation()
 	_test_radius_two_hexagon_matches_godot_flat_top_layout()
@@ -33,6 +43,14 @@ func _run() -> void:
 	_test_configure_sample_tile_set_creates_atlas_source()
 	_test_map_resource_stores_map_data()
 	_test_map_resource_roundtrips_to_map_data()
+	_test_hex_map_document_roundtrips_map_and_payloads()
+	_test_hex_map_document_adapter_updates_wall_floor()
+	_test_hex_map_document_adapter_applies_tile_overrides()
+	_test_overlay_resource_roundtrips_to_overlay_data()
+	_test_adjacency_rule_set_parses_probability_rules()
+	_test_overlay_data_apply_policy_merge_replace_skip()
+	_test_overlay_tile_adapter_applies_user_item_tiles()
+	_test_overlay_tile_adapter_can_preserve_existing_layer_cells()
 
 	if _failures.is_empty():
 		print("test_hex_adapter.gd: all tests passed")
@@ -101,6 +119,22 @@ func _test_vector_to_map_cell_matches_pointy_top_offset() -> void:
 		Vector2i(1, 0),
 		"pointy-top Q axis maps to horizontal offset"
 	)
+
+
+func _test_map_cell_to_vector_roundtrips_offset_cells() -> void:
+	var cells = [
+		HexVector.zero(),
+		HexVector.q_axis(),
+		HexVector.r_axis(),
+		HexVector.s_axis(),
+		HexVector.q_axis().negated(),
+		HexVector.r_axis().negated(),
+	]
+	for cell in cells:
+		var flat_map_cell = HexMapTileAdapter.vector_to_map_cell(cell, true)
+		var pointy_map_cell = HexMapTileAdapter.vector_to_map_cell(cell, false)
+		_assert_eq(HexMapTileAdapter.map_cell_to_vector(flat_map_cell, true).key(), cell.key(), "flat-top map cell roundtrips %s" % cell.key())
+		_assert_eq(HexMapTileAdapter.map_cell_to_vector(pointy_map_cell, false).key(), cell.key(), "pointy-top map cell roundtrips %s" % cell.key())
 
 
 func _test_to_tile_entries_marks_floor_and_wall() -> void:
@@ -346,6 +380,262 @@ func _test_map_resource_roundtrips_to_map_data() -> void:
 	_assert_eq(resource.orientation, HexMapResource.ORIENTATION_FLAT_TOP, "resource normalizes unknown orientation to flat-top")
 
 
+func _test_hex_map_document_roundtrips_map_and_payloads() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	data.set_walls([HexVector.q_axis()])
+	var document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(data, HexMapResource.ORIENTATION_POINTY_TOP)
+	)
+	HexMapDocumentAdapter.set_tile_override(document, HexVector.zero(), {
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"source_id": 3,
+		"atlas_coords": Vector2i(4, 5),
+		"alternative_tile": 2,
+	})
+	HexMapDocumentAdapter.set_object(document, HexVector.q_axis(), {
+		"object_id": "chest",
+		"properties": {"gold": 2},
+	})
+	HexMapDocumentAdapter.set_label(document, HexVector.zero(), {
+		"label_id": "area",
+		"text": "North Gate",
+	})
+	var object_db = HexObjectDatabaseResource.new()
+	object_db.objects = [{"object_id": "chest", "display_name": "Chest"}]
+	var label_db = HexLabelDatabaseResource.new()
+	label_db.labels = [{"label_id": "area", "display_name": "Area"}]
+
+	var path = _test_resource_path("test_hex_map_document.tres")
+	var error = ResourceSaver.save(document, path)
+	var loaded = load(path)
+	var roundtrip = HexMapDocumentAdapter.to_map_resource(loaded).to_map_data()
+
+	_assert_eq(error, OK, "hex map document resource saves")
+	_assert_keys_eq(roundtrip.cells, data.cells, "hex map document preserves cells")
+	_assert_keys_eq(roundtrip.walls, data.walls, "hex map document preserves walls")
+	_assert_eq(loaded.map.orientation, HexMapResource.ORIENTATION_POINTY_TOP, "hex map document preserves orientation")
+	_assert_eq(loaded.tile_overrides[0]["atlas_coords"], Vector2i(4, 5), "hex map document preserves tile override")
+	_assert_eq(loaded.objects[0]["properties"]["gold"], 2, "hex map document preserves object properties")
+	_assert_eq(loaded.labels[0]["text"], "North Gate", "hex map document preserves labels")
+	_assert_eq(object_db.objects[0]["object_id"], "chest", "object database stores object definitions")
+	_assert_eq(label_db.labels[0]["label_id"], "area", "label database stores label definitions")
+
+
+func _test_hex_map_document_adapter_updates_wall_floor() -> void:
+	var document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(2, 1))
+	)
+
+	HexMapDocumentAdapter.set_wall(document, HexVector.zero(), true)
+	_assert_eq(document.map.to_map_data().has_wall(HexVector.zero()), true, "document adapter sets wall")
+	HexMapDocumentAdapter.set_wall(document, HexVector.zero(), false)
+	_assert_eq(document.map.to_map_data().has_wall(HexVector.zero()), false, "document adapter clears wall")
+
+	var new_cell = HexVector.q_axis().scaled(2)
+	HexMapDocumentAdapter.set_cell_exists(document, new_cell, true)
+	_assert_eq(document.map.to_map_data().has_cell(new_cell), true, "document adapter adds shape cell")
+	HexMapDocumentAdapter.set_tile_override(document, HexVector.q_axis(), {
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"source_id": 8,
+		"atlas_coords": Vector2i(4, 5),
+	})
+	HexMapDocumentAdapter.set_object(document, HexVector.q_axis(), {"object_id": "chest"})
+	HexMapDocumentAdapter.set_label(document, HexVector.q_axis(), {
+		"label_id": "area",
+		"text": "North Gate",
+	})
+	HexMapDocumentAdapter.set_cell_exists(document, HexVector.q_axis(), false)
+	_assert_eq(document.map.to_map_data().has_cell(HexVector.q_axis()), false, "document adapter removes shape cell")
+	_assert_eq(document.tile_overrides.size(), 0, "document adapter removes tile overrides for deleted shape cell")
+	_assert_eq(document.objects.size(), 0, "document adapter removes objects for deleted shape cell")
+	_assert_eq(document.labels.size(), 0, "document adapter removes labels for deleted shape cell")
+
+
+func _test_hex_map_document_adapter_applies_tile_overrides() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	data.set_walls([HexVector.q_axis()])
+	var document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(data))
+	HexMapDocumentAdapter.set_tile_override(document, HexVector.zero(), {
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"source_id": 8,
+		"atlas_coords": Vector2i(4, 5),
+		"alternative_tile": 2,
+	})
+	HexMapDocumentAdapter.set_tile_override(document, HexVector.zero(), {
+		"kind": HexMapDocumentAdapter.KIND_WALL,
+		"source_id": 9,
+		"atlas_coords": Vector2i(6, 7),
+	})
+	HexMapDocumentAdapter.set_tile_override(document, HexVector.q_axis(), {
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"source_id": 10,
+		"atlas_coords": Vector2i(8, 9),
+	})
+	HexMapDocumentAdapter.set_tile_override(document, HexVector.q_axis(), {
+		"kind": HexMapDocumentAdapter.KIND_WALL,
+		"source_id": 11,
+		"atlas_coords": Vector2i(12, 13),
+	})
+	var layer = TileMapLayer.new()
+
+	HexMapDocumentAdapter.apply_to_tile_map_layer(document, layer, {
+		"floor_source_id": 1,
+		"floor_atlas_coords": Vector2i.ZERO,
+		"wall_source_id": 2,
+		"wall_atlas_coords": Vector2i(1, 0),
+	})
+
+	_assert_eq(layer.get_cell_source_id(Vector2i.ZERO), 8, "document adapter applies floor tile override source")
+	_assert_eq(layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(4, 5), "document adapter applies floor tile override atlas")
+	_assert_eq(layer.get_cell_alternative_tile(Vector2i.ZERO), 2, "document adapter applies floor tile override alternative")
+	_assert_eq(layer.get_cell_source_id(Vector2i(1, 0)), 11, "document adapter applies wall tile override source")
+	_assert_eq(layer.get_cell_atlas_coords(Vector2i(1, 0)), Vector2i(12, 13), "document adapter applies wall tile override atlas")
+	layer.free()
+
+
+func _test_overlay_resource_roundtrips_to_overlay_data() -> void:
+	var cells = HexMapData.rectangle(3, 1).cells
+	var data = HexOverlayData.from_cells(cells, {
+		"Treasure": [cells[0], cells[2]],
+		"Shop": [cells[1]],
+	}, 3)
+	var resource = HexOverlayResource.from_overlay_data(data, HexMapResource.ORIENTATION_POINTY_TOP)
+	var roundtrip = resource.to_overlay_data()
+
+	_assert_eq(resource.orientation, HexMapResource.ORIENTATION_POINTY_TOP, "overlay resource stores orientation")
+	_assert_eq(resource.cyclic_size, 3, "overlay resource stores cyclic size")
+	_assert_keys_eq(roundtrip.cells, data.cells, "overlay resource roundtrip preserves cells")
+	_assert_keys_eq(roundtrip.item_cells("Treasure"), data.item_cells("Treasure"), "overlay resource roundtrip preserves Treasure cells")
+	_assert_keys_eq(roundtrip.item_cells("Shop"), data.item_cells("Shop"), "overlay resource roundtrip preserves Shop cells")
+
+
+func _test_adjacency_rule_set_parses_probability_rules() -> void:
+	var rules = HexAdjacencyRuleSet.parse_rules_text("default=0.2;1=0.8;2,1=0.4;bad=x")
+	_assert_eq(rules["default"], 0.2, "adjacency rule set parses default probability")
+	_assert_eq(rules[1], 0.8, "adjacency rule set parses neighbor count probability")
+	_assert_eq(rules[Vector2i(2, 1)], 0.4, "adjacency rule set normalizes count/component probability key")
+	_assert_eq(rules.has("bad"), false, "adjacency rule set ignores invalid named keys")
+	var report = HexAdjacencyRuleSet.parse_rules_text_report("default=0.2;1=0.8;2,1=0.4;bad=x;bad=0.5")
+	_assert_eq(report["invalid_entries"], ["bad=x", "bad=0.5"], "adjacency rule set reports invalid entries")
+
+	var empty_rules = HexAdjacencyRuleSet.parse_rules_text("bad")
+	_assert_eq(empty_rules, {}, "adjacency rule set returns empty rules when no entries are valid")
+	var empty_report = HexAdjacencyRuleSet.parse_rules_text_report("bad")
+	_assert_eq(empty_report["rules"], {}, "adjacency rule set reports empty rules without fallback default")
+
+	var resource = HexAdjacencyRuleSet.new()
+	resource.rules_text = "default=1.4;0=-0.2"
+	var clamped = resource.to_probability_rules()
+	_assert_eq(clamped["default"], 1.0, "adjacency rule set clamps high probability")
+	_assert_eq(clamped[0], 0.0, "adjacency rule set clamps low probability")
+
+
+func _test_overlay_data_apply_policy_merge_replace_skip() -> void:
+	var cells = HexMapData.rectangle(3, 1).cells
+	var base = HexOverlayData.from_cells(cells, {
+		"Treasure": [cells[0]],
+	})
+	var incoming = HexOverlayData.from_cells(cells, {
+		"Shop": [cells[0], cells[1]],
+	})
+
+	var merged = base.duplicate_data()
+	merged.apply_overlay(incoming, HexOverlayData.APPLY_ADD_ITEM, HexOverlayData.EXISTING_MERGE)
+	_assert_eq(merged.items_at(cells[0]), ["Shop", "Treasure"], "merge existing keeps both item keys at a cell")
+	_assert_keys_eq(merged.item_cells("Shop"), [cells[0], cells[1]], "merge existing adds incoming item cells")
+
+	var replaced = base.duplicate_data()
+	replaced.apply_overlay(incoming, HexOverlayData.APPLY_ADD_ITEM, HexOverlayData.EXISTING_REPLACE)
+	_assert_eq(replaced.items_at(cells[0]), ["Shop"], "replace existing removes previous item keys at incoming cells")
+	_assert_eq(replaced.items_at(cells[1]), ["Shop"], "replace existing writes incoming item")
+
+	var skipped = base.duplicate_data()
+	skipped.apply_overlay(incoming, HexOverlayData.APPLY_ADD_ITEM, HexOverlayData.EXISTING_SKIP)
+	_assert_eq(skipped.items_at(cells[0]), ["Treasure"], "skip existing leaves occupied cell unchanged")
+	_assert_eq(skipped.items_at(cells[1]), ["Shop"], "skip existing writes empty cell")
+
+	var cleared = base.duplicate_data()
+	cleared.apply_overlay(incoming, HexOverlayData.APPLY_CLEAR_AND_WRITE, HexOverlayData.EXISTING_MERGE)
+	_assert_eq(cleared.item_cells("Treasure"), [], "clear and write removes previous item keys")
+	_assert_keys_eq(cleared.item_cells("Shop"), [cells[0], cells[1]], "clear and write stores incoming item cells")
+
+
+func _test_overlay_tile_adapter_applies_user_item_tiles() -> void:
+	var cells = HexMapData.rectangle(3, 1).cells
+	var data = HexOverlayData.from_cells(cells, {
+		"Treasure": [cells[0]],
+		"Shop": [cells[1]],
+		"Unmapped": [cells[2]],
+	})
+	var item_tiles = {
+		"Treasure": HexOverlayTileAdapter.tile_config(4, Vector2i(2, 3)),
+		"Shop": HexOverlayTileAdapter.tile_config(5, Vector2i(6, 7), 2),
+	}
+	var layer = TileMapLayer.new()
+
+	HexOverlayTileAdapter.apply_to_tile_map_layer(layer, data, item_tiles)
+	_assert_eq(layer.get_used_cells().size(), 2, "overlay tile adapter applies only mapped item keys")
+	_assert_eq(layer.get_cell_source_id(Vector2i.ZERO), 4, "overlay tile adapter applies Treasure source")
+	_assert_eq(layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(2, 3), "overlay tile adapter applies Treasure atlas")
+	_assert_eq(layer.get_cell_source_id(Vector2i(1, 0)), 5, "overlay tile adapter applies Shop source")
+	_assert_eq(layer.get_cell_atlas_coords(Vector2i(1, 0)), Vector2i(6, 7), "overlay tile adapter applies Shop atlas")
+	_assert_eq(layer.get_cell_alternative_tile(Vector2i(1, 0)), 2, "overlay tile adapter applies alternative tile")
+
+	layer.free()
+
+
+func _test_overlay_tile_adapter_can_preserve_existing_layer_cells() -> void:
+	var cells = HexMapData.rectangle(1, 1).cells
+	var data = HexOverlayData.from_cells(cells, {
+		"Treasure": [cells[0]],
+	})
+	var item_tiles = {
+		"Treasure": HexOverlayTileAdapter.tile_config(4, Vector2i(2, 3)),
+	}
+	var layer = TileMapLayer.new()
+	layer.set_cell(Vector2i(9, 9), 8, Vector2i(1, 1))
+
+	HexOverlayTileAdapter.apply_to_tile_map_layer(layer, data, item_tiles, false)
+	_assert_eq(layer.get_cell_source_id(Vector2i(9, 9)), 8, "overlay tile adapter preserves existing layer cell when not clearing")
+	_assert_eq(layer.get_cell_source_id(Vector2i.ZERO), 4, "overlay tile adapter writes generated overlay cell when not clearing")
+
+	layer.free()
+
+
+func _test_resource_path(filename: String) -> String:
+	return "%s/%s" % [_test_output_dir(), filename]
+
+
+func _test_output_dir() -> String:
+	if _test_output_root == "":
+		_test_output_root = "res://.godot_user/test-runs/%s/test_hex_adapter" % _safe_path_part(_test_run_id())
+		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_test_output_root))
+	return _test_output_root
+
+
+func _test_run_id() -> String:
+	var run_id = OS.get_environment("HEX_MAP_TEST_RUN_ID")
+	if run_id == "":
+		run_id = "manual-%d-%d" % [OS.get_process_id(), Time.get_ticks_usec()]
+	return run_id
+
+
+func _safe_path_part(value: String) -> String:
+	var result := ""
+	for index in range(value.length()):
+		var code = value.unicode_at(index)
+		if (code >= 48 and code <= 57) \
+			or (code >= 65 and code <= 90) \
+			or (code >= 97 and code <= 122) \
+			or code == 45 \
+			or code == 46 \
+			or code == 95:
+			result += char(code)
+		else:
+			result += "-"
+	return "run" if result == "" else result
+
+
 func _assert_neighbor_offset_deltas(center, expected: Array, message: String) -> void:
 	var center_cell = center.to_offset()
 	var directions = HexVector.directions()
@@ -389,12 +679,21 @@ func _assert_radius_two_hexagon_matches_godot_layout(flat_top: bool) -> void:
 		entry_by_key[entry["vector"].key()] = entry
 
 	_assert_eq(entries.size(), 19, "radius 2 hexagon emits 19 entries flat_top=%s" % str(flat_top))
-	var origin_entry = entry_by_key[HexVector.zero().key()]
-	var origin_local = layer.map_to_local(origin_entry["map_cell"])
+	var center = HexVector.apply_basis(2, 0, 2)
+	_assert_eq(entry_by_key.has(center.key()), true, "radius 2 canonical hexagon has an interior layout center")
+	if not entry_by_key.has(center.key()):
+		layer.free()
+		return
+	var center_entry = entry_by_key[center.key()]
+	var center_local = layer.map_to_local(center_entry["map_cell"])
 	var directions = HexVector.directions()
 	for direction in directions:
-		var entry = entry_by_key[direction.key()]
-		var actual = layer.map_to_local(entry["map_cell"]) - origin_local
+		var neighbor = center.add(direction)
+		_assert_eq(entry_by_key.has(neighbor.key()), true, "radius 2 canonical hexagon has center neighbor %s" % direction.key())
+		if not entry_by_key.has(neighbor.key()):
+			continue
+		var entry = entry_by_key[neighbor.key()]
+		var actual = layer.map_to_local(entry["map_cell"]) - center_local
 		var expected = _godot_neighbor_delta(direction, flat_top)
 		_assert_vec2_approx(
 			actual,

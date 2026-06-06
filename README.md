@@ -36,13 +36,19 @@ Hex 座標系・ランダム壁生成・通路生成(連結性回復)処理を G
 - `docs/algorithm/ALGORITHM_MAP_GENERATION.md`
 - `docs/algorithm/ALGORITHM_ADAPTER.md`
 
-## テスト
+## 自動テスト
 
 ```sh
 ./tools/test.sh
 ```
 
-Godot 実行ファイルを明示する場合:
+複数 test script を並列実行する場合:
+
+```sh
+TEST_JOBS=3 ./tools/test.sh
+```
+
+Godot の実行ファイルを明示する場合:
 
 ```sh
 GODOT_BIN=/path/to/Godot ./tools/test.sh
@@ -54,9 +60,7 @@ GODOT_BIN=/path/to/Godot ./tools/test.sh
 
 実装計画とレビュー残件は `docs/plan/` 以下で管理します。
 
-- `docs/plan/EDITOR_PLUGIN.md`: EditorPlugin の実装計画
 - `docs/plan/TILEMAP_LAYER.md`: `HexTileMapLayer` 周辺の実行時拡張計画
-- `docs/plan/REMAINS_FROM_USER_REVIEW.md`: ユーザーレビュー由来の要望
 
 ## リポジトリ構成
 

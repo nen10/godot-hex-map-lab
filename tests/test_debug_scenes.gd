@@ -3,8 +3,12 @@ extends SceneTree
 const GeneratedMapDebugScene = preload("res://debug/generated_map_debug.tscn")
 const GeneratedMapDebug = preload("res://debug/generated_map_debug.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
+const HexMapData = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
 const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
 const HexToricMapSplitRule = preload("res://addons/hex_map_kit/core/hex_toric_map_split_rule.gd")
+const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
+const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
+const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 
 var _failures: Array[String] = []
 
@@ -174,6 +178,28 @@ func _run() -> void:
 		true,
 		false,
 		0,
+		false,
+		false,
+		false,
+		false,
+		true,
+		true
+	)
+	_assert_true(scene.is_loop_path_enabled(), "debug torus exposes loop path toggle state")
+	_assert_true(scene.is_cell_hit_display_enabled(), "debug torus exposes cell hit toggle state")
+	_assert_eq(
+		scene.get_current_visual_path().size(),
+		scene.get_current_path().size(),
+		"debug torus loop path keeps path cardinality"
+	)
+
+	scene.configure_for_test(
+		GeneratedMapDebug.SHAPE_TORUS,
+		987,
+		0.45,
+		true,
+		false,
+		0,
 		true,
 		false,
 		true
@@ -278,6 +304,22 @@ func _run() -> void:
 		has_symmetric_symmetry_center,
 		"debug sym-gen symmetry overlay exposes center"
 	)
+
+	var runtime_layer = HexTileMapLayer.new()
+	root.add_child(runtime_layer)
+	await process_frame
+	var duplicate_visual = HexVector.apply_basis(-3, 0, 0)
+	runtime_layer.hex_size = 10.0
+	runtime_layer.loop_display_enabled = true
+	runtime_layer.loop_display_mode = HexTileMapLayer.LOOP_DISPLAY_TORIC
+	runtime_layer.loop_display_rect = Rect2(runtime_layer.hex_to_local(duplicate_visual) - Vector2.ONE, Vector2(2, 2))
+	runtime_layer.apply_map(HexMapResource.from_map_data(HexMapData.square(3, true)))
+	_assert_eq(
+		runtime_layer._loop_tile_map.get_cell_atlas_coords(HexMapTileAdapter.vector_to_map_cell(duplicate_visual, true)),
+		runtime_layer.floor_atlas_coords,
+		"debug test observes runtime loop duplicate tile copy state"
+	)
+	runtime_layer.queue_free()
 
 	scene.queue_free()
 	await process_frame

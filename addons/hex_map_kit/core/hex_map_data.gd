@@ -2,7 +2,11 @@ class_name HexMapData
 extends RefCounted
 
 const HexVectorScript = preload("res://addons/hex_map_kit/core/hex_vector.gd")
-const HexGridScript = preload("res://addons/hex_map_kit/core/hex_grid.gd")
+const HexToricMapSplitRuleScript = preload("res://addons/hex_map_kit/core/hex_toric_map_split_rule.gd")
+
+const ITEM_ANY := "Any"
+const ITEM_FLOOR := "Floor"
+const ITEM_WALL := "Wall"
 
 var cells: Array = []
 var walls: Array = []
@@ -35,7 +39,20 @@ static func square(size: int, is_toric: bool = false):
 
 static func hexagon(radius: int):
 	assert(radius >= 0)
-	return from_cells(HexGridScript.l1_disc(radius), [], 0)
+	if radius == 0:
+		return from_cells([HexVectorScript.zero()], [], 0)
+
+	var rule = HexToricMapSplitRuleScript.new(radius)
+	var trimmed_keys := {}
+	for area_index in [0, 7]:
+		for point in rule.split_canvas[area_index]:
+			trimmed_keys[point.key()] = true
+
+	var result: Array = []
+	for cell in square(radius * 2 + 1, false).cells:
+		if not trimmed_keys.has(cell.key()):
+			result.append(cell)
+	return from_cells(result, [], 0)
 
 
 static func from_cells(p_cells: Array, p_walls: Array = [], p_cyclic_size: int = 0):
@@ -68,6 +85,26 @@ func has_wall(point) -> bool:
 
 func set_walls(p_walls: Array) -> void:
 	walls = filter_points(p_walls, cell_set())
+
+
+func item_keys() -> Array:
+	return [ITEM_ANY, ITEM_FLOOR, ITEM_WALL]
+
+
+func item_cells(item_key: String) -> Array:
+	match item_key:
+		ITEM_ANY:
+			return cells.duplicate()
+		ITEM_FLOOR:
+			return floor_cells()
+		ITEM_WALL:
+			return walls.duplicate()
+		_:
+			return []
+
+
+func item_set(item_key: String) -> Dictionary:
+	return make_set(item_cells(item_key))
 
 
 static func make_set(points: Array) -> Dictionary:

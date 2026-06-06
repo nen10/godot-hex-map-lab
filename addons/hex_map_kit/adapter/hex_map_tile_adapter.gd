@@ -16,6 +16,19 @@ static func vector_to_map_cell(vector, flat_top: bool = true) -> Vector2i:
 	return Vector2i(axial.x + _floor_div2(axial.y), axial.y)
 
 
+static func map_cell_to_vector(map_cell: Vector2i, flat_top: bool = true):
+	var axial: Vector2i
+	if flat_top:
+		axial = Vector2i(map_cell.x, map_cell.y - _floor_div2(map_cell.x))
+	else:
+		axial = Vector2i(map_cell.x - _floor_div2(map_cell.y), map_cell.y)
+	return load("res://addons/hex_map_kit/core/hex_vector.gd").apply_basis(
+		axial.x + axial.y,
+		0,
+		axial.y
+	)
+
+
 static func vector_to_sort_z(vector) -> int:
 	return _vector_to_point(vector).to_cell().z
 
@@ -60,16 +73,18 @@ static func apply_to_tile_map_layer(
 	wall_source_id: int = 0,
 	wall_atlas_coords: Vector2i = Vector2i(1, 0),
 	clear_layer: bool = true,
-	flat_top: bool = true
+	flat_top: bool = true,
+	floor_alternative_tile: int = 0,
+	wall_alternative_tile: int = 0
 ) -> void:
 	if clear_layer and layer.has_method("clear"):
 		layer.clear()
 
 	for entry in to_tile_entries(data, true, true, flat_top):
 		if entry["kind"] == KIND_WALL:
-			layer.set_cell(entry["map_cell"], wall_source_id, wall_atlas_coords)
+			layer.set_cell(entry["map_cell"], wall_source_id, wall_atlas_coords, wall_alternative_tile)
 		else:
-			layer.set_cell(entry["map_cell"], floor_source_id, floor_atlas_coords)
+			layer.set_cell(entry["map_cell"], floor_source_id, floor_atlas_coords, floor_alternative_tile)
 
 
 static func configure_hex_tile_set(

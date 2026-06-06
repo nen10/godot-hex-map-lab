@@ -81,17 +81,22 @@ var _show_split := true
 var _show_symmetry_regions := false
 var _center_toric_domain := false
 var _unfold_toric_domain := false
+var _loop_path_enabled := false
+var _cell_hit_display_enabled := false
 var _use_symmetric_toric_generation := false
 var _toric_size_index := 0
 var _map_data
 var _split_rule = null
 var _path_points: Array = []
+var _last_cell_hit := {}
 var _shape_buttons: Array[Button] = []
 var _summary_label: Label
 var _orientation_option: OptionButton
 var _probability_option: OptionButton
 var _connect_method_option: OptionButton
 var _path_check: CheckButton
+var _loop_path_check: CheckButton
+var _cell_hit_check: CheckButton
 var _split_check: CheckButton
 var _symmetry_check: CheckButton
 var _domain_check: CheckButton
@@ -115,7 +120,9 @@ func configure_for_test(
 	unfold_toric_domain: bool = false,
 	show_symmetry_regions: bool = false,
 	use_symmetric_toric_generation: bool = false,
-	center_toric_domain: bool = false
+	center_toric_domain: bool = false,
+	loop_path_enabled: bool = false,
+	cell_hit_display_enabled: bool = false
 ) -> void:
 	_shape_mode = shape_mode
 	_seed = seed
@@ -128,6 +135,8 @@ func configure_for_test(
 	_show_symmetry_regions = show_symmetry_regions
 	_use_symmetric_toric_generation = use_symmetric_toric_generation
 	_center_toric_domain = center_toric_domain
+	_loop_path_enabled = loop_path_enabled
+	_cell_hit_display_enabled = cell_hit_display_enabled
 	_sync_controls()
 	_generate_map()
 
@@ -138,6 +147,10 @@ func get_current_map_data():
 
 func get_current_path() -> Array:
 	return _path_points
+
+
+func get_current_visual_path() -> Array:
+	return _visual_path_for_current_path()
 
 
 func get_split_index(point) -> int:
@@ -160,6 +173,18 @@ func get_toric_size() -> int:
 
 func uses_symmetric_toric_generation() -> bool:
 	return _uses_symmetric_toric_generation()
+
+
+func is_loop_path_enabled() -> bool:
+	return _loop_path_enabled
+
+
+func is_cell_hit_display_enabled() -> bool:
+	return _cell_hit_display_enabled
+
+
+func get_last_cell_hit() -> Dictionary:
+	return _last_cell_hit
 
 
 func get_symmetry_region_tags() -> Dictionary:
@@ -191,6 +216,12 @@ func get_unity_reference_tiling_groups() -> Array:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _cell_hit_display_enabled and event is InputEventMouse:
+		_last_cell_hit = _local_to_cell_hit(event.position)
+		_update_summary()
+		queue_redraw()
+		if event is InputEventMouseButton:
+			return
 	if not event is InputEventKey:
 		return
 	var key_event := event as InputEventKey
@@ -209,6 +240,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			_set_orientation(1 if _flat_top else 0)
 		KEY_P:
 			_set_path_visible(not _show_path)
+		KEY_L:
+			_set_loop_path_enabled(not _loop_path_enabled)
+		KEY_C:
+			_set_cell_hit_display_enabled(not _cell_hit_display_enabled)
 		KEY_S:
 			_set_split_visible(not _show_split)
 		KEY_Y:
@@ -257,6 +292,22 @@ func _build_controls() -> void:
 	_path_check.button_pressed = _show_path
 	_path_check.toggled.connect(_set_path_visible)
 	add_child(_path_check)
+
+	_loop_path_check = CheckButton.new()
+	_loop_path_check.text = "Loop Path"
+	_loop_path_check.position = Vector2(568.0, 54.0)
+	_loop_path_check.size = Vector2(104.0, 36.0)
+	_loop_path_check.button_pressed = _loop_path_enabled
+	_loop_path_check.toggled.connect(_set_loop_path_enabled)
+	add_child(_loop_path_check)
+
+	_cell_hit_check = CheckButton.new()
+	_cell_hit_check.text = "Cell Hit"
+	_cell_hit_check.position = Vector2(568.0, 90.0)
+	_cell_hit_check.size = Vector2(104.0, 36.0)
+	_cell_hit_check.button_pressed = _cell_hit_display_enabled
+	_cell_hit_check.toggled.connect(_set_cell_hit_display_enabled)
+	add_child(_cell_hit_check)
 
 	_split_check = CheckButton.new()
 	_split_check.text = "9-Split"
@@ -377,6 +428,20 @@ func _set_path_visible(value: bool) -> void:
 	queue_redraw()
 
 
+func _set_loop_path_enabled(value: bool) -> void:
+	_loop_path_enabled = value
+	_sync_controls()
+	_update_summary()
+	queue_redraw()
+
+
+func _set_cell_hit_display_enabled(value: bool) -> void:
+	_cell_hit_display_enabled = value
+	_sync_controls()
+	_update_summary()
+	queue_redraw()
+
+
 func _set_split_visible(value: bool) -> void:
 	_show_split = value
 	_sync_controls()
@@ -426,6 +491,11 @@ func _sync_controls() -> void:
 		_connect_method_option.select(_connect_method)
 	if _path_check != null:
 		_path_check.button_pressed = _show_path
+	if _loop_path_check != null:
+		_loop_path_check.button_pressed = _loop_path_enabled
+		_loop_path_check.visible = _shape_mode == ShapeMode.TORUS
+	if _cell_hit_check != null:
+		_cell_hit_check.button_pressed = _cell_hit_display_enabled
 	if _split_check != null:
 		_split_check.button_pressed = _show_split
 		_split_check.visible = _shape_mode == ShapeMode.TORUS
@@ -516,6 +586,12 @@ func _update_summary() -> void:
 	]
 	if _show_path:
 		_summary_label.text += "  path=%d" % _path_points.size()
+	if _shape_mode == ShapeMode.TORUS and _loop_path_enabled:
+		_summary_label.text += "  loop-path=on"
+	if _cell_hit_display_enabled:
+		_summary_label.text += "  hit=on"
+		if not _last_cell_hit.is_empty():
+			_summary_label.text += "  cell=%s" % _last_cell_hit.get("hex", HexVector.zero()).key()
 	if _shape_mode == ShapeMode.TORUS and _show_split and _split_rule != null:
 		_summary_label.text += "  split=9"
 	if _shape_mode == ShapeMode.TORUS and _show_symmetry_regions and _split_rule != null:
@@ -548,8 +624,8 @@ func _draw_header() -> void:
 	)
 	draw_string(
 		font,
-		Vector2(24.0, 122.0),
-		"Space: new seed   Tab: shape   R: method   O: orientation   P: path   S: 9-split   Y: sym-region   D: centered   U: unfold   N: size   G: sym-gen",
+			Vector2(24.0, 122.0),
+			"Space: new seed   Tab: shape   R: method   O: orientation   P: path   L: loop path   C: cell hit   S: 9-split   Y: sym-region   D: centered   U: unfold   N: size   G: sym-gen",
 		HORIZONTAL_ALIGNMENT_LEFT,
 		-1.0,
 		16,
@@ -611,6 +687,7 @@ func _draw_map() -> void:
 	_draw_split_overlay(offset, positions)
 	_draw_symmetry_overlay(offset, positions)
 	_draw_path(offset, local_by_key)
+	_draw_cell_hit(offset)
 
 
 func _refresh_path() -> void:
@@ -654,11 +731,15 @@ func _draw_path(map_offset: Vector2, local_by_key: Dictionary) -> void:
 		return
 
 	var points := PackedVector2Array()
-	for point in _path_points:
-		var key = point.key()
-		if not local_by_key.has(key):
-			continue
-		points.append(map_offset + local_by_key[key])
+	if _loop_path_enabled and _shape_mode == ShapeMode.TORUS:
+		for point in _visual_path_for_current_path():
+			points.append(map_offset + HexMapTileAdapter.hex_to_local(point, HEX_SIZE, _flat_top))
+	else:
+		for point in _path_points:
+			var key = point.key()
+			if not local_by_key.has(key):
+				continue
+			points.append(map_offset + local_by_key[key])
 
 	if points.size() <= 1:
 		return
@@ -666,6 +747,18 @@ func _draw_path(map_offset: Vector2, local_by_key: Dictionary) -> void:
 	draw_polyline(points, PATH_COLOR, 6.0, true)
 	draw_circle(points[0], 8.0, PATH_START_COLOR)
 	draw_circle(points[points.size() - 1], 8.0, PATH_GOAL_COLOR)
+
+
+func _draw_cell_hit(map_offset: Vector2) -> void:
+	if not _cell_hit_display_enabled or _last_cell_hit.is_empty() or not bool(_last_cell_hit.get("exists", false)):
+		return
+	var visual_hex = _last_cell_hit.get("visual_hex", _last_cell_hit.get("hex", HexVector.zero()))
+	_draw_hex(
+		map_offset + HexMapTileAdapter.hex_to_local(visual_hex, HEX_SIZE, _flat_top),
+		_flat_top,
+		Color(0.10, 0.58, 0.92, 0.24),
+		Color(0.10, 0.58, 0.92, 0.78)
+	)
 
 
 func _draw_split_overlay(map_offset: Vector2, positions: Array) -> void:
@@ -765,6 +858,89 @@ func _draw_symmetry_equivalence_group(
 			outline_color
 		)
 	draw_polyline(vertices, color, width, true)
+
+
+func _local_to_cell_hit(local_pos: Vector2) -> Dictionary:
+	var best_hex = null
+	var best_visual_hex = null
+	var best_distance = INF
+	if _map_data == null:
+		return {"hex": HexVector.zero(), "visual_hex": HexVector.zero(), "local": local_pos, "exists": false}
+	var map_offset = _current_map_offset()
+	for cell in _map_data.cells:
+		for visual_hex in _display_vectors(cell):
+			var center = map_offset + HexMapTileAdapter.hex_to_local(visual_hex, HEX_SIZE, _flat_top)
+			var distance = center.distance_to(local_pos)
+			if distance < best_distance:
+				best_distance = distance
+				best_hex = cell
+				best_visual_hex = visual_hex
+	var exists = best_hex != null and best_distance <= HEX_SIZE
+	return {
+		"hex": best_hex if best_hex != null else HexVector.zero(),
+		"visual_hex": best_visual_hex if best_visual_hex != null else HexVector.zero(),
+		"local": local_pos,
+		"exists": exists,
+	}
+
+
+func _current_map_offset() -> Vector2:
+	var entries = HexMapTileAdapter.to_tile_entries(_map_data)
+	if entries.is_empty():
+		return MAP_ORIGIN
+	var first_position = HexMapTileAdapter.hex_to_local(
+		_display_vectors(entries[0]["vector"])[0],
+		HEX_SIZE,
+		_flat_top
+	)
+	var min_position = first_position
+	var max_position = first_position
+	for entry in entries:
+		for display_vector in _display_vectors(entry["vector"]):
+			var local = HexMapTileAdapter.hex_to_local(display_vector, HEX_SIZE, _flat_top)
+			min_position.x = minf(min_position.x, local.x)
+			min_position.y = minf(min_position.y, local.y)
+			max_position.x = maxf(max_position.x, local.x)
+			max_position.y = maxf(max_position.y, local.y)
+	if _show_symmetry_regions and _shape_mode == ShapeMode.TORUS and _split_rule != null:
+		for vector in _symmetry_equivalence_tiling_vectors():
+			var local = HexMapTileAdapter.hex_to_local(vector, HEX_SIZE, _flat_top)
+			min_position.x = minf(min_position.x, local.x)
+			min_position.y = minf(min_position.y, local.y)
+			max_position.x = maxf(max_position.x, local.x)
+			max_position.y = maxf(max_position.y, local.y)
+	return MAP_ORIGIN - (min_position + max_position) * 0.5
+
+
+func _visual_path_for_current_path() -> Array:
+	if _path_points.is_empty():
+		return []
+	if _shape_mode != ShapeMode.TORUS:
+		return _path_points.duplicate()
+	var result: Array = []
+	var first = _path_points[0]
+	var first_visual = _nearest_toric_period_copy(
+		first,
+		HexMapTileAdapter.hex_to_local(first, HEX_SIZE, _flat_top)
+	)
+	result.append(first_visual)
+	var previous_local = HexMapTileAdapter.hex_to_local(first_visual, HEX_SIZE, _flat_top)
+	for index in range(1, _path_points.size()):
+		var visual = _nearest_toric_period_copy(_path_points[index], previous_local)
+		result.append(visual)
+		previous_local = HexMapTileAdapter.hex_to_local(visual, HEX_SIZE, _flat_top)
+	return result
+
+
+func _nearest_toric_period_copy(vector, target_local: Vector2):
+	var result = _display_vector(vector)
+	var result_distance = INF
+	for candidate in _toric_period_copies(vector):
+		var distance = HexMapTileAdapter.hex_to_local(candidate, HEX_SIZE, _flat_top).distance_to(target_local)
+		if distance < result_distance:
+			result = candidate
+			result_distance = distance
+	return result
 
 
 func _symmetry_equivalence_tiling_vectors() -> Array:

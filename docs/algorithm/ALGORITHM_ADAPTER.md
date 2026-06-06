@@ -8,6 +8,8 @@ Core の `HexMapData` を Godot 側で使いやすい形式へ変換する Adapt
 
 - `addons/hex_map_kit/adapter/hex_map_tile_adapter.gd`
 - `addons/hex_map_kit/adapter/hex_map_resource.gd`
+- `addons/hex_map_kit/adapter/hex_overlay_resource.gd`
+- `addons/hex_map_kit/adapter/hex_overlay_tile_adapter.gd`
 - `addons/hex_map_kit/adapter/hex_tile_map_layer.gd`
 
 ## TileMapLayer 用変換
@@ -118,6 +120,39 @@ toric square を六角形寄りに表示する場合は、描画前に `HexToric
 `HexMapResource.from_map_data(data, orientation)` は `HexMapData` と orientation から Resource を作る。
 
 `resource.to_map_data()` は Resource から `HexMapData` を復元する。
+
+`HexOverlayResource` は `HexOverlayData` の保存用 Resource である。Primary の floor/wall とは異なり、Overlay は user item key ごとに cell 集合を持つ。
+
+保持する値は以下。
+
+- `cells: Array[Vector3i]`
+- `item_keys: PackedStringArray`
+- `item_cells: Array`
+- `cyclic_size: int`
+- `orientation: int`
+
+`HexOverlayResource.from_overlay_data(data, orientation)` は `HexOverlayData` と orientation から Resource を作る。`resource.to_overlay_data()` は Resource から `HexOverlayData` を復元する。
+
+## Overlay TileMapLayer Adapter
+
+`HexOverlayTileAdapter` は Overlay item key を TileMapLayer の tile 指定へ変換する。
+
+入力は以下。
+
+- `HexOverlayData`
+- item tile mapping
+  - item key
+  - source id
+  - atlas coords
+  - alternative tile
+- flat-top / pointy-top orientation
+- optional item order
+
+`to_tile_entries()` は item key ごとの cell を `HexMapTileAdapter.vector_to_map_cell()` と同じ座標変換で TileMapLayer cell に変換する。item tile mapping に存在しない item key は描画対象外である。
+
+`apply_to_tile_map_layer(layer, data, item_tiles, clear_layer, flat_top, item_order)` は `TileMapLayer.set_cell()` に source id / atlas coords / alternative tile を渡す。`clear_layer=false` の場合、既存 cell を残して Overlay cell を追加する。
+
+`TileMapLayer` は1 cellに複数 item を直接保持できない。複数 item の merge / replace / skip は `HexOverlayData.apply_overlay()` で data として表現し、描画時は item order に従って1 cellに表示する tile を決める。
 
 ## Runtime Layer
 

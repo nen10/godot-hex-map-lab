@@ -17,13 +17,21 @@
 - [x] `Tile Size` / `Floor` / `Wall` の SpinBox 値を更新したとき、選択中の `TileMapLayer` へ現在の map data を即時 apply する。
 - [x] 複数 `TileMapLayer` が scene にある場合、Dock の `Target` OptionButton で apply 先を選択する。
 - [x] `Refresh` で scene root 以下の `TileMapLayer` 一覧を再読み込みする。
+- [x] `Target` OptionButton は `Auto: Selected / first scene layer`、scene root 以下の短い `TileMapLayer` 名、`Add new layer...` を常に表示する。
+- [x] `Target` の `Refresh` 後も `Auto: Selected / first scene layer` を保持する。
+- [x] `Orientation` / `Tile Size` / `Floor` / `Wall` / atlas setup の即時 apply は Godot Editor の Scene Tree で選択中の `TileMapLayer` だけを対象にする。
+- [x] `Add new layer...` は scene root 直下に新しい `TileMapLayer` を作成し、そのレイヤーを Target と Scene Tree 選択にする。
+- [x] 共有 `TileSet` を持つ複数レイヤーで、Dock から選択中レイヤーの TileSet 設定を変更する前に対象レイヤー側の `TileSet` を複製する。
 
 テスト:
 
 - `tests/test_editor_plugin.gd`
   - orientation 変更時の Tile Size swap
-  - 複数 `TileMapLayer` の一覧化
-  - 選択中 `TileMapLayer` だけへ SpinBox 変更が即時 apply されること
+  - `Target` の Auto / 短い layer 名 / `Add new layer...` 一覧化
+  - `Refresh` 後の Auto 項目保持と選択中 Target 維持
+  - Scene Tree 選択中 `TileMapLayer` だけへ SpinBox / sample atlas 変更が即時 apply されること
+  - 共有 `TileSet` が選択中レイヤー側で複製されること
+  - `Add new layer...` が scene root 直下に `TileMapLayer` を作ること
 
 ### 3.2 DISTRIBUTION EDITOR
 

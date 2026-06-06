@@ -18,8 +18,10 @@ if [[ -z "$GODOT_BIN" ]]; then
   fi
 fi
 
-LOG_DIR="$ROOT_DIR/.godot_user"
+RUN_ID="${HEX_MAP_TEST_RUN_ID:-$(date +%Y%m%d-%H%M%S)-$$}"
+LOG_DIR="$ROOT_DIR/.godot_user/test-runs/$RUN_ID/logs"
 mkdir -p "$LOG_DIR"
+TEST_JOBS="${TEST_JOBS:-1}"
 
 TEST_SCRIPTS=(
   "res://tests/test_hex_core.gd"
@@ -30,11 +32,43 @@ TEST_SCRIPTS=(
   "res://tests/test_debug_scenes.gd"
 )
 
-for test_script in "${TEST_SCRIPTS[@]}"; do
+run_test_script() {
+  local test_script="$1"
+  local log_name
   log_name="$(basename "$test_script").log"
-  "$GODOT_BIN" \
+  HEX_MAP_TEST_RUN_ID="$RUN_ID" "$GODOT_BIN" \
     --headless \
     --log-file "$LOG_DIR/$log_name" \
     --path . \
     --script "$test_script"
+}
+
+if (( TEST_JOBS <= 1 )); then
+  for test_script in "${TEST_SCRIPTS[@]}"; do
+    run_test_script "$test_script"
+  done
+  exit 0
+fi
+
+failures=0
+pids=()
+for test_script in "${TEST_SCRIPTS[@]}"; do
+  run_test_script "$test_script" &
+  pids+=("$!")
+  if (( ${#pids[@]} >= TEST_JOBS )); then
+    if ! wait "${pids[0]}"; then
+      failures=$((failures + 1))
+    fi
+    pids=("${pids[@]:1}")
+  fi
 done
+
+for pid in "${pids[@]}"; do
+  if ! wait "$pid"; then
+    failures=$((failures + 1))
+  fi
+done
+
+if (( failures > 0 )); then
+  exit 1
+fi
