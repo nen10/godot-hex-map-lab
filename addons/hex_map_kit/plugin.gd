@@ -4,15 +4,20 @@ extends EditorPlugin
 var _dock: Control
 var _edit_tool: Control
 var _inspector_plugin: EditorInspectorPlugin
+var _editor_session_state
 
 
 func _enter_tree() -> void:
+	_editor_session_state = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd").new()
+
 	_dock = preload("res://addons/hex_map_kit/editor/hex_map_gen_dock.gd").new()
 	_dock.name = "Hex Map Generate"
+	_dock.set_editor_session_state(_editor_session_state)
 	add_control_to_dock(DOCK_SLOT_LEFT_BL, _dock)
 
 	_edit_tool = preload("res://addons/hex_map_kit/editor/hex_map_edit_tool.gd").new()
 	_edit_tool.name = "Hex Map Edit"
+	_edit_tool.set_editor_session_state(_editor_session_state)
 	add_control_to_dock(DOCK_SLOT_LEFT_BL, _edit_tool)
 
 	_inspector_plugin = preload("res://addons/hex_map_kit/editor/hex_map_resource_inspector.gd").new()
@@ -33,6 +38,7 @@ func _exit_tree() -> void:
 	if _inspector_plugin:
 		remove_inspector_plugin(_inspector_plugin)
 		_inspector_plugin = null
+	_editor_session_state = null
 
 
 func _handles(object: Object) -> bool:

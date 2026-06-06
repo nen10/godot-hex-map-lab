@@ -160,7 +160,7 @@ Goal F は「別承認待ちの大改修」ではなく、feature task を通す
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `ARCH-01` | `READY` | `LD2-05` | `docs/plan/2026-06-06_ARCH-01_EDITOR_SESSION_STATE/` | Shared editor session state | new editor session script, `hex_map_gen_dock.gd`, `hex_map_edit_tool.gd`, tests | Generate/Edit target/document state sharing has tests; existing target auto behavior maintained. |
+| `ARCH-01` | `COMPLETE` | `LD2-05` | `docs/plan/2026-06-06_ARCH-01_EDITOR_SESSION_STATE/` | Shared editor session state | new editor session script, `hex_map_gen_dock.gd`, `hex_map_edit_tool.gd`, tests | Generate/Edit target/document state sharing has tests; existing target auto behavior maintained. |
 | `ARCH-02` | `BACKLOG` | `ARCH-01`, `CATUI-01` | `docs/plan/2026-06-06_ARCH-02_GENERATE_DOCK_STATE_EVALUATION_SPLIT/` | Separate Generate Dock state evaluation from UI construction | `hex_map_gen_dock.gd`, tests | Existing Generate Dock headless tests pass; catalog UI additions become smaller. |
 | `ARCH-03` | `BACKLOG` | `ARCH-01`, `OBJ-03` | `docs/plan/2026-06-06_ARCH-03_EDIT_TOOL_MUTATION_VIEWPORT_SPLIT/` | Separate Edit Tool mutation and viewport input adapter | `hex_map_edit_tool.gd`, tests | Viewport hit/edit/undo tests pass; object and validation UI can reuse mutation helpers. |
 | `ARCH-04` | `BACKLOG` | `VAL-02` | `docs/plan/2026-06-06_ARCH-04_DOCUMENT_INSPECTOR_COMPONENT/` | Document inspector / validation summary component | new editor component, edit/gen dock integration, tests | Validation/dashboard logic is not embedded only in giant dock file. |
@@ -198,13 +198,13 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `ARCH-01`.
+Current recommended next task: none. No task is currently marked `READY`.
 
 Reason:
 
-- `LD2-06` is complete and provides runtime v2 document load coverage.
-- `ARCH-01` is READY because its dependency `LD2-05` is complete.
-- No earlier task is currently marked READY.
+- `ARCH-01` is complete and provides shared Generate/Edit editor session state.
+- `ARCH-02` and `ARCH-03` still have unmet feature dependencies.
+- Remaining backlog tasks are not marked `READY` in this queue revision.
 
 ---
 
@@ -454,4 +454,32 @@ Notes:
 - Added runtime-safe `HexTileMapLayer.load_document_path()` and boolean `load_document_resource()` helpers.
 - Added headless debug-scene coverage for loading a v2 document path into `HexTileMapLayer`.
 - Public polished examples remain queued in `PKG-01`.
+- `repair-now`: none.
+
+### ARCH-01
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot
+plan: `docs/plan/2026-06-06_ARCH-01_EDITOR_SESSION_STATE/`
+review: `docs/review/autopilot/ARCH-01_SELF_REVIEW_2026-06-07.md`
+test result: `docs/review/autopilot/ARCH-01_TEST_RESULT_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+- docs:
+  - `docs/TEST.md`
+- major files:
+  - `addons/hex_map_kit/editor/hex_map_editor_session_state.gd`
+  - `addons/hex_map_kit/plugin.gd`
+  - `addons/hex_map_kit/editor/hex_map_gen_dock.gd`
+  - `addons/hex_map_kit/editor/hex_map_edit_tool.gd`
+  - `tests/test_editor_plugin.gd`
+
+Notes:
+
+- Added shared editor session state for target/document/path references.
+- Plugin now wires one session instance into Generate Dock and Edit Dock.
+- Existing target auto behavior remains covered by prior tests.
 - `repair-now`: none.

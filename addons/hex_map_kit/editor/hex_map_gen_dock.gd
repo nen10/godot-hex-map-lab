@@ -16,6 +16,7 @@ const HexAdjacencyRuleSet = preload("res://addons/hex_map_kit/adapter/hex_adjace
 const HexAdjacencyRuleEditor = preload("res://addons/hex_map_kit/editor/hex_adjacency_rule_editor.gd")
 const HexCellButtonPanel = preload("res://addons/hex_map_kit/editor/hex_cell_button_panel.gd")
 const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
+const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const HexToricCoordinate = preload("res://addons/hex_map_kit/core/hex_toric_coordinate.gd")
 const HexRandomizer = preload("res://addons/hex_map_kit/core/hex_randomizer.gd")
@@ -224,6 +225,7 @@ var _generation_progress_visible_started_msec := 0
 var _generation_progress_hide_after_msec := 0
 var _suppress_tile_settings_apply := false
 var _current_overlay_data = null
+var _editor_session_state: HexMapEditorSessionState = null
 
 
 func _ready() -> void:
@@ -233,6 +235,19 @@ func _ready() -> void:
 	refresh_tile_layer_options()
 	_refresh_controls()
 	_update_stats()
+
+
+func set_editor_session_state(session: HexMapEditorSessionState) -> void:
+	_editor_session_state = session
+	if _editor_session_state == null:
+		return
+	var session_target = _editor_session_state.current_target_layer()
+	if session_target != null and _tile_layer_option != null:
+		_select_tile_layer_target(session_target)
+
+
+func editor_session_state() -> HexMapEditorSessionState:
+	return _editor_session_state
 
 
 func _process(_delta: float) -> void:
@@ -1806,6 +1821,7 @@ func _on_tile_layer_target_selected(index: int) -> void:
 		var layer = add_new_tile_map_layer()
 		if layer == null:
 			refresh_tile_layer_options(_tile_layer_scan_root)
+	_publish_session_target("generate.target_selected")
 
 
 func _on_tile_orientation_changed(_index: int) -> void:
@@ -1914,6 +1930,7 @@ func _on_apply_layer_pressed() -> void:
 			apply_current_overlay_data_to_tile_map_layer(layer)
 	else:
 		apply_current_data_to_tile_map_layer(layer)
+	_publish_session_target("generate.apply_layer")
 	print("Applied hex map to target layer: %s" % layer.name)
 
 
@@ -2105,6 +2122,7 @@ func refresh_tile_layer_options(root_node: Node = null) -> void:
 		if node_index >= 0:
 			selected_index = node_index + TILE_TARGET_LAYER_INDEX_OFFSET
 	_tile_layer_option.select(selected_index)
+	_publish_session_target("generate.refresh_targets")
 
 
 func selected_tile_map_layer():
@@ -2115,6 +2133,15 @@ func selected_tile_map_layer():
 		return null
 	var node = _tile_layer_nodes[node_index]
 	return node if is_instance_valid(node) else null
+
+
+func _publish_session_target(reason: String) -> void:
+	if _editor_session_state == null:
+		return
+	var layer = selected_tile_map_layer()
+	if layer == null:
+		layer = _find_editor_selected_tile_map_layer()
+	_editor_session_state.set_target_layer(layer, reason)
 
 
 func generation_status() -> Dictionary:
@@ -2466,6 +2493,7 @@ func _find_editor_selected_tile_map_layer():
 
 func _set_editor_selected_tile_map_layer_for_test(layer: Node) -> void:
 	_test_selected_tile_map_layer = layer
+	_publish_session_target("generate.test_editor_selected_target")
 
 
 func add_new_tile_map_layer(root_node: Node = null):
@@ -2514,6 +2542,7 @@ func _select_tile_layer_target(layer: Node) -> void:
 	var node_index = _tile_layer_nodes.find(layer)
 	if node_index >= 0:
 		_tile_layer_option.select(node_index + TILE_TARGET_LAYER_INDEX_OFFSET)
+	_publish_session_target("generate.select_tile_layer_target")
 
 
 func _add_tile_layer_option_index() -> int:

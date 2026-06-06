@@ -7,6 +7,7 @@ const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
+const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 
@@ -154,6 +155,7 @@ var _last_edit_detail_label: Label
 var _persistence_detail_label: Label
 var _copy_debug_report_button: Button
 var _last_copied_debug_report := ""
+var _editor_session_state: HexMapEditorSessionState = null
 
 
 func _ready() -> void:
@@ -161,6 +163,28 @@ func _ready() -> void:
 	_build_ui()
 	refresh_target_layer_options()
 	_refresh_state_labels()
+
+
+func set_editor_session_state(session: HexMapEditorSessionState) -> void:
+	_editor_session_state = session
+	if _editor_session_state == null:
+		return
+	var session_target = _editor_session_state.current_target_layer()
+	if session_target != null:
+		set_target_layer(session_target)
+	var session_document = _editor_session_state.current_document()
+	if session_document is HexMapDocumentResource:
+		set_document(session_document as HexMapDocumentResource)
+	if _editor_session_state.document_path != "":
+		set_document_path(_editor_session_state.document_path)
+	if _editor_session_state.import_map_path != "":
+		set_import_map_path(_editor_session_state.import_map_path)
+	if _editor_session_state.export_path != "":
+		set_export_path(_editor_session_state.export_path)
+
+
+func editor_session_state() -> HexMapEditorSessionState:
+	return _editor_session_state
 
 
 func set_document(document: HexMapDocumentResource) -> void:
@@ -171,6 +195,7 @@ func set_document(document: HexMapDocumentResource) -> void:
 	_sync_resource_pickers()
 	_refresh_overlay_item_key_options()
 	_refresh_state_labels()
+	_publish_session_document("edit.set_document")
 
 
 func document() -> HexMapDocumentResource:
@@ -214,6 +239,7 @@ func import_map_resource(resource: HexMapResource) -> HexMapDocumentResource:
 	_sync_resource_pickers()
 	_refresh_overlay_item_key_options()
 	_refresh_state_labels()
+	_publish_session_document("edit.import_map_resource")
 	return _document
 
 
@@ -254,6 +280,7 @@ func set_target_layer(layer: Node) -> void:
 		_select_target_layer_option(layer)
 	_select_target_in_editor_if_possible()
 	_refresh_state_labels()
+	_publish_session_target("edit.set_target_layer")
 
 
 func target_layer() -> Node:
@@ -292,6 +319,7 @@ func set_editor_selected_target_layer_for_test(layer: Node) -> void:
 	_refresh_plain_target_tile_options_from_document(_document)
 	_read_target_tile_settings(false)
 	_refresh_state_labels()
+	_publish_session_target("edit.test_editor_selected_target")
 
 
 func last_edit_status() -> Dictionary:
@@ -330,6 +358,7 @@ func set_document_path(path: String) -> void:
 	if _document_path_edit != null:
 		_document_path_edit.text = path
 	_refresh_action_button_states()
+	_publish_session_paths("edit.set_document_path")
 
 
 func document_path() -> String:
@@ -341,6 +370,7 @@ func set_import_map_path(path: String) -> void:
 	if _import_map_path_edit != null:
 		_import_map_path_edit.text = path
 	_refresh_action_button_states()
+	_publish_session_paths("edit.set_import_map_path")
 
 
 func import_map_path() -> String:
@@ -352,6 +382,7 @@ func set_export_path(path: String) -> void:
 	if _export_path_edit != null:
 		_export_path_edit.text = path
 	_refresh_action_button_states()
+	_publish_session_paths("edit.set_export_path")
 
 
 func export_path() -> String:
@@ -377,6 +408,7 @@ func load_document(path: String = "") -> bool:
 	_apply_document_to_target()
 	_refresh_state_labels()
 	_set_status("Loaded document.")
+	_publish_session_document("edit.load_document")
 	return true
 
 
@@ -402,6 +434,7 @@ func save_document(path: String = "") -> bool:
 	_set_persistence_status("save_document", actual_path, true, OK, "HexMapDocumentResource")
 	_set_status("Saved document.")
 	_refresh_state_labels()
+	_publish_session_document("edit.save_document")
 	return true
 
 
@@ -426,6 +459,7 @@ func export_map_resource_to_path(path: String = "") -> bool:
 	_set_persistence_status("export_map", actual_path, true, OK, "HexMapResource")
 	_set_status("Exported HexMapResource.")
 	_refresh_state_labels()
+	_publish_session_paths("edit.export_map_resource_to_path")
 	return true
 
 
@@ -464,6 +498,7 @@ func refresh_target_layer_options(root_node: Node = null) -> void:
 	if should_sync_target and _target_layer != null and is_instance_valid(_target_layer):
 		_select_target_in_editor_if_possible()
 	_ensure_document_from_target_if_needed()
+	_publish_session_target("edit.refresh_target_options")
 	_refresh_state_labels()
 
 
@@ -1328,6 +1363,7 @@ func _on_document_resource_changed(resource: Resource) -> void:
 	_refresh_plain_target_tile_options_from_document(_document)
 	_refresh_overlay_item_key_options()
 	_refresh_state_labels()
+	_publish_session_document("edit.resource_picker")
 
 
 func _on_object_database_changed(resource: Resource) -> void:
@@ -1692,6 +1728,27 @@ func _sync_resource_pickers() -> void:
 		_label_database_picker.edited_resource = _label_database
 
 
+func _publish_session_target(reason: String) -> void:
+	if _editor_session_state == null:
+		return
+	var target = _target_layer if _target_layer != null and is_instance_valid(_target_layer) else null
+	_editor_session_state.set_target_layer(target, reason)
+
+
+func _publish_session_document(reason: String) -> void:
+	if _editor_session_state == null:
+		return
+	_editor_session_state.set_document(_document, _document_source, _document_path, reason)
+
+
+func _publish_session_paths(reason: String) -> void:
+	if _editor_session_state == null:
+		return
+	_editor_session_state.set_document_path(_document_path, reason)
+	_editor_session_state.set_import_map_path(_import_map_path, reason)
+	_editor_session_state.set_export_path(_export_path, reason)
+
+
 func _refresh_overlay_item_key_options() -> void:
 	if _overlay_item_key_option == null:
 		return
@@ -1750,6 +1807,7 @@ func _ensure_document_from_target_if_needed() -> bool:
 	_document_source = DOCUMENT_SOURCE_TARGET
 	_refresh_plain_target_tile_options_from_document(_document)
 	_sync_resource_pickers()
+	_publish_session_document("edit.target_document")
 	return true
 
 
@@ -1769,6 +1827,7 @@ func _sync_document_snapshot_from_hex_target() -> bool:
 		HexMapDocumentAdapter.copy_document_state(_document, snapshot)
 	_refresh_overlay_item_key_options()
 	_sync_resource_pickers()
+	_publish_session_document("edit.sync_target_document")
 	return true
 
 

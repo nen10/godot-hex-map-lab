@@ -19,6 +19,7 @@ const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_
 const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
 const HexMapGenDock = preload("res://addons/hex_map_kit/editor/hex_map_gen_dock.gd")
 const HexMapEditTool = preload("res://addons/hex_map_kit/editor/hex_map_edit_tool.gd")
+const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
 const HexDistEditor = preload("res://addons/hex_map_kit/editor/hex_dist_editor.gd")
 const HexAdjacencyRuleEditor = preload("res://addons/hex_map_kit/editor/hex_adjacency_rule_editor.gd")
 const HexCellButtonLayout = preload("res://addons/hex_map_kit/editor/hex_cell_button_layout.gd")
@@ -75,6 +76,7 @@ func _run() -> void:
 	_test_plugin_registration_files()
 	await _test_map_edit_tool_builds_dock_controls()
 	await _test_plugin_handles_canvas_item_when_map_edit_ready()
+	await _test_editor_session_state_shares_generate_target_and_edit_document()
 	await _test_map_edit_tool_auto_target_uses_selected_layer()
 	await _test_map_edit_tool_auto_target_maps_hex_internal_layer_selection()
 	await _test_map_edit_tool_initializes_document_from_hex_target()
@@ -246,6 +248,8 @@ func _test_plugin_handles_canvas_item_when_map_edit_ready() -> void:
 	_assert_true(plugin_source.contains("func _handles(object: Object) -> bool:"), "plugin defines _handles for 2D viewport input")
 	_assert_true(plugin_source.contains("_dock.name = \"Hex Map Generate\""), "plugin gives generation dock a stable tab name")
 	_assert_true(plugin_source.contains("viewport_input_enabled"), "plugin gates viewport input through map edit tool")
+	_assert_true(plugin_source.contains("hex_map_editor_session_state.gd"), "plugin creates shared editor session state")
+	_assert_true(plugin_source.contains("set_editor_session_state"), "plugin wires shared editor session state into docks")
 	_assert_true(plugin_source.contains("object is CanvasItem"), "plugin handles CanvasItem viewport objects")
 	_assert_true(
 		edit_tool_source.contains("global_canvas_transform"),
@@ -271,6 +275,51 @@ func _test_plugin_handles_canvas_item_when_map_edit_ready() -> void:
 
 	layer.queue_free()
 	tool.queue_free()
+	await process_frame
+
+
+func _test_editor_session_state_shares_generate_target_and_edit_document() -> void:
+	var session = HexMapEditorSessionState.new()
+	var scene_root = Node2D.new()
+	scene_root.name = "SessionSceneRoot"
+	root.add_child(scene_root)
+	var target_layer = HexTileMapLayer.new()
+	target_layer.name = "SessionTarget"
+	scene_root.add_child(target_layer)
+	await process_frame
+
+	var dock = await _new_ready_dock()
+	dock.set_editor_session_state(session)
+	dock.refresh_tile_layer_options(scene_root)
+	dock._select_tile_layer_target(target_layer)
+	_assert_eq(session.current_target_layer(), target_layer, "generation dock publishes selected target to session")
+
+	var tool = await _new_ready_edit_tool()
+	tool.set_editor_session_state(session)
+	_assert_eq(tool.target_layer(), target_layer, "edit tool consumes session target")
+	var document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	tool.set_document(document)
+	tool.set_document_path("res://session_document.tres")
+	tool.set_import_map_path("res://session_import_map.tres")
+	tool.set_export_path("res://session_export_map.tres")
+	_assert_eq(session.current_document(), document, "edit tool publishes document to session")
+	_assert_eq(session.document_source, HexMapEditTool.DOCUMENT_SOURCE_PROVIDED, "session records document source")
+	_assert_eq(session.document_path, "res://session_document.tres", "session records document path")
+	_assert_eq(session.import_map_path, "res://session_import_map.tres", "session records import map path")
+	_assert_eq(session.export_path, "res://session_export_map.tres", "session records export path")
+
+	var second_tool = await _new_ready_edit_tool()
+	second_tool.set_editor_session_state(session)
+	_assert_eq(second_tool.target_layer(), target_layer, "later edit tool consumes existing session target")
+	_assert_eq(second_tool.document(), document, "later edit tool consumes existing session document")
+	_assert_eq(second_tool.document_path(), "res://session_document.tres", "later edit tool consumes existing document path")
+
+	second_tool.queue_free()
+	tool.queue_free()
+	dock.queue_free()
+	scene_root.queue_free()
 	await process_frame
 
 
