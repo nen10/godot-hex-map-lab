@@ -9,6 +9,47 @@ const SAMPLE_TILE_SIZE := Vector2i(64, 57)
 const HexPointScript = preload("res://addons/hex_map_kit/core/hex_point.gd")
 
 
+static func tile_config(
+	source_id: int,
+	atlas_coords: Vector2i = Vector2i.ZERO,
+	alternative_tile: int = 0
+) -> Dictionary:
+	return {
+		"source_id": source_id,
+		"atlas_coords": atlas_coords,
+		"alternative_tile": alternative_tile,
+	}
+
+
+static func tile_config_from_catalog(catalog, catalog_key: String, fallback: Dictionary = {}) -> Dictionary:
+	var config := tile_config(
+		int(fallback.get("source_id", -1)),
+		fallback.get("atlas_coords", Vector2i.ZERO),
+		int(fallback.get("alternative_tile", 0))
+	)
+	if catalog == null or catalog_key == "" or not catalog.has_method("entry_for_key"):
+		return config
+	var entry = catalog.entry_for_key(catalog_key)
+	if entry == null:
+		return config
+	config["catalog_key"] = catalog_key
+	config["entry_type"] = String(entry.get("entry_type"))
+	config["scene_path"] = String(entry.get("scene_path"))
+	if entry.has_method("effective_source_id"):
+		config["source_id"] = entry.effective_source_id()
+	else:
+		config["source_id"] = int(entry.get("source_id", config["source_id"]))
+	if entry.has_method("effective_atlas_coords"):
+		config["atlas_coords"] = entry.effective_atlas_coords()
+	else:
+		config["atlas_coords"] = entry.get("atlas_coords", config["atlas_coords"])
+	if entry.has_method("effective_alternative_tile"):
+		config["alternative_tile"] = entry.effective_alternative_tile()
+	else:
+		config["alternative_tile"] = int(entry.get("alternative_tile", config["alternative_tile"]))
+	return config
+
+
 static func vector_to_map_cell(vector, flat_top: bool = true) -> Vector2i:
 	var axial := vector_to_display_axial(vector)
 	if flat_top:
@@ -85,6 +126,38 @@ static func apply_to_tile_map_layer(
 			layer.set_cell(entry["map_cell"], wall_source_id, wall_atlas_coords, wall_alternative_tile)
 		else:
 			layer.set_cell(entry["map_cell"], floor_source_id, floor_atlas_coords, floor_alternative_tile)
+
+
+static func apply_to_tile_map_layer_with_catalog(
+	layer,
+	data,
+	catalog,
+	floor_catalog_key: String,
+	wall_catalog_key: String,
+	options: Dictionary = {}
+) -> void:
+	var floor_config = tile_config_from_catalog(catalog, floor_catalog_key, {
+		"source_id": int(options.get("floor_source_id", 0)),
+		"atlas_coords": options.get("floor_atlas_coords", Vector2i.ZERO),
+		"alternative_tile": int(options.get("floor_alternative_tile", 0)),
+	})
+	var wall_config = tile_config_from_catalog(catalog, wall_catalog_key, {
+		"source_id": int(options.get("wall_source_id", 0)),
+		"atlas_coords": options.get("wall_atlas_coords", Vector2i(1, 0)),
+		"alternative_tile": int(options.get("wall_alternative_tile", 0)),
+	})
+	apply_to_tile_map_layer(
+		layer,
+		data,
+		int(floor_config.get("source_id", 0)),
+		floor_config.get("atlas_coords", Vector2i.ZERO),
+		int(wall_config.get("source_id", 0)),
+		wall_config.get("atlas_coords", Vector2i(1, 0)),
+		bool(options.get("clear_layer", true)),
+		bool(options.get("flat_top", true)),
+		int(floor_config.get("alternative_tile", 0)),
+		int(wall_config.get("alternative_tile", 0))
+	)
 
 
 static func configure_hex_tile_set(

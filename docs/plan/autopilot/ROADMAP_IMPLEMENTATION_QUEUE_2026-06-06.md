@@ -80,7 +80,7 @@ Goal: `source_id / atlas_coords` の数値入力を、logical key と layer stac
 |---|---|---|---|---|---|---|
 | `CAT-01` | `COMPLETE` | `LD2-01` | `docs/plan/2026-06-06_CAT-01_CATALOG_RESOURCE/` | `HexTileCatalogResource` and `HexTileCatalogEntry` | new adapter/resource files, sample catalog resource, `tests/test_hex_adapter.gd` | Logical key maps to atlas tile, scene tile, tags, fallback fields. Sample catalog loads. |
 | `CAT-02` | `COMPLETE` | `CAT-01` | `docs/plan/2026-06-06_CAT-02_CATALOG_VALIDATION/` | Catalog validation and custom data reader | catalog validation helper, `tests/test_hex_adapter.gd` | Detect missing source, invalid atlas coords, missing scene, missing TileSet, tag/custom data extraction. |
-| `CAT-03` | `READY` | `CAT-01`, `LD2-04` | `docs/plan/2026-06-06_CAT-03_CATALOG_BACKED_ADAPTERS/` | Catalog-backed map/overlay tile adapters | `hex_map_tile_adapter.gd`, `hex_overlay_tile_adapter.gd`, `hex_map_document_adapter.gd`, tests | Floor/wall/overlay item key resolves by catalog key; numeric fallback remains advanced/debug path. |
+| `CAT-03` | `COMPLETE` | `CAT-01`, `LD2-04` | `docs/plan/2026-06-06_CAT-03_CATALOG_BACKED_ADAPTERS/` | Catalog-backed map/overlay tile adapters | `hex_map_tile_adapter.gd`, `hex_overlay_tile_adapter.gd`, `hex_map_document_adapter.gd`, tests | Floor/wall/overlay item key resolves by catalog key; numeric fallback remains advanced/debug path. |
 | `LST-01` | `READY` | `LD2-01` | `docs/plan/2026-06-06_LST-01_LAYER_STACK_RESOURCE/` | `HexLayerStackResource` and templates | new resource/helper files, `tests/test_hex_tile_map_layer.gd` | Terrain/decoration/object/collision/navigation/overlay/debug roles defined; templates create expected role names. |
 | `LST-02` | `BACKLOG` | `LST-01`, `CAT-03` | `docs/plan/2026-06-06_LST-02_APPLY_DOCUMENT_TO_LAYER_STACK/` | `apply_document_to_layer_stack()` primary path | `hex_tile_map_layer.gd`, adapter helpers, `tests/test_hex_tile_map_layer.gd` | v2 document applies to child layers by role; single plain TileMapLayer path remains compatibility path. |
 | `CATUI-01` | `BACKLOG` | `CAT-03`, `LST-02`, `LD2-05` | `docs/plan/2026-06-06_CATUI-01_CATALOG_SELECTOR_UI/` | Generate/Edit catalog key selectors and advanced fallback UI | `hex_map_gen_dock.gd`, `hex_map_edit_tool.gd`, `tests/test_editor_plugin.gd` | Floor/Wall/Overlay/Object default assignment uses catalog selector; old spin boxes are advanced fallback. |
@@ -198,15 +198,15 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `CAT-03`.
+Current recommended next task: `LST-01`.
 
 Reason:
 
 - Dependency sweep completed on 2026-06-07.
 - `CAT-01` is `COMPLETE`.
 - `CAT-02` is `COMPLETE`.
-- `CAT-03` is also `READY` because `CAT-01` and `LD2-04` are `COMPLETE`.
-- `LST-01` is also `READY` because `LD2-01` is `COMPLETE`.
+- `CAT-03` is `COMPLETE`.
+- `LST-01` is `READY` because `LD2-01` is `COMPLETE`.
 - `VAL-01` is also `READY` because `LD2-03` and `CAT-02` are `COMPLETE`.
 - `OBJ-01` is also `READY` because `LD2-01` and `CAT-01` are `COMPLETE`.
 - Remaining `BACKLOG` tasks still have at least one dependency that is not `COMPLETE` or `COMPLETE_WITH_BACKLOG`.
@@ -539,4 +539,32 @@ Notes:
 - Added catalog validation helper returning `HexMapValidationResult`.
 - Validation detects missing TileSet, missing source, invalid atlas coordinates, missing scene path, duplicate keys, and missing keys.
 - Added tag and TileSet custom-data extraction by catalog key.
+- `repair-now`: none.
+
+### CAT-03
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot
+plan: `docs/plan/2026-06-06_CAT-03_CATALOG_BACKED_ADAPTERS/`
+review: `docs/review/autopilot/CAT-03_SELF_REVIEW_2026-06-07.md`
+test result: `docs/review/autopilot/CAT-03_TEST_RESULT_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+- docs:
+  - `docs/TEST.md`
+- major files:
+  - `addons/hex_map_kit/adapter/hex_map_tile_adapter.gd`
+  - `addons/hex_map_kit/adapter/hex_overlay_tile_adapter.gd`
+  - `addons/hex_map_kit/adapter/hex_map_document_adapter.gd`
+  - `tests/test_hex_adapter.gd`
+
+Notes:
+
+- Added optional catalog-backed floor/wall default resolution in `HexMapTileAdapter`.
+- Added overlay item-key to catalog-key conversion in `HexOverlayTileAdapter`.
+- Added catalog options and per-entry `catalog_key` resolution to `HexMapDocumentAdapter`.
+- Numeric fallback remains covered by tests for missing catalog keys.
 - `repair-now`: none.

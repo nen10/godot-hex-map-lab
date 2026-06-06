@@ -226,17 +226,34 @@ static func apply_to_tile_map_layer(document, layer, options: Dictionary = {}) -
 	if data == null or layer == null:
 		return
 	var flat_top = _document_orientation(document) == HexMapResourceScript.ORIENTATION_FLAT_TOP
+	var tile_catalog = options.get("tile_catalog", null)
+	var floor_catalog_key = String(options.get("floor_catalog_key", ""))
+	if floor_catalog_key == "":
+		floor_catalog_key = _document_default_terrain_key(document, "default_floor_key")
+	var wall_catalog_key = String(options.get("wall_catalog_key", ""))
+	if wall_catalog_key == "":
+		wall_catalog_key = _document_default_terrain_key(document, "default_wall_key")
+	var floor_config = HexMapTileAdapterScript.tile_config_from_catalog(tile_catalog, floor_catalog_key, {
+		"source_id": int(options.get("floor_source_id", 0)),
+		"atlas_coords": options.get("floor_atlas_coords", Vector2i.ZERO),
+		"alternative_tile": int(options.get("floor_alternative_tile", 0)),
+	})
+	var wall_config = HexMapTileAdapterScript.tile_config_from_catalog(tile_catalog, wall_catalog_key, {
+		"source_id": int(options.get("wall_source_id", 0)),
+		"atlas_coords": options.get("wall_atlas_coords", Vector2i(1, 0)),
+		"alternative_tile": int(options.get("wall_alternative_tile", 0)),
+	})
 	HexMapTileAdapterScript.apply_to_tile_map_layer(
 		layer,
 		data,
-		int(options.get("floor_source_id", 0)),
-		options.get("floor_atlas_coords", Vector2i.ZERO),
-		int(options.get("wall_source_id", 0)),
-		options.get("wall_atlas_coords", Vector2i(1, 0)),
+		int(floor_config.get("source_id", 0)),
+		floor_config.get("atlas_coords", Vector2i.ZERO),
+		int(wall_config.get("source_id", 0)),
+		wall_config.get("atlas_coords", Vector2i(1, 0)),
 		bool(options.get("clear_layer", true)),
 		flat_top,
-		int(options.get("floor_alternative_tile", 0)),
-		int(options.get("wall_alternative_tile", 0))
+		int(floor_config.get("alternative_tile", 0)),
+		int(wall_config.get("alternative_tile", 0))
 	)
 	var cell_set = data.cell_set()
 	var wall_set = data.wall_set()
@@ -252,7 +269,7 @@ static func apply_to_tile_map_layer(document, layer, options: Dictionary = {}) -
 			continue
 		if entry_kind == KIND_WALL and not is_wall:
 			continue
-		_apply_tile_override(layer, entry, flat_top)
+		_apply_tile_override(layer, _resolve_catalog_tile_entry(entry, tile_catalog), flat_top)
 
 
 static func set_wall(document, hex, wall: bool) -> void:
@@ -356,6 +373,18 @@ static func _ensure_map(document) -> void:
 		document.map = HexMapResourceScript.from_map_data(HexMapDataScript.from_cells([]))
 
 
+static func _document_default_terrain_key(document, field_name: String) -> String:
+	if document == null:
+		return ""
+	for layer in document.terrain_layers:
+		if layer == null:
+			continue
+		var value = String(layer.get(field_name))
+		if value != "":
+			return value
+	return ""
+
+
 static func _tile_override_entry(hex, payload: Dictionary) -> Dictionary:
 	return {
 		"cell": _component_from_hex(hex),
@@ -370,12 +399,30 @@ static func _tile_override_entry(hex, payload: Dictionary) -> Dictionary:
 static func _apply_tile_override(layer, entry: Dictionary, flat_top: bool) -> void:
 	var hex = _hex_from_component(entry.get("cell", Vector3i.ZERO))
 	var map_cell = HexMapTileAdapterScript.vector_to_map_cell(hex, flat_top)
+	var source_id = int(entry.get("source_id", -1))
+	if source_id < 0:
+		return
 	layer.set_cell(
 		map_cell,
-		int(entry.get("source_id", 0)),
+		source_id,
 		entry.get("atlas_coords", Vector2i.ZERO),
 		int(entry.get("alternative_tile", 0))
 	)
+
+
+static func _resolve_catalog_tile_entry(entry: Dictionary, catalog) -> Dictionary:
+	var resolved = entry.duplicate(true)
+	var catalog_key = String(resolved.get("catalog_key", ""))
+	if catalog_key == "":
+		catalog_key = String(resolved.get("item_key", ""))
+	if catalog_key == "":
+		return resolved
+	var config = HexMapTileAdapterScript.tile_config_from_catalog(catalog, catalog_key, resolved)
+	resolved["source_id"] = int(config.get("source_id", resolved.get("source_id", -1)))
+	resolved["atlas_coords"] = config.get("atlas_coords", resolved.get("atlas_coords", Vector2i.ZERO))
+	resolved["alternative_tile"] = int(config.get("alternative_tile", resolved.get("alternative_tile", 0)))
+	resolved["catalog_key"] = catalog_key
+	return resolved
 
 
 static func _remove_cell_payloads(document, hex) -> void:
