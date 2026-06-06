@@ -51,8 +51,8 @@ Phase 0 は人間承認ゲートではない。後続実装を迷わせないた
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
 | `AUTO-00` | `COMPLETE` | none | `docs/process/` | Autopilot orchestration docs, queue, repository skill | `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`, `docs/plan/autopilot/ROADMAP_IMPLEMENTATION_QUEUE_2026-06-06.md`, `.agents/skills/hex-map-codex-autopilot/SKILL.md`, `AGENTS.md` | docs-only. Confirm files exist and AGENTS references Autopilot. |
-| `P0-01` | `READY` | `AUTO-00` | `docs/plan/2026-06-06_P0-01_CAPABILITY_MATRIX/` | Current capability matrix and risk register | `docs/review/roadmap/CURRENT_CAPABILITY_MATRIX_2026-06-06.md`, `docs/review/roadmap/RISK_REGISTER_2026-06-06.md` | Docs classify Generate/Edit/Runtime/Document/Test, plain TileMapLayer vs HexTileMapLayer, object/label/overlay schema. No code required. |
-| `P0-02` | `BACKLOG` | `P0-01` | `docs/plan/2026-06-06_P0-02_SCHEMA_BOUNDARY_DECISIONS/` | Non-blocking schema boundary decision record | `docs/review/roadmap/SCHEMA_BOUNDARY_DECISIONS_2026-06-06.md` | Decide maintain/migrate/remove for object labels overlays, TileSet/scene/custom data boundaries. No human approval. |
+| `P0-01` | `COMPLETE` | `AUTO-00` | `docs/plan/2026-06-06_P0-01_CAPABILITY_MATRIX/` | Current capability matrix and risk register | `docs/review/roadmap/CURRENT_CAPABILITY_MATRIX_2026-06-06.md`, `docs/review/roadmap/RISK_REGISTER_2026-06-06.md` | Docs classify Generate/Edit/Runtime/Document/Test, plain TileMapLayer vs HexTileMapLayer, object/label/overlay schema. No code required. |
+| `P0-02` | `READY` | `P0-01` | `docs/plan/2026-06-06_P0-02_SCHEMA_BOUNDARY_DECISIONS/` | Non-blocking schema boundary decision record | `docs/review/roadmap/SCHEMA_BOUNDARY_DECISIONS_2026-06-06.md` | Decide maintain/migrate/remove for object labels overlays, TileSet/scene/custom data boundaries. No human approval. |
 | `P0-03` | `BACKLOG` | `AUTO-00` | `docs/plan/2026-06-06_P0-03_TEST_BASELINE/` | Test baseline and environment report | `docs/review/autopilot/P0-03_TEST_BASELINE_2026-06-06.md` | Run `./tools/test.sh`. If Godot missing, mark `BLOCKED_BY_TEST_ENV`; do not mark implementation phases complete. |
 
 ---
@@ -198,13 +198,13 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `P0-01`.
+Current recommended next task: `P0-02`.
 
 Reason:
 
-- `AUTO-00` is docs foundation complete in this patch.
-- `P0-01` creates the capability matrix used by schema boundary and Level Document v2 implementation.
-- This is not a human approval gate; after `P0-01`, Codex should automatically run `P0-02`, then `P0-03`, then unlock `LD2-01`.
+- `P0-01` is complete and provides the capability matrix / risk register used by schema boundary and Level Document v2 implementation.
+- `P0-02` is now READY because its dependency `P0-01` is complete.
+- This is not a human approval gate; after `P0-02`, Codex should automatically run `P0-03`, then unlock `LD2-01` when the test baseline is complete.
 
 ---
 
@@ -222,3 +222,28 @@ Notes:
 - Docs-only foundation created.
 - `./tools/test.sh` was attempted but the current environment lacks Godot: `Godot executable not found. Set GODOT_BIN=/path/to/Godot.`
 - This is recorded as `known-env-failure`; `P0-03` remains the baseline test task for a Godot-capable environment.
+
+### P0-01
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot
+plan: `docs/plan/2026-06-06_P0-01_CAPABILITY_MATRIX/`
+review: `docs/review/autopilot/P0-01_SELF_REVIEW_2026-06-07.md`
+test result: `docs/review/autopilot/P0-01_TEST_RESULT_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+- docs:
+  - `docs/review/roadmap/CURRENT_CAPABILITY_MATRIX_2026-06-06.md`
+  - `docs/review/roadmap/RISK_REGISTER_2026-06-06.md`
+- major files:
+  - `docs/plan/2026-06-06_P0-01_CAPABILITY_MATRIX/UX.md`
+  - `docs/plan/2026-06-06_P0-01_CAPABILITY_MATRIX/POLICY.md`
+  - `docs/plan/2026-06-06_P0-01_CAPABILITY_MATRIX/IMPLEMENTATION_PLAN.md`
+
+Notes:
+
+- Docs-only task; no product code or automated test files were changed.
+- `repair-now`: none.
