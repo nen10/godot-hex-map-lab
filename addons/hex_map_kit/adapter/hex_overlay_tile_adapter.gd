@@ -18,18 +18,12 @@ static func tile_config(
 
 static func item_tiles_from_catalog(
 	catalog,
-	item_catalog_keys: Dictionary,
-	fallback_item_tiles: Dictionary = {}
+	item_catalog_keys: Dictionary
 ) -> Dictionary:
-	var result := fallback_item_tiles.duplicate(true)
+	var result := {}
 	for item_key in item_catalog_keys.keys():
 		var key = String(item_key)
-		var fallback = result.get(key, {})
-		var config = HexMapTileAdapterScript.tile_config_from_catalog(
-			catalog,
-			String(item_catalog_keys[item_key]),
-			fallback
-		)
+		var config = HexMapTileAdapterScript.tile_config_from_catalog(catalog, String(item_catalog_keys[item_key]))
 		if int(config.get("source_id", -1)) >= 0:
 			result[key] = config
 	return result
@@ -40,7 +34,6 @@ static func apply_to_tile_map_layer_with_catalog(
 	data,
 	catalog,
 	item_catalog_keys: Dictionary,
-	fallback_item_tiles: Dictionary = {},
 	clear_layer: bool = true,
 	flat_top: bool = true,
 	item_order: Array = []
@@ -48,7 +41,7 @@ static func apply_to_tile_map_layer_with_catalog(
 	apply_to_tile_map_layer(
 		layer,
 		data,
-		item_tiles_from_catalog(catalog, item_catalog_keys, fallback_item_tiles),
+		item_tiles_from_catalog(catalog, item_catalog_keys),
 		clear_layer,
 		flat_top,
 		item_order

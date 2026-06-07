@@ -72,7 +72,7 @@ terrain_layer.default_floor_key = "terrain.floor"
 terrain_layer.default_wall_key = "terrain.wall"
 ```
 
-Individual payloads can also carry `catalog_key`. Numeric tile fallback remains useful for compatibility and debugging, but public workflows should prefer catalog keys.
+Individual payloads can also carry `catalog_key`. Missing catalog assignments are validation issues; document apply does not silently replace them with numeric fallback tiles.
 
 ## 4. Use A Layer Stack
 

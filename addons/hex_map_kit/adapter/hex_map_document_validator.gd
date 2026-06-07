@@ -12,6 +12,7 @@ const HexVectorScript = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const RULE_PAYLOAD_OUTSIDE_MAP := "document.payload_outside_map"
 const RULE_ORPHAN_PAYLOAD := "document.orphan_payload"
 const RULE_CATALOG_MISSING := "document.catalog_missing"
+const RULE_TILE_ASSIGNMENT_MISSING := "document.tile_assignment_missing"
 const RULE_TILE_MISSING := "document.tile_missing"
 const RULE_DEPENDENCY_MISSING := "document.dependency_missing"
 const RULE_OBJECT_ON_WALL := "document.object_on_wall"
@@ -43,6 +44,7 @@ static func validate_document(document, options: Dictionary = {}):
 
 	var cell_set = data.cell_set()
 	var wall_set = data.wall_set()
+	_validate_terrain_defaults(result, document, cell_set, wall_set, options)
 	_validate_tile_entries(result, document, cell_set, options)
 	_validate_object_entries(result, document, cell_set, wall_set, options)
 	_validate_label_entries(result, document, cell_set)
@@ -68,13 +70,48 @@ static func _validate_tile_entries(result, document, cell_set: Dictionary, optio
 		_validate_catalog_tile_entry(result, entry, catalog, tile_set)
 
 
+static func _validate_terrain_defaults(
+	result,
+	document,
+	cell_set: Dictionary,
+	wall_set: Dictionary,
+	options: Dictionary
+) -> void:
+	var floor_count := max(0, cell_set.size() - wall_set.size())
+	var wall_count := wall_set.size()
+	if floor_count > 0:
+		_validate_catalog_key(
+			result,
+			_default_terrain_key(document, "default_floor_key"),
+			options.get("tile_catalog", null),
+			options.get("tile_set", null),
+			{
+				"metadata": {
+					"kind": HexMapDocumentAdapterScript.KIND_FLOOR,
+					"role": "default_floor",
+				},
+			}
+		)
+	if wall_count > 0:
+		_validate_catalog_key(
+			result,
+			_default_terrain_key(document, "default_wall_key"),
+			options.get("tile_catalog", null),
+			options.get("tile_set", null),
+			{
+				"metadata": {
+					"kind": HexMapDocumentAdapterScript.KIND_WALL,
+					"role": "default_wall",
+				},
+			}
+		)
+
+
 static func _validate_catalog_tile_entry(result, entry: Dictionary, catalog, tile_set: TileSet) -> void:
 	var catalog_key = String(entry.get("catalog_key", ""))
 	var kind = String(entry.get("kind", ""))
 	if catalog_key == "" and kind == HexMapDocumentAdapterScript.KIND_OVERLAY:
 		catalog_key = String(entry.get("item_key", ""))
-	if catalog_key == "":
-		return
 	var details = {
 		"cell": entry.get("cell", Vector3i.ZERO),
 		"metadata": {
@@ -82,6 +119,24 @@ static func _validate_catalog_tile_entry(result, entry: Dictionary, catalog, til
 			"catalog_key": catalog_key,
 		},
 	}
+	_validate_catalog_key(result, catalog_key, catalog, tile_set, details)
+
+
+static func _validate_catalog_key(
+	result,
+	catalog_key: String,
+	catalog,
+	tile_set: TileSet,
+	details: Dictionary
+) -> void:
+	if catalog_key == "":
+		result.add_error(
+			RULE_TILE_ASSIGNMENT_MISSING,
+			"Tile catalog key assignment is missing.",
+			HexMapValidationResultScript.SCOPE_DEPENDENCY,
+			details
+		)
+		return
 	if catalog == null:
 		result.add_error(
 			RULE_CATALOG_MISSING,
@@ -108,6 +163,18 @@ static func _validate_catalog_tile_entry(result, entry: Dictionary, catalog, til
 		)
 		return
 	_validate_catalog_entry_tile(result, catalog_entry, tile_set, details)
+
+
+static func _default_terrain_key(document, field_name: String) -> String:
+	if document == null:
+		return ""
+	for layer in document.terrain_layers:
+		if layer == null:
+			continue
+		var value = String(layer.get(field_name))
+		if value != "":
+			return value
+	return ""
 
 
 static func _validate_catalog_entry_tile(result, entry, tile_set: TileSet, details: Dictionary) -> void:

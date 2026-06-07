@@ -1031,7 +1031,8 @@ func _select_catalog_option_by_key(option: OptionButton, key: String) -> void:
 
 
 func _catalog_tile_config(key: String, fallback: Dictionary = {}) -> Dictionary:
-	return HexMapTileAdapter.tile_config_from_catalog(_ensure_tile_catalog(), key, fallback)
+	var config = HexMapTileAdapter.tile_config_from_catalog(_ensure_tile_catalog(), key)
+	return config if int(config.get("source_id", -1)) >= 0 else fallback
 
 
 func _floor_tile_fallback() -> Dictionary:
@@ -2368,7 +2369,10 @@ func generation_validation_result():
 
 
 func validate_generation_document(document, options: Dictionary = {}):
-	var result = HexMapDocumentValidator.validate_document(document, options)
+	var validation_options = _generation_validation_options()
+	for key in options:
+		validation_options[key] = options[key]
+	var result = HexMapDocumentValidator.validate_document(document, validation_options)
 	_capture_generation_validation_result(result, document != null)
 	return result
 
@@ -2451,7 +2455,7 @@ func promote_generation_seed_to_document(seed: int, options: Dictionary = {}):
 	)
 	if document == null:
 		return null
-	var validation_result = HexMapDocumentValidator.validate_document(document)
+	var validation_result = HexMapDocumentValidator.validate_document(document, _generation_validation_options())
 	var validation_summary = _batch_validation_summary(validation_result, true)
 	_attach_generation_metadata(document, snapshot, seed, validation_summary, options)
 	_last_promoted_generation_document = document
@@ -2476,7 +2480,7 @@ func _validation_result_for_report():
 	if _current_data == null:
 		return null
 	var document = _generated_document_snapshot()
-	return HexMapDocumentValidator.validate_document(document)
+	return HexMapDocumentValidator.validate_document(document, _generation_validation_options())
 
 
 func _validation_summary_from_result(result, generated_map_present: bool = false) -> Dictionary:
@@ -2536,6 +2540,7 @@ func _generated_document_snapshot_for_data(primary_data, overlay_data):
 				HexMapDocumentAdapter.set_tile_override(document, cell, {
 					"kind": HexMapDocumentAdapter.KIND_OVERLAY,
 					"item_key": item_key,
+					"catalog_key": _overlay_catalog_key_for_item(item_key),
 				})
 	return document
 
@@ -2545,10 +2550,69 @@ func _ensure_generated_document_terrain_layer(document, data) -> void:
 		return
 	for layer in document.terrain_layers:
 		if layer != null and layer.get("map") != null:
+			_apply_generated_terrain_catalog_defaults(layer)
 			return
 	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
 	terrain_layer.map = HexMapResource.from_map_data(data, _current_orientation)
+	_apply_generated_terrain_catalog_defaults(terrain_layer)
 	document.terrain_layers.append(terrain_layer)
+
+
+func _apply_generated_terrain_catalog_defaults(layer) -> void:
+	if layer == null:
+		return
+	var floor_key = _catalog_key_from_option(_floor_catalog_option)
+	if floor_key == "":
+		floor_key = _first_catalog_key_for_tag("floor")
+	var wall_key = _catalog_key_from_option(_wall_catalog_option)
+	if wall_key == "":
+		wall_key = _first_catalog_key_for_tag("wall")
+	layer.set("default_floor_key", floor_key)
+	layer.set("default_wall_key", wall_key)
+
+
+func _overlay_catalog_key_for_item(item_key: String) -> String:
+	for index in range(_overlay_item_pool_rows.size()):
+		var item_row = _overlay_item_pool_rows[index]
+		if _overlay_item_pool_row_name(item_row, index) == item_key:
+			var catalog_key = _catalog_key_from_option(item_row.get("catalog_option", null))
+			if catalog_key != "":
+				return catalog_key
+	return _first_catalog_key_for_tag("overlay")
+
+
+func _first_catalog_key_for_tag(tag: String) -> String:
+	var catalog = _ensure_tile_catalog()
+	if catalog == null:
+		return ""
+	for entry in catalog.entries_with_tag(tag):
+		if entry == null:
+			continue
+		var key = String(entry.get("key"))
+		if key != "":
+			return key
+	return ""
+
+
+func _generation_validation_options() -> Dictionary:
+	var options := {"tile_catalog": _ensure_tile_catalog()}
+	var tile_set = _active_validation_tile_set()
+	if tile_set != null:
+		options["tile_set"] = tile_set
+	return options
+
+
+func _active_validation_tile_set():
+	var layer = _find_target_tile_map_layer()
+	if layer is HexTileMapLayer:
+		var display_set = (layer as HexTileMapLayer).display_tile_set()
+		if display_set != null:
+			return display_set
+	elif layer is TileMapLayer and (layer as TileMapLayer).tile_set != null:
+		return (layer as TileMapLayer).tile_set
+	var tile_set = TileSet.new()
+	HexMapTileAdapter.configure_sample_tile_set(tile_set, _tile_settings_flat_top(), _tile_settings_tile_size())
+	return tile_set
 
 
 func _batch_seed_list(seed_count: int, options: Dictionary) -> Array[int]:
@@ -2584,7 +2648,7 @@ func _batch_blocked_row(index: int, snapshot: Dictionary, block_reason: String) 
 func _batch_result_row(index: int, snapshot: Dictionary, data, options: Dictionary) -> Dictionary:
 	var overlay_mode = bool(snapshot.get("overlay_mode", false))
 	var document = _generated_document_snapshot_for_data(_current_data if overlay_mode else data, data if overlay_mode else null)
-	var validation_result = HexMapDocumentValidator.validate_document(document)
+	var validation_result = HexMapDocumentValidator.validate_document(document, _generation_validation_options())
 	var validation_summary = _batch_validation_summary(validation_result, document != null)
 	var row: Dictionary = {
 		"index": index,

@@ -78,7 +78,7 @@ static func scene_tile_config(placement: Dictionary, catalog = null) -> Dictiona
 	if catalog_key == "":
 		catalog_key = String(placement.get("object_id", ""))
 	if catalog != null and catalog.has_method("entry_for_key") and catalog_key != "":
-		return HexMapTileAdapter.tile_config_from_catalog(catalog, catalog_key, {"source_id": -1})
+		return HexMapTileAdapter.tile_config_from_catalog(catalog, catalog_key)
 	return {"source_id": -1}
 
 

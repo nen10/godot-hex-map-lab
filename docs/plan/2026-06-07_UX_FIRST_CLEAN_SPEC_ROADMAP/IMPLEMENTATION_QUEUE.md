@@ -53,7 +53,7 @@ proof:
 | id | status | priority | dependencies | plan_dir | deliverable | target files | acceptance / test path | maturity |
 |---|---|---:|---|---|---|---|---|---|
 | `CLEAN-10` | `COMPLETE` | P0 | `CLEAN-00`, `CLEAN-30` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-10_DOCUMENT_CANONICAL_SCHEMA/` | `HexMapDocumentResource` canonical schema | `addons/hex_map_kit/adapter/hex_map_document_resource.gd`, `hex_map_document_adapter.gd`, document child resources, `tests/test_hex_adapter.gd`, docs/API/manual | `v1` / `v2` / `version` / legacy fields / `ensure_v2_defaults()` are removed from public contract; new document is canonical by construction; tests verify canonical save/load and roundtrip, not migration fixtures | `HEADLESS_TEST_COMPLETE` |
-| `CLEAN-11` | `READY` | P0 | `CLEAN-10` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-11_ADAPTER_COMPATIBILITY_REMOVAL/` | Adapter migration / compatibility removal | `hex_map_document_adapter.gd`, `hex_map_tile_adapter.gd`, `hex_overlay_tile_adapter.gd`, `hex_tile_map_layer.gd`, adapter/layer tests | Normal adapter path has no `legacy` / `v1` / `fallback`; missing catalog or assignment becomes validation issue; runtime apply succeeds for validation-clean document | `HEADLESS_TEST_COMPLETE` |
+| `CLEAN-11` | `COMPLETE` | P0 | `CLEAN-10` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-11_ADAPTER_COMPATIBILITY_REMOVAL/` | Adapter migration / compatibility removal | `hex_map_document_adapter.gd`, `hex_map_tile_adapter.gd`, `hex_overlay_tile_adapter.gd`, `hex_tile_map_layer.gd`, adapter/layer tests | Normal adapter path has no `legacy` / `v1` / `fallback`; missing catalog or assignment becomes validation issue; runtime apply succeeds for validation-clean document | `HEADLESS_TEST_COMPLETE` |
 | `CLEAN-13` | `READY` | P0 | `CLEAN-10` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-13_TILE_CATALOG_CANONICAL_RESOURCE/` | Tile catalog canonical resource | `hex_tile_catalog_resource.gd`, `hex_tile_catalog_entry.gd`, `hex_tile_catalog_validator.gd`, tile/overlay adapters, sample catalog | `tile_set_path` / `scene_path` / fallback fields are removed; TileSet / PackedScene resource references are canonical; sample catalog validator is clean | `HEADLESS_TEST_COMPLETE` |
 | `CLEAN-12` | `READY` | P0 | `CLEAN-10` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-12_OBJECT_DATABASE_CANONICAL_RESOURCE/` | Object database canonical resource | `hex_object_database_resource.gd`, `hex_object_definition_resource.gd`, `hex_object_layer_adapter.gd`, runtime sample, object tests | `definitions` is the only normal object definition field; scene uses `PackedScene`; runtime export returns resource references rather than scene path strings | `HEADLESS_TEST_COMPLETE` |
 | `CLEAN-14` | `READY` | P1 | `CLEAN-10` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-14_LABEL_DEPENDENCY_CANONICAL_RESOURCE/` | Label / dependency canonical resources | `hex_label_database_resource.gd`, new label definition resource, `hex_map_document_dependency_resource.gd`, validator/docs/tests | Label database uses typed definitions; dependency uses Resource / kind / role / required, not editable path string; validation detects null or type mismatch | `HEADLESS_TEST_COMPLETE` |
@@ -114,17 +114,59 @@ proof:
 
 ## 8. Current pointer
 
-Current recommended next task: `CLEAN-11`.
+Current recommended next task: `CLEAN-13`.
 
 Reason:
 
-- Dependency sweep completed on 2026-06-07 after `CLEAN-10` completion.
-- `CLEAN-11` is the first `READY` task by table order.
-- `CLEAN-13`, `CLEAN-12`, `CLEAN-14`, `CLEAN-31`, and `CLEAN-52` are also `READY`, but `CLEAN-11` runs first because adapter compatibility removal follows the document schema cleanup directly.
+- Dependency sweep completed on 2026-06-07 after `CLEAN-11` completion.
+- No additional `BACKLOG` task was promoted by `CLEAN-11` alone; `CLEAN-41` and `CLEAN-51` still wait on `CLEAN-12`, `CLEAN-13`, and `CLEAN-14`.
+- `CLEAN-13` is the first `READY` task by table order.
+- `CLEAN-12`, `CLEAN-14`, `CLEAN-31`, and `CLEAN-52` remain `READY`.
 
 ---
 
 ## 9. Completed task proof log
+
+### CLEAN-11
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot / `autopilot/roadmap-main`
+plan: `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-11_ADAPTER_COMPATIBILITY_REMOVAL/`
+review: `docs/review/autopilot/CLEAN-11_SELF_REVIEW_2026-06-07.md`
+test result: `docs/review/autopilot/CLEAN-11_TEST_RESULT_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+- docs:
+  - `docs/TEST.md`
+  - `docs/manual/MANUAL_WORKFLOW.md`
+  - `docs/review/autopilot/CLEAN-11_SELF_REVIEW_2026-06-07.md`
+  - `docs/review/autopilot/CLEAN-11_TEST_RESULT_2026-06-07.md`
+- major files:
+  - `addons/hex_map_kit/adapter/hex_map_document_adapter.gd`
+  - `addons/hex_map_kit/adapter/hex_map_document_validator.gd`
+  - `addons/hex_map_kit/adapter/hex_map_tile_adapter.gd`
+  - `addons/hex_map_kit/adapter/hex_overlay_tile_adapter.gd`
+  - `addons/hex_map_kit/adapter/hex_object_layer_adapter.gd`
+  - `addons/hex_map_kit/editor/hex_map_edit_tool.gd`
+  - `addons/hex_map_kit/editor/hex_map_gen_dock.gd`
+  - `tests/test_hex_adapter.gd`
+  - `tests/test_hex_tile_map_layer.gd`
+  - `tests/test_editor_plugin.gd`
+- maturity:
+  - `HEADLESS_TEST_COMPLETE`
+
+Notes:
+
+- `HexMapDocumentAdapter.catalog_compatibility_warnings()` and warning helper API were removed.
+- Catalog-aware tile resolution no longer accepts fallback config data; unresolved keys produce no tile on normal adapter apply.
+- `HexMapDocumentValidator` now reports `document.tile_assignment_missing` for missing terrain defaults or tile assignment keys.
+- Editor generation snapshots now attach catalog defaults before validation.
+- The old plain `TileMapLayer` numeric editor path is isolated behind `debug_numeric_fallback_enabled`; deleting that UI remains scheduled under `CLEAN-20` / `CLEAN-33`.
+- Dependency sweep did not promote new tasks; `CLEAN-13`, `CLEAN-12`, `CLEAN-14`, `CLEAN-31`, and `CLEAN-52` remain `READY`.
+- `repair-now`: complete.
 
 ### CLEAN-10
 

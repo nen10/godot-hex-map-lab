@@ -21,12 +21,8 @@ static func tile_config(
 	}
 
 
-static func tile_config_from_catalog(catalog, catalog_key: String, fallback: Dictionary = {}) -> Dictionary:
-	var config := tile_config(
-		int(fallback.get("source_id", -1)),
-		fallback.get("atlas_coords", Vector2i.ZERO),
-		int(fallback.get("alternative_tile", 0))
-	)
+static func tile_config_from_catalog(catalog, catalog_key: String) -> Dictionary:
+	var config := tile_config(-1)
 	if catalog == null or catalog_key == "" or not catalog.has_method("entry_for_key"):
 		return config
 	var entry = catalog.entry_for_key(catalog_key)
@@ -35,18 +31,9 @@ static func tile_config_from_catalog(catalog, catalog_key: String, fallback: Dic
 	config["catalog_key"] = catalog_key
 	config["entry_type"] = String(entry.get("entry_type"))
 	config["scene_path"] = String(entry.get("scene_path"))
-	if entry.has_method("effective_source_id"):
-		config["source_id"] = entry.effective_source_id()
-	else:
-		config["source_id"] = int(entry.get("source_id", config["source_id"]))
-	if entry.has_method("effective_atlas_coords"):
-		config["atlas_coords"] = entry.effective_atlas_coords()
-	else:
-		config["atlas_coords"] = entry.get("atlas_coords", config["atlas_coords"])
-	if entry.has_method("effective_alternative_tile"):
-		config["alternative_tile"] = entry.effective_alternative_tile()
-	else:
-		config["alternative_tile"] = int(entry.get("alternative_tile", config["alternative_tile"]))
+	config["source_id"] = int(entry.get("source_id"))
+	config["atlas_coords"] = entry.get("atlas_coords")
+	config["alternative_tile"] = int(entry.get("alternative_tile"))
 	return config
 
 
@@ -123,8 +110,12 @@ static func apply_to_tile_map_layer(
 
 	for entry in to_tile_entries(data, true, true, flat_top):
 		if entry["kind"] == KIND_WALL:
+			if wall_source_id < 0:
+				continue
 			layer.set_cell(entry["map_cell"], wall_source_id, wall_atlas_coords, wall_alternative_tile)
 		else:
+			if floor_source_id < 0:
+				continue
 			layer.set_cell(entry["map_cell"], floor_source_id, floor_atlas_coords, floor_alternative_tile)
 
 
@@ -136,22 +127,14 @@ static func apply_to_tile_map_layer_with_catalog(
 	wall_catalog_key: String,
 	options: Dictionary = {}
 ) -> void:
-	var floor_config = tile_config_from_catalog(catalog, floor_catalog_key, {
-		"source_id": int(options.get("floor_source_id", 0)),
-		"atlas_coords": options.get("floor_atlas_coords", Vector2i.ZERO),
-		"alternative_tile": int(options.get("floor_alternative_tile", 0)),
-	})
-	var wall_config = tile_config_from_catalog(catalog, wall_catalog_key, {
-		"source_id": int(options.get("wall_source_id", 0)),
-		"atlas_coords": options.get("wall_atlas_coords", Vector2i(1, 0)),
-		"alternative_tile": int(options.get("wall_alternative_tile", 0)),
-	})
+	var floor_config = tile_config_from_catalog(catalog, floor_catalog_key)
+	var wall_config = tile_config_from_catalog(catalog, wall_catalog_key)
 	apply_to_tile_map_layer(
 		layer,
 		data,
-		int(floor_config.get("source_id", 0)),
+		int(floor_config.get("source_id", -1)),
 		floor_config.get("atlas_coords", Vector2i.ZERO),
-		int(wall_config.get("source_id", 0)),
+		int(wall_config.get("source_id", -1)),
 		wall_config.get("atlas_coords", Vector2i(1, 0)),
 		bool(options.get("clear_layer", true)),
 		bool(options.get("flat_top", true)),

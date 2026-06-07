@@ -101,7 +101,7 @@ func _run() -> void:
 	await _test_map_edit_tool_applies_explicit_default_tile_settings()
 	await _test_map_edit_tool_target_atlas_settings_use_target_tileset()
 	await _test_map_edit_tool_catalog_selectors_drive_defaults_and_payloads()
-	await _test_map_edit_tool_reports_catalog_fallback_warnings()
+	await _test_map_edit_tool_reports_missing_catalog_assignment_validation()
 	await _test_map_edit_tool_validation_dashboard_groups_and_focuses_cell_issue()
 	await _test_map_edit_tool_debug_report_includes_validation_summary_without_status_bloat()
 	await _test_map_edit_tool_target_status_reports_tileset_and_overlay_payload()
@@ -1218,7 +1218,7 @@ func _test_map_edit_tool_catalog_selectors_drive_defaults_and_payloads() -> void
 	await process_frame
 
 
-func _test_map_edit_tool_reports_catalog_fallback_warnings() -> void:
+func _test_map_edit_tool_reports_missing_catalog_assignment_validation() -> void:
 	var data = HexMapData.rectangle(1, 1)
 	var document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(data))
 	HexMapDocumentAdapter.set_tile_override(document, HexVector.zero(), {
@@ -1234,16 +1234,17 @@ func _test_map_edit_tool_reports_catalog_fallback_warnings() -> void:
 	var tool = await _new_ready_edit_tool()
 	tool.set_document(document)
 	tool.set_target_layer(layer)
-	_assert_true(tool._apply_document_to_target(), "map edit tool applies catalogless document through numeric fallback")
-	_assert_eq(layer.get_cell_source_id(Vector2i.ZERO), 8, "catalogless editor document displays numeric fallback source")
-	_assert_eq(layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(4, 5), "catalogless editor document displays numeric fallback atlas")
-	var status = tool.target_readiness_status()
-	_assert_true(int(status.get("catalog_warning_count", 0)) > 0, "target status reports catalog fallback warning count")
-	_assert_true((status.get("catalog_warnings", []) as Array).size() > 0, "target status reports catalog fallback warning details")
-	_assert_true(tool._target_status_label.text.contains("catalog_warnings="), "target status label includes catalog warning count")
+	_assert_true(tool._apply_document_to_target(), "map edit tool applies catalogless document through explicit advanced fallback path")
+	tool._validation_dashboard._validate_button.pressed.emit()
+	var rows = tool._validation_dashboard.issue_rows()
+	var has_missing_assignment := false
+	for row in rows:
+		if String(row.get("rule_id", "")) == "document.tile_assignment_missing":
+			has_missing_assignment = true
+	_assert_true(has_missing_assignment, "validation dashboard reports missing catalog assignment")
 	var report = tool.debug_report_text()
-	_assert_true(report.contains("catalog_warning_count"), "debug report includes catalog warning count")
-	_assert_true(report.contains("catalog.entry_key_missing"), "debug report includes catalog warning rule id")
+	_assert_true(not report.contains("catalog_warning_count"), "debug report omits compatibility warning count")
+	_assert_true(report.contains("document.tile_assignment_missing"), "debug report includes validation rule id")
 
 	layer.queue_free()
 	tool.queue_free()
@@ -2552,6 +2553,8 @@ func _test_generation_dock_captures_generation_validation_failure() -> void:
 	var document = HexMapDocumentAdapter.from_map_resource(
 		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
 	)
+	document.terrain_layers[0].default_floor_key = "terrain.floor"
+	document.terrain_layers[0].default_wall_key = "terrain.wall"
 	HexMapDocumentAdapter.set_label(document, HexVector.q_axis(), {
 		"label_id": "outside",
 		"text": "Outside",

@@ -360,15 +360,19 @@ func _test_apply_document_to_layer_stack_routes_canonical_roles() -> void:
 
 	var terrain_layer_resource = HexMapDocumentTerrainLayerResource.new()
 	terrain_layer_resource.map = HexMapResource.from_map_data(data)
+	terrain_layer_resource.default_floor_key = "terrain.floor"
+	terrain_layer_resource.default_wall_key = "terrain.wall"
 	terrain_layer_resource.tile_assignments.append({
 		"cell": Vector3i.ZERO,
 		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"catalog_key": "terrain.wall",
 		"source_id": 0,
 		"atlas_coords": Vector2i(1, 0),
 	})
 	terrain_layer_resource.tile_assignments.append({
 		"cell": Vector3i(1, 0, 0),
 		"kind": HexMapDocumentAdapter.KIND_WALL,
+		"catalog_key": "terrain.floor",
 		"source_id": 0,
 		"atlas_coords": Vector2i(0, 0),
 	})
@@ -410,9 +414,20 @@ func _test_apply_document_to_layer_stack_routes_canonical_roles() -> void:
 	_assert_eq((navigation_node as CanvasItem).visible, false, "navigation role visibility follows template")
 
 	var plain_layer = TileMapLayer.new()
-	HexMapDocumentAdapter.apply_to_tile_map_layer(document, plain_layer)
-	_assert_eq(plain_layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(1, 0), "plain TileMapLayer document apply remains compatible")
-	_assert_eq(plain_layer.get_cell_atlas_coords(Vector2i(1, 0)), Vector2i(0, 0), "plain TileMapLayer wall apply remains compatible")
+	var catalog = HexTileCatalogResource.new()
+	var floor_entry = HexTileCatalogEntry.new()
+	floor_entry.key = "terrain.floor"
+	floor_entry.source_id = 0
+	floor_entry.atlas_coords = Vector2i(0, 0)
+	catalog.entries.append(floor_entry)
+	var wall_entry = HexTileCatalogEntry.new()
+	wall_entry.key = "terrain.wall"
+	wall_entry.source_id = 0
+	wall_entry.atlas_coords = Vector2i(1, 0)
+	catalog.entries.append(wall_entry)
+	HexMapDocumentAdapter.apply_to_tile_map_layer(document, plain_layer, {"tile_catalog": catalog})
+	_assert_eq(plain_layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(1, 0), "plain TileMapLayer document apply resolves floor catalog override")
+	_assert_eq(plain_layer.get_cell_atlas_coords(Vector2i(1, 0)), Vector2i(0, 0), "plain TileMapLayer document apply resolves wall catalog override")
 	plain_layer.free()
 
 	layer.queue_free()
