@@ -55,6 +55,7 @@ const EDIT_MODE_NAMES := [
 var _document: HexMapDocumentResource
 var _document_source := DOCUMENT_SOURCE_NONE
 var _document_path := ""
+var _import_map_resource: HexMapResource
 var _import_map_path := ""
 var _export_path := ""
 var _target_layer: Node
@@ -130,6 +131,7 @@ var _document_path_edit: LineEdit
 var _document_browse_button: Button
 var _document_load_button: Button
 var _document_save_button: Button
+var _import_map_resource_picker
 var _import_map_path_edit: LineEdit
 var _import_map_browse_button: Button
 var _import_map_button: Button
@@ -198,18 +200,24 @@ func set_editor_session_state(session: HexMapEditorSessionState) -> void:
 	_editor_session_state = session
 	if _editor_session_state == null:
 		return
+	var session_document_saved_path := _editor_session_state.document_saved_path
+	var session_import_map_saved_path := _editor_session_state.import_map_saved_path
+	var session_export_saved_path := _editor_session_state.export_saved_path
 	var session_target = _editor_session_state.current_target_layer()
 	if session_target != null:
 		set_target_layer(session_target)
 	var session_document = _editor_session_state.current_document()
 	if session_document is HexMapDocumentResource:
 		set_document(session_document as HexMapDocumentResource)
-	if _editor_session_state.document_path != "":
-		set_document_path(_editor_session_state.document_path)
-	if _editor_session_state.import_map_path != "":
-		set_import_map_path(_editor_session_state.import_map_path)
-	if _editor_session_state.export_path != "":
-		set_export_path(_editor_session_state.export_path)
+	if session_document_saved_path != "":
+		set_document_path(session_document_saved_path)
+	var session_import_map = _editor_session_state.current_import_map()
+	if session_import_map is HexMapResource:
+		set_import_map_resource(session_import_map as HexMapResource, session_import_map_saved_path)
+	elif session_import_map_saved_path != "":
+		set_import_map_path(session_import_map_saved_path)
+	if session_export_saved_path != "":
+		set_export_path(session_export_saved_path)
 
 
 func editor_session_state() -> HexMapEditorSessionState:
@@ -219,12 +227,16 @@ func editor_session_state() -> HexMapEditorSessionState:
 func set_document(document: HexMapDocumentResource) -> void:
 	_document = document
 	_document_source = DOCUMENT_SOURCE_PROVIDED if document != null else DOCUMENT_SOURCE_NONE
+	_document_path = document.resource_path if document != null and document.resource_path != "" else ""
+	if _document_path_edit != null:
+		_document_path_edit.text = _document_path
 	_refresh_plain_target_tile_options_from_document(_document)
 	_read_target_tile_settings(false)
 	_sync_resource_pickers()
 	_refresh_overlay_item_key_options()
 	_refresh_state_labels()
 	_publish_session_document("edit.set_document")
+	_publish_session_paths("edit.set_document")
 
 
 func document() -> HexMapDocumentResource:
@@ -257,8 +269,10 @@ func _document_is_flat_top(document: HexMapDocumentResource) -> bool:
 
 
 func import_map_resource(resource: HexMapResource) -> HexMapDocumentResource:
+	set_import_map_resource(resource)
 	_document = _document_for_editor(HexMapDocumentAdapter.from_map_resource(resource))
 	_document_source = DOCUMENT_SOURCE_IMPORT if _document != null else DOCUMENT_SOURCE_NONE
+	set_document_path("")
 	_refresh_plain_target_tile_options_from_document(_document)
 	_read_target_tile_settings(false)
 	_sync_resource_pickers()
@@ -277,6 +291,7 @@ func import_map_resource_from_path(path: String = "") -> bool:
 	if not resource is HexMapResource:
 		_set_status("Path is not a HexMapResource.")
 		return false
+	set_import_map_resource(resource, actual_path)
 	import_map_resource(resource)
 	set_import_map_path(actual_path)
 	_apply_document_to_target()
@@ -459,11 +474,33 @@ func set_import_map_path(path: String) -> void:
 	if _import_map_path_edit != null:
 		_import_map_path_edit.text = path
 	_refresh_action_button_states()
-	_publish_session_paths("edit.set_import_map_path")
+	_publish_session_import_map("edit.set_import_map_path")
 
 
 func import_map_path() -> String:
 	return _import_map_path
+
+
+func set_import_map_resource(resource: HexMapResource, saved_path: String = "") -> void:
+	_import_map_resource = resource
+	var actual_saved_path := saved_path
+	if actual_saved_path == "" and resource != null:
+		actual_saved_path = resource.resource_path
+	if actual_saved_path != "":
+		_import_map_path = actual_saved_path
+		if _import_map_path_edit != null:
+			_import_map_path_edit.text = actual_saved_path
+	elif resource == null:
+		_import_map_path = ""
+		if _import_map_path_edit != null:
+			_import_map_path_edit.text = ""
+	_sync_resource_pickers()
+	_refresh_action_button_states()
+	_publish_session_import_map("edit.set_import_map_resource")
+
+
+func import_map_resource_selection() -> HexMapResource:
+	return _import_map_resource
 
 
 func set_export_path(path: String) -> void:
@@ -760,13 +797,14 @@ func _build_ui() -> void:
 		_document_resource_picker = EditorResourcePicker.new()
 		_document_resource_picker.base_type = "HexMapDocumentResource"
 		_document_resource_picker.resource_changed.connect(_on_document_resource_changed)
-		root.add_child(_wrap_labeled("Resource", _document_resource_picker))
+		root.add_child(_wrap_labeled("Document Resource", _document_resource_picker))
 	var document_path_row = HBoxContainer.new()
 	_document_path_edit = LineEdit.new()
-	_document_path_edit.placeholder_text = "res://path/to/map_document.tres"
+	_document_path_edit.placeholder_text = "Unsaved document"
+	_document_path_edit.editable = false
 	_document_path_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_document_path_edit.text_changed.connect(_on_document_path_changed)
-	document_path_row.add_child(_wrap_labeled("Document", _document_path_edit))
+	_document_path_edit.tooltip_text = "Saved location. Use Document Resource, Browse, or Save As to change it."
+	document_path_row.add_child(_wrap_labeled("Saved", _document_path_edit))
 	_document_browse_button = Button.new()
 	_document_browse_button.text = "Browse"
 	_document_browse_button.pressed.connect(_on_document_browse_pressed)
@@ -781,28 +819,46 @@ func _build_ui() -> void:
 	document_path_row.add_child(_document_save_button)
 	root.add_child(document_path_row)
 
+	var import_resource_row = HBoxContainer.new()
+	if _can_use_editor_resource_picker():
+		_import_map_resource_picker = EditorResourcePicker.new()
+		_import_map_resource_picker.base_type = "HexMapResource"
+		_import_map_resource_picker.resource_changed.connect(_on_import_map_resource_changed)
+		import_resource_row.add_child(_wrap_labeled("Import Resource", _import_map_resource_picker))
+		_import_map_browse_button = Button.new()
+		_import_map_browse_button.text = "Browse"
+		_import_map_browse_button.pressed.connect(_on_import_map_browse_pressed)
+		import_resource_row.add_child(_import_map_browse_button)
+		_import_map_button = Button.new()
+		_import_map_button.text = "Import"
+		_import_map_button.pressed.connect(_on_import_map_pressed)
+		import_resource_row.add_child(_import_map_button)
+	else:
+		_import_map_browse_button = Button.new()
+		_import_map_browse_button.text = "Browse"
+		_import_map_browse_button.pressed.connect(_on_import_map_browse_pressed)
+		import_resource_row.add_child(_import_map_browse_button)
+		_import_map_button = Button.new()
+		_import_map_button.text = "Import"
+		_import_map_button.pressed.connect(_on_import_map_pressed)
+		import_resource_row.add_child(_import_map_button)
+	root.add_child(import_resource_row)
 	var import_path_row = HBoxContainer.new()
 	_import_map_path_edit = LineEdit.new()
-	_import_map_path_edit.placeholder_text = "res://path/to/map_resource.tres"
+	_import_map_path_edit.placeholder_text = "No import resource selected"
+	_import_map_path_edit.editable = false
 	_import_map_path_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_import_map_path_edit.text_changed.connect(_on_import_map_path_changed)
-	import_path_row.add_child(_wrap_labeled("Import Map", _import_map_path_edit))
-	_import_map_browse_button = Button.new()
-	_import_map_browse_button.text = "Browse"
-	_import_map_browse_button.pressed.connect(_on_import_map_browse_pressed)
-	import_path_row.add_child(_import_map_browse_button)
-	_import_map_button = Button.new()
-	_import_map_button.text = "Import"
-	_import_map_button.pressed.connect(_on_import_map_pressed)
-	import_path_row.add_child(_import_map_button)
+	_import_map_path_edit.tooltip_text = "Saved location of the selected import resource."
+	import_path_row.add_child(_wrap_labeled("Import Saved", _import_map_path_edit))
 	root.add_child(import_path_row)
 
 	var export_path_row = HBoxContainer.new()
 	_export_path_edit = LineEdit.new()
-	_export_path_edit.placeholder_text = "res://path/to/map_resource.tres"
+	_export_path_edit.placeholder_text = "No export destination selected"
+	_export_path_edit.editable = false
 	_export_path_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_export_path_edit.text_changed.connect(_on_export_path_changed)
-	export_path_row.add_child(_wrap_labeled("Export", _export_path_edit))
+	_export_path_edit.tooltip_text = "Last export destination. Use Save As to choose it."
+	export_path_row.add_child(_wrap_labeled("Export Saved", _export_path_edit))
 	_export_button = Button.new()
 	_export_button.text = "Export"
 	_export_button.pressed.connect(_on_export_pressed)
@@ -1324,10 +1380,18 @@ func _on_document_resource_changed(resource: Resource) -> void:
 	elif resource == null:
 		_document = null
 		_document_source = DOCUMENT_SOURCE_NONE
+		set_document_path("")
 	_refresh_plain_target_tile_options_from_document(_document)
 	_refresh_overlay_item_key_options()
 	_refresh_state_labels()
 	_publish_session_document("edit.resource_picker")
+
+
+func _on_import_map_resource_changed(resource: Resource) -> void:
+	if resource is HexMapResource:
+		set_import_map_resource(resource)
+	elif resource == null:
+		set_import_map_resource(null)
 
 
 func _on_object_database_changed(resource: Resource) -> void:
@@ -1344,23 +1408,42 @@ func _on_export_path_changed(text: String) -> void:
 
 
 func _on_load_document_pressed() -> void:
+	var selected_resource = _selected_document_resource()
+	if selected_resource != null:
+		_document = _document_for_editor(selected_resource)
+		_document_source = DOCUMENT_SOURCE_LOAD
+		if selected_resource.resource_path != "":
+			set_document_path(selected_resource.resource_path)
+		_refresh_plain_target_tile_options_from_document(_document)
+		_read_target_tile_settings(false)
+		_apply_document_to_target()
+		_refresh_overlay_item_key_options()
+		_refresh_state_labels()
+		_set_status("Loaded selected document.")
+		_publish_session_document("edit.load_selected_document")
+		return
 	load_document()
 
 
 func _on_save_document_pressed() -> void:
-	if _document_path == "":
-		if not _popup_resource_file_dialog(
-			EditorFileDialog.FILE_MODE_SAVE_FILE,
-			HexMapEditorPathSelector.TRES_FILTERS,
-			Callable(self, "_on_document_save_file_selected"),
-			"hex_map_document.tres"
-		):
-			_set_status("Document path is empty.")
-		return
-	save_document()
+	var default_filename = _document_path.get_file() if _document_path != "" else "hex_map_document.tres"
+	if not _popup_resource_file_dialog(
+		EditorFileDialog.FILE_MODE_SAVE_FILE,
+		HexMapEditorPathSelector.TRES_FILTERS,
+		Callable(self, "_on_document_save_file_selected"),
+		default_filename
+	):
+		_set_status("Document Save As is available in the editor.")
 
 
 func _on_import_map_pressed() -> void:
+	if _import_map_resource != null:
+		import_map_resource(_import_map_resource)
+		_apply_document_to_target()
+		if _target_layer != null and is_instance_valid(_target_layer):
+			_select_target_in_editor_if_possible()
+		_set_status("Imported selected HexMapResource.")
+		return
 	import_map_resource_from_path()
 
 
@@ -1797,6 +1880,8 @@ func _set_control_row_visible(control, visible: bool) -> void:
 func _sync_resource_pickers() -> void:
 	if _document_resource_picker != null:
 		_document_resource_picker.edited_resource = _document
+	if _import_map_resource_picker != null:
+		_import_map_resource_picker.edited_resource = _import_map_resource
 	if _target_tile_set_picker != null:
 		_target_tile_set_picker.edited_resource = _target_tile_set_for_current_target()
 	if _object_database_picker != null:
@@ -1818,12 +1903,19 @@ func _publish_session_document(reason: String) -> void:
 	_editor_session_state.set_document(_document, _document_source, _document_path, reason)
 
 
+func _publish_session_import_map(reason: String) -> void:
+	if _editor_session_state == null:
+		return
+	_editor_session_state.set_import_map(_import_map_resource, _import_map_path, reason)
+	_editor_session_state.set_import_map_saved_path(_import_map_path, reason)
+
+
 func _publish_session_paths(reason: String) -> void:
 	if _editor_session_state == null:
 		return
-	_editor_session_state.set_document_path(_document_path, reason)
-	_editor_session_state.set_import_map_path(_import_map_path, reason)
-	_editor_session_state.set_export_path(_export_path, reason)
+	_editor_session_state.set_document_saved_path(_document_path, reason)
+	_editor_session_state.set_import_map_saved_path(_import_map_path, reason)
+	_editor_session_state.set_export_saved_path(_export_path, reason)
 
 
 func _refresh_overlay_item_key_options() -> void:
@@ -2926,15 +3018,30 @@ func _can_use_editor_resource_picker() -> bool:
 	return Engine.is_editor_hint() and ClassDB.class_exists("EditorResourcePicker")
 
 
+func _selected_document_resource() -> HexMapDocumentResource:
+	if _document_resource_picker != null \
+			and _document_resource_picker.edited_resource is HexMapDocumentResource:
+		return _document_resource_picker.edited_resource as HexMapDocumentResource
+	return _document
+
+
 func _refresh_action_button_states() -> void:
 	var target_valid = _target_layer != null and is_instance_valid(_target_layer)
 	var hex_target = target_valid and _target_layer is HexTileMapLayer
 	var document_present = _document != null
 	_set_button_enabled(_document_browse_button, true, "")
-	_set_button_enabled(_document_load_button, _document_path != "", "Document path is empty.")
+	_set_button_enabled(
+		_document_load_button,
+		_selected_document_resource() != null or _document_path != "",
+		"No document resource selected."
+	)
 	_set_button_enabled(_document_save_button, document_present, "No document selected.")
 	_set_button_enabled(_import_map_browse_button, true, "")
-	_set_button_enabled(_import_map_button, _import_map_path != "", "Import map path is empty.")
+	_set_button_enabled(
+		_import_map_button,
+		_import_map_resource != null or _import_map_path != "",
+		"No import resource selected."
+	)
 	_set_button_enabled(_export_button, document_present, "No document selected.")
 	_set_button_enabled(_export_save_as_button, document_present, "No document selected.")
 	_set_button_enabled(_target_atlas_browse_button, target_valid, "No editable target layer.")

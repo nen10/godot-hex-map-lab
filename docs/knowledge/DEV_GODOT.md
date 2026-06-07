@@ -49,7 +49,7 @@ Godotでの開発ノウハウを随時追加します。
 - `EditorPlugin._handles()` がtrueを返す対象では `_edit()` / `_make_visible()` / `_forward_canvas_gui_input()` が呼ばれる。標準TileMap editorとaddon manual editの入力が同じ2D viewportで競合する場合、addon側はeventを消費する条件を限定する必要がある。
 - addonは標準TileMap panelの現在選択tileに依存せず、Target TileSet resourceと `source_id` / `atlas_coords` / `alternative_tile` を境界にする。標準TileMap画面はTileSet編集の補助操作として開き、manual edit payloadはDock側の明示設定から作る。
 - 現在のaddon実装では、Generation Dockに `Browse Atlas Image` / `Use Sample Tiles` があり、Edit DockにもTarget TileSet / Atlas Image / Sample presetの入口がある。どちらの入口でも選択assetはTarget `HexTileMapLayer` の内部 `TileMapLayer.tile_set` へ設定し、documentへasset pathを保存しない。
-- Edit DockとGeneration Dockでpath選択UXを揃える場合、通常操作は `EditorFileDialog` / `EditorResourcePicker`、direct path `LineEdit` は既知path貼り付け用のadvanced操作として残す。button disabledやtooltipは押す前の原因表示に使い、失敗後のStatusだけを仕様根拠にしない。
+- Edit Dockでresource選択UXを揃える場合、通常操作は `EditorResourcePicker` / `EditorFileDialog` に寄せる。path `LineEdit` を置く場合は saved location のread-only statusにし、direct path入力を通常導線やheadless test acceptanceにしない。button disabledやtooltipは押す前の原因表示に使い、失敗後のStatusだけを仕様根拠にしない。
 - 生成済みtactics atlasは固定defaultではなく、ユーザーが選択できるsample / preset assetとして扱う。Object用画像atlasはTile / Overlay asset計画から外し、Node / scene配置の検討としてreview側へ分離する。
 
 参照:

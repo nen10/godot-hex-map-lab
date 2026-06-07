@@ -402,13 +402,25 @@ func _test_map_edit_tool_builds_dock_controls() -> void:
 		Control.SIZE_SHRINK_BEGIN,
 		"map edit tool controls keep vertical minimum size inside ScrollContainer"
 	)
-	_assert_true(tool._document_path_edit != null, "map edit tool exposes document path control")
+	if tool._can_use_editor_resource_picker():
+		_assert_true(tool._document_resource_picker != null, "map edit tool exposes document resource picker")
+	else:
+		_assert_true(tool._document_browse_button != null, "map edit tool exposes document Browse fallback")
+	if tool._document_path_edit != null:
+		_assert_true(not tool._document_path_edit.editable, "document saved path is read-only status")
 	_assert_true(tool._document_browse_button != null, "map edit tool exposes document browse button")
 	_assert_true(tool._document_load_button != null, "map edit tool exposes document load button")
 	_assert_true(tool._document_save_button != null, "map edit tool exposes document save button")
-	_assert_true(tool._import_map_path_edit != null, "map edit tool exposes HexMapResource import path control")
+	if tool._can_use_editor_resource_picker():
+		_assert_true(tool._import_map_resource_picker != null, "map edit tool exposes HexMapResource import resource picker")
+	else:
+		_assert_true(tool._import_map_browse_button != null, "map edit tool exposes HexMapResource import Browse fallback")
+	if tool._import_map_path_edit != null:
+		_assert_true(not tool._import_map_path_edit.editable, "import saved path is read-only status")
 	_assert_true(tool._import_map_browse_button != null, "map edit tool exposes HexMapResource import browse button")
 	_assert_true(tool._import_map_button != null, "map edit tool exposes HexMapResource import button")
+	if tool._export_path_edit != null:
+		_assert_true(not tool._export_path_edit.editable, "export destination is read-only status")
 	_assert_true(tool._export_button != null, "map edit tool exposes map export button")
 	_assert_true(tool._export_save_as_button != null, "map edit tool exposes map export save-as button")
 	_assert_true(tool._document_inspector != null, "map edit tool exposes document inspector")
@@ -508,19 +520,26 @@ func _test_editor_session_state_shares_generate_target_and_edit_document() -> vo
 	)
 	tool.set_document(document)
 	tool.set_document_path("res://session_document.tres")
-	tool.set_import_map_path("res://session_import_map.tres")
+	var import_resource = HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	tool.set_import_map_resource(import_resource, "res://session_import_map.tres")
 	tool.set_export_path("res://session_export_map.tres")
 	_assert_eq(session.current_document(), document, "edit tool publishes document to session")
 	_assert_eq(session.document_source, HexMapEditTool.DOCUMENT_SOURCE_PROVIDED, "session records document source")
-	_assert_eq(session.document_path, "res://session_document.tres", "session records document path")
-	_assert_eq(session.import_map_path, "res://session_import_map.tres", "session records import map path")
-	_assert_eq(session.export_path, "res://session_export_map.tres", "session records export path")
+	_assert_eq(session.document_saved_path, "res://session_document.tres", "session records document saved path")
+	_assert_eq(session.current_import_map(), import_resource, "session records import resource")
+	_assert_eq(session.import_map_saved_path, "res://session_import_map.tres", "session records import map saved path")
+	_assert_eq(session.export_saved_path, "res://session_export_map.tres", "session records export saved path")
 
 	var second_tool = await _new_ready_edit_tool()
 	second_tool.set_editor_session_state(session)
 	_assert_eq(second_tool.target_layer(), target_layer, "later edit tool consumes existing session target")
 	_assert_eq(second_tool.document(), document, "later edit tool consumes existing session document")
 	_assert_eq(second_tool.document_path(), "res://session_document.tres", "later edit tool consumes existing document path")
+	_assert_eq(
+		second_tool.import_map_resource_selection(),
+		import_resource,
+		"later edit tool consumes existing import resource"
+	)
 
 	second_tool.queue_free()
 	tool.queue_free()
@@ -670,6 +689,12 @@ func _test_map_edit_tool_path_file_handlers_and_action_states() -> void:
 	var tool = await _new_ready_edit_tool()
 	_assert_true(tool._document_load_button.disabled, "document Load is disabled while path is empty")
 	_assert_true(tool._import_map_button.disabled, "Import is disabled while path is empty")
+	if tool._document_path_edit != null:
+		_assert_true(not tool._document_path_edit.editable, "document saved path status is not typed input")
+	if tool._import_map_path_edit != null:
+		_assert_true(not tool._import_map_path_edit.editable, "import saved path status is not typed input")
+	if tool._export_path_edit != null:
+		_assert_true(not tool._export_path_edit.editable, "export saved path status is not typed input")
 	_assert_true(tool._document_browse_button != null and not tool._document_browse_button.disabled, "Document Browse remains enabled")
 	_assert_true(tool._export_button.disabled, "Export is disabled without document")
 
@@ -681,6 +706,7 @@ func _test_map_edit_tool_path_file_handlers_and_action_states() -> void:
 
 	tool._on_import_map_file_selected(import_path)
 	_assert_eq(tool.import_map_path(), import_path, "import file selected handler syncs path")
+	_assert_true(tool.import_map_resource_selection() is HexMapResource, "import file selected handler stores resource selection")
 	_assert_eq(tool._document_source, HexMapEditTool.DOCUMENT_SOURCE_IMPORT, "import file selected handler records import source")
 	_assert_true(not tool._export_button.disabled, "Export is enabled after import")
 
