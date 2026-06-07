@@ -30,7 +30,7 @@ func add_issue(
 		"scope": scope,
 		"cell": details.get("cell", Vector3i.ZERO),
 		"object_id": String(details.get("object_id", "")),
-		"dependency_path": String(details.get("dependency_path", "")),
+		"dependency_resource_path": String(details.get("dependency_resource_path", "")),
 		"metadata": details.get("metadata", {}).duplicate(true),
 	}
 	issues.append(issue)

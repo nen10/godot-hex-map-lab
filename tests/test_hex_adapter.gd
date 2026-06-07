@@ -20,6 +20,7 @@ const HexMovementProfileResource = preload("res://addons/hex_map_kit/adapter/hex
 const HexGameplayLayerData = preload("res://addons/hex_map_kit/adapter/hex_gameplay_layer_data.gd")
 const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
 const HexObjectDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_object_definition_resource.gd")
+const HexLabelDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_label_definition_resource.gd")
 const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
 const HexTileCatalogEntry = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd")
 const HexTileCatalogResource = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd")
@@ -59,6 +60,7 @@ func _run() -> void:
 	_test_map_resource_roundtrips_to_map_data()
 	_test_hex_map_document_roundtrips_map_and_payloads()
 	_test_hex_object_database_definitions_roundtrip_resources()
+	_test_hex_label_database_definitions_roundtrip_resources()
 	_test_hex_map_document_schema_roundtrips_canonical_resources()
 	_test_hex_map_document_summary_reports_canonical_counts()
 	_test_hex_map_validation_result_serializes_summary_and_warnings()
@@ -467,7 +469,10 @@ func _test_hex_map_document_roundtrips_map_and_payloads() -> void:
 	object_definition.display_name = "Chest"
 	object_db.add_definition(object_definition)
 	var label_db = HexLabelDatabaseResource.new()
-	label_db.labels = [{"label_id": "area", "display_name": "Area"}]
+	var label_definition = HexLabelDefinitionResource.new()
+	label_definition.label_id = "area"
+	label_definition.display_name = "Area"
+	label_db.add_definition(label_definition)
 
 	var path = _test_resource_path("test_hex_map_document.tres")
 	var error = ResourceSaver.save(document, path)
@@ -482,7 +487,7 @@ func _test_hex_map_document_roundtrips_map_and_payloads() -> void:
 	_assert_eq(loaded.object_placements[0].properties["gold"], 2, "hex map document preserves object properties")
 	_assert_eq(loaded.label_placements[0].text, "North Gate", "hex map document preserves labels")
 	_assert_eq(object_db.definition_for_id("chest").display_name, "Chest", "object database stores typed definitions")
-	_assert_eq(label_db.labels[0]["label_id"], "area", "label database stores label definitions")
+	_assert_eq(label_db.definition_for_id("area").display_name, "Area", "label database stores typed definitions")
 
 
 func _test_hex_object_database_definitions_roundtrip_resources() -> void:
@@ -534,6 +539,40 @@ func _test_hex_object_database_definitions_roundtrip_resources() -> void:
 	_assert_eq(loaded.definition_for_id("chest").scene is PackedScene, true, "object database roundtrip preserves scene resource")
 	_assert_eq(loaded.definition_for_id("spawn").preview_texture is Texture2D, true, "object database roundtrip preserves preview texture")
 	_assert_eq(loaded.definition_for_id("spawn").default_properties["team"], "hero", "object database roundtrip preserves replacement definition")
+
+
+func _test_hex_label_database_definitions_roundtrip_resources() -> void:
+	var database = HexLabelDatabaseResource.new()
+	var area = HexLabelDefinitionResource.new()
+	area.label_id = "area"
+	area.display_name = "Area"
+	area.default_text = "North Gate"
+	area.style_key = "small"
+	area.tags = PackedStringArray(["map", "poi"])
+	area.metadata = {"priority": 1}
+	database.add_definition(area)
+
+	var replacement = HexLabelDefinitionResource.new()
+	replacement.label_id = "area"
+	replacement.display_name = "Area Label"
+	replacement.default_text = "Gate"
+	replacement.style_key = "large"
+	replacement.tags = PackedStringArray(["map", "important"])
+	database.add_definition(replacement)
+
+	_assert_eq(database.get("labels"), null, "label database has no loose labels array")
+	_assert_eq(database.definition_ids(), PackedStringArray(["area"]), "label database replaces matching label id")
+	_assert_eq(database.definition_for_id("area").display_name, "Area Label", "label database resolves typed definition")
+	_assert_eq(database.definitions_with_tag("important").size(), 1, "label database filters typed definitions by tag")
+	_assert_eq(database.has_definition("missing"), false, "label database reports missing definition")
+	_assert_eq(replacement.to_dictionary()["style_key"], "large", "label definition dictionary exports canonical fields")
+
+	var path = _test_resource_path("test_hex_label_database.tres")
+	var error = ResourceSaver.save(database, path)
+	var loaded = load(path)
+	_assert_eq(error, OK, "label database resource saves")
+	_assert_eq(loaded.definition_for_id("area").default_text, "Gate", "label database roundtrip preserves default text")
+	_assert_eq(loaded.definition_for_id("area").tags.has("important"), true, "label database roundtrip preserves tags")
 
 
 func _test_hex_map_document_schema_roundtrips_canonical_resources() -> void:
@@ -596,7 +635,7 @@ func _test_hex_map_document_schema_roundtrips_canonical_resources() -> void:
 	var dependency = HexMapDocumentDependencyResource.new()
 	dependency.dependency_id = "tiles-main"
 	dependency.kind = HexMapDocumentDependencyResource.KIND_TILE_CATALOG
-	dependency.dependency_path = "res://addons/hex_map_kit/presets/sample_catalog.tres"
+	dependency.resource = load("res://addons/hex_map_kit/assets/sample_hex_tile_catalog.tres")
 	dependency.role = "terrain"
 	document.dependencies.append(dependency)
 
@@ -656,7 +695,7 @@ func _test_hex_map_document_summary_reports_canonical_counts() -> void:
 
 	var dependency = HexMapDocumentDependencyResource.new()
 	dependency.kind = HexMapDocumentDependencyResource.KIND_TILE_SET
-	dependency.dependency_path = "res://addons/hex_map_kit/assets/sample_hex_tiles.png"
+	dependency.resource = TileSet.new()
 	document.dependencies.append(dependency)
 
 	var summary = HexMapDocumentAdapter.document_summary(document)
@@ -710,13 +749,12 @@ func _test_hex_map_document_validator_reports_core_rules() -> void:
 	var dependency = HexMapDocumentDependencyResource.new()
 	dependency.dependency_id = "missing-catalog"
 	dependency.kind = HexMapDocumentDependencyResource.KIND_TILE_CATALOG
-	dependency.dependency_path = "res://missing_catalog_resource.tres"
 	document.dependencies.append(dependency)
 
 	var result = HexMapDocumentValidator.validate_document(document)
 	_assert_has_issue(result, "document.payload_outside_map", "validator detects tile payload outside map")
 	_assert_has_issue(result, "document.orphan_payload", "validator detects orphan label payload")
-	_assert_has_issue(result, "document.dependency_missing", "validator detects missing dependency path")
+	_assert_has_issue(result, "document.dependency_missing", "validator detects missing dependency resource")
 	_assert_has_issue(result, "document.object_on_wall", "validator detects object on wall")
 	_assert_eq(result.error_count() >= 4, true, "validator reports core document errors")
 
@@ -841,7 +879,6 @@ func _test_hex_map_document_validator_rule_matrix() -> void:
 	)
 	var missing_dependency = HexMapDocumentDependencyResource.new()
 	missing_dependency.dependency_id = "missing"
-	missing_dependency.dependency_path = "res://missing_dependency_for_rule_matrix.tres"
 	missing_dependency_document.dependencies.append(missing_dependency)
 	_assert_has_issue(
 		HexMapDocumentValidator.validate_document(missing_dependency_document),
@@ -853,13 +890,24 @@ func _test_hex_map_document_validator_rule_matrix() -> void:
 	)
 	var optional_dependency = HexMapDocumentDependencyResource.new()
 	optional_dependency.dependency_id = "optional-missing"
-	optional_dependency.dependency_path = "res://missing_optional_dependency_for_rule_matrix.tres"
 	optional_dependency.required = false
 	optional_dependency_document.dependencies.append(optional_dependency)
 	_assert_no_issue(
 		HexMapDocumentValidator.validate_document(optional_dependency_document),
 		"document.dependency_missing",
 		"rule matrix accepts optional missing dependency"
+	)
+	var mismatch_dependency_document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	var mismatch_dependency = HexMapDocumentDependencyResource.new()
+	mismatch_dependency.kind = HexMapDocumentDependencyResource.KIND_TILE_SET
+	mismatch_dependency.resource = HexLabelDatabaseResource.new()
+	mismatch_dependency_document.dependencies.append(mismatch_dependency)
+	_assert_has_issue(
+		HexMapDocumentValidator.validate_document(mismatch_dependency_document),
+		HexMapDocumentValidator.RULE_DEPENDENCY_TYPE_MISMATCH,
+		"rule matrix detects dependency type mismatch"
 	)
 
 	var wall_data = HexMapData.rectangle(2, 1)

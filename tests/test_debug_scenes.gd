@@ -463,7 +463,7 @@ func _run() -> void:
 		"PKG-01 editor workflow sample includes terrain layer role"
 	)
 	_assert_true(
-		(workflow_summary["dependency_paths"] as Array).has(HexEditorWorkflowExample.SAMPLE_CATALOG_PATH),
+		(workflow_summary["dependency_resource_paths"] as Array).has(HexEditorWorkflowExample.SAMPLE_CATALOG_PATH),
 		"PKG-01 editor workflow sample records catalog dependency"
 	)
 

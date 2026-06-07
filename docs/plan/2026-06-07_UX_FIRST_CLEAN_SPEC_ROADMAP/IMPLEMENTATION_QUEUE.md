@@ -56,7 +56,7 @@ proof:
 | `CLEAN-11` | `COMPLETE` | P0 | `CLEAN-10` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-11_ADAPTER_COMPATIBILITY_REMOVAL/` | Adapter migration / compatibility removal | `hex_map_document_adapter.gd`, `hex_map_tile_adapter.gd`, `hex_overlay_tile_adapter.gd`, `hex_tile_map_layer.gd`, adapter/layer tests | Normal adapter path has no `legacy` / `v1` / `fallback`; missing catalog or assignment becomes validation issue; runtime apply succeeds for validation-clean document | `HEADLESS_TEST_COMPLETE` |
 | `CLEAN-13` | `COMPLETE` | P0 | `CLEAN-10` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-13_TILE_CATALOG_CANONICAL_RESOURCE/` | Tile catalog canonical resource | `hex_tile_catalog_resource.gd`, `hex_tile_catalog_entry.gd`, `hex_tile_catalog_validator.gd`, tile/overlay adapters, sample catalog | `tile_set_path` / `scene_path` / fallback fields are removed; TileSet / PackedScene resource references are canonical; sample catalog validator is clean | `HEADLESS_TEST_COMPLETE` |
 | `CLEAN-12` | `COMPLETE` | P0 | `CLEAN-10` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-12_OBJECT_DATABASE_CANONICAL_RESOURCE/` | Object database canonical resource | `hex_object_database_resource.gd`, `hex_object_definition_resource.gd`, `hex_object_layer_adapter.gd`, runtime sample, object tests | `definitions` is the only normal object definition field; scene uses `PackedScene`; runtime export returns resource references rather than scene path strings | `HEADLESS_TEST_COMPLETE` |
-| `CLEAN-14` | `READY` | P1 | `CLEAN-10` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-14_LABEL_DEPENDENCY_CANONICAL_RESOURCE/` | Label / dependency canonical resources | `hex_label_database_resource.gd`, new label definition resource, `hex_map_document_dependency_resource.gd`, validator/docs/tests | Label database uses typed definitions; dependency uses Resource / kind / role / required, not editable path string; validation detects null or type mismatch | `HEADLESS_TEST_COMPLETE` |
+| `CLEAN-14` | `COMPLETE` | P1 | `CLEAN-10` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-14_LABEL_DEPENDENCY_CANONICAL_RESOURCE/` | Label / dependency canonical resources | `hex_label_database_resource.gd`, new label definition resource, `hex_map_document_dependency_resource.gd`, validator/docs/tests | Label database uses typed definitions; dependency uses Resource / kind / role / required, not editable path string; validation detects null or type mismatch | `HEADLESS_TEST_COMPLETE` |
 
 ---
 
@@ -90,7 +90,7 @@ proof:
 | id | status | priority | dependencies | plan_dir | deliverable | target files | acceptance / test path | maturity |
 |---|---|---:|---|---|---|---|---|---|
 | `CLEAN-40` | `BACKLOG` | P1 | `CLEAN-21`, `CLEAN-22`, `CLEAN-23`, `CLEAN-24`, `CLEAN-25`, `CLEAN-26` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-40_MANUAL_CATALOG_VALIDATION_QA_UPDATE/` | Catalog / Validation / QA manual update | `docs/manual/MANUAL_EDITOR_PLUGIN.md`, `docs/manual/MANUAL_WORKFLOW.md`, `docs/manual/MANUAL_SCRIPTING.md`, `README.md` | Manual is organized by user goal; explains Resource picker workflows for Catalog, Layer Stack, Validation, Object Placement, Generation QA, Debug Report; no new analog test files are added | `DOCS_COMPLETE` |
-| `CLEAN-41` | `BACKLOG` | P1 | `CLEAN-10`, `CLEAN-11`, `CLEAN-12`, `CLEAN-13`, `CLEAN-14` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-41_API_DOCS_CLEAN_VOCABULARY/` | API docs clean vocabulary pass | `docs/api/API_REFERENCE.md`, scripting manual, runtime examples | Public API docs remove `v2`, migration, legacy, path-string primary APIs; Resource object APIs are the first path; path helpers are documented only as supplemental load helpers | `DOCS_COMPLETE` |
+| `CLEAN-41` | `READY` | P1 | `CLEAN-10`, `CLEAN-11`, `CLEAN-12`, `CLEAN-13`, `CLEAN-14` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-41_API_DOCS_CLEAN_VOCABULARY/` | API docs clean vocabulary pass | `docs/api/API_REFERENCE.md`, scripting manual, runtime examples | Public API docs remove `v2`, migration, legacy, path-string primary APIs; Resource object APIs are the first path; path helpers are documented only as supplemental load helpers | `DOCS_COMPLETE` |
 
 ---
 
@@ -98,7 +98,7 @@ proof:
 
 | id | status | priority | dependencies | plan_dir | deliverable | target files | acceptance / test path | maturity |
 |---|---|---:|---|---|---|---|---|---|
-| `CLEAN-51` | `BACKLOG` | P0 | `CLEAN-10`, `CLEAN-11`, `CLEAN-12`, `CLEAN-13`, `CLEAN-14` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-51_RESOURCE_API_CANONICAL_TESTS/` | Resource/API canonical tests | adapter/core/runtime tests, `docs/TEST.md` | Tests cover canonical document save/load, adapter roundtrip, catalog Resource references, PackedScene object definition, dependency Resource validation, no silent fallback apply, runtime query by Resource | `HEADLESS_TEST_COMPLETE` |
+| `CLEAN-51` | `READY` | P0 | `CLEAN-10`, `CLEAN-11`, `CLEAN-12`, `CLEAN-13`, `CLEAN-14` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-51_RESOURCE_API_CANONICAL_TESTS/` | Resource/API canonical tests | adapter/core/runtime tests, `docs/TEST.md` | Tests cover canonical document save/load, adapter roundtrip, catalog Resource references, PackedScene object definition, dependency Resource validation, no silent fallback apply, runtime query by Resource | `HEADLESS_TEST_COMPLETE` |
 | `CLEAN-52` | `READY` | P0 | `CLEAN-00` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-52_ANALOG_TEST_DEFERRAL_MARKER/` | Analog test deferral marker | `docs/TEST.md`, queue/process docs if needed | `docs/TEST.md` states new analog tests are deferred during UI rework; existing analog tests are history, not clean UX acceptance; NEXT-03-style analog pack is not scheduled | `DOCS_COMPLETE` |
 
 ---
@@ -114,20 +114,59 @@ proof:
 
 ## 8. Current pointer
 
-Current recommended next task: `CLEAN-14`.
+Current recommended next task: `CLEAN-20`.
 
 Reason:
 
-- Dependency sweep completed on 2026-06-07 after `CLEAN-12` completion.
-- `CLEAN-60` was promoted to `READY` because `CLEAN-12` and `CLEAN-13` are complete.
+- Dependency sweep completed on 2026-06-07 after `CLEAN-14` completion.
+- `CLEAN-41` and `CLEAN-51` were promoted to `READY` because `CLEAN-10`, `CLEAN-11`, `CLEAN-12`, `CLEAN-13`, and `CLEAN-14` are complete.
 - `CLEAN-23` remains `BACKLOG` until `CLEAN-20` is complete.
-- `CLEAN-41` and `CLEAN-51` still wait on `CLEAN-14`.
-- `CLEAN-14` is the first `READY` task by table order.
-- `CLEAN-20`, `CLEAN-31`, `CLEAN-52`, and `CLEAN-60` remain `READY`.
+- `CLEAN-20` is the first `READY` task by table order.
+- `CLEAN-31`, `CLEAN-41`, `CLEAN-51`, `CLEAN-52`, and `CLEAN-60` remain `READY`.
 
 ---
 
 ## 9. Completed task proof log
+
+### CLEAN-14
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot / `autopilot/roadmap-main`
+plan: `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-14_LABEL_DEPENDENCY_CANONICAL_RESOURCE/`
+review: `docs/review/autopilot/CLEAN-14_SELF_REVIEW_2026-06-07.md`
+test result: `docs/review/autopilot/CLEAN-14_TEST_RESULT_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+- docs:
+  - `docs/TEST.md`
+  - `docs/api/API_REFERENCE.md`
+  - `docs/manual/MANUAL_WORKFLOW.md`
+  - `docs/knowledge/DEV_GODOT.md`
+  - `docs/review/autopilot/CLEAN-14_SELF_REVIEW_2026-06-07.md`
+  - `docs/review/autopilot/CLEAN-14_TEST_RESULT_2026-06-07.md`
+- major files:
+  - `addons/hex_map_kit/adapter/hex_label_definition_resource.gd`
+  - `addons/hex_map_kit/adapter/hex_label_database_resource.gd`
+  - `addons/hex_map_kit/adapter/hex_map_document_dependency_resource.gd`
+  - `addons/hex_map_kit/adapter/hex_map_document_validator.gd`
+  - `addons/hex_map_kit/adapter/hex_map_validation_result.gd`
+  - `examples/editor_workflow/editor_workflow_example.gd`
+  - `tests/test_hex_adapter.gd`
+  - `tests/test_debug_scenes.gd`
+- maturity:
+  - `HEADLESS_TEST_COMPLETE`
+
+Notes:
+
+- `HexLabelDatabaseResource` now owns typed `HexLabelDefinitionResource` entries through `definitions`.
+- `HexMapDocumentDependencyResource` now stores `resource: Resource` instead of `dependency_path`.
+- Dependency validation reports missing required resources and kind/type mismatches.
+- Debug resource paths are read from the referenced resource's built-in `resource_path`.
+- Dependency sweep promoted `CLEAN-41` and `CLEAN-51` to `READY`; `CLEAN-20` is the next task by table order.
+- `repair-now`: complete.
 
 ### CLEAN-12
 

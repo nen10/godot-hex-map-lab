@@ -79,7 +79,7 @@ Canonical fields:
 - `metadata` (created by default on new documents)
 - `dependencies`
 
-New documents are canonical by construction. Add terrain, overlay, object, label, zone, and dependency resources directly.
+New documents are canonical by construction. Add terrain, overlay, object, label, zone, and dependency resources directly. Dependency resources hold a `resource` reference plus `kind`, `role`, and `required`; use the referenced resource's built-in `resource_path` only for debug display.
 
 ### `HexMapDocumentAdapter`
 
@@ -143,6 +143,18 @@ Path: `res://addons/hex_map_kit/adapter/hex_object_database_resource.gd`
 - `definitions_with_tag(tag)`
 
 Definitions are `HexObjectDefinitionResource` resources with `id`, `display_name`, `scene`, `tags`, `default_properties`, and `preview_texture`.
+
+### `HexLabelDatabaseResource`
+
+Path: `res://addons/hex_map_kit/adapter/hex_label_database_resource.gd`
+
+- `add_definition(definition)`
+- `definition_for_id(label_id)`
+- `has_definition(label_id)`
+- `definition_ids()`
+- `definitions_with_tag(tag)`
+
+Definitions are `HexLabelDefinitionResource` resources with `label_id`, `display_name`, `default_text`, `style_key`, `tags`, and `metadata`.
 
 ## Validation
 

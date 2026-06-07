@@ -12,7 +12,11 @@ const KIND_OTHER := "other"
 
 @export var dependency_id: String = ""
 @export var kind: String = KIND_OTHER
-@export var dependency_path: String = ""
+@export var resource: Resource
 @export var role: String = ""
 @export var required: bool = true
 @export var metadata: Dictionary = {}
+
+
+func resource_debug_path() -> String:
+	return resource.resource_path if resource != null else ""

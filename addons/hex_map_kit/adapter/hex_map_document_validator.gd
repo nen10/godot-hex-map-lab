@@ -5,6 +5,9 @@ const HexMapDocumentAdapterScript = preload("res://addons/hex_map_kit/adapter/he
 const HexMapDocumentDependencyResourceScript = preload("res://addons/hex_map_kit/adapter/hex_map_document_dependency_resource.gd")
 const HexGameplayLayerDataScript = preload("res://addons/hex_map_kit/adapter/hex_gameplay_layer_data.gd")
 const HexMapValidationResultScript = preload("res://addons/hex_map_kit/adapter/hex_map_validation_result.gd")
+const HexTileCatalogResourceScript = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd")
+const HexObjectDatabaseResourceScript = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
+const HexLabelDatabaseResourceScript = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
 const HexTileCatalogEntryScript = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd")
 const HexGridScript = preload("res://addons/hex_map_kit/core/hex_grid.gd")
 const HexVectorScript = preload("res://addons/hex_map_kit/core/hex_vector.gd")
@@ -15,6 +18,7 @@ const RULE_CATALOG_MISSING := "document.catalog_missing"
 const RULE_TILE_ASSIGNMENT_MISSING := "document.tile_assignment_missing"
 const RULE_TILE_MISSING := "document.tile_missing"
 const RULE_DEPENDENCY_MISSING := "document.dependency_missing"
+const RULE_DEPENDENCY_TYPE_MISMATCH := "document.dependency_type_mismatch"
 const RULE_OBJECT_ON_WALL := "document.object_on_wall"
 const RULE_OBJECT_SCENE_MISSING := "document.object_scene_missing"
 const RULE_OBJECT_DUPLICATE_UNIQUE := "document.object_duplicate_unique"
@@ -322,20 +326,63 @@ static func _validate_dependencies(result, document) -> void:
 		if not dependency is Resource:
 			continue
 		var required = bool(dependency.get("required"))
-		var path = String(dependency.get("dependency_path"))
-		if required and (path == "" or not ResourceLoader.exists(path)):
+		var dependency_resource = dependency.get("resource")
+		var details = {
+			"dependency_resource_path": _dependency_resource_path(dependency_resource),
+			"metadata": {
+				"kind": String(dependency.get("kind")),
+				"dependency_id": String(dependency.get("dependency_id")),
+				"role": String(dependency.get("role")),
+			},
+		}
+		if dependency_resource == null:
+			if required:
+				result.add_error(
+					RULE_DEPENDENCY_MISSING,
+					"Required dependency resource is missing.",
+					HexMapValidationResultScript.SCOPE_DEPENDENCY,
+					details
+				)
+			continue
+		if not dependency_resource is Resource:
 			result.add_error(
-				RULE_DEPENDENCY_MISSING,
-				"Required dependency is missing: %s." % path,
+				RULE_DEPENDENCY_TYPE_MISMATCH,
+				"Dependency value is not a Resource.",
 				HexMapValidationResultScript.SCOPE_DEPENDENCY,
-				{
-					"dependency_path": path,
-					"metadata": {
-						"kind": String(dependency.get("kind")),
-						"dependency_id": String(dependency.get("dependency_id")),
-					},
-				}
+				details
 			)
+			continue
+		if not _dependency_kind_matches(String(dependency.get("kind")), dependency_resource):
+			result.add_error(
+				RULE_DEPENDENCY_TYPE_MISMATCH,
+				"Dependency resource type does not match kind: %s." % String(dependency.get("kind")),
+				HexMapValidationResultScript.SCOPE_DEPENDENCY,
+				details
+			)
+
+
+static func _dependency_kind_matches(kind: String, resource: Resource) -> bool:
+	match kind:
+		HexMapDocumentDependencyResourceScript.KIND_TILE_SET:
+			return resource is TileSet
+		HexMapDocumentDependencyResourceScript.KIND_TILE_CATALOG:
+			return resource is HexTileCatalogResourceScript
+		HexMapDocumentDependencyResourceScript.KIND_OBJECT_DATABASE:
+			return resource is HexObjectDatabaseResourceScript
+		HexMapDocumentDependencyResourceScript.KIND_LABEL_DATABASE:
+			return resource is HexLabelDatabaseResourceScript
+		HexMapDocumentDependencyResourceScript.KIND_SCENE:
+			return resource is PackedScene
+		HexMapDocumentDependencyResourceScript.KIND_SCRIPT:
+			return resource is Script
+		HexMapDocumentDependencyResourceScript.KIND_OTHER, _:
+			return true
+
+
+static func _dependency_resource_path(resource) -> String:
+	if resource == null or not resource is Resource:
+		return ""
+	return String((resource as Resource).resource_path)
 
 
 static func _validate_profile_reachability(result, document, data, options: Dictionary) -> void:

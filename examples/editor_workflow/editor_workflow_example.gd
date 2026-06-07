@@ -110,7 +110,7 @@ static func workflow_summary(document: HexMapDocumentResource = null) -> Diction
 	return {
 		"summary": summary,
 		"layer_roles": Array(layer_stack.role_names()),
-		"dependency_paths": _dependency_paths(target),
+		"dependency_resource_paths": _dependency_resource_paths(target),
 		"example_paths": example_paths(),
 	}
 
@@ -119,18 +119,21 @@ static func _catalog_dependency() -> HexMapDocumentDependencyResource:
 	var dependency = HexMapDocumentDependencyResource.new()
 	dependency.dependency_id = "sample_catalog"
 	dependency.kind = HexMapDocumentDependencyResource.KIND_TILE_CATALOG
-	dependency.dependency_path = SAMPLE_CATALOG_PATH
+	dependency.resource = load(SAMPLE_CATALOG_PATH)
 	dependency.role = "default_catalog"
 	dependency.required = true
 	return dependency
 
 
-static func _dependency_paths(document: HexMapDocumentResource) -> Array[String]:
+static func _dependency_resource_paths(document: HexMapDocumentResource) -> Array[String]:
 	var result: Array[String] = []
 	for dependency in document.dependencies:
 		if dependency == null:
 			continue
-		var path = String(dependency.get("dependency_path"))
+		var path := ""
+		var resource = dependency.get("resource")
+		if resource is Resource:
+			path = (resource as Resource).resource_path
 		if path != "":
 			result.append(path)
 	result.sort()

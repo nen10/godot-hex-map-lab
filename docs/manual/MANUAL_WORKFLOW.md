@@ -45,7 +45,7 @@ Typical authoring fields:
 - `object_placements`: object ids, cells, variants, runtime properties, spawn conditions.
 - `label_placements`: text labels attached to cells.
 - `metadata`: document id, display name, generation seed/snapshot, custom properties.
-- `dependencies`: catalog, object database, TileSet, script, or scene dependencies.
+- `dependencies`: resource references for catalogs, object databases, label databases, TileSets, scripts, or scenes.
 
 The public editor workflow sample builds a small canonical document:
 
