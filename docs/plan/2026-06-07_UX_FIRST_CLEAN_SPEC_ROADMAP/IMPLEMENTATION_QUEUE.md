@@ -44,7 +44,7 @@ proof:
 | id | status | priority | dependencies | plan_dir | deliverable | target files | acceptance / test path | maturity |
 |---|---|---:|---|---|---|---|---|---|
 | `CLEAN-00` | `COMPLETE` | P0 | none | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-00_POLICY_RESET/` | Autopilot / policy reset | `AGENTS.md`, `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`, `docs/policy/IMPLEMENTATION_POLICY.md`, `docs/policy/TEST_DESIGN_POLICY.md`, this queue | Policy docs state `UX合理性 > headless test > compatibility`; compatibility is exception; new analog tests are deferred; self-review checks whether old tests distorted UX | `DOCS_COMPLETE` |
-| `CLEAN-30` | `READY` | P0 | `CLEAN-00` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-30_EDITOR_SCREEN_INVENTORY/` | Editor screen inventory by user task | `docs/review/roadmap/EDITOR_UX_COMPONENT_INVENTORY_2026-06-07.md`, editor source inventory notes | Inventory classifies UI as `keep-in-place` / `move-to-screen` / `merge-with-existing` / `advanced-only` / `delete`; path text and fallback UI deletion candidates are explicit | `DOCS_COMPLETE` |
+| `CLEAN-30` | `COMPLETE` | P0 | `CLEAN-00` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-30_EDITOR_SCREEN_INVENTORY/` | Editor screen inventory by user task | `docs/review/roadmap/EDITOR_UX_COMPONENT_INVENTORY_2026-06-07.md`, editor source inventory notes | Inventory classifies UI as `keep-in-place` / `move-to-screen` / `merge-with-existing` / `advanced-only` / `delete`; path text and fallback UI deletion candidates are explicit | `DOCS_COMPLETE` |
 
 ---
 
@@ -52,7 +52,7 @@ proof:
 
 | id | status | priority | dependencies | plan_dir | deliverable | target files | acceptance / test path | maturity |
 |---|---|---:|---|---|---|---|---|---|
-| `CLEAN-10` | `BACKLOG` | P0 | `CLEAN-00`, `CLEAN-30` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-10_DOCUMENT_CANONICAL_SCHEMA/` | `HexMapDocumentResource` canonical schema | `addons/hex_map_kit/adapter/hex_map_document_resource.gd`, `hex_map_document_adapter.gd`, document child resources, `tests/test_hex_adapter.gd`, docs/API/manual | `v1` / `v2` / `version` / legacy fields / `ensure_v2_defaults()` are removed from public contract; new document is canonical by construction; tests verify canonical save/load and roundtrip, not migration fixtures | `HEADLESS_TEST_COMPLETE` |
+| `CLEAN-10` | `READY` | P0 | `CLEAN-00`, `CLEAN-30` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-10_DOCUMENT_CANONICAL_SCHEMA/` | `HexMapDocumentResource` canonical schema | `addons/hex_map_kit/adapter/hex_map_document_resource.gd`, `hex_map_document_adapter.gd`, document child resources, `tests/test_hex_adapter.gd`, docs/API/manual | `v1` / `v2` / `version` / legacy fields / `ensure_v2_defaults()` are removed from public contract; new document is canonical by construction; tests verify canonical save/load and roundtrip, not migration fixtures | `HEADLESS_TEST_COMPLETE` |
 | `CLEAN-11` | `BACKLOG` | P0 | `CLEAN-10` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-11_ADAPTER_COMPATIBILITY_REMOVAL/` | Adapter migration / compatibility removal | `hex_map_document_adapter.gd`, `hex_map_tile_adapter.gd`, `hex_overlay_tile_adapter.gd`, `hex_tile_map_layer.gd`, adapter/layer tests | Normal adapter path has no `legacy` / `v1` / `fallback`; missing catalog or assignment becomes validation issue; runtime apply succeeds for validation-clean document | `HEADLESS_TEST_COMPLETE` |
 | `CLEAN-13` | `BACKLOG` | P0 | `CLEAN-10` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-13_TILE_CATALOG_CANONICAL_RESOURCE/` | Tile catalog canonical resource | `hex_tile_catalog_resource.gd`, `hex_tile_catalog_entry.gd`, `hex_tile_catalog_validator.gd`, tile/overlay adapters, sample catalog | `tile_set_path` / `scene_path` / fallback fields are removed; TileSet / PackedScene resource references are canonical; sample catalog validator is clean | `HEADLESS_TEST_COMPLETE` |
 | `CLEAN-12` | `BACKLOG` | P0 | `CLEAN-10` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-12_OBJECT_DATABASE_CANONICAL_RESOURCE/` | Object database canonical resource | `hex_object_database_resource.gd`, `hex_object_definition_resource.gd`, `hex_object_layer_adapter.gd`, runtime sample, object tests | `definitions` is the only normal object definition field; scene uses `PackedScene`; runtime export returns resource references rather than scene path strings | `HEADLESS_TEST_COMPLETE` |
@@ -79,7 +79,7 @@ proof:
 
 | id | status | priority | dependencies | plan_dir | deliverable | target files | acceptance / test path | maturity |
 |---|---|---:|---|---|---|---|---|---|
-| `CLEAN-31` | `BACKLOG` | P1 | `CLEAN-30` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-31_WORKSPACE_TAB_MODEL_DECISION/` | Workspace / tab model decision | `docs/review/roadmap/EDITOR_WORKSPACE_MODEL_DECISION_2026-06-07.md`, editor architecture notes | Decision records 2-dock / workspace dock / main screen choice using UX criteria, not file size; chosen model gives Catalog/Layer/Validate/QA a clear home | `DOCS_COMPLETE` |
+| `CLEAN-31` | `READY` | P1 | `CLEAN-30` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-31_WORKSPACE_TAB_MODEL_DECISION/` | Workspace / tab model decision | `docs/review/roadmap/EDITOR_WORKSPACE_MODEL_DECISION_2026-06-07.md`, editor architecture notes | Decision records 2-dock / workspace dock / main screen choice using UX criteria, not file size; chosen model gives Catalog/Layer/Validate/QA a clear home | `DOCS_COMPLETE` |
 | `CLEAN-32` | `BACKLOG` | P1 | `CLEAN-31` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-32_UX_RESPONSIBILITY_COMPONENT_EXTRACTION/` | Component extraction by UX responsibility | new editor component scripts, `hex_map_gen_dock.gd`, `hex_map_edit_tool.gd`, editor tests | Components map to UX responsibilities such as DocumentHeader, CatalogPanel, LayerStackPanel, BrushPalette, ObjectPalette, SeedLabPanel, ValidationPanel; extraction is not justified by line count alone | `HEADLESS_TEST_COMPLETE` |
 | `CLEAN-33` | `BACKLOG` | P0 | `CLEAN-20`, `CLEAN-30` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-33_DELETE_HARMFUL_UI_PATHS/` | Delete redundant / harmful UI paths | editor UI code, editor tests, manual/API cleanup | Normal UI has no editable path text, numeric fallback tile controls, plain TileMapLayer primary action, or v2/migration wording; advanced/debug remnants have documented reason | `HEADLESS_TEST_COMPLETE` |
 
@@ -114,17 +114,49 @@ proof:
 
 ## 8. Current pointer
 
-Current recommended next task: `CLEAN-30`.
+Current recommended next task: `CLEAN-10`.
 
 Reason:
 
-- Dependency sweep completed on 2026-06-07 after `CLEAN-00` completion.
-- `CLEAN-30` is the first `READY` task by table order.
-- `CLEAN-52` is also `READY`, but `CLEAN-30` runs first because the queue prioritizes editor screen inventory before the analog deferral marker.
+- Dependency sweep completed on 2026-06-07 after `CLEAN-30` completion.
+- `CLEAN-10` is the first `READY` task by table order.
+- `CLEAN-31` and `CLEAN-52` are also `READY`, but `CLEAN-10` runs first because the queue prioritizes canonical schema foundation before later UI architecture and analog deferral docs.
 
 ---
 
 ## 9. Completed task proof log
+
+### CLEAN-30
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot / `autopilot/roadmap-main`
+plan: `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-30_EDITOR_SCREEN_INVENTORY/`
+review: `docs/review/autopilot/CLEAN-30_SELF_REVIEW_2026-06-07.md`
+test result: `docs/review/autopilot/CLEAN-30_TEST_RESULT_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+- docs:
+  - `docs/TEST.md` unchanged; standard Test path used for completion proof
+  - `docs/review/roadmap/EDITOR_UX_COMPONENT_INVENTORY_2026-06-07.md`
+  - `docs/review/autopilot/CLEAN-30_SELF_REVIEW_2026-06-07.md`
+  - `docs/review/autopilot/CLEAN-30_TEST_RESULT_2026-06-07.md`
+- major files:
+  - `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-30_EDITOR_SCREEN_INVENTORY/`
+  - `docs/review/roadmap/EDITOR_UX_COMPONENT_INVENTORY_2026-06-07.md`
+  - `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/IMPLEMENTATION_QUEUE.md`
+- maturity:
+  - `DOCS_COMPLETE`
+
+Notes:
+
+- Inventory classifies current editor UI by user task, not file size.
+- Explicit deletion candidates include editable path text, numeric fallback controls, migration hooks, compatibility warning UI, and plain TileMapLayer primary apply.
+- Missing or misplaced screen homes are identified for Catalog, Layer Stack, Validation, Object Palette, Seed Lab / QA, and Document Header.
+- Dependency sweep promoted `CLEAN-10` and `CLEAN-31` to `READY`; `CLEAN-52` remains `READY`.
+- `repair-now`: none.
 
 ### CLEAN-00
 
