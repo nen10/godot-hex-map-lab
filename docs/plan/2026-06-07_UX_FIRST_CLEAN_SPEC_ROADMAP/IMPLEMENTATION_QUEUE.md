@@ -98,7 +98,7 @@ proof:
 
 | id | status | priority | dependencies | plan_dir | deliverable | target files | acceptance / test path | maturity |
 |---|---|---:|---|---|---|---|---|---|
-| `CLEAN-51` | `READY` | P0 | `CLEAN-10`, `CLEAN-11`, `CLEAN-12`, `CLEAN-13`, `CLEAN-14` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-51_RESOURCE_API_CANONICAL_TESTS/` | Resource/API canonical tests | adapter/core/runtime tests, `docs/TEST.md` | Tests cover canonical document save/load, adapter roundtrip, catalog Resource references, PackedScene object definition, dependency Resource validation, no silent fallback apply, runtime query by Resource | `HEADLESS_TEST_COMPLETE` |
+| `CLEAN-51` | `COMPLETE` | P0 | `CLEAN-10`, `CLEAN-11`, `CLEAN-12`, `CLEAN-13`, `CLEAN-14` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-51_RESOURCE_API_CANONICAL_TESTS/` | Resource/API canonical tests | adapter/core/runtime tests, `docs/TEST.md` | Tests cover canonical document save/load, adapter roundtrip, catalog Resource references, PackedScene object definition, dependency Resource validation, no silent fallback apply, runtime query by Resource | `HEADLESS_TEST_COMPLETE` |
 | `CLEAN-52` | `READY` | P0 | `CLEAN-00` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-52_ANALOG_TEST_DEFERRAL_MARKER/` | Analog test deferral marker | `docs/TEST.md`, queue/process docs if needed | `docs/TEST.md` states new analog tests are deferred during UI rework; existing analog tests are history, not clean UX acceptance; NEXT-03-style analog pack is not scheduled | `DOCS_COMPLETE` |
 
 ---
@@ -114,18 +114,40 @@ proof:
 
 ## 8. Current pointer
 
-Current recommended next task: `CLEAN-51`.
+Current recommended next task: `CLEAN-52`.
 
 Reason:
 
-- Dependency sweep completed on 2026-06-07 after `CLEAN-41` completion.
+- Dependency sweep completed on 2026-06-07 after `CLEAN-51` completion.
 - No additional tasks were promoted.
-- `CLEAN-51` is the first `READY` task by table order.
-- `CLEAN-52` and `CLEAN-60` remain `READY`.
+- `CLEAN-52` is the first `READY` task by table order.
+- `CLEAN-60` remains `READY`.
 
 ---
 
 ## 9. Completed task proof log
+
+### CLEAN-51
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot / `autopilot/roadmap-main`
+plan: `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-51_RESOURCE_API_CANONICAL_TESTS/`
+review: `docs/review/autopilot/CLEAN-51_SELF_REVIEW_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+  - `git diff --check` PASS
+- docs:
+  - `docs/TEST.md`
+  - `docs/review/autopilot/CLEAN-51_SELF_REVIEW_2026-06-07.md`
+  - `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-51_RESOURCE_API_CANONICAL_TESTS/`
+- major files:
+  - `tests/test_hex_adapter.gd`
+  - `docs/TEST.md`
+- maturity:
+  - `HEADLESS_TEST_COMPLETE`
 
 ### CLEAN-41
 

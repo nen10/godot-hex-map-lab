@@ -62,6 +62,7 @@ func _run() -> void:
 	_test_hex_object_database_definitions_roundtrip_resources()
 	_test_hex_label_database_definitions_roundtrip_resources()
 	_test_hex_map_document_schema_roundtrips_canonical_resources()
+	_test_clean_resource_api_contract_covers_canonical_paths()
 	_test_hex_map_document_summary_reports_canonical_counts()
 	_test_hex_map_validation_result_serializes_summary_and_warnings()
 	_test_hex_map_document_validator_reports_core_rules()
@@ -665,6 +666,89 @@ func _test_hex_map_document_schema_roundtrips_canonical_resources() -> void:
 	_assert_eq(loaded.zones[0].tags[1], "entry", "zone preserves tags")
 	_assert_eq(loaded.dependencies[0] is HexMapDocumentDependencyResource, true, "dependency keeps typed resource")
 	_assert_eq(loaded.dependencies[0].kind, HexMapDocumentDependencyResource.KIND_TILE_CATALOG, "dependency preserves kind")
+
+
+func _test_clean_resource_api_contract_covers_canonical_paths() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	data.set_walls([HexVector.q_axis()])
+	var catalog = _test_tile_catalog()
+	var document = HexMapDocumentResource.new()
+	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
+	terrain_layer.map = HexMapResource.from_map_data(data)
+	terrain_layer.default_floor_key = "terrain.floor"
+	terrain_layer.default_wall_key = "terrain.wall"
+	terrain_layer.tile_assignments.append({
+		"cell": Vector3i.ZERO,
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"catalog_key": "terrain.floor",
+	})
+	document.terrain_layers.append(terrain_layer)
+
+	var dependency = HexMapDocumentDependencyResource.new()
+	dependency.dependency_id = "tiles-main"
+	dependency.kind = HexMapDocumentDependencyResource.KIND_TILE_CATALOG
+	dependency.resource = catalog
+	document.dependencies.append(dependency)
+
+	var document_path = _test_resource_path("test_clean_resource_api_document.tres")
+	var document_error = ResourceSaver.save(document, document_path)
+	var loaded_document = load(document_path) as HexMapDocumentResource
+	_assert_eq(document_error, OK, "clean resource API document saves")
+	_assert_eq(loaded_document is HexMapDocumentResource, true, "clean resource API document loads typed resource")
+	_assert_eq(loaded_document.dependencies[0].resource is HexTileCatalogResource, true, "document dependency keeps catalog Resource reference")
+	var roundtrip = HexMapDocumentAdapter.to_map_resource(loaded_document).to_map_data()
+	_assert_keys_eq(roundtrip.cells, data.cells, "clean resource API adapter roundtrips cells")
+	_assert_keys_eq(roundtrip.walls, data.walls, "clean resource API adapter roundtrips walls")
+
+	var scene_entry = HexTileCatalogEntry.new()
+	scene_entry.key = "object.spawn"
+	scene_entry.entry_type = HexTileCatalogEntry.TYPE_SCENE
+	scene_entry.scene = _test_packed_scene("CleanContractSpawn")
+	catalog.add_entry(scene_entry)
+	var catalog_path = _test_resource_path("test_clean_resource_api_catalog.tres")
+	var catalog_error = ResourceSaver.save(catalog, catalog_path)
+	var loaded_catalog = load(catalog_path) as HexTileCatalogResource
+	_assert_eq(catalog_error, OK, "clean resource API catalog saves")
+	_assert_eq(loaded_catalog.tile_set is TileSet, true, "catalog roundtrip preserves TileSet Resource")
+	_assert_eq(loaded_catalog.entry_for_key("object.spawn").scene is PackedScene, true, "catalog roundtrip preserves PackedScene scene entry")
+
+	var object_database = HexObjectDatabaseResource.new()
+	var object_definition = HexObjectDefinitionResource.new()
+	object_definition.id = "spawn"
+	object_definition.scene = _test_packed_scene("CleanContractObject")
+	object_database.add_definition(object_definition)
+	var object_database_path = _test_resource_path("test_clean_resource_api_object_database.tres")
+	var object_error = ResourceSaver.save(object_database, object_database_path)
+	var loaded_object_database = load(object_database_path) as HexObjectDatabaseResource
+	_assert_eq(object_error, OK, "clean resource API object database saves")
+	_assert_eq(loaded_object_database.definition_for_id("spawn").scene is PackedScene, true, "object definition roundtrip preserves PackedScene")
+
+	var mismatch_document = HexMapDocumentResource.new()
+	var mismatch_dependency = HexMapDocumentDependencyResource.new()
+	mismatch_dependency.kind = HexMapDocumentDependencyResource.KIND_TILE_SET
+	mismatch_dependency.resource = HexLabelDatabaseResource.new()
+	mismatch_document.dependencies.append(mismatch_dependency)
+	_assert_has_issue(
+		HexMapDocumentValidator.validate_document(mismatch_document),
+		HexMapDocumentValidator.RULE_DEPENDENCY_TYPE_MISMATCH,
+		"dependency validation reports Resource type mismatch"
+	)
+
+	var numeric_document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(data))
+	HexMapDocumentAdapter.set_tile_override(numeric_document, HexVector.zero(), {
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"source_id": 8,
+		"atlas_coords": Vector2i(4, 5),
+	})
+	var layer = TileMapLayer.new()
+	HexMapDocumentAdapter.apply_to_tile_map_layer(numeric_document, layer)
+	_assert_eq(layer.get_cell_source_id(Vector2i.ZERO), -1, "clean resource API does not silently apply numeric floor tile")
+	_assert_has_issue(
+		HexMapDocumentValidator.validate_document(numeric_document),
+		HexMapDocumentValidator.RULE_TILE_ASSIGNMENT_MISSING,
+		"clean resource API reports missing catalog assignment"
+	)
+	layer.free()
 
 
 func _test_hex_map_document_summary_reports_canonical_counts() -> void:
