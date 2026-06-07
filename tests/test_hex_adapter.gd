@@ -1570,14 +1570,26 @@ func _test_hex_tile_catalog_resource_resolves_logical_keys() -> void:
 
 func _test_sample_hex_tile_catalog_loads() -> void:
 	var sample = load("res://addons/hex_map_kit/assets/sample_hex_tile_catalog.tres")
+	var sample_text = FileAccess.get_file_as_string("res://addons/hex_map_kit/assets/sample_hex_tile_catalog.tres")
 
 	_assert_eq(sample is HexTileCatalogResource, true, "sample tile catalog loads")
 	_assert_eq(sample.catalog_id, "sample_hex_tile_catalog", "sample catalog stores id")
 	_assert_eq(sample.tile_set is TileSet, true, "sample catalog owns TileSet resource")
+	_assert_eq(sample_text.contains("debug/"), false, "sample catalog does not reference debug paths")
 	_assert_eq(sample.has_key("terrain.floor"), true, "sample catalog has floor key")
 	_assert_eq(sample.entry_for_key("terrain.wall").atlas_coords, Vector2i(1, 0), "sample catalog maps wall key to atlas tile")
 	_assert_eq(sample.entry_for_key("object.spawn_marker").is_scene_tile(), true, "sample catalog includes scene tile entry")
 	_assert_eq(sample.entry_for_key("object.spawn_marker").scene is PackedScene, true, "sample catalog preserves scene resource")
+	_assert_eq(
+		(sample.entry_for_key("object.spawn_marker").scene as PackedScene).resource_path,
+		"res://addons/hex_map_kit/assets/sample_spawn_marker.tscn",
+		"sample catalog scene entry references packaged scene"
+	)
+	_assert_eq(
+		ResourceLoader.exists("res://addons/hex_map_kit/assets/sample_spawn_marker.tscn"),
+		true,
+		"sample catalog packaged scene exists"
+	)
 	_assert_eq(sample.entries_with_tag("terrain").size(), 2, "sample catalog terrain tags load")
 	_assert_eq(sample.entries_with_tag("blocking")[0].key, "terrain.wall", "sample catalog wall blocking tag loads")
 	var validation = HexTileCatalogValidator.validate_catalog(sample)

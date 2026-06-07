@@ -56,6 +56,9 @@ addons/hex_map_kit/
   adapter/
   editor/
   assets/
+    sample_hex_tiles.png
+    sample_hex_tile_catalog.tres
+    sample_spawn_marker.tscn
 ```
 
 ## Excluded From The Addon Zip
@@ -84,4 +87,3 @@ Do not upload a generated zip automatically. Before public upload, perform a hum
 3. Inspect `dist/hex_map_kit-<version>.manifest.txt`.
 4. Install the zip contents into a clean Godot project.
 5. Enable the plugin and open at least one runtime/editor workflow example from the source repository.
-

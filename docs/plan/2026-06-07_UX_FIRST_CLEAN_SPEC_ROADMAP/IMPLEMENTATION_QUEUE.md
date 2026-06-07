@@ -107,24 +107,48 @@ proof:
 
 | id | status | priority | dependencies | plan_dir | deliverable | target files | acceptance / test path | maturity |
 |---|---|---:|---|---|---|---|---|---|
-| `CLEAN-60` | `READY` | P1 | `CLEAN-12`, `CLEAN-13` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-60_SAMPLE_ASSET_INTEGRITY/` | Sample asset integrity after clean references | `addons/hex_map_kit/assets/sample_hex_tile_catalog.tres`, sample TileSet/PackedScene/Texture resources, package tests | Sample catalog has no debug path or missing scene; package manifest includes sample dependencies; sample catalog validator is clean | `PACKAGE_READY` |
-| `CLEAN-61` | `BACKLOG` | P2 | `CLEAN-40`, `CLEAN-41`, `CLEAN-51`, `CLEAN-60` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-61_DIST_REGENERATION_AFTER_CLEAN_SPEC/` | Dist regeneration after clean spec | `tools/package_addon.sh`, `dist/`, package docs/tests | `tools/package_addon.sh` regenerates current-tree package; manifest has no dev-only files and no legacy/migration docs; release upload is not performed | `PACKAGE_READY` |
+| `CLEAN-60` | `COMPLETE` | P1 | `CLEAN-12`, `CLEAN-13` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-60_SAMPLE_ASSET_INTEGRITY/` | Sample asset integrity after clean references | `addons/hex_map_kit/assets/sample_hex_tile_catalog.tres`, sample TileSet/PackedScene/Texture resources, package tests | Sample catalog has no debug path or missing scene; package manifest includes sample dependencies; sample catalog validator is clean | `PACKAGE_READY` |
+| `CLEAN-61` | `READY` | P2 | `CLEAN-40`, `CLEAN-41`, `CLEAN-51`, `CLEAN-60` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-61_DIST_REGENERATION_AFTER_CLEAN_SPEC/` | Dist regeneration after clean spec | `tools/package_addon.sh`, `dist/`, package docs/tests | `tools/package_addon.sh` regenerates current-tree package; manifest has no dev-only files and no legacy/migration docs; release upload is not performed | `PACKAGE_READY` |
 
 ---
 
 ## 8. Current pointer
 
-Current recommended next task: `CLEAN-60`.
+Current recommended next task: `CLEAN-61`.
 
 Reason:
 
-- Dependency sweep completed on 2026-06-07 after `CLEAN-52` completion.
-- No additional tasks were promoted.
-- `CLEAN-60` is the first `READY` task by table order.
+- Dependency sweep completed on 2026-06-07 after `CLEAN-60` completion.
+- `CLEAN-61` was promoted from `BACKLOG` to `READY` because `CLEAN-40`, `CLEAN-41`, `CLEAN-51`, and `CLEAN-60` are complete.
 
 ---
 
 ## 9. Completed task proof log
+
+### CLEAN-60
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot / `autopilot/roadmap-main`
+plan: `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-60_SAMPLE_ASSET_INTEGRITY/`
+review: `docs/review/autopilot/CLEAN-60_SELF_REVIEW_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+  - `git diff --check` PASS
+- docs:
+  - `docs/TEST.md`
+  - `docs/manual/MANUAL_PACKAGE.md`
+  - `docs/review/autopilot/CLEAN-60_SELF_REVIEW_2026-06-07.md`
+  - `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-60_SAMPLE_ASSET_INTEGRITY/`
+- major files:
+  - `tools/package_addon.sh`
+  - `tests/test_hex_adapter.gd`
+  - `docs/TEST.md`
+  - `docs/manual/MANUAL_PACKAGE.md`
+- maturity:
+  - `PACKAGE_READY`
 
 ### CLEAN-52
 

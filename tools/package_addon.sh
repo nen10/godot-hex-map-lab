@@ -95,6 +95,7 @@ required_paths = {
     "addons/hex_map_kit/editor/hex_map_gen_dock.gd",
     "addons/hex_map_kit/assets/sample_hex_tiles.png",
     "addons/hex_map_kit/assets/sample_hex_tile_catalog.tres",
+    "addons/hex_map_kit/assets/sample_spawn_marker.tscn",
 }
 excluded_prefixes = (
     "docs/",
@@ -186,6 +187,8 @@ required_paths = {
     "addons/hex_map_kit/plugin.cfg",
     "addons/hex_map_kit/plugin.gd",
     "addons/hex_map_kit/assets/sample_hex_tiles.png",
+    "addons/hex_map_kit/assets/sample_hex_tile_catalog.tres",
+    "addons/hex_map_kit/assets/sample_spawn_marker.tscn",
 }
 
 with zipfile.ZipFile(zip_path, "r") as archive:
