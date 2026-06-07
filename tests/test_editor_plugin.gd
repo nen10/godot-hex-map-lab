@@ -27,6 +27,7 @@ const HexMapEditMutationBuilder = preload("res://addons/hex_map_kit/editor/hex_m
 const HexMapEditViewportInputAdapter = preload("res://addons/hex_map_kit/editor/hex_map_edit_viewport_input_adapter.gd")
 const HexMapDocumentInspector = preload("res://addons/hex_map_kit/editor/hex_map_document_inspector.gd")
 const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
+const HexMapWorkspace = preload("res://addons/hex_map_kit/editor/hex_map_workspace.gd")
 const HexDistEditor = preload("res://addons/hex_map_kit/editor/hex_dist_editor.gd")
 const HexAdjacencyRuleEditor = preload("res://addons/hex_map_kit/editor/hex_adjacency_rule_editor.gd")
 const HexCellButtonLayout = preload("res://addons/hex_map_kit/editor/hex_cell_button_layout.gd")
@@ -83,6 +84,7 @@ func _init() -> void:
 
 func _run() -> void:
 	_test_plugin_registration_files()
+	await _test_hex_map_workspace_exposes_tabs_and_routes_editing()
 	await _test_map_edit_tool_builds_dock_controls()
 	await _test_plugin_handles_canvas_item_when_map_edit_ready()
 	await _test_editor_session_state_shares_generate_target_and_edit_document()
@@ -202,6 +204,55 @@ func _test_plugin_registration_files() -> void:
 	_assert_eq(config.get_value("plugin", "name", ""), "Hex Map Kit", "plugin.cfg has addon name")
 	var script_path = "res://addons/hex_map_kit/%s" % config.get_value("plugin", "script", "")
 	_assert_true(load(script_path) != null, "plugin.cfg script can be loaded")
+
+
+func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
+	var session = HexMapEditorSessionState.new()
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	var expected_tabs = PackedStringArray([
+		"Document",
+		"Generate",
+		"Paint",
+		"Catalog",
+		"Layers",
+		"Validate",
+		"QA",
+		"Export",
+	])
+	_assert_eq(workspace.name, "Hex Map Workspace", "workspace has stable dock name")
+	_assert_eq(workspace.workspace_tab_names(), expected_tabs, "workspace exposes UX responsibility tabs")
+	_assert_eq(workspace.component_rows().size(), expected_tabs.size(), "workspace exposes component responsibility map")
+	_assert_eq(
+		workspace.component_for_responsibility("CatalogPanel").get("tab", ""),
+		"Catalog",
+		"workspace maps CatalogPanel to Catalog tab"
+	)
+	_assert_eq(
+		workspace.component_for_responsibility("ValidationPanel").get("tab", ""),
+		"Validate",
+		"workspace maps ValidationPanel to Validate tab"
+	)
+	_assert_true(workspace.generation_dock() is HexMapGenDock, "workspace mounts generation component")
+	_assert_true(workspace.edit_tool() is HexMapEditTool, "workspace mounts paint/edit component")
+	_assert_eq(workspace.generation_dock().editor_session_state(), session, "workspace forwards session to generation component")
+	_assert_eq(workspace.edit_tool().editor_session_state(), session, "workspace forwards session to paint/edit component")
+
+	var layer = TileMapLayer.new()
+	root.add_child(layer)
+	var document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	workspace.edit_tool().set_document(document)
+	workspace.edit_tool().set_target_layer(layer)
+	_assert_true(workspace.viewport_input_enabled(), "workspace gates viewport input through paint/edit component")
+
+	layer.queue_free()
+	workspace.queue_free()
+	await process_frame
 
 
 func _test_map_edit_tool_mutation_builder_and_viewport_adapter() -> void:
@@ -396,7 +447,7 @@ func _test_map_edit_tool_builds_dock_controls() -> void:
 	var tool = await _new_ready_edit_tool()
 	tool.refresh_target_layer_options(scene_root)
 
-	_assert_eq(tool.name, "Hex Map Edit", "map edit tool has separate dock name")
+	_assert_eq(tool.name, "Hex Map Edit", "map edit tool keeps stable standalone component name")
 	var scroll = tool.get_child(0) as ScrollContainer
 	_assert_true(scroll != null, "map edit tool wraps dock controls in a ScrollContainer")
 	_assert_eq(scroll.anchor_right, 1.0, "map edit tool ScrollContainer fills dock width")
@@ -471,11 +522,13 @@ func _test_plugin_handles_canvas_item_when_map_edit_ready() -> void:
 	var plugin_source = FileAccess.get_file_as_string("res://addons/hex_map_kit/plugin.gd")
 	var edit_tool_source = FileAccess.get_file_as_string("res://addons/hex_map_kit/editor/hex_map_edit_tool.gd")
 	_assert_true(plugin_source.contains("func _handles(object: Object) -> bool:"), "plugin defines _handles for 2D viewport input")
-	_assert_true(plugin_source.contains("_dock.name = \"Hex Map Generate\""), "plugin gives generation dock a stable tab name")
-	_assert_true(plugin_source.contains("viewport_input_enabled"), "plugin gates viewport input through map edit tool")
+	_assert_true(plugin_source.contains("hex_map_workspace.gd"), "plugin creates the workspace dock")
+	_assert_true(plugin_source.contains("_workspace.name = \"Hex Map Workspace\""), "plugin gives workspace a stable dock name")
+	_assert_true(plugin_source.contains("viewport_input_enabled"), "plugin gates viewport input through workspace")
 	_assert_true(plugin_source.contains("hex_map_editor_session_state.gd"), "plugin creates shared editor session state")
-	_assert_true(plugin_source.contains("set_editor_session_state"), "plugin wires shared editor session state into docks")
+	_assert_true(plugin_source.contains("set_editor_session_state"), "plugin wires shared editor session state into workspace")
 	_assert_true(plugin_source.contains("object is CanvasItem"), "plugin handles CanvasItem viewport objects")
+	_assert_true(not plugin_source.contains("_dock.name = \"Hex Map Generate\""), "plugin no longer registers a separate generation dock")
 	_assert_true(
 		edit_tool_source.contains("global_canvas_transform"),
 		"map edit viewport conversion uses editor viewport global canvas transform"

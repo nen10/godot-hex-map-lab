@@ -1,8 +1,7 @@
 @tool
 extends EditorPlugin
 
-var _dock: Control
-var _edit_tool: Control
+var _workspace: Control
 var _inspector_plugin: EditorInspectorPlugin
 var _editor_session_state
 
@@ -10,30 +9,20 @@ var _editor_session_state
 func _enter_tree() -> void:
 	_editor_session_state = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd").new()
 
-	_dock = preload("res://addons/hex_map_kit/editor/hex_map_gen_dock.gd").new()
-	_dock.name = "Hex Map Generate"
-	_dock.set_editor_session_state(_editor_session_state)
-	add_control_to_dock(DOCK_SLOT_LEFT_BL, _dock)
-
-	_edit_tool = preload("res://addons/hex_map_kit/editor/hex_map_edit_tool.gd").new()
-	_edit_tool.name = "Hex Map Edit"
-	_edit_tool.set_editor_session_state(_editor_session_state)
-	add_control_to_dock(DOCK_SLOT_LEFT_BL, _edit_tool)
+	_workspace = preload("res://addons/hex_map_kit/editor/hex_map_workspace.gd").new()
+	_workspace.name = "Hex Map Workspace"
+	_workspace.set_editor_session_state(_editor_session_state)
+	add_control_to_dock(DOCK_SLOT_LEFT_BL, _workspace)
 
 	_inspector_plugin = preload("res://addons/hex_map_kit/editor/hex_map_resource_inspector.gd").new()
 	add_inspector_plugin(_inspector_plugin)
 
 
 func _exit_tree() -> void:
-	if _dock:
-		remove_control_from_docks(_dock)
-		_dock.queue_free()
-		_dock = null
-
-	if _edit_tool:
-		remove_control_from_docks(_edit_tool)
-		_edit_tool.queue_free()
-		_edit_tool = null
+	if _workspace:
+		remove_control_from_docks(_workspace)
+		_workspace.queue_free()
+		_workspace = null
 
 	if _inspector_plugin:
 		remove_inspector_plugin(_inspector_plugin)
@@ -42,16 +31,16 @@ func _exit_tree() -> void:
 
 
 func _handles(object: Object) -> bool:
-	if _edit_tool == null or not is_instance_valid(_edit_tool):
+	if _workspace == null or not is_instance_valid(_workspace):
 		return false
-	if not _edit_tool.has_method("viewport_input_enabled"):
+	if not _workspace.has_method("viewport_input_enabled"):
 		return false
-	if not _edit_tool.viewport_input_enabled():
+	if not _workspace.viewport_input_enabled():
 		return false
 	return object is CanvasItem
 
 
 func _forward_canvas_gui_input(event: InputEvent) -> bool:
-	if _edit_tool != null and _edit_tool.has_method("forward_canvas_gui_input"):
-		return _edit_tool.forward_canvas_gui_input(event)
+	if _workspace != null and _workspace.has_method("forward_canvas_gui_input"):
+		return _workspace.forward_canvas_gui_input(event)
 	return false
