@@ -22,7 +22,7 @@ Roadmap 作成は `docs/policy/ROADMAP_DECISION_POLICY.md`、queue 作成は `do
 5. code / tests / docs を更新する。cf.`docs/policy/IMPLEMENTATION_POLICY.md`
 6. `./tools/test.sh` を実行する。
 7. 失敗や不足を分類し、`repair-now` は同じ task で修正する。
-8. `docs/review/autopilot/<TASK_ID>_SELF_REVIEW_<date>.md` を作る。
+8. `docs/review/autopilot/<TASK_ID>_SELF_REVIEW_<date>.md` を作り、sample-only success を completion proof にしていないことを確認する。
 9.  `QUEUE_OPERATION_RULES.md` に従って queue を更新する。
 10. 完了状態なら `CODEX_AUTOPILOT_COMMIT_POLICY.md` に従って commit する。
 11. 次の `READY` task へ進む。
@@ -48,4 +48,4 @@ Codex が止まってよいのは以下だけ。
 
 ## Clean UX rule
 
-CLEAN / UX-first roadmap では、旧互換、path text、raw JSON、numeric fallback、古い headless UI test を守るために UX を歪めない。必要なら test を更新または削除する。
+CLEAN / UX-first roadmap では、旧互換、path text、raw JSON、numeric fallback、古い headless UI test を守るために UX を歪めない。sample preset success だけで成立する UI は `sample-only prototype` であり、production feature completion ではない。必要なら test を更新または削除する。

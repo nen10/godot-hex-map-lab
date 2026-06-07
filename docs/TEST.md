@@ -17,6 +17,13 @@ Editor Plugin 操作で複数機能の結合性を確認する任意検証は、
 - manual-only task は `./tools/test.sh` と self-review で完了確認する。
 - UI改善後にユーザーが明示した場合だけ、アナログテスト作成を再開する。
 
+### UI asset selection completion
+
+- No sample-only completion: sample preset success だけで editor-facing feature を complete と判定しない。
+- sample だけで成立する UI は `sample-only prototype` として扱い、sample/package integrity task 以外の production acceptance には使わない。
+- feature screen の headless test は sample mode OFF の project asset selection state、user-selected Resource、または未設定/validation issue を確認する。
+- sample mode ON/OFF と bundled sample asset の妥当性は、main feature completion とは別の sample/package contract として検証する。
+
 ### Test path
 
 - `tools/package_addon.sh --check`

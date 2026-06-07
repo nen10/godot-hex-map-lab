@@ -24,8 +24,8 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `ASSET-00` | `READY` | none | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/ASSET-00_ASSET_SELECTION_POLICY_RESET/` | Asset selection policy reset | `AGENTS.md`, `docs/policy/DOMAIN_POLICY.md`, `docs/policy/IMPLEMENTATION_POLICY.md`, `docs/policy/TEST_DESIGN_POLICY.md`, `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`, roadmap/queue docs | `sample-only prototype` and `No sample-only completion` are documented; headless tests cannot treat sample preset success as feature complete; analog tests remain deferred. |
-| `ASSET-01` | `BACKLOG` | `ASSET-00` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/ASSET-01_ASSET_SLOT_INVENTORY/` | Asset slot inventory | `docs/review/roadmap/ASSET_SLOT_INVENTORY_2026-06-07.md`, editor UI source review notes | Inventory lists slot id, screen/tab, required type, current sample dependency, arbitrary selection path, validation state, flow classification, cleanup task id. |
+| `ASSET-00` | `COMPLETE` | none | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/ASSET-00_ASSET_SELECTION_POLICY_RESET/` | Asset selection policy reset | `AGENTS.md`, `docs/policy/DOMAIN_POLICY.md`, `docs/policy/IMPLEMENTATION_POLICY.md`, `docs/policy/TEST_DESIGN_POLICY.md`, `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`, roadmap/queue docs | `sample-only prototype` and `No sample-only completion` are documented; headless tests cannot treat sample preset success as feature complete; analog tests remain deferred. |
+| `ASSET-01` | `READY` | `ASSET-00` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/ASSET-01_ASSET_SLOT_INVENTORY/` | Asset slot inventory | `docs/review/roadmap/ASSET_SLOT_INVENTORY_2026-06-07.md`, editor UI source review notes | Inventory lists slot id, screen/tab, required type, current sample dependency, arbitrary selection path, validation state, flow classification, cleanup task id. |
 
 ---
 
@@ -135,15 +135,31 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `ASSET-00`.
+Current recommended next task: `ASSET-01`.
 
 Reason:
 
-- `ASSET-00` defines the completion rule needed by all later tasks: sample preset success is not production feature completion.
-- No other task has dependencies satisfied.
+- `ASSET-00` is complete and defines the completion rule needed by all later tasks.
+- `ASSET-01` is the first dependency-satisfied READY task.
 
 ---
 
 ## 12. Completed task proof log
 
-No tasks have been completed in this queue yet.
+### ASSET-00 Asset selection policy reset
+
+proof:
+  plan: `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/ASSET-00_ASSET_SELECTION_POLICY_RESET/`
+  review: `docs/review/autopilot/ASSET-00_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `AGENTS.md`
+    - `docs/policy/DOMAIN_POLICY.md`
+    - `docs/policy/IMPLEMENTATION_POLICY.md`
+    - `docs/policy/TEST_DESIGN_POLICY.md`
+    - `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
+    - `docs/TEST.md`
+  major files:
+    - `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/IMPLEMENTATION_QUEUE.md`
+    - `docs/review/autopilot/ASSET-00_TEST_RESULT_2026-06-08.md`
