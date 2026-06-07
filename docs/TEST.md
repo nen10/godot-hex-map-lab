@@ -91,10 +91,11 @@ Hex Map Edit Dock の手動確認:
 19. Floor Tile / Wall Tile / Overlay Tile / Object の通常操作では catalog key / object key を選び、source id / atlas coords / object_id を通常paint UIで直接編集しないことを確認する。
 20. Object modeで Object Database を選び、definition list、Definition Scene、Object Key、typed Placement Properties が表示され、raw JSON properties textを通常操作で使わないことを確認する。
 21. bool / number / string / enum のPlacement Propertiesを変更し、配置後のdocument object placement propertiesに反映されることを確認する。
-22. `Select Internal TileMapLayer` を押し、内部表示layerが選択されてもAuto targetが親 `HexTileMapLayer` に戻ることを確認する。
-23. Floor Tile / Wall Tile / Overlay Tileを切り替え、各modeのpayloadが混ざらないことを確認する。
-24. Sceneを保存して開き直し、Target TileSet / atlas sourceが維持されることを確認する。
-25. Godot Output Dockに `EditorUndoRedoManager.add_do_method` errorが出ないことを確認する。
+22. `Layer Stack` で template、role list、visible / locked / z / writable を確認し、HexTileMapLayer targetで `Create Missing Layers` / `Apply Document` / `Clear Role` が動作することを確認する。
+23. `Select Internal TileMapLayer` を押し、内部表示layerが選択されてもAuto targetが親 `HexTileMapLayer` に戻ることを確認する。
+24. Floor Tile / Wall Tile / Overlay Tileを切り替え、各modeのpayloadが混ざらないことを確認する。
+25. Sceneを保存して開き直し、Target TileSet / atlas sourceが維持されることを確認する。
+26. Godot Output Dockに `EditorUndoRedoManager.add_do_method` errorが出ないことを確認する。
 
 flat-top/pointy-top の視覚的な近傍配置確認:
 

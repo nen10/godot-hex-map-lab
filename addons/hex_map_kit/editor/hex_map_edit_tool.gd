@@ -13,6 +13,7 @@ const HexMapEditViewportInputAdapter = preload("res://addons/hex_map_kit/editor/
 const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
 const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
 const HexMapValidationDashboard = preload("res://addons/hex_map_kit/editor/hex_map_validation_dashboard.gd")
+const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
 const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
 const HexObjectDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_object_definition_resource.gd")
 const HexTileCatalogEntry = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd")
@@ -70,6 +71,8 @@ var _target_layer_scan_root: Node = null
 var _undo_redo = null
 var _object_database: Resource
 var _label_database: Resource
+var _layer_stack_resource: HexLayerStackResource
+var _selected_layer_stack_role := ""
 var _tile_catalog: HexTileCatalogResource
 var _edit_mode := EditMode.WALL_FLOOR
 var _tile_payload := {
@@ -153,6 +156,12 @@ var _target_label: Label
 var _target_option: OptionButton
 var _target_refresh_button: Button
 var _mode_option: OptionButton
+var _layer_stack_template_option: OptionButton
+var _layer_stack_role_tree: Tree
+var _layer_stack_create_missing_button: Button
+var _layer_stack_apply_document_button: Button
+var _layer_stack_clear_role_button: Button
+var _layer_stack_status_label: Label
 var _catalog_resource_picker
 var _catalog_tile_set_picker
 var _catalog_scene_picker
@@ -349,6 +358,7 @@ func set_target_layer(layer: Node) -> void:
 	if _target_option != null:
 		_select_target_layer_option(layer)
 	_select_target_in_editor_if_possible()
+	_refresh_layer_stack_screen()
 	_refresh_state_labels()
 	_publish_session_target("edit.set_target_layer")
 
@@ -671,6 +681,7 @@ func refresh_target_layer_options(root_node: Node = null) -> void:
 		_select_target_in_editor_if_possible()
 	_ensure_document_from_target_if_needed()
 	_publish_session_target("edit.refresh_target_options")
+	_refresh_layer_stack_screen()
 	_refresh_state_labels()
 
 
@@ -948,6 +959,47 @@ func _build_ui() -> void:
 	_mode_option.item_selected.connect(_on_mode_selected)
 	root.add_child(_wrap_labeled("Edit Mode", _mode_option))
 
+	var layer_stack_title = Label.new()
+	layer_stack_title.text = "Layer Stack"
+	root.add_child(layer_stack_title)
+	_layer_stack_template_option = OptionButton.new()
+	_layer_stack_template_option.add_item("Standard Authoring")
+	_layer_stack_template_option.set_item_metadata(0, "standard")
+	_layer_stack_template_option.add_item("Minimal Runtime")
+	_layer_stack_template_option.set_item_metadata(1, "minimal")
+	_layer_stack_template_option.item_selected.connect(_on_layer_stack_template_selected)
+	root.add_child(_wrap_labeled("Template", _layer_stack_template_option))
+	_layer_stack_role_tree = Tree.new()
+	_layer_stack_role_tree.hide_root = true
+	_layer_stack_role_tree.columns = 6
+	_layer_stack_role_tree.set_column_titles_visible(true)
+	_layer_stack_role_tree.set_column_title(0, "role")
+	_layer_stack_role_tree.set_column_title(1, "node")
+	_layer_stack_role_tree.set_column_title(2, "visible")
+	_layer_stack_role_tree.set_column_title(3, "locked")
+	_layer_stack_role_tree.set_column_title(4, "z")
+	_layer_stack_role_tree.set_column_title(5, "writable")
+	_layer_stack_role_tree.custom_minimum_size = Vector2(0, 132)
+	_layer_stack_role_tree.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_layer_stack_role_tree.item_selected.connect(_on_layer_stack_role_selected)
+	root.add_child(_layer_stack_role_tree)
+	_layer_stack_status_label = _new_detail_label()
+	root.add_child(_wrap_labeled("Layer Stack Status", _layer_stack_status_label))
+	var layer_stack_actions = HBoxContainer.new()
+	_layer_stack_create_missing_button = Button.new()
+	_layer_stack_create_missing_button.text = "Create Missing Layers"
+	_layer_stack_create_missing_button.pressed.connect(_on_create_missing_layers_pressed)
+	layer_stack_actions.add_child(_layer_stack_create_missing_button)
+	_layer_stack_apply_document_button = Button.new()
+	_layer_stack_apply_document_button.text = "Apply Document"
+	_layer_stack_apply_document_button.pressed.connect(_on_apply_layer_stack_document_pressed)
+	layer_stack_actions.add_child(_layer_stack_apply_document_button)
+	_layer_stack_clear_role_button = Button.new()
+	_layer_stack_clear_role_button.text = "Clear Role"
+	_layer_stack_clear_role_button.pressed.connect(_on_clear_layer_stack_role_pressed)
+	layer_stack_actions.add_child(_layer_stack_clear_role_button)
+	root.add_child(layer_stack_actions)
+
 	var catalog_title = Label.new()
 	catalog_title.text = "Catalog"
 	root.add_child(catalog_title)
@@ -1216,6 +1268,7 @@ func _build_ui() -> void:
 	_copy_debug_report_button.pressed.connect(_on_copy_debug_report_pressed)
 	root.add_child(_copy_debug_report_button)
 	_sync_resource_pickers()
+	_refresh_layer_stack_screen()
 	_refresh_catalog_entries()
 	_refresh_object_palette()
 	_refresh_object_property_editor()
@@ -1796,6 +1849,60 @@ func _on_mode_selected(index: int) -> void:
 	set_edit_mode(index)
 
 
+func _on_layer_stack_template_selected(index: int) -> void:
+	if _layer_stack_template_option == null:
+		return
+	var template_id = String(_layer_stack_template_option.get_item_metadata(index))
+	_layer_stack_resource = HexLayerStackResource.minimal_runtime_template() if template_id == "minimal" else HexLayerStackResource.standard_template()
+	_selected_layer_stack_role = ""
+	_refresh_layer_stack_screen()
+	_set_status("Layer stack template selected.")
+
+
+func _on_layer_stack_role_selected() -> void:
+	if _layer_stack_role_tree == null:
+		return
+	var selected = _layer_stack_role_tree.get_selected()
+	if selected == null:
+		return
+	_selected_layer_stack_role = selected.get_text(0)
+	_refresh_action_button_states()
+
+
+func _on_create_missing_layers_pressed() -> void:
+	if _apply_layer_stack_to_target(false):
+		_set_status("Created missing layer stack roles.")
+	else:
+		_set_status("Layer stack requires a HexTileMapLayer target and document.")
+
+
+func _on_apply_layer_stack_document_pressed() -> void:
+	if _apply_layer_stack_to_target(true):
+		_document_dirty = true
+		_refresh_state_labels()
+		_set_status("Applied document to layer stack.")
+	else:
+		_set_status("Layer stack apply requires a HexTileMapLayer target and document.")
+
+
+func _on_clear_layer_stack_role_pressed() -> void:
+	var role = _selected_layer_stack_role
+	if role == "":
+		_set_status("No layer stack role selected.")
+		return
+	var target = _target_layer as HexTileMapLayer
+	if target == null:
+		_set_status("Clear Role requires a HexTileMapLayer target.")
+		return
+	var layer = target.layer_for_stack_role(role)
+	if layer is TileMapLayer:
+		(layer as TileMapLayer).clear()
+		_set_status("Cleared layer stack role: %s." % role)
+	else:
+		_set_status("Layer stack role has no TileMapLayer: %s." % role)
+	_refresh_layer_stack_screen()
+
+
 func _on_document_path_changed(text: String) -> void:
 	_document_path = text.strip_edges()
 	_refresh_action_button_states()
@@ -2030,6 +2137,7 @@ func _on_target_selected(index: int) -> void:
 	_read_target_tile_settings(false)
 	if _target_selection_explicit:
 		_select_target_in_editor_if_possible()
+	_refresh_layer_stack_screen()
 	_refresh_state_labels()
 
 
@@ -2758,6 +2866,80 @@ func _editable_target_from_node(node):
 			var parent = node.get_parent()
 			return parent if parent is HexTileMapLayer else null
 	return null
+
+
+func layer_stack_rows() -> Array[Dictionary]:
+	var stack = _ensure_layer_stack_resource()
+	var rows: Array[Dictionary] = []
+	for entry in stack.sorted_layers():
+		if entry == null:
+			continue
+		var role = String(entry.get("role"))
+		var layer = _layer_stack_target_layer_for_role(role)
+		var metadata = entry.get("metadata")
+		var entry_locked = bool((metadata as Dictionary).get("locked", false)) if metadata is Dictionary else false
+		var writable_source = String((metadata as Dictionary).get("writable_source", "document")) if metadata is Dictionary else "document"
+		rows.append({
+			"role": role,
+			"node": String(entry.get("node_name")),
+			"visible": bool(entry.get("visible")),
+			"locked": entry_locked,
+			"z_index": int(entry.get("z_index")),
+			"writable": writable_source,
+			"status": "ok" if layer != null else "missing",
+		})
+	return rows
+
+
+func _refresh_layer_stack_screen() -> void:
+	if _layer_stack_role_tree != null:
+		_layer_stack_role_tree.clear()
+		var root_item = _layer_stack_role_tree.create_item()
+		for row in layer_stack_rows():
+			var item = _layer_stack_role_tree.create_item(root_item)
+			item.set_text(0, String(row.get("role", "")))
+			item.set_text(1, String(row.get("node", "")))
+			item.set_text(2, _bool_text(bool(row.get("visible", false))))
+			item.set_text(3, _bool_text(bool(row.get("locked", false))))
+			item.set_text(4, str(int(row.get("z_index", 0))))
+			item.set_text(5, String(row.get("writable", "")))
+			if String(row.get("role", "")) == _selected_layer_stack_role:
+				item.select(0)
+	if _layer_stack_status_label != null:
+		var stack = _ensure_layer_stack_resource()
+		_layer_stack_status_label.text = "%s roles=%d target=%s" % [
+			stack.display_name if stack.display_name != "" else stack.stack_id,
+			stack.layers.size(),
+			"HexTileMapLayer" if _target_layer is HexTileMapLayer else "none",
+		]
+	_refresh_action_button_states()
+
+
+func _ensure_layer_stack_resource() -> HexLayerStackResource:
+	if _layer_stack_resource == null:
+		_layer_stack_resource = HexLayerStackResource.standard_template()
+	return _layer_stack_resource
+
+
+func _layer_stack_target_layer_for_role(role: String):
+	var target = _target_layer as HexTileMapLayer
+	if target == null:
+		return null
+	return target.layer_for_stack_role(role)
+
+
+func _apply_layer_stack_to_target(_apply_document: bool) -> bool:
+	_target_layer = _resolve_target_layer()
+	var target = _target_layer as HexTileMapLayer
+	if target == null or _document == null:
+		return false
+	var ok = target.apply_document_to_layer_stack(
+		_document,
+		_ensure_layer_stack_resource(),
+		_plain_target_tile_options_for_document_apply()
+	)
+	_refresh_layer_stack_screen()
+	return ok
 
 
 func _is_hex_tile_map_internal_layer(node: Node) -> bool:
@@ -3747,6 +3929,9 @@ func _refresh_action_button_states() -> void:
 	_set_button_enabled(_select_display_layer_button, hex_target, "No HexTileMapLayer target.")
 	_set_button_enabled(_default_tile_read_button, target_valid, "No editable target layer.")
 	_set_button_enabled(_default_tile_apply_button, target_valid, "No editable target layer.")
+	_set_button_enabled(_layer_stack_create_missing_button, hex_target and document_present, "Layer stack requires HexTileMapLayer target and document.")
+	_set_button_enabled(_layer_stack_apply_document_button, hex_target and document_present, "Layer stack requires HexTileMapLayer target and document.")
+	_set_button_enabled(_layer_stack_clear_role_button, hex_target and _selected_layer_stack_role != "", "Select a layer stack role.")
 	_set_button_enabled(_catalog_add_atlas_button, catalog_present, "No catalog selected.")
 	_set_button_enabled(_catalog_add_scene_button, catalog_present, "No catalog selected.")
 	_set_button_enabled(_catalog_validate_button, catalog_present, "No catalog selected.")

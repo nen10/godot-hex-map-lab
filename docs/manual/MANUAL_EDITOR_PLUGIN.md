@@ -180,6 +180,12 @@ Object modeでは `Object DB` に `HexObjectDatabaseResource` を選び、defini
 
 `Placement Properties` はdefinitionの `default_properties` と現在のplacement payloadから型を推定し、boolはCheckBox、int/floatはSpinBox、stringはLineEdit、enum schemaはOptionButtonで編集します。通常UXでは `object_id` 手入力や raw JSON properties text を使いません。
 
+### Hex Map Edit Layer Stack
+
+`Layer Stack` では Standard Authoring / Minimal Runtime template を選び、role listで role、node name、visible、locked、z-index、writable source を確認します。`Create Missing Layers` は選択中 `HexTileMapLayer` に不足role layerを作り、`Apply Document` はdocumentをroleごとのTileMapLayerへ反映します。`Clear Role` は選択中roleのTileMapLayer内容を消去します。
+
+通常のlayer stack workflowは `HexTileMapLayer` targetを使います。plain `TileMapLayer` への直接applyは互換・debug用の経路であり、主要な画面操作ではありません。
+
 ### Atlas Image
 
 `Browse Atlas Image` は resource path の画像を読み込み、Scene Tree で選択中の `TileMapLayer.tile_set` または `HexTileMapLayer` の表示用 TileSet に `TileSetAtlasSource` を作成します。source id は Dock の `Floor` source を使い、floor / wall の atlas coords と `Tile Size` を TileSetAtlasSource に反映します。設定後は `Wall` source も同じ source id に同期されます。

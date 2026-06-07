@@ -16,6 +16,7 @@ const HexMapDocumentObjectPlacementResource = preload("res://addons/hex_map_kit/
 const HexMapDocumentOverlayLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_overlay_layer_resource.gd")
 const HexMapDocumentTerrainLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_terrain_layer_resource.gd")
 const HexMapValidationResult = preload("res://addons/hex_map_kit/adapter/hex_map_validation_result.gd")
+const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
 const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
 const HexObjectDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_object_definition_resource.gd")
 const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
@@ -103,6 +104,7 @@ func _run() -> void:
 	await _test_map_edit_tool_target_atlas_settings_use_target_tileset()
 	await _test_map_edit_tool_catalog_selectors_drive_defaults_and_payloads()
 	await _test_map_edit_tool_object_palette_uses_definitions_and_typed_properties()
+	await _test_map_edit_tool_layer_stack_screen_manages_roles()
 	await _test_map_edit_tool_reports_missing_catalog_assignment_validation()
 	await _test_map_edit_tool_validation_dashboard_groups_and_focuses_cell_issue()
 	await _test_map_edit_tool_debug_report_includes_validation_summary_without_status_bloat()
@@ -426,6 +428,11 @@ func _test_map_edit_tool_builds_dock_controls() -> void:
 	_assert_true(tool._validation_dashboard._validate_button != null, "validation dashboard exposes Validate button")
 	_assert_true(tool._copy_debug_report_button != null, "map edit tool exposes debug report copy button")
 	_assert_eq(tool._mode_option.item_count, HexMapEditTool.EDIT_MODE_NAMES.size(), "map edit tool lists edit modes")
+	_assert_true(tool._layer_stack_template_option != null, "map edit tool exposes layer stack template picker")
+	_assert_true(tool._layer_stack_role_tree != null, "map edit tool exposes layer stack role list")
+	_assert_true(tool._layer_stack_create_missing_button != null, "map edit tool exposes Create Missing Layers")
+	_assert_true(tool._layer_stack_apply_document_button != null, "map edit tool exposes Apply Document layer action")
+	_assert_true(tool._layer_stack_clear_role_button != null, "map edit tool exposes Clear Role layer action")
 	_assert_true(tool._object_properties_edit != null, "map edit tool exposes object properties payload control")
 	_assert_true(tool._object_definition_tree != null, "map edit tool exposes object definition list")
 	_assert_true(tool._object_add_definition_button != null, "map edit tool exposes add object definition action")
@@ -1294,6 +1301,45 @@ func _test_map_edit_tool_object_palette_uses_definitions_and_typed_properties() 
 	_assert_eq(database.definitions.size(), count_before + 1, "Add Object Definition appends definition")
 
 	scene_root.free()
+	tool.queue_free()
+	await process_frame
+
+
+func _test_map_edit_tool_layer_stack_screen_manages_roles() -> void:
+	var tool = await _new_ready_edit_tool()
+	var rows = tool.layer_stack_rows()
+	var terrain_row = _layer_stack_row_for_role(rows, HexLayerStackResource.ROLE_TERRAIN)
+	_assert_eq(terrain_row["node"], "TerrainTileMapLayer", "layer stack screen lists terrain node")
+	_assert_eq(terrain_row["status"], "missing", "layer stack row starts missing without HexTileMapLayer target")
+	_assert_eq(terrain_row["writable"], "document", "layer stack row exposes writable source")
+
+	tool._on_layer_stack_template_selected(1)
+	_assert_eq(tool.layer_stack_rows().size(), 3, "minimal layer stack template has three roles")
+	tool._on_layer_stack_template_selected(0)
+	_assert_eq(tool.layer_stack_rows().size(), 7, "standard layer stack template has seven roles")
+
+	var data = HexMapData.rectangle(1, 1)
+	var document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(data))
+	var layer = HexTileMapLayer.new()
+	root.add_child(layer)
+	await process_frame
+
+	tool.set_document(document)
+	tool.set_target_layer(layer)
+	_assert_true(tool._layer_stack_create_missing_button.disabled == false, "layer stack create action is enabled for HexTileMapLayer document")
+	tool._on_create_missing_layers_pressed()
+	terrain_row = _layer_stack_row_for_role(tool.layer_stack_rows(), HexLayerStackResource.ROLE_TERRAIN)
+	_assert_eq(terrain_row["status"], "ok", "Create Missing Layers creates terrain role layer")
+	var terrain_node = layer.layer_for_stack_role(HexLayerStackResource.ROLE_TERRAIN) as TileMapLayer
+	_assert_true(terrain_node != null, "terrain role resolves to TileMapLayer after create")
+
+	tool._selected_layer_stack_role = HexLayerStackResource.ROLE_TERRAIN
+	tool._on_clear_layer_stack_role_pressed()
+	_assert_eq(terrain_node.get_used_cells().size(), 0, "Clear Role clears selected role layer")
+	tool._on_apply_layer_stack_document_pressed()
+	_assert_true(terrain_node.get_used_cells().size() > 0, "Apply Document repopulates terrain role layer")
+
+	layer.queue_free()
 	tool.queue_free()
 	await process_frame
 
@@ -4437,6 +4483,13 @@ func _catalog_row_for_key(rows: Array, key: String) -> Dictionary:
 func _object_definition_row_for_id(rows: Array, object_id: String) -> Dictionary:
 	for row in rows:
 		if String(row.get("id", "")) == object_id:
+			return row
+	return {}
+
+
+func _layer_stack_row_for_role(rows: Array, role: String) -> Dictionary:
+	for row in rows:
+		if String(row.get("role", "")) == role:
 			return row
 	return {}
 
