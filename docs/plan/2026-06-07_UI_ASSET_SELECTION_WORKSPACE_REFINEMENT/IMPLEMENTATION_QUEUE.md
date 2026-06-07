@@ -106,7 +106,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
 | `PKG-70` | `COMPLETE` | `SAMPLE-10`, `SAMPLE-11` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/PKG-70_SAMPLE_AS_LEARNING_PACKAGE_CHECK/` | Sample-as-learning package check | sample assets, package script/tests, `docs/TEST.md` | Sample catalog, sample tiles, and sample scene are packaged and accessible with sample mode ON; sample mode OFF does not silently inject them into main selectors. |
-| `PKG-71` | `READY` | `DOC-50`, `TEST-40` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/PKG-71_PROJECT_ASSET_CLEAN_PACKAGE_CHECK/` | Project asset clean package check | package checks, editor/package tests, manual/package docs | Clean project flow covers plugin load, new document, new catalog, user TileSet, user object scene, missing asset validation before selection, and package check PASS. |
+| `PKG-71` | `COMPLETE` | `DOC-50`, `TEST-40` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/PKG-71_PROJECT_ASSET_CLEAN_PACKAGE_CHECK/` | Project asset clean package check | package checks, editor/package tests, manual/package docs | Clean project flow covers plugin load, new document, new catalog, user TileSet, user object scene, missing asset validation before selection, and package check PASS. |
 
 ---
 
@@ -135,7 +135,7 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `PKG-71`.
+Current recommended next task: none. No READY tasks remain.
 
 Reason:
 
@@ -158,10 +158,11 @@ Reason:
 - `TEST-41` is complete and asserts the full workspace tab component/slot query contract.
 - `TEST-42` is complete and covers the asset slot state/sample duplication matrix.
 - `DOC-50` is complete and documents project asset selection as the main workflow.
-- `PKG-71` is promoted to READY because `DOC-50` and `TEST-40` are complete.
+- `PKG-71` was promoted after `DOC-50` and `TEST-40` completed.
 - `DOC-51` is complete and documents sample onboarding, sample mode, and duplicate-to-project behavior.
 - `PKG-70` is complete and verifies bundled samples as opt-in learning package assets.
-- `PKG-71` is the first dependency-satisfied READY task in queue order.
+- `PKG-71` is complete and verifies the clean project asset package flow.
+- All scheduled roadmap tasks in this queue are complete; no READY tasks remain.
 
 ---
 
@@ -555,3 +556,17 @@ proof:
   major files:
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/PKG-70_TEST_RESULT_2026-06-08.md`
+
+### PKG-71 Project asset clean package check
+
+proof:
+  plan: `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/PKG-71_PROJECT_ASSET_CLEAN_PACKAGE_CHECK/`
+  review: `docs/review/autopilot/PKG-71_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+    - `docs/manual/MANUAL_PACKAGE.md`
+  major files:
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/PKG-71_TEST_RESULT_2026-06-08.md`

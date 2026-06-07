@@ -126,6 +126,7 @@ func _run() -> void:
 	await _test_feature_screen_completion_contract_uses_project_assets_with_sample_mode_off()
 	await _test_workspace_sample_settings_panel_controls_sample_mode_sources()
 	await _test_sample_learning_package_contract_keeps_bundled_assets_opt_in()
+	await _test_clean_project_package_contract_uses_project_assets_without_samples()
 	await _test_debug_numeric_fallback_quarantine_requires_settings_opt_in()
 	_test_sample_asset_duplicator_copies_catalog_dependencies_to_project()
 	_test_asset_slot_state_model_reports_selection_validation_and_sample_source()
@@ -1773,6 +1774,126 @@ func _sample_asset_rows_have_path(rows: Array, path: String) -> bool:
 		if String((row as Dictionary).get("path", "")) == path:
 			return true
 	return false
+
+
+func _test_clean_project_package_contract_uses_project_assets_without_samples() -> void:
+	var config = ConfigFile.new()
+	_assert_eq(config.load("res://addons/hex_map_kit/plugin.cfg"), OK, "PKG-71 plugin config loads in clean project contract")
+	var script_path = "res://addons/hex_map_kit/%s" % config.get_value("plugin", "script", "")
+	_assert_true(load(script_path) != null, "PKG-71 plugin script loads in clean project contract")
+
+	var session = HexMapEditorSessionState.new()
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	_assert_true(not session.show_bundled_samples_in_main_selectors, "PKG-71 clean project starts with sample mode OFF")
+	_assert_eq(workspace.generation_dock().tile_catalog(), null, "PKG-71 clean project has no Generate sample injection")
+	_assert_eq(workspace.edit_tool().tile_catalog(), null, "PKG-71 clean project has no Paint sample injection")
+
+	var initial_validation = workspace.run_validate_screen()
+	_assert_true(bool(initial_validation["ok"]), "PKG-71 clean project validation runs before asset selection")
+	var initial_rows = initial_validation["issue_rows"] as Array
+	_assert_true(
+		not _validation_issue_row_for_rule(initial_rows, "workspace.level_document_missing").is_empty(),
+		"PKG-71 clean project reports missing document before selection"
+	)
+	_assert_true(
+		not _validation_issue_row_for_rule(initial_rows, "workspace.tile_catalog_missing").is_empty(),
+		"PKG-71 clean project reports missing catalog before selection"
+	)
+	_assert_true(
+		not _validation_issue_row_for_rule(initial_rows, "workspace.object_database_missing").is_empty(),
+		"PKG-71 clean project reports missing object database before selection"
+	)
+
+	var output_dir = _test_resource_dir("pkg71_clean_project")
+	var document_path = "%s/clean_level_document.tres" % output_dir
+	var document_result = workspace.create_level_document(document_path)
+	_assert_true(bool(document_result["ok"]), "PKG-71 creates clean project Level Document")
+	var document = document_result["resource"] as HexMapDocumentResource
+	_assert_true(document is HexMapDocumentResource, "PKG-71 Level Document is project resource")
+
+	var catalog_path = "%s/clean_tile_catalog.tres" % output_dir
+	var catalog_result = workspace.create_tile_catalog(catalog_path)
+	_assert_true(bool(catalog_result["ok"]), "PKG-71 creates clean project Tile Catalog")
+	var catalog = catalog_result["resource"] as HexTileCatalogResource
+	_assert_true(catalog is HexTileCatalogResource, "PKG-71 Tile Catalog is project resource")
+	var tile_set := _test_catalog_tileset()
+	_assert_true(bool(workspace.set_catalog_tile_set(tile_set)["ok"]), "PKG-71 assigns user TileSet")
+	_assert_eq(catalog.tile_set, tile_set, "PKG-71 catalog stores user TileSet")
+	_assert_true(
+		bool(workspace.create_catalog_atlas_entry_from_tileset("terrain.clean_floor", tile_set, 0, Vector2i.ZERO)["ok"]),
+		"PKG-71 creates catalog entry from user TileSet"
+	)
+
+	var object_db_path = "%s/clean_object_database.tres" % output_dir
+	var object_db_result = workspace.create_object_database(object_db_path)
+	_assert_true(bool(object_db_result["ok"]), "PKG-71 creates clean project Object Database")
+	var object_database = object_db_result["resource"] as HexObjectDatabaseResource
+	_assert_true(object_database is HexObjectDatabaseResource, "PKG-71 Object Database is project resource")
+
+	var marker := Node2D.new()
+	marker.name = "CleanProjectObject"
+	var scene := PackedScene.new()
+	_assert_eq(scene.pack(marker), OK, "PKG-71 packs user object scene")
+	marker.free()
+	var scene_path = "%s/clean_project_object.tscn" % output_dir
+	_assert_eq(ResourceSaver.save(scene, scene_path), OK, "PKG-71 saves user object scene")
+	scene.resource_path = scene_path
+	var definition_result = workspace.create_object_definition_from_packed_scene("object.clean_project", scene, "Clean Project Object")
+	_assert_true(bool(definition_result["ok"]), "PKG-71 creates object definition from user PackedScene")
+	var object_definition = definition_result["definition"] as HexObjectDefinitionResource
+	_assert_true(object_definition is HexObjectDefinitionResource, "PKG-71 object definition is typed")
+	_assert_eq(object_definition.scene, scene, "PKG-71 object definition stores user scene")
+
+	_assert_project_asset_slot(
+		workspace,
+		"Document",
+		HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT,
+		document,
+		document_path,
+		"PKG-71 clean project Document slot"
+	)
+	_assert_project_asset_slot(
+		workspace,
+		"Catalog",
+		HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG,
+		catalog,
+		catalog_path,
+		"PKG-71 clean project Catalog slot"
+	)
+	_assert_project_asset_slot(
+		workspace,
+		"Paint",
+		HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE,
+		object_database,
+		object_db_path,
+		"PKG-71 clean project Object Database slot"
+	)
+	_assert_eq(workspace.generation_dock().tile_catalog(), catalog, "PKG-71 Generate uses project catalog after selection")
+	_assert_eq(workspace.edit_tool().tile_catalog(), catalog, "PKG-71 Paint uses project catalog after selection")
+
+	var after_selection = workspace.run_validate_screen()
+	var after_result = after_selection["result"] as HexMapValidationResult
+	_assert_true(after_result is HexMapValidationResult, "PKG-71 clean project validation returns result after selection")
+	_assert_true(
+		not _validation_result_has_rule(after_result, "workspace.level_document_missing"),
+		"PKG-71 selected document clears missing document validation"
+	)
+	_assert_true(
+		not _validation_result_has_rule(after_result, "workspace.tile_catalog_missing"),
+		"PKG-71 selected catalog clears missing catalog validation"
+	)
+	_assert_true(
+		not _validation_result_has_rule(after_result, "workspace.object_database_missing"),
+		"PKG-71 selected object database clears missing object validation"
+	)
+	_assert_true(not session.show_bundled_samples_in_main_selectors, "PKG-71 clean project flow keeps sample mode OFF")
+
+	workspace.queue_free()
+	await process_frame
 
 
 func _test_debug_numeric_fallback_quarantine_requires_settings_opt_in() -> void:

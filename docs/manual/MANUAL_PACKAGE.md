@@ -84,6 +84,17 @@ The zip includes bundled samples so new users can learn the editor after install
 
 When a sample is useful as a starting point, duplicate it from Settings / Samples into a project path, then edit the project copy. The duplication flow copies the sample catalog, tile texture, object scene, and catalog scene-entry references into project-owned files. Package checks verify that bundled sample files are present; feature completion tests verify that normal editor screens work with project assets and sample mode OFF.
 
+## Clean Project Check
+
+The standard `./tools/test.sh` flow covers a clean project contract:
+
+- plugin configuration and script load,
+- missing project assets report routed validation issues before selection,
+- new project Level Document and Tile Catalog creation,
+- arbitrary user TileSet assignment and catalog entry creation,
+- Object Database creation from a user `PackedScene`,
+- sample mode OFF throughout the production setup.
+
 ## Release Check
 
 Do not upload a generated zip automatically. Before public upload, perform a human release check:
