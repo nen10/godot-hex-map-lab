@@ -1,77 +1,74 @@
-# PLANNING_POLICY.md
+# Planning Policy
 
-## 目的
+## Purpose
 
-`docs/plan/<date>_<slug>/` または `docs/plan/<date>_<roadmap_id>/<TASK_ID>_<slug>/` 以下へ計画を追加・整理する作成単位を与える。計画は、UX、実装方針、詳細な実装計画、検証方針を接続し、実装時に判断を再利用できる状態にする。
+Queue task ごとに計画文書を作成し、実装判断の方針を定める。
+UX -> POLICY -> IMPLEMENTATION_PLAN の順に実施し、後段で決定できない判断事項は前段にescalationして基準を具体化する。
 
-計画全体にわたる方針として `docs/policy/DOMAIN_POLICY.md` を参照する。実装へ進める際は `docs/policy/IMPLEMENTATION_POLICY.md` を参照する。
+Roadmap 決定は `ROADMAP_DECISION_POLICY.md`、queue 作成は `IMPLEMENTATION_QUEUE_DESIGN_POLICY.md` に従う。
 
-## Design Flow
+## Plan directory
 
-一つの計画は以下を番号順に整理する。
+```text
+docs/plan/<YYYY-MM-DD>_<ROADMAP_ID>/<TASK_ID>_<slug>/
+  UX.md
+  POLICY.md
+  IMPLEMENTATION_PLAN.md
+```
 
-1. UX の策定。
-2. 実装方針の作成。
-3. 実装計画の作成。
-4. 計画のレビュー。
+大きい task のみ `TEST_PLAN.md` を追加してよい。
 
-## 記述ルール
+## 1. UX.md
 
-- 作業を行わないことをドキュメントに記述しない。
-- 順次行うための作業範囲は、テスト計画または実行順序の番号で管理する。
-- "次回" などの自然言語による順序管理を避ける。
-- 実装済み項目について説明する代わりに test への参照をもって簡潔に表現する。
+目標を operation steps として具体化するため、複数の UX を提案し、各候補を評価する。
 
-## 1. UX の策定
+以下を含む:
 
-計画対象・実装するべき機能を具体化するため、UX 文書を作成する。UX 文書は以下のいずれかに基づく。
+- user goal。
+- operation steps。
+- { 採用, 維持 }する UX。
+- { 廃止, 保留 }する UX。
+- hack 扱いとして廃止または backlog残置する UX
+- 既存 UX との干渉。
 
-- 汎用性の高い UX 実現に関する未作成ユースケース提案。
-- 既存 UX、ユースケース、Operation Steps における冗長な操作内容の改善・簡略化・hack 修正による新たな UX 提案。
-- ユーザー提案の要望。
-- review 結果の整理。
+含まないこと:
 
-### UX 文書
+- 実装詳細。
+- test の都合で UI を決める説明。
+- fallback / hack / legacy を仕様として扱う記述。
 
-UX 文書はユースケースを実現するための複数の手続きから構成された体験計画文書である。実装内容の制約として固定するものではなく、実装方針を作成するための能動的な基準として配置する。
+## 2. POLICY.md
 
-明記する内容:
+目標を実現するため、採用UXを基準に必要な設計を判断する。
 
-- Operation Steps 素案の提示、および `{ 有用, 不要 } x { 追加, 維持, 残置, 廃止 }` の評価・目標設定。
-- 新 UX 実現に干渉する他 UX について、維持される不変な UX、代替・廃止する UX 等の判定。
-- hack 扱いとする挙動。ただし hack は仕様根拠にしない。
+以下を含む:
 
-## 2. 実装方針の作成
+- 採用判断。
+- 不採用判断。
+- 破壊的変更の理由。
+- legacy 扱いとして廃止または backlog残置する設計
+- Resource / API / UI の境界。
+- 未確定だが task 内で決めてよい事項。
 
-目標となる UX 文書に従って、必要性のある機能追加・改修候補を検討し、実装方針を作成する。
+## 3. IMPLEMENTATION_PLAN.md
 
-### 実装方針文書
+目標を実現するため、採用設計を基準に実装を計画する。
 
-実装方針文書は、目標 UX を実現するための機能、画面設計、改修案等から構成される。
+以下を含む:
 
-明記する内容:
+- Scope。
+- 変更対象ファイル。
+- 実装 steps。
+- fallback 扱いとして廃止または backlog残置する step
+- Test path。
+- docs 更新。
+- completion checklist。
 
-- 複数候補の提示、および `{ 採用, 不採用 }` の判断。
-- 必要性のある破壊的変更。
-- fallback 扱いとする挙動。ただし fallback は仕様根拠にしない。
-- より合理的な Operation Steps が判明した場合の UX 文書への escalation 内容。
+## Review before implementation
 
-## 3. 実装計画の作成
+実装前に確認する。
 
-実装方針に従って詳細な実装計画を作成する。詳細な実装計画は、実装可能な計画として内容が閉じている文書である。
-
-計画に際して新たな未確定事項が出る場合、実装候補として採用判断できるよう、対応する方針文書へ escalation する。
-
-明記する内容:
-
-- Scope
-- Steps
-
-
-## 4. 計画のレビュー
-
-作成した計画について、既存 UX との干渉有無、実装対象の閉じ方、テスト可能性を確認する。
-
-既存 UX との干渉は正常な開発プロセスであり、発見した干渉は目標 UX 文書に記載する。重大な機能が損なわれない限り、既存 UX との干渉は実装を妨げない。
-
-レビューで見つかった不足はリスクとしてacceptするか計画ドキュメントを修正し、分離するものは `review/backlog/` に記載する。
+- Roadmap と矛盾しないか。
+- task の完了状態が test または review で確認できるか。
+- 旧互換や旧 UI を理由なく守っていないか。
+- 実装途中で人間承認待ちになる未決事項を残していないか。

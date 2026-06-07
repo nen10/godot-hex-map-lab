@@ -1,64 +1,46 @@
-# IMPLEMENTATION_POLICY.md
+# Implementation Policy
 
-## 目的
+## Purpose
 
-`docs/plan/` 以下の計画を実装へ落とし込む際の共通方針を定める。実装は、計画文書・方針文書・テストによる確認を接続し、後続の計画が依存できる単位として進める。
+計画済み task を実装するときの判断基準を定める。
 
-## 参照する方針
+実行手順は `docs/process/`、テスト設計は `TEST_DESIGN_POLICY.md` に従う。
 
-- 計画作成: `docs/policy/PLANNING_POLICY.md`
-- 開発領域ごとの設計判断: `docs/policy/DOMAIN_POLICY.md`
-- テスト実行と Test path: `docs/TEST.md`
-- 自動テスト設計: `docs/policy/TEST_DESIGN_POLICY.md`
-- アナログテスト: `docs/policy/ANALOG_TEST_POLICY.md`
+## Principles
 
-## 実装単位
+- 実装は Roadmap と task plan を満たすために行う。
+- 未公開 addon では、互換性維持をデフォルト要件にしない。
+- clean Resource / clean API / clean UI を優先する。
+- fallback / hack / legacy は仕様根拠にしない。
+- UI の根拠はゲーム開発上の UX合理性であり、headless test の都合ではない。
 
-- 方針文書を元に、実装計画・documentation・実装・検証を着実に進める。
-- 最小実装だけで閉じず、後続の実装が利用できる入出力、resource schema、helper、test fixture を残す。
-- ただし、計画外の大きな再設計や manual 作成は、ユーザー要望または完了承認の対象になった場合に行う。
-- fallback / hack は一時的な状態として扱い、仕様や UX 判断の根拠にしない。
+## Scope control
 
-## CLEAN roadmap priority
+- task の acceptance を満たすために必要な code / tests / docs を同じ作業で更新する。
+- task 外の大規模 redesign は follow-up に分ける。
+- 作業中により清潔な仕様が必要だと判明した場合、互換維持ではなく plan / queue を更新して進める。
 
-- CLEAN roadmap では `UX合理性` を優先し、headless test や compatibilityは優先度を検討しない。
-- addon は未公開であるため、互換性維持は current task が明示した場合だけ例外として扱う。
-- 古い headless editor test が clean UX / clean API を妨げる場合、test を削除または新UXの state contract へ書き換える。
-- UI再編中は新規analog testを作らない。必要な観察項目は deferred として記録し、UI改善後にユーザー指示で再開する。
+## Resource / API changes
 
-## 着手順序
+- canonical schema を優先する。
+- v1/v2、migration、compatibility は Roadmap が明示した場合だけ扱う。
+- Resource reference を優先し、path string を通常 API の主語にしない。
 
-- 順序を問わない着手可能な課題では、最も大きな課題から取り組む。
-- 細かい課題は別 agent に委譲できる。
+## UI changes
 
-## Documentation
+- path text、raw JSON、numeric fallback を通常導線にしない。
+- UI は作業目的ごとに整理する。
+- 古い UI test が変更を妨げる場合、test を新 UX の state contract へ更新する。
 
-実装計画または完了整理に記録する内容:
+## Verification
 
-- 対象計画、対象ファイル、入出力インターフェース。
-- resource file / scene file / saved document の schema。
-- `docs/TEST.md` の Test path に接続するテスト概要。
-- 実装できなかった範囲がある場合、必要なテストケース候補または `docs/plan/` の計画候補。
+- `docs/TEST.md` に接続する自動テストを基本根拠にする。
+- UI の視認性・操作感は headless test で固定しない。
+- CLEAN UI 再編中は新規 analog test を作らない。必要な観察項目は deferred として残す。
 
-## 検証
+## Completion review
 
-- `docs/plan/` 以下で計画されている意味のある機能には、原則として自動テストまたは明示された interactive test を作成する。
-- 実装有無の主な根拠は `docs/TEST.md` に記録された Test path と `tools/test.sh` の実行結果とする。
-- 自動テストの追加・変更時は `docs/policy/TEST_DESIGN_POLICY.md` に従い、並列実行時に固定resourceや共有ログへ書き込まない。
-- CLEAN roadmap では、旧互換や旧UIを守るためだけの test は完了要件にしない。
-
-## レビューと完了整理
-
-- 主タスク完了ごとに reviewer が計画、実装、テスト、残リスクを確認しDocumentationする。
-- review では 成果の確認のほか残リスクについては fix now / backlog and separate Design Flow / user validation / ignore and accepted risk に分類する。
-- CLEAN roadmap の review では、既存 test を守るために UX を歪めていないかを確認する。
-- TEST によって計画済み機能が確認された場合、該当計画文書は `docs/complete_on_test/` 以下へ移動し、`docs/plan/` には未実装項目として残さない。
-- レビューで課題が見つかった場合でも、後続の主タスクに支障がないものは計画候補または backlog として残し、実装済み内容は完了整理できる。
-
-## Up scaling for next planning
-
-完了要件とは独立に、実装項目に関連するユースケース及びアナログテストを作成し、開発イテレーションを進めることができる。
-
-- Editor Plugin 操作など、自動テストでは観察しにくい結合ユースケースは `tests/analog_test/` のアナログテストとして扱える。
-- アナログテストは実装完了要件の代替ではなく、要件抽出と改善計画の材料として扱う。
-- ただし CLEAN UI再編中は新規analog testを作らない。既存analog testはhistoryとして扱い、新UXのacceptanceにはしない。
+- acceptance を満たしたか。
+- `repair-now` が残っていないか。
+- Test path と self-review があるか。
+- follow-up が必要なら queue に追加できる形で整理したか。
