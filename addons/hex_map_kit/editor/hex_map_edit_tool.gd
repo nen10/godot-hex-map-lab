@@ -304,6 +304,8 @@ func _on_editor_session_changed(key: String) -> void:
 		_clear_sample_catalog_if_hidden()
 		_refresh_catalog_options()
 		_refresh_action_button_states()
+	elif key.begins_with("debug_settings."):
+		_refresh_target_status_detail()
 
 
 func set_document(document: HexMapDocumentResource) -> void:
@@ -3671,9 +3673,12 @@ func _plain_target_tile_options_for_apply() -> Dictionary:
 func _plain_target_tile_options_for_document_apply() -> Dictionary:
 	var options = _plain_target_tile_options_for_apply()
 	options["tile_catalog"] = _ensure_tile_catalog()
-	options["debug_numeric_fallback_enabled"] = String(options.get("floor_catalog_key", "")) == "" \
-		or String(options.get("wall_catalog_key", "")) == ""
+	options["debug_numeric_fallback_enabled"] = _debug_numeric_tile_fallback_enabled()
 	return options
+
+
+func _debug_numeric_tile_fallback_enabled() -> bool:
+	return _editor_session_state != null and _editor_session_state.debug_numeric_tile_fallback_enabled
 
 
 func _refresh_plain_target_tile_options_from_document(document, force: bool = false) -> void:

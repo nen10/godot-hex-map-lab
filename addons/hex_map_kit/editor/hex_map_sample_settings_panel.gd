@@ -22,6 +22,7 @@ var _editor_session_state: HexMapEditorSessionState = null
 var _show_samples_check: CheckBox
 var _scratch_samples_check: CheckBox
 var _copy_samples_check: CheckBox
+var _debug_numeric_fallback_check: CheckBox
 var _asset_rows: Array[Dictionary] = []
 
 
@@ -61,6 +62,12 @@ func set_auto_create_project_copy_when_applying_sample(enabled: bool) -> void:
 	_refresh()
 
 
+func set_debug_numeric_tile_fallback_enabled(enabled: bool) -> void:
+	if _editor_session_state != null:
+		_editor_session_state.set_debug_numeric_tile_fallback_enabled(enabled, "debug_settings.numeric_tile_fallback")
+	_refresh()
+
+
 func sample_asset_rows() -> Array[Dictionary]:
 	return [
 		_sample_row(SAMPLE_CATALOG_ID, "Bundled Sample Catalog", SAMPLE_CATALOG_PATH, true),
@@ -88,6 +95,7 @@ func snapshot() -> Dictionary:
 		"show_bundled_samples_in_main_selectors": _show_bundled_samples_in_main_selectors(),
 		"use_bundled_sample_assets_for_scratch_documents": _use_bundled_sample_assets_for_scratch_documents(),
 		"auto_create_project_copy_when_applying_sample": _auto_create_project_copy_when_applying_sample(),
+		"debug_numeric_tile_fallback_enabled": _debug_numeric_tile_fallback_enabled(),
 		"sample_assets": sample_asset_rows(),
 	}
 
@@ -112,6 +120,11 @@ func _build_ui() -> void:
 	_copy_samples_check.text = "Create project copies when applying samples"
 	_copy_samples_check.toggled.connect(_on_copy_samples_toggled)
 	add_child(_copy_samples_check)
+
+	_debug_numeric_fallback_check = CheckBox.new()
+	_debug_numeric_fallback_check.text = "Enable numeric tile fallback for debug"
+	_debug_numeric_fallback_check.toggled.connect(_on_debug_numeric_fallback_toggled)
+	add_child(_debug_numeric_fallback_check)
 
 	for row in sample_asset_rows():
 		var row_control = HBoxContainer.new()
@@ -147,6 +160,7 @@ func _refresh() -> void:
 	_show_samples_check.set_pressed_no_signal(_show_bundled_samples_in_main_selectors())
 	_scratch_samples_check.set_pressed_no_signal(_use_bundled_sample_assets_for_scratch_documents())
 	_copy_samples_check.set_pressed_no_signal(_auto_create_project_copy_when_applying_sample())
+	_debug_numeric_fallback_check.set_pressed_no_signal(_debug_numeric_tile_fallback_enabled())
 	sample_settings_changed.emit(snapshot())
 
 
@@ -160,6 +174,10 @@ func _use_bundled_sample_assets_for_scratch_documents() -> bool:
 
 func _auto_create_project_copy_when_applying_sample() -> bool:
 	return _editor_session_state != null and _editor_session_state.auto_create_project_copy_when_applying_sample
+
+
+func _debug_numeric_tile_fallback_enabled() -> bool:
+	return _editor_session_state != null and _editor_session_state.debug_numeric_tile_fallback_enabled
 
 
 func _sample_row(sample_id: String, label: String, path: String, duplicate_available: bool = false) -> Dictionary:
@@ -183,6 +201,10 @@ func _on_copy_samples_toggled(enabled: bool) -> void:
 	set_auto_create_project_copy_when_applying_sample(enabled)
 
 
+func _on_debug_numeric_fallback_toggled(enabled: bool) -> void:
+	set_debug_numeric_tile_fallback_enabled(enabled)
+
+
 func _on_open_sample_pressed(sample_id: String, path: String) -> void:
 	open_sample_requested.emit(sample_id, path)
 
@@ -192,5 +214,5 @@ func _on_duplicate_sample_pressed(sample_id: String, path: String) -> void:
 
 
 func _on_session_changed(key: String) -> void:
-	if key.begins_with("sample_settings."):
+	if key.begins_with("sample_settings.") or key.begins_with("debug_settings."):
 		_refresh()

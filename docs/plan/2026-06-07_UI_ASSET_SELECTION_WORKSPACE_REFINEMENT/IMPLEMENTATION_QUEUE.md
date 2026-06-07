@@ -77,7 +77,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `CLEANUP-30` | `READY` | `SCREEN-21`, `SCREEN-24` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/CLEANUP-30_DEBUG_NUMERIC_FALLBACK_QUARANTINE/` | Debug numeric fallback quarantine | catalog/paint UI, adapters, validation helpers, tests | Normal apply path does not silently fill missing catalog through numeric fallback; debug fallback requires explicit Settings / Debug opt-in; tests assert missing catalog is validation issue. |
+| `CLEANUP-30` | `COMPLETE` | `SCREEN-21`, `SCREEN-24` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/CLEANUP-30_DEBUG_NUMERIC_FALLBACK_QUARANTINE/` | Debug numeric fallback quarantine | catalog/paint UI, adapters, validation helpers, tests | Normal apply path does not silently fill missing catalog through numeric fallback; debug fallback requires explicit Settings / Debug opt-in; tests assert missing catalog is validation issue. |
 | `CLEANUP-31` | `READY` | `SCREEN-23`, `SCREEN-24` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/CLEANUP-31_RAW_TEXT_AUTHORING_FIELD_REPLACEMENT/` | Raw text authoring field replacement | overlay/object/label UI, property schema editors, tests | Overlay item key, Label ID, Object variant, Spawn condition, and Object property key/value have asset/definition/enum/schema selection sources; raw text is advanced/debug only or removed. |
 
 ---
@@ -135,7 +135,7 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `CLEANUP-30`.
+Current recommended next task: `CLEANUP-31`.
 
 Reason:
 
@@ -153,8 +153,8 @@ Reason:
 - `SCREEN-26` is complete and gives QA / Seed Lab project Generation Profile and Validation Rule Suite asset actions.
 - `SCREEN-27` is complete and makes Export use project source/profile assets plus explicit destination state.
 - `DOC-50` remains dependency-satisfied and READY.
-- `CLEANUP-31` remains dependency-satisfied and READY.
-- `CLEANUP-30` is the first dependency-satisfied READY task in queue order.
+- `CLEANUP-30` is complete and quarantines plain-target numeric fallback behind an explicit Settings debug opt-in.
+- `CLEANUP-31` is the first dependency-satisfied READY task in queue order.
 
 ---
 
@@ -436,3 +436,19 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_editor_session_state.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/SCREEN-27_TEST_RESULT_2026-06-08.md`
+
+### CLEANUP-30 Debug numeric fallback quarantine
+
+proof:
+  plan: `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/CLEANUP-30_DEBUG_NUMERIC_FALLBACK_QUARANTINE/`
+  review: `docs/review/autopilot/CLEANUP-30_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_editor_session_state.gd`
+    - `addons/hex_map_kit/editor/hex_map_sample_settings_panel.gd`
+    - `addons/hex_map_kit/editor/hex_map_edit_tool.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/CLEANUP-30_TEST_RESULT_2026-06-08.md`

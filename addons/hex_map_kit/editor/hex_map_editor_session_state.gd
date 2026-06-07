@@ -21,6 +21,7 @@ var show_bundled_samples_in_main_selectors := false
 var use_bundled_sample_assets_for_scratch_documents := false
 var auto_create_project_copy_when_applying_sample := false
 var sample_learning_cta_dismissed := false
+var debug_numeric_tile_fallback_enabled := false
 var last_reason: String = ""
 
 
@@ -158,6 +159,14 @@ func set_sample_learning_cta_dismissed(dismissed: bool, reason: String = "") -> 
 	changed.emit("sample_settings.sample_learning_cta_dismissed")
 
 
+func set_debug_numeric_tile_fallback_enabled(enabled: bool, reason: String = "") -> void:
+	if debug_numeric_tile_fallback_enabled == enabled:
+		return
+	debug_numeric_tile_fallback_enabled = enabled
+	last_reason = reason
+	changed.emit("debug_settings.numeric_tile_fallback")
+
+
 func dismiss_sample_learning_cta(reason: String = "") -> void:
 	set_sample_learning_cta_dismissed(true, reason)
 
@@ -184,6 +193,7 @@ func snapshot() -> Dictionary:
 		"auto_create_project_copy_when_applying_sample": auto_create_project_copy_when_applying_sample,
 		"sample_learning_cta_dismissed": sample_learning_cta_dismissed,
 		"sample_learning_cta_visible": sample_learning_cta_visible(),
+		"debug_numeric_tile_fallback_enabled": debug_numeric_tile_fallback_enabled,
 		"last_reason": last_reason,
 	}
 

@@ -11,6 +11,7 @@ const HexOverlayResource = preload("res://addons/hex_map_kit/adapter/hex_overlay
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
 const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
+const HexMapDocumentValidator = preload("res://addons/hex_map_kit/adapter/hex_map_document_validator.gd")
 const HexMapDocumentLabelPlacementResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_label_placement_resource.gd")
 const HexMapDocumentObjectPlacementResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_object_placement_resource.gd")
 const HexMapDocumentOverlayLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_overlay_layer_resource.gd")
@@ -122,6 +123,7 @@ func _run() -> void:
 	await _test_qa_asset_screen_manages_profiles_and_score_context_without_samples()
 	await _test_export_asset_screen_requires_user_destination_and_exports_project_document()
 	await _test_workspace_sample_settings_panel_controls_sample_mode_sources()
+	await _test_debug_numeric_fallback_quarantine_requires_settings_opt_in()
 	_test_sample_asset_duplicator_copies_catalog_dependencies_to_project()
 	_test_asset_slot_state_model_reports_selection_validation_and_sample_source()
 	await _test_asset_slot_control_exposes_state_snapshot_contract()
@@ -1344,6 +1346,10 @@ func _test_workspace_sample_settings_panel_controls_sample_mode_sources() -> voi
 		not bool(snapshot["auto_create_project_copy_when_applying_sample"]),
 		"auto project copy is off by default"
 	)
+	_assert_true(
+		not bool(snapshot["debug_numeric_tile_fallback_enabled"]),
+		"debug numeric fallback is off by default"
+	)
 	_assert_eq(Array(snapshot["sample_assets"]).size(), 3, "sample settings lists bundled sample assets")
 	_assert_eq(workspace.generation_dock().tile_catalog(), null, "sample mode OFF hides generation sample catalog fallback")
 	_assert_eq(workspace.edit_tool().tile_catalog(), null, "sample mode OFF hides paint sample catalog fallback")
@@ -1386,7 +1392,67 @@ func _test_workspace_sample_settings_panel_controls_sample_mode_sources() -> voi
 	_assert_eq(workspace.generation_dock().tile_catalog(), null, "cleared project catalog does not reveal generation sample fallback while sample mode is OFF")
 	_assert_eq(workspace.edit_tool().tile_catalog(), null, "cleared project catalog does not reveal paint sample fallback while sample mode is OFF")
 
+	panel.set_debug_numeric_tile_fallback_enabled(true)
+	snapshot = panel.snapshot()
+	_assert_true(bool(snapshot["debug_numeric_tile_fallback_enabled"]), "Settings can enable explicit debug numeric fallback")
+	panel.set_debug_numeric_tile_fallback_enabled(false)
+	_assert_true(not session.debug_numeric_tile_fallback_enabled, "Settings can disable debug numeric fallback")
+
 	workspace.queue_free()
+	await process_frame
+
+
+func _test_debug_numeric_fallback_quarantine_requires_settings_opt_in() -> void:
+	var session = HexMapEditorSessionState.new()
+	var panel = HexMapSampleSettingsPanel.new()
+	panel.set_editor_session_state(session)
+	root.add_child(panel)
+	await process_frame
+
+	var data = HexMapData.rectangle(1, 1)
+	var document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(data))
+	HexMapDocumentAdapter.set_tile_override(document, HexVector.zero(), {
+		"kind": HexMapDocumentAdapter.KIND_FLOOR,
+		"source_id": 8,
+		"atlas_coords": Vector2i(4, 5),
+	})
+	var layer = TileMapLayer.new()
+	layer.tile_set = TileSet.new()
+	var image = Image.create(384, 384, false, Image.FORMAT_RGBA8)
+	image.fill(Color.WHITE)
+	var texture = ImageTexture.create_from_image(image)
+	HexMapTileAdapter.configure_atlas_tile_set(
+		layer.tile_set,
+		texture,
+		true,
+		Vector2i(64, 64),
+		8,
+		[Vector2i(4, 5)]
+	)
+	root.add_child(layer)
+	var tool = await _new_ready_edit_tool()
+	tool.set_editor_session_state(session)
+	tool.set_document(document)
+	tool.set_target_layer(layer)
+
+	_assert_true(not session.debug_numeric_tile_fallback_enabled, "numeric fallback quarantine starts disabled")
+	_assert_true(tool._apply_document_to_target(), "normal apply completes without numeric fallback")
+	_assert_eq(layer.get_cell_source_id(Vector2i.ZERO), -1, "normal apply does not silently fill missing catalog through numeric fallback")
+	var validation = HexMapDocumentValidator.validate_document(document)
+	_assert_true(
+		_validation_result_has_rule(validation, HexMapDocumentValidator.RULE_TILE_ASSIGNMENT_MISSING),
+		"missing catalog assignment remains a validation issue"
+	)
+
+	panel.set_debug_numeric_tile_fallback_enabled(true)
+	_assert_true(session.debug_numeric_tile_fallback_enabled, "debug fallback requires explicit Settings opt-in")
+	_assert_true(tool._apply_document_to_target(), "debug apply completes with explicit numeric fallback")
+	_assert_eq(layer.get_cell_source_id(Vector2i.ZERO), 8, "debug opt-in applies numeric fallback source")
+	_assert_eq(layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(4, 5), "debug opt-in applies numeric fallback atlas")
+
+	panel.queue_free()
+	layer.queue_free()
+	tool.queue_free()
 	await process_frame
 
 
@@ -2240,7 +2306,10 @@ func _test_map_edit_tool_click_updates_document_with_undo_redo() -> void:
 	layer.tile_set = TileSet.new()
 	HexMapTileAdapter.configure_hex_tile_set(layer.tile_set, true, Vector2i(64, 64))
 	var undo_redo = UndoRedo.new()
+	var session = HexMapEditorSessionState.new()
+	session.set_debug_numeric_tile_fallback_enabled(true, "test.debug_plain_target")
 	var tool = await _new_ready_edit_tool()
+	tool.set_editor_session_state(session)
 	tool.set_document(document)
 	tool.set_target_layer(layer)
 	tool.set_undo_redo(undo_redo)
@@ -2316,7 +2385,10 @@ func _test_map_edit_tool_forward_canvas_gui_input_uses_viewport_transform() -> v
 	layer.tile_set = TileSet.new()
 	HexMapTileAdapter.configure_hex_tile_set(layer.tile_set, true, Vector2i(64, 64))
 	root.add_child(layer)
+	var session = HexMapEditorSessionState.new()
+	session.set_debug_numeric_tile_fallback_enabled(true, "test.debug_plain_target")
 	var tool = await _new_ready_edit_tool()
+	tool.set_editor_session_state(session)
 	tool.set_document(document)
 	tool.set_target_layer(layer)
 	tool.set_edit_mode(HexMapEditTool.EditMode.WALL_FLOOR)
@@ -2415,7 +2487,10 @@ func _test_map_edit_tool_target_readiness_reports_plain_tile_map_layer() -> void
 	var layer = TileMapLayer.new()
 	layer.tile_set = TileSet.new()
 	HexMapTileAdapter.configure_hex_tile_set(layer.tile_set, true, Vector2i(64, 64))
+	var session = HexMapEditorSessionState.new()
+	session.set_debug_numeric_tile_fallback_enabled(true, "test.debug_plain_target")
 	var tool = await _new_ready_edit_tool()
+	tool.set_editor_session_state(session)
 	tool.set_document(document)
 	tool.set_target_layer(layer)
 	tool._apply_document_to_target()
@@ -2495,7 +2570,10 @@ func _test_map_edit_tool_preserves_plain_target_tile_settings_when_redrawing() -
 		true
 	)
 	root.add_child(layer)
+	var session = HexMapEditorSessionState.new()
+	session.set_debug_numeric_tile_fallback_enabled(true, "test.debug_plain_target")
 	var tool = await _new_ready_edit_tool()
+	tool.set_editor_session_state(session)
 	tool.set_document(document)
 	tool.set_target_layer(layer)
 	tool.set_edit_mode(HexMapEditTool.EditMode.WALL_FLOOR)
@@ -2932,7 +3010,10 @@ func _test_map_edit_tool_last_edit_trace_distinguishes_document_and_redraw() -> 
 	layer.tile_set = TileSet.new()
 	HexMapTileAdapter.configure_hex_tile_set(layer.tile_set, true, Vector2i(64, 64))
 	root.add_child(layer)
+	var session = HexMapEditorSessionState.new()
+	session.set_debug_numeric_tile_fallback_enabled(true, "test.debug_plain_target")
 	var tool = await _new_ready_edit_tool()
+	tool.set_editor_session_state(session)
 	tool.set_document(document)
 	tool.set_target_layer(layer)
 	tool.set_edit_mode(HexMapEditTool.EditMode.WALL_FLOOR)
@@ -5985,6 +6066,15 @@ func _validation_issue_row_for_rule(rows: Array, rule_id: String) -> Dictionary:
 		if String(row.get("rule_id", "")) == rule_id:
 			return row
 	return {}
+
+
+func _validation_result_has_rule(result: HexMapValidationResult, rule_id: String) -> bool:
+	if result == null:
+		return false
+	for issue in result.issues:
+		if issue is Dictionary and String((issue as Dictionary).get("rule_id", "")) == rule_id:
+			return true
+	return false
 
 
 func _assert_created_asset_resource_type(slot_id: String, resource: Resource) -> void:
