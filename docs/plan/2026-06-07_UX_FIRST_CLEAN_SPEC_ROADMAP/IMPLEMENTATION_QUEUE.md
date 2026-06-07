@@ -71,7 +71,7 @@ proof:
 | `CLEAN-23` | `COMPLETE` | P1 | `CLEAN-12`, `CLEAN-20` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-23_OBJECT_PALETTE_REDESIGN/` | Object Palette / Property Editor redesign | object editor UI, object resources/adapters, editor/object tests | Object database picker, definition list, PackedScene picker, object-key placement brush, and type-aware property editor exist; raw dictionary text is not normal UX | `HEADLESS_TEST_COMPLETE` |
 | `CLEAN-24` | `COMPLETE` | P1 | `CLEAN-21` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-24_LAYER_STACK_SCREEN_REDESIGN/` | Layer Stack Screen redesign | layer stack UI, `hex_tile_map_layer.gd`, editor/layer tests | Template picker, role list, visible/locked/z-index/writable source, Create Missing Layers, Apply Document, Clear Role are available; plain TileMapLayer apply is not primary UX | `HEADLESS_TEST_COMPLETE` |
 | `CLEAN-25` | `COMPLETE` | P1 | `CLEAN-21` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-25_GENERATION_QA_SCREEN_REDESIGN/` | Generation QA Screen redesign | generation QA UI, `hex_map_gen_dock.gd`, generation/editor tests | Batch seed run, score table, selected seed preview/state, Promote to Document, metadata and dirty state are visible as screen workflow | `HEADLESS_TEST_COMPLETE` |
-| `CLEAN-26` | `READY` | P1 | `CLEAN-21` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-26_VALIDATION_SCREEN_REFINEMENT/` | Validation Screen refinement | validation panel/dashboard, validator helpers, editor tests | Issues are grouped by domain and severity; issue click can focus cell/resource/catalog entry where applicable; fix suggestions exist; Copy Debug Report remains detailed | `HEADLESS_TEST_COMPLETE` |
+| `CLEAN-26` | `COMPLETE` | P1 | `CLEAN-21` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-26_VALIDATION_SCREEN_REFINEMENT/` | Validation Screen refinement | validation panel/dashboard, validator helpers, editor tests | Issues are grouped by domain and severity; issue click can focus cell/resource/catalog entry where applicable; fix suggestions exist; Copy Debug Report remains detailed | `HEADLESS_TEST_COMPLETE` |
 
 ---
 
@@ -89,7 +89,7 @@ proof:
 
 | id | status | priority | dependencies | plan_dir | deliverable | target files | acceptance / test path | maturity |
 |---|---|---:|---|---|---|---|---|---|
-| `CLEAN-40` | `BACKLOG` | P1 | `CLEAN-21`, `CLEAN-22`, `CLEAN-23`, `CLEAN-24`, `CLEAN-25`, `CLEAN-26` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-40_MANUAL_CATALOG_VALIDATION_QA_UPDATE/` | Catalog / Validation / QA manual update | `docs/manual/MANUAL_EDITOR_PLUGIN.md`, `docs/manual/MANUAL_WORKFLOW.md`, `docs/manual/MANUAL_SCRIPTING.md`, `README.md` | Manual is organized by user goal; explains Resource picker workflows for Catalog, Layer Stack, Validation, Object Placement, Generation QA, Debug Report; no new analog test files are added | `DOCS_COMPLETE` |
+| `CLEAN-40` | `READY` | P1 | `CLEAN-21`, `CLEAN-22`, `CLEAN-23`, `CLEAN-24`, `CLEAN-25`, `CLEAN-26` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-40_MANUAL_CATALOG_VALIDATION_QA_UPDATE/` | Catalog / Validation / QA manual update | `docs/manual/MANUAL_EDITOR_PLUGIN.md`, `docs/manual/MANUAL_WORKFLOW.md`, `docs/manual/MANUAL_SCRIPTING.md`, `README.md` | Manual is organized by user goal; explains Resource picker workflows for Catalog, Layer Stack, Validation, Object Placement, Generation QA, Debug Report; no new analog test files are added | `DOCS_COMPLETE` |
 | `CLEAN-41` | `READY` | P1 | `CLEAN-10`, `CLEAN-11`, `CLEAN-12`, `CLEAN-13`, `CLEAN-14` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-41_API_DOCS_CLEAN_VOCABULARY/` | API docs clean vocabulary pass | `docs/api/API_REFERENCE.md`, scripting manual, runtime examples | Public API docs remove `v2`, migration, legacy, path-string primary APIs; Resource object APIs are the first path; path helpers are documented only as supplemental load helpers | `DOCS_COMPLETE` |
 
 ---
@@ -114,18 +114,42 @@ proof:
 
 ## 8. Current pointer
 
-Current recommended next task: `CLEAN-26`.
+Current recommended next task: `CLEAN-31`.
 
 Reason:
 
-- Dependency sweep completed on 2026-06-07 after `CLEAN-25` completion.
-- No additional tasks were promoted because `CLEAN-40` still depends on `CLEAN-26`.
-- `CLEAN-26` is the first `READY` task by table order.
-- `CLEAN-31`, `CLEAN-33`, `CLEAN-41`, `CLEAN-51`, `CLEAN-52`, and `CLEAN-60` remain `READY`.
+- Dependency sweep completed on 2026-06-07 after `CLEAN-26` completion.
+- `CLEAN-40` was promoted to `READY` because `CLEAN-21` through `CLEAN-26` are complete.
+- `CLEAN-31` is the first `READY` task by table order.
+- `CLEAN-33`, `CLEAN-40`, `CLEAN-41`, `CLEAN-51`, `CLEAN-52`, and `CLEAN-60` remain `READY`.
 
 ---
 
 ## 9. Completed task proof log
+
+### CLEAN-26
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot / `autopilot/roadmap-main`
+plan: `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-26_VALIDATION_SCREEN_REFINEMENT/`
+review: `docs/review/autopilot/CLEAN-26_SELF_REVIEW_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+  - `git diff --check` PASS
+- docs:
+  - `docs/TEST.md`
+  - `docs/manual/MANUAL_EDITOR_PLUGIN.md`
+  - `docs/review/autopilot/CLEAN-26_SELF_REVIEW_2026-06-07.md`
+  - `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-26_VALIDATION_SCREEN_REFINEMENT/`
+- major files:
+  - `addons/hex_map_kit/editor/hex_map_validation_dashboard.gd`
+  - `addons/hex_map_kit/editor/hex_map_edit_tool.gd`
+  - `tests/test_editor_plugin.gd`
+- maturity:
+  - `HEADLESS_TEST_COMPLETE`
 
 ### CLEAN-25
 

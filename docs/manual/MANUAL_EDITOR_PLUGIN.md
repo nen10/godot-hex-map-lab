@@ -186,6 +186,12 @@ Object modeでは `Object DB` に `HexObjectDatabaseResource` を選び、defini
 
 通常のlayer stack workflowは `HexTileMapLayer` targetを使います。plain `TileMapLayer` への直接applyは互換・debug用の経路であり、主要な画面操作ではありません。
 
+### Hex Map Edit Validation
+
+`Validation` は issue を Document / Catalog / Layer / Object / Gameplay / Package の domain と Error / Warning / Info の severity で表示します。issue を選択すると focus target と fix suggestion が表示され、cell issue は target cell、catalog issue は catalog entry、resource issue は dependency/resource 情報へ接続します。
+
+`Copy Debug Report` は support 用の詳細textを維持します。通常のstatus表示は短く、rule dump は dashboard row または debug reportで確認します。
+
 ### Hex Map Generate Seed Lab
 
 Generate Dock の `Seed Lab` では seed数を指定して `Run Batch` を実行し、score tableで rank、seed、score、status、cells、validation summaryを比較します。score rowを選ぶと selected seed preview が更新され、`Promote to Document` で選択seedを canonical document に昇格します。

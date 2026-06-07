@@ -2260,6 +2260,10 @@ func _on_add_catalog_scene_entry_pressed() -> void:
 func _on_validate_catalog_pressed() -> void:
 	var catalog = _ensure_tile_catalog()
 	_last_catalog_validation_result = HexTileCatalogValidator.validate_catalog(catalog)
+	_selected_validation_issue.clear()
+	_validation_focus_status.clear()
+	if _validation_dashboard != null:
+		_validation_dashboard.set_validation_result(_last_catalog_validation_result)
 	_refresh_catalog_entries()
 	if _last_catalog_validation_result == null:
 		_set_status("No catalog selected.")
@@ -3497,17 +3501,26 @@ func _validation_issue_report_row(issue: Dictionary) -> String:
 
 
 func _focus_validation_issue(issue: Dictionary) -> bool:
-	var hex = _validation_issue_hex(issue)
 	_validation_focus_status = {
 		"rule_id": String(issue.get("rule_id", "")),
 		"scope": String(issue.get("scope", "")),
-		"cell": issue.get("cell", Vector3i.ZERO),
-		"cell_key": hex.key() if hex != null else "",
+		"domain": HexMapValidationDashboard.issue_domain(issue),
+		"focus_target": HexMapValidationDashboard.issue_focus_target(issue),
+		"fix_suggestion": HexMapValidationDashboard.issue_fix_suggestion(issue),
+		"focus_type": "none",
 		"focused": false,
 		"target_path": _target_path_string(),
 	}
+	if _focus_validation_catalog_issue(issue):
+		return true
+	if _focus_validation_resource_issue(issue):
+		return true
+	var hex = _validation_issue_hex(issue)
+	_validation_focus_status["cell"] = issue.get("cell", Vector3i.ZERO)
+	_validation_focus_status["cell_key"] = hex.key() if hex != null else ""
 	if hex == null:
 		return false
+	_validation_focus_status["focus_type"] = "cell"
 	_last_edit_hit = {
 		"hex": hex,
 		"visual_hex": hex,
@@ -3518,6 +3531,80 @@ func _focus_validation_issue(issue: Dictionary) -> bool:
 	_validation_focus_status["focused"] = bool(_last_edit_hit.get("exists", false))
 	_refresh_last_hit_display()
 	return bool(_validation_focus_status.get("focused", false))
+
+
+func _focus_validation_catalog_issue(issue: Dictionary) -> bool:
+	var metadata = issue.get("metadata", {})
+	if not metadata is Dictionary:
+		return false
+	var catalog_key = String((metadata as Dictionary).get("catalog_key", ""))
+	var entry_key = String((metadata as Dictionary).get("entry_key", ""))
+	var key = entry_key if entry_key != "" else catalog_key
+	var entry_index = int((metadata as Dictionary).get("entry_index", -1))
+	if entry_index < 0 and key != "":
+		entry_index = _catalog_entry_index_for_key(key)
+	if entry_index < 0 and key == "":
+		return false
+	_validation_focus_status["focus_type"] = "catalog_entry"
+	_validation_focus_status["catalog_key"] = key
+	_validation_focus_status["catalog_entry_index"] = entry_index
+	if entry_index < 0:
+		return false
+	var item = _catalog_tree_item_at_index(entry_index)
+	if item != null:
+		item.select(0)
+		_validation_focus_status["focused"] = true
+	return bool(_validation_focus_status.get("focused", false))
+
+
+func _focus_validation_resource_issue(issue: Dictionary) -> bool:
+	var metadata = issue.get("metadata", {})
+	var dependency_path = String(issue.get("dependency_resource_path", ""))
+	var dependency_id = ""
+	var dependency_kind = ""
+	var dependency_role = ""
+	if metadata is Dictionary:
+		dependency_id = String((metadata as Dictionary).get("dependency_id", ""))
+		dependency_kind = String((metadata as Dictionary).get("kind", ""))
+		dependency_role = String((metadata as Dictionary).get("role", ""))
+	if dependency_path == "" and dependency_id == "" and dependency_kind == "" and dependency_role == "":
+		return false
+	_validation_focus_status["focus_type"] = "resource"
+	_validation_focus_status["resource_path"] = dependency_path
+	_validation_focus_status["dependency_id"] = dependency_id
+	_validation_focus_status["dependency_kind"] = dependency_kind
+	_validation_focus_status["dependency_role"] = dependency_role
+	_validation_focus_status["focused"] = dependency_path != ""
+	return bool(_validation_focus_status.get("focused", false))
+
+
+func _catalog_entry_index_for_key(key: String) -> int:
+	if key == "":
+		return -1
+	var catalog = _ensure_tile_catalog()
+	if catalog == null:
+		return -1
+	for index in range(catalog.entries.size()):
+		var entry = catalog.entries[index]
+		if entry != null and String(entry.get("key")) == key:
+			return index
+	return -1
+
+
+func _catalog_tree_item_at_index(entry_index: int):
+	if _catalog_entries_tree == null or entry_index < 0:
+		return null
+	var root_item = _catalog_entries_tree.get_root()
+	if root_item == null:
+		return null
+	var item = root_item.get_first_child()
+	var index := 0
+	while item != null:
+		if index == entry_index:
+			return item
+		item = item.get_next()
+		index += 1
+	return null
 
 
 func _validation_issue_hex(issue: Dictionary):

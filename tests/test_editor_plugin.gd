@@ -32,6 +32,7 @@ const HexAdjacencyRuleEditor = preload("res://addons/hex_map_kit/editor/hex_adja
 const HexCellButtonLayout = preload("res://addons/hex_map_kit/editor/hex_cell_button_layout.gd")
 const HexCellButtonPanel = preload("res://addons/hex_map_kit/editor/hex_cell_button_panel.gd")
 const HexTileCatalogEntry = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd")
+const HexTileCatalogResource = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 
 class FakeTileLayer:
@@ -1227,6 +1228,35 @@ func _test_map_edit_tool_catalog_selectors_drive_defaults_and_payloads() -> void
 	_assert_eq(tool._object_id_edit.text, "object.spawn_marker", "object selector updates object id text")
 	_assert_true(not _control_row_visible(tool._object_id_edit), "object mode hides raw object id paint control")
 
+	var invalid_catalog = HexTileCatalogResource.new()
+	invalid_catalog.catalog_id = "broken"
+	invalid_catalog.display_name = "Broken Catalog"
+	var invalid_entry = HexTileCatalogEntry.new()
+	invalid_entry.key = "broken.scene"
+	invalid_entry.display_name = "Broken Scene"
+	invalid_entry.entry_type = HexTileCatalogEntry.TYPE_SCENE
+	invalid_catalog.add_entry(invalid_entry)
+	tool.set_tile_catalog(invalid_catalog)
+	tool._on_validate_catalog_pressed()
+	var catalog_issue_rows = tool._validation_dashboard.issue_rows()
+	var scene_issue_index := -1
+	for index in range(catalog_issue_rows.size()):
+		if String(catalog_issue_rows[index].get("rule_id", "")) == "catalog.scene_missing":
+			scene_issue_index = index
+			break
+	_assert_true(scene_issue_index >= 0, "validation dashboard lists catalog scene issue")
+	var scene_issue_row = catalog_issue_rows[scene_issue_index]
+	_assert_eq(scene_issue_row.get("domain", ""), "Catalog", "catalog issue row is grouped by Catalog domain")
+	_assert_eq(scene_issue_row.get("severity_label", ""), "Error", "catalog issue row exposes severity label")
+	_assert_true(String(scene_issue_row.get("focus_target", "")).contains("Catalog entry"), "catalog issue row exposes entry focus target")
+	_assert_true(String(scene_issue_row.get("fix_suggestion", "")).contains("PackedScene"), "catalog issue row exposes fix suggestion")
+	_assert_true(tool.select_validation_issue(scene_issue_index), "catalog validation issue can be selected")
+	var catalog_focus = tool.validation_focus_status()
+	_assert_eq(catalog_focus.get("focus_type", ""), "catalog_entry", "catalog issue selection records catalog focus type")
+	_assert_eq(int(catalog_focus.get("catalog_entry_index", -1)), 0, "catalog issue selection records entry index")
+	_assert_true(bool(catalog_focus.get("focused", false)), "catalog issue selection focuses catalog row")
+	_assert_true(tool._validation_dashboard._selected_detail_label.text.contains("Fix:"), "selected issue detail shows fix suggestion")
+
 	tool.queue_free()
 	await process_frame
 
@@ -1413,14 +1443,22 @@ func _test_map_edit_tool_validation_dashboard_groups_and_focuses_cell_issue() ->
 			wall_issue_index = index
 			break
 	_assert_true(wall_issue_index >= 0, "validation dashboard lists object-on-wall issue")
+	var wall_row = rows[wall_issue_index]
+	_assert_eq(wall_row.get("domain", ""), "Object", "object issue row is grouped by Object domain")
+	_assert_eq(wall_row.get("severity_label", ""), "Error", "object issue row exposes severity label")
+	_assert_true(String(wall_row.get("focus_target", "")).contains("Cell"), "object issue row exposes cell focus target")
+	_assert_true(String(wall_row.get("fix_suggestion", "")).contains("floor"), "object issue row exposes fix suggestion")
 	_assert_true(tool.select_validation_issue(wall_issue_index), "validation dashboard selects a cell-scoped issue")
 	var selected = tool.selected_validation_issue()
 	var focus = tool.validation_focus_status()
 	_assert_eq(selected.get("rule_id", ""), "document.object_on_wall", "selected validation issue records rule id")
+	_assert_eq(focus.get("domain", ""), "Object", "validation issue focus records domain")
+	_assert_eq(focus.get("focus_type", ""), "cell", "validation issue focus records cell focus type")
 	_assert_eq(focus.get("cell", Vector3i.ZERO), Vector3i(1, 0, 0), "validation issue focus records selected cell")
 	_assert_eq(focus.get("cell_key", ""), HexVector.q_axis().key(), "validation issue focus records cell key")
 	_assert_eq(bool(focus.get("focused", false)), true, "validation issue focus marks existing cell focused")
 	_assert_true(hex_layer._highlights.has(HexVector.q_axis().key()), "cell-scoped validation issue highlights HexTileMapLayer target")
+	_assert_true(tool._validation_dashboard._selected_detail_label.text.contains("Fix:"), "selected cell issue detail shows fix suggestion")
 
 	hex_layer.queue_free()
 	tool.queue_free()
