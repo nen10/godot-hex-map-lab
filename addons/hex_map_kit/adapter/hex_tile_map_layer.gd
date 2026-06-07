@@ -4,7 +4,11 @@ extends Node2D
 
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
 const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
+const HexMapDocumentLabelPlacementResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_label_placement_resource.gd")
+const HexMapDocumentObjectPlacementResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_object_placement_resource.gd")
+const HexMapDocumentOverlayLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_overlay_layer_resource.gd")
 const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
+const HexMapDocumentTerrainLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_terrain_layer_resource.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexOverlayTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_overlay_tile_adapter.gd")
 const HexObjectLayerAdapter = preload("res://addons/hex_map_kit/adapter/hex_object_layer_adapter.gd")
@@ -259,10 +263,13 @@ func to_map_resource() -> HexMapResource:
 
 func to_document_resource() -> HexMapDocumentResource:
 	var document = HexMapDocumentResource.new()
-	document.map = to_map_resource()
-	document.tile_overrides = _document_tile_override_entries()
-	document.objects = _document_marker_entries(_object_markers_by_key)
-	document.labels = _document_marker_entries(_label_markers_by_key)
+	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
+	terrain_layer.map = to_map_resource()
+	terrain_layer.tile_assignments = _document_terrain_tile_assignment_entries()
+	document.terrain_layers.append(terrain_layer)
+	document.overlay_layers = _document_overlay_layer_resources()
+	document.object_placements = _document_object_placement_resources()
+	document.label_placements = _document_label_placement_resources()
 	return document
 
 
@@ -1421,23 +1428,95 @@ func _payload_entries_for_key(store: Dictionary, key: String) -> Array:
 	return result
 
 
-func _document_tile_override_entries() -> Array:
-	var result: Array = []
+func _document_terrain_tile_assignment_entries() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
 	for store_key in _tile_overrides_by_key:
 		var entry: Dictionary = _tile_overrides_by_key[store_key]
 		result.append(entry.duplicate(true))
+	return result
+
+
+func _document_overlay_layer_resources() -> Array[Resource]:
+	var grouped := {}
 	for key in _overlay_tiles_by_key:
 		for entry in _payload_entries_for_key(_overlay_tiles_by_key, key):
-			result.append(entry)
+			var item_key = String(entry.get("item_key", "overlay"))
+			if item_key == "":
+				item_key = "overlay"
+			if not grouped.has(item_key):
+				grouped[item_key] = []
+			var assignment: Dictionary = entry.duplicate(true)
+			assignment.erase("kind")
+			grouped[item_key].append(assignment)
+
+	var result: Array[Resource] = []
+	var item_keys = grouped.keys()
+	item_keys.sort()
+	for item_key in item_keys:
+		var layer = HexMapDocumentOverlayLayerResource.new()
+		layer.layer_id = "overlay_%s" % _safe_resource_id(item_key)
+		layer.display_name = item_key
+		layer.item_key = item_key
+		var assignments: Array[Dictionary] = []
+		for assignment in grouped[item_key]:
+			assignments.append((assignment as Dictionary).duplicate(true))
+		layer.tile_assignments = assignments
+		result.append(layer)
 	return result
 
 
-func _document_marker_entries(store: Dictionary) -> Array:
-	var result: Array = []
-	for key in store:
-		for entry in _payload_entries_for_key(store, key):
-			result.append(entry)
+func _document_object_placement_resources() -> Array[Resource]:
+	var result: Array[Resource] = []
+	for key in _object_markers_by_key:
+		for entry in _payload_entries_for_key(_object_markers_by_key, key):
+			var placement = HexMapDocumentObjectPlacementResource.new()
+			placement.placement_id = String(entry.get("placement_id", ""))
+			placement.object_id = String(entry.get("object_id", ""))
+			placement.cell = entry.get("cell", Vector3i.ZERO)
+			placement.rotation_degrees = float(entry.get("rotation_degrees", entry.get("rotation", 0.0)))
+			placement.variant = String(entry.get("variant", ""))
+			placement.properties = _dictionary_copy(entry.get("properties", {}))
+			placement.spawn_condition = String(entry.get("spawn_condition", ""))
+			placement.layer_id = String(entry.get("layer_id", "objects"))
+			placement.runtime_enabled = bool(entry.get("runtime_enabled", true))
+			placement.metadata = _dictionary_copy(entry.get("metadata", {}))
+			result.append(placement)
 	return result
+
+
+func _document_label_placement_resources() -> Array[Resource]:
+	var result: Array[Resource] = []
+	for key in _label_markers_by_key:
+		for entry in _payload_entries_for_key(_label_markers_by_key, key):
+			var placement = HexMapDocumentLabelPlacementResource.new()
+			placement.label_id = String(entry.get("label_id", ""))
+			placement.cell = entry.get("cell", Vector3i.ZERO)
+			placement.text = String(entry.get("text", ""))
+			placement.style_key = String(entry.get("style_key", ""))
+			placement.zone_id = String(entry.get("zone_id", ""))
+			placement.layer_id = String(entry.get("layer_id", "labels"))
+			placement.metadata = _dictionary_copy(entry.get("metadata", {}))
+			result.append(placement)
+	return result
+
+
+func _dictionary_copy(value: Variant) -> Dictionary:
+	if value is Dictionary:
+		return (value as Dictionary).duplicate(true)
+	return {}
+
+
+func _safe_resource_id(value: String) -> String:
+	var result := ""
+	for index in range(value.length()):
+		var code = value.unicode_at(index)
+		if (code >= 48 and code <= 57) \
+			or (code >= 65 and code <= 90) \
+			or (code >= 97 and code <= 122):
+			result += char(code).to_lower()
+		else:
+			result += "_"
+	return "layer" if result == "" else result
 
 
 func _entry_with_cell(entry: Dictionary, hex: HexVector) -> Dictionary:

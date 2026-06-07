@@ -69,17 +69,17 @@ This is the simple `.tres` wrapper for primary terrain maps.
 
 Path: `res://addons/hex_map_kit/adapter/hex_map_document_resource.gd`
 
-Version 2 fields:
+Canonical fields:
 
 - `terrain_layers`
 - `overlay_layers`
 - `object_placements`
 - `label_placements`
 - `zones`
-- `metadata`
+- `metadata` (created by default on new documents)
 - `dependencies`
 
-Call `ensure_v2_defaults()` before constructing a v2 document in scripts.
+New documents are canonical by construction. Add terrain, overlay, object, label, zone, and dependency resources directly.
 
 ### `HexMapDocumentAdapter`
 
@@ -87,7 +87,6 @@ Path: `res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd`
 
 - `from_map_resource(resource)`
 - `to_map_resource(document)`
-- `migrate_v1_to_v2(document)`
 - `document_summary(document)`
 - `document_tile_entries(document)`
 - `document_object_entries(document)`
@@ -95,7 +94,7 @@ Path: `res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd`
 - `validation_result_for_document(document)`
 - `apply_to_tile_map_layer(document, layer, options = {})`
 
-Use it as the compatibility boundary between saved documents and display/runtime helpers.
+Use it as the boundary between saved documents and display/runtime helpers.
 
 ### `HexTileMapLayer`
 
@@ -196,4 +195,3 @@ The sample returns dictionaries so it can be used in gameplay code, tests, or a 
 - `examples/basic_runtime/runtime_query_sample.gd`
 - `examples/basic_runtime/runtime_query_example.tscn`
 - `examples/editor_workflow/editor_workflow_example.tscn`
-

@@ -89,7 +89,7 @@ func _run() -> void:
 	await _test_map_edit_tool_initializes_document_from_hex_target()
 	await _test_map_edit_tool_imports_generated_map_resource()
 	await _test_map_edit_tool_path_file_handlers_and_action_states()
-	await _test_map_edit_tool_loads_saves_v2_document_without_losing_typed_payloads()
+	await _test_map_edit_tool_loads_saves_document_without_losing_typed_payloads()
 	await _test_map_edit_tool_click_updates_document_with_undo_redo()
 	await _test_map_edit_tool_debug_report_copy_includes_reportable_state()
 	await _test_map_edit_tool_forward_canvas_gui_input_uses_viewport_transform()
@@ -145,7 +145,7 @@ func _run() -> void:
 	await _test_generation_dock_validates_generation_result_before_auto_apply()
 	await _test_generation_dock_captures_generation_validation_failure()
 	await _test_generation_dock_batch_runner_scores_and_sorts()
-	await _test_generation_dock_promotes_batch_seed_to_v2_document()
+	await _test_generation_dock_promotes_batch_seed_to_canonical_document()
 	await _test_generation_dock_only_generates_from_generate_button()
 	await _test_generation_dock_wires_core_progress_and_cancel()
 	await _test_generation_dock_applies_configured_tile_entries()
@@ -545,7 +545,7 @@ func _test_map_edit_tool_auto_target_uses_selected_layer() -> void:
 	var document = HexMapDocumentAdapter.from_map_resource(
 		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
 	)
-	selected_layer.apply_map(document.map)
+	selected_layer.apply_map(HexMapDocumentAdapter.to_map_resource(document))
 	var tool = await _new_ready_edit_tool()
 	tool.set_document(document)
 	tool.refresh_target_layer_options(scene_root)
@@ -615,11 +615,11 @@ func _test_map_edit_tool_initializes_document_from_hex_target() -> void:
 
 	_assert_true(tool.document() != null, "map edit tool creates a document from selected HexTileMapLayer target")
 	_assert_eq(tool._document_source, HexMapEditTool.DOCUMENT_SOURCE_TARGET, "target document source is recorded")
-	_assert_eq(tool.document().map.orientation, HexMapResource.ORIENTATION_POINTY_TOP, "target document preserves target map orientation")
+	_assert_eq(HexMapDocumentAdapter.to_map_resource(tool.document()).orientation, HexMapResource.ORIENTATION_POINTY_TOP, "target document preserves target map orientation")
 	_assert_true(tool.viewport_input_enabled(), "target-derived document enables viewport input")
 	var origin_local = hex_layer._tile_map.position + hex_layer.hex_to_display_local(HexVector.zero())
 	_assert_true(tool.apply_local_position(origin_local), "target-derived document accepts viewport edit")
-	_assert_true(tool.document().map.to_map_data().has_wall(HexVector.zero()), "target-derived document mutates on edit")
+	_assert_true(HexMapDocumentAdapter.to_map_resource(tool.document()).to_map_data().has_wall(HexVector.zero()), "target-derived document mutates on edit")
 	_assert_true(hex_layer.hex_map.to_map_data().has_wall(HexVector.zero()), "target-derived edit updates HexTileMapLayer resource")
 	_assert_true(tool.debug_report_text().contains("document_source: target"), "debug report includes target document source")
 
@@ -722,11 +722,11 @@ func _test_map_edit_tool_debug_report_copy_includes_reportable_state() -> void:
 	await process_frame
 
 
-func _test_map_edit_tool_loads_saves_v2_document_without_losing_typed_payloads() -> void:
-	var document = _sample_v2_editor_document()
-	var document_path = _test_resource_path("test_map_edit_v2_document.tres")
-	var saved_path = _test_resource_path("test_map_edit_v2_saved_document.tres")
-	var export_path = _test_resource_path("test_map_edit_v2_export.tres")
+func _test_map_edit_tool_loads_saves_document_without_losing_typed_payloads() -> void:
+	var document = _sample_editor_document()
+	var document_path = _test_resource_path("test_map_edit_document.tres")
+	var saved_path = _test_resource_path("test_map_edit_saved_document.tres")
+	var export_path = _test_resource_path("test_map_edit_export.tres")
 	_save_resource(document_path, document)
 
 	var layer = HexTileMapLayer.new()
@@ -740,33 +740,31 @@ func _test_map_edit_tool_loads_saves_v2_document_without_losing_typed_payloads()
 			5,
 			Vector2i(1, 0)
 		),
-		"v2 document target display tiles are configured"
-	)
+			"canonical document target display tiles are configured"
+		)
 
 	var tool = await _new_ready_edit_tool()
 	tool.set_target_layer(layer)
-	_assert_true(tool.load_document(document_path), "map edit tool loads v2 document from path")
-	_assert_eq(tool.document().version, HexMapDocumentResource.VERSION_V2, "loaded document remains v2")
-	_assert_eq(layer.hex_map.to_map_data().walls.size(), 1, "v2 document load applies terrain map to HexTileMapLayer")
+	_assert_true(tool.load_document(document_path), "map edit tool loads canonical document from path")
+	_assert_eq(layer.hex_map.to_map_data().walls.size(), 1, "canonical document load applies terrain map to HexTileMapLayer")
 	var initial_state = layer.display_state_for_hex(HexVector.zero())
-	_assert_eq(initial_state["overlay_count"], 1, "v2 document load applies overlay assignment")
-	_assert_eq(initial_state["object_count"], 1, "v2 document load applies object placement")
-	_assert_eq(initial_state["label_count"], 1, "v2 document load applies label placement")
+	_assert_eq(initial_state["overlay_count"], 1, "canonical document load applies overlay assignment")
+	_assert_eq(initial_state["object_count"], 1, "canonical document load applies object placement")
+	_assert_eq(initial_state["label_count"], 1, "canonical document load applies label placement")
 
 	tool.set_edit_mode(HexMapEditTool.EditMode.FLOOR_TILE)
 	tool.set_tile_payload(0, Vector2i(2, 0), 0)
-	_assert_true(tool.apply_cell(HexVector.zero()), "map edit tool edits loaded v2 document")
+	_assert_true(tool.apply_cell(HexVector.zero()), "map edit tool edits loaded canonical document")
 	_assert_eq(
 		tool.document().terrain_layers[0].tile_assignments[0]["atlas_coords"],
 		Vector2i(2, 0),
-		"v2 document edit updates typed terrain assignment"
+		"canonical document edit updates typed terrain assignment"
 	)
 
-	_assert_true(tool.save_document(saved_path), "map edit tool saves loaded v2 document")
-	_assert_true(tool.export_map_resource_to_path(export_path), "map edit tool exports map from loaded v2 document")
+	_assert_true(tool.save_document(saved_path), "map edit tool saves loaded canonical document")
+	_assert_true(tool.export_map_resource_to_path(export_path), "map edit tool exports map from loaded canonical document")
 	var saved = ResourceLoader.load(saved_path, "", ResourceLoader.CACHE_MODE_IGNORE)
-	_assert_true(saved is HexMapDocumentResource, "saved v2 document loads as document resource")
-	_assert_eq(saved.version, HexMapDocumentResource.VERSION_V2, "saved document keeps v2 version")
+	_assert_true(saved is HexMapDocumentResource, "saved canonical document loads as document resource")
 	_assert_eq(saved.terrain_layers.size(), 1, "saved document keeps typed terrain layer")
 	_assert_eq(saved.overlay_layers.size(), 1, "saved document keeps typed overlay layer")
 	_assert_eq(saved.object_placements.size(), 1, "saved document keeps typed object placement")
@@ -777,12 +775,12 @@ func _test_map_edit_tool_loads_saves_v2_document_without_losing_typed_payloads()
 		"saved document keeps edited typed terrain assignment"
 	)
 	var exported = ResourceLoader.load(export_path, "", ResourceLoader.CACHE_MODE_IGNORE)
-	_assert_true(exported is HexMapResource, "v2 document export loads as HexMapResource")
-	_assert_eq(exported.orientation, HexMapResource.ORIENTATION_POINTY_TOP, "v2 document export preserves orientation")
-	_assert_eq(exported.to_map_data().walls.size(), 1, "v2 document export preserves walls")
+	_assert_true(exported is HexMapResource, "canonical document export loads as HexMapResource")
+	_assert_eq(exported.orientation, HexMapResource.ORIENTATION_POINTY_TOP, "canonical document export preserves orientation")
+	_assert_eq(exported.to_map_data().walls.size(), 1, "canonical document export preserves walls")
 	var save_status = tool.persistence_status()
-	_assert_eq(save_status["cell_count"], 2, "v2 document save status reports cells")
-	_assert_eq(save_status["wall_count"], 1, "v2 document save status reports walls")
+	_assert_eq(save_status["cell_count"], 2, "canonical document save status reports cells")
+	_assert_eq(save_status["wall_count"], 1, "canonical document save status reports walls")
 
 	tool.queue_free()
 	layer.queue_free()
@@ -793,7 +791,6 @@ func _test_map_edit_tool_click_updates_document_with_undo_redo() -> void:
 	var document = HexMapDocumentAdapter.from_map_resource(
 		HexMapResource.from_map_data(HexMapData.rectangle(2, 1))
 	)
-	document.ensure_v2_defaults()
 	var layer = TileMapLayer.new()
 	layer.tile_set = TileSet.new()
 	HexMapTileAdapter.configure_hex_tile_set(layer.tile_set, true, Vector2i(64, 64))
@@ -806,28 +803,29 @@ func _test_map_edit_tool_click_updates_document_with_undo_redo() -> void:
 
 	var origin_local = layer.map_to_local(HexMapTileAdapter.vector_to_map_cell(HexVector.zero(), true))
 	_assert_true(tool.apply_local_position(origin_local), "map edit tool applies local click to document")
-	_assert_true(document.map.to_map_data().has_wall(HexVector.zero()), "map edit tool click toggles wall in document")
+	_assert_true(HexMapDocumentAdapter.to_map_resource(document).to_map_data().has_wall(HexVector.zero()), "map edit tool click toggles wall in document")
 	_assert_eq(layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(1, 0), "map edit tool click redraws wall tile")
 
 	undo_redo.undo()
-	_assert_true(not document.map.to_map_data().has_wall(HexVector.zero()), "map edit tool undo restores document")
+	_assert_true(not HexMapDocumentAdapter.to_map_resource(document).to_map_data().has_wall(HexVector.zero()), "map edit tool undo restores document")
 	_assert_eq(layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i.ZERO, "map edit tool undo redraws floor tile")
 
 	undo_redo.redo()
-	_assert_true(document.map.to_map_data().has_wall(HexVector.zero()), "map edit tool redo restores document edit")
+	_assert_true(HexMapDocumentAdapter.to_map_resource(document).to_map_data().has_wall(HexVector.zero()), "map edit tool redo restores document edit")
 	_assert_eq(layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(1, 0), "map edit tool redo redraws wall tile")
 
 	tool.set_edit_mode(HexMapEditTool.EditMode.SHAPE)
 	var added = HexVector.q_axis().scaled(2)
 	var added_local = layer.map_to_local(HexMapTileAdapter.vector_to_map_cell(added, true))
 	_assert_true(tool.apply_local_position(added_local), "map edit tool shape mode can add a missing cell from local click")
-	_assert_true(document.map.to_map_data().has_cell(added), "map edit tool shape mode adds cell")
+	_assert_true(HexMapDocumentAdapter.to_map_resource(document).to_map_data().has_cell(added), "map edit tool shape mode adds cell")
 
 	tool.set_edit_mode(HexMapEditTool.EditMode.FLOOR_TILE)
 	tool.set_tile_payload(9, Vector2i(2, 3), 1)
 	_assert_true(tool.apply_cell(HexVector.zero()), "map edit tool applies floor tile override")
-	_assert_eq(document.tile_overrides[0]["source_id"], 9, "map edit tool stores tile override source")
-	_assert_eq(document.tile_overrides[0]["atlas_coords"], Vector2i(2, 3), "map edit tool stores tile override atlas")
+	var tile_entries = HexMapDocumentAdapter.document_tile_entries(document)
+	_assert_eq(tile_entries[0]["source_id"], 9, "map edit tool stores tile assignment source")
+	_assert_eq(tile_entries[0]["atlas_coords"], Vector2i(2, 3), "map edit tool stores tile assignment atlas")
 
 	tool.set_edit_mode(HexMapEditTool.EditMode.OBJECT)
 	tool.set_object_payload("door", {"locked": true}, 90.0, "iron", "flag:opened")
@@ -835,8 +833,9 @@ func _test_map_edit_tool_click_updates_document_with_undo_redo() -> void:
 	_assert_eq(property_row.get_text(0), "locked", "map edit tool object property table shows property key")
 	_assert_eq(property_row.get_text(1), "true", "map edit tool object property table shows property value")
 	_assert_true(tool.apply_cell(HexVector.zero()), "map edit tool applies object payload")
-	_assert_eq(document.objects[0]["object_id"], "door", "map edit tool stores object payload")
-	_assert_eq(document.objects[0]["properties"]["locked"], true, "map edit tool stores object properties")
+	var object_entries = HexMapDocumentAdapter.document_object_entries(document)
+	_assert_eq(object_entries[0]["object_id"], "door", "map edit tool stores object payload")
+	_assert_eq(object_entries[0]["properties"]["locked"], true, "map edit tool stores object properties")
 	_assert_eq(document.object_placements[0].object_id, "door", "map edit tool stores typed object placement")
 	_assert_eq(document.object_placements[0].rotation_degrees, 90.0, "map edit tool stores typed object rotation")
 	_assert_eq(document.object_placements[0].variant, "iron", "map edit tool stores typed object variant")
@@ -852,8 +851,9 @@ func _test_map_edit_tool_click_updates_document_with_undo_redo() -> void:
 	tool.set_edit_mode(HexMapEditTool.EditMode.LABEL)
 	tool.set_label_payload("room", "Entry")
 	_assert_true(tool.apply_cell(HexVector.zero()), "map edit tool applies label payload")
-	_assert_eq(document.labels[0]["label_id"], "room", "map edit tool stores label payload")
-	_assert_eq(document.labels[0]["text"], "Entry", "map edit tool stores label text")
+	var label_entries = HexMapDocumentAdapter.document_label_entries(document)
+	_assert_eq(label_entries[0]["label_id"], "room", "map edit tool stores label payload")
+	_assert_eq(label_entries[0]["text"], "Entry", "map edit tool stores label text")
 
 	undo_redo.clear_history()
 	undo_redo.free()
@@ -885,7 +885,7 @@ func _test_map_edit_tool_forward_canvas_gui_input_uses_viewport_transform() -> v
 	press.position = canvas_transform * scene_position
 
 	_assert_true(tool.forward_canvas_gui_input(press), "map edit tool accepts viewport click through transform bridge")
-	_assert_true(document.map.to_map_data().has_wall(HexVector.zero()), "viewport click toggles wall in document")
+	_assert_true(HexMapDocumentAdapter.to_map_resource(document).to_map_data().has_wall(HexVector.zero()), "viewport click toggles wall in document")
 	_assert_eq(layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(1, 0), "viewport click redraws target layer")
 	_assert_true(bool(tool.last_edit_status().get("applied", false)), "viewport click records target redraw status")
 
@@ -956,7 +956,7 @@ func _test_map_edit_tool_forward_canvas_gui_input_reports_no_editable_cell() -> 
 	valid_press.pressed = true
 	valid_press.position = layer.to_global(origin_local)
 	_assert_true(tool.forward_canvas_gui_input(valid_press), "valid viewport click still works after an invalid click")
-	_assert_true(document.map.to_map_data().has_wall(HexVector.zero()), "valid click after invalid click edits document")
+	_assert_true(HexMapDocumentAdapter.to_map_resource(document).to_map_data().has_wall(HexVector.zero()), "valid click after invalid click edits document")
 
 	layer.queue_free()
 	tool.queue_free()
@@ -1149,7 +1149,7 @@ func _test_map_edit_tool_target_atlas_settings_use_target_tileset() -> void:
 	var tile_set = hex_layer.display_tile_set()
 	_assert_true(tile_set.has_source(0), "target atlas setup creates source on HexTileMapLayer TileSet")
 	_assert_eq(tile_set.tile_size, Vector2i(64, 57), "target atlas setup stores tile size on Target TileSet")
-	_assert_eq(document.tile_overrides.size(), 0, "target atlas setup does not write asset data into document tile overrides")
+	_assert_eq(HexMapDocumentAdapter.document_tile_entries(document).size(), 0, "target atlas setup does not write asset data into document tile assignments")
 	tool._apply_document_to_target()
 	_assert_eq(hex_layer.display_atlas_coords_for_hex(HexVector.zero()), Vector2i.ZERO, "target atlas setup draws floor atlas after apply")
 
@@ -1263,7 +1263,7 @@ func _test_map_edit_tool_validation_dashboard_groups_and_focuses_cell_issue() ->
 	hex_layer.name = "ValidationLayer"
 	root.add_child(hex_layer)
 	await process_frame
-	hex_layer.apply_map(document.map)
+	hex_layer.apply_map(HexMapDocumentAdapter.to_map_resource(document))
 
 	var tool = await _new_ready_edit_tool()
 	tool.set_document(document)
@@ -1464,7 +1464,7 @@ func _test_map_edit_tool_local_hit_uses_hex_tile_map_layer() -> void:
 	var hit_local = layer._tile_map.position + layer.hex_to_display_local(wrapped_visual)
 
 	_assert_true(tool.apply_local_position(hit_local), "map edit tool uses HexTileMapLayer loop-aware hit")
-	_assert_true(document.map.to_map_data().has_wall(HexVector.zero()), "map edit tool edits canonical toric cell from visual duplicate")
+	_assert_true(HexMapDocumentAdapter.to_map_resource(document).to_map_data().has_wall(HexVector.zero()), "map edit tool edits canonical toric cell from visual duplicate")
 	_assert_true(layer.hex_map.to_map_data().has_wall(HexVector.zero()), "map edit tool updates HexTileMapLayer hex_map resource")
 
 	layer.queue_free()
@@ -1491,19 +1491,19 @@ func _test_map_edit_tool_hex_target_uses_command_apply_path() -> void:
 	_assert_true(tool.apply_cell(HexVector.zero()), "Hex target edit uses command apply path")
 	_assert_eq(layer.apply_document_cell_count, 0, "Hex target edit does not call apply_document_cell")
 	_assert_eq(layer.redraw_count, redraw_count_after_full_apply, "Hex target edit does not call full redraw")
-	_assert_true(document.map.to_map_data().has_wall(HexVector.zero()), "Hex target command updates document")
+	_assert_true(HexMapDocumentAdapter.to_map_resource(document).to_map_data().has_wall(HexVector.zero()), "Hex target command updates document")
 	_assert_true(layer.is_wall(HexVector.zero()), "Hex target command updates target state")
 
 	undo_redo.undo()
 	_assert_eq(layer.apply_document_cell_count, 0, "Hex target undo does not call apply_document_cell")
 	_assert_eq(layer.redraw_count, redraw_count_after_full_apply, "Hex target undo does not call full redraw")
-	_assert_true(not document.map.to_map_data().has_wall(HexVector.zero()), "Hex target command undo updates document")
+	_assert_true(not HexMapDocumentAdapter.to_map_resource(document).to_map_data().has_wall(HexVector.zero()), "Hex target command undo updates document")
 	_assert_true(layer.is_floor(HexVector.zero()), "Hex target command undo restores target state")
 
 	undo_redo.redo()
 	_assert_eq(layer.apply_document_cell_count, 0, "Hex target redo does not call apply_document_cell")
 	_assert_eq(layer.redraw_count, redraw_count_after_full_apply, "Hex target redo does not call full redraw")
-	_assert_true(document.map.to_map_data().has_wall(HexVector.zero()), "Hex target command redo updates document")
+	_assert_true(HexMapDocumentAdapter.to_map_resource(document).to_map_data().has_wall(HexVector.zero()), "Hex target command redo updates document")
 	_assert_true(layer.is_wall(HexVector.zero()), "Hex target command redo restores target state")
 
 	undo_redo.clear_history()
@@ -1528,7 +1528,7 @@ func _test_map_edit_tool_hex_tile_payload_modes_change_display() -> void:
 	tool.set_tile_payload(0, Vector2i(1, 0), 0)
 
 	_assert_true(tool.apply_cell(HexVector.zero()), "floor tile mode applies payload to HexTileMapLayer")
-	_assert_eq(document.tile_overrides.size(), 1, "floor tile mode stores a document tile override")
+	_assert_eq(HexMapDocumentAdapter.document_tile_entries(document).size(), 1, "floor tile mode stores a document tile assignment")
 	_assert_eq(layer.display_atlas_coords_for_hex(HexVector.zero()), Vector2i(1, 0), "floor tile mode redraws HexTileMapLayer tile")
 	var trace = tool.last_edit_status()
 	_assert_true(bool(trace["display_changed"]), "floor tile mode Last Edit records display change")
@@ -1555,9 +1555,10 @@ func _test_map_edit_tool_overlay_tile_payload_changes_hex_display() -> void:
 	tool.set_overlay_tile_payload("Treasure", 0, Vector2i(1, 0), 0)
 
 	_assert_true(tool.apply_cell(HexVector.zero()), "overlay tile mode applies payload to HexTileMapLayer")
-	_assert_eq(document.tile_overrides.size(), 1, "overlay tile mode stores a document tile override")
-	_assert_eq(document.tile_overrides[0]["kind"], HexMapDocumentAdapter.KIND_OVERLAY, "overlay tile mode stores overlay kind")
-	_assert_eq(document.tile_overrides[0]["item_key"], "Treasure", "overlay tile mode stores item key")
+	var overlay_entries = HexMapDocumentAdapter.document_tile_entries(document)
+	_assert_eq(overlay_entries.size(), 1, "overlay tile mode stores a document tile assignment")
+	_assert_eq(overlay_entries[0]["kind"], HexMapDocumentAdapter.KIND_OVERLAY, "overlay tile mode stores overlay kind")
+	_assert_eq(overlay_entries[0]["item_key"], "Treasure", "overlay tile mode stores item key")
 	var map_cell = HexMapTileAdapter.vector_to_map_cell(HexVector.zero(), true)
 	_assert_eq(layer._overlay_tile_map.get_cell_atlas_coords(map_cell), Vector2i(1, 0), "overlay tile mode draws overlay tile")
 	var state = layer.display_state_for_hex(HexVector.zero())
@@ -1659,7 +1660,7 @@ func _test_map_edit_tool_forward_canvas_gui_input_edits_loop_visual_duplicate() 
 	var duplicate_map_cell = HexMapTileAdapter.vector_to_map_cell(duplicate_visual, true)
 
 	_assert_true(tool.forward_canvas_gui_input(press), "map edit tool edits loop visual duplicate via viewport input")
-	_assert_true(document.map.to_map_data().has_wall(HexVector.zero()), "loop visual duplicate edits canonical document cell")
+	_assert_true(HexMapDocumentAdapter.to_map_resource(document).to_map_data().has_wall(HexVector.zero()), "loop visual duplicate edits canonical document cell")
 	_assert_eq(
 		layer._loop_tile_map.get_cell_atlas_coords(duplicate_map_cell),
 		layer.wall_atlas_coords,
@@ -1708,14 +1709,14 @@ func _test_map_edit_tool_undo_redo_preserves_loop_visual_identity() -> void:
 
 	_assert_true(tool.forward_canvas_gui_input(press), "loop visual duplicate edit is undoable")
 	undo_redo.undo()
-	_assert_true(not document.map.to_map_data().has_wall(HexVector.zero()), "undo restores canonical document floor")
+	_assert_true(not HexMapDocumentAdapter.to_map_resource(document).to_map_data().has_wall(HexVector.zero()), "undo restores canonical document floor")
 	_assert_eq(
 		layer._loop_tile_map.get_cell_atlas_coords(duplicate_map_cell),
 		layer.floor_atlas_coords,
 		"undo restores duplicate floor tile"
 	)
 	undo_redo.redo()
-	_assert_true(document.map.to_map_data().has_wall(HexVector.zero()), "redo restores canonical document wall")
+	_assert_true(HexMapDocumentAdapter.to_map_resource(document).to_map_data().has_wall(HexVector.zero()), "redo restores canonical document wall")
 	_assert_eq(
 		layer._loop_tile_map.get_cell_atlas_coords(duplicate_map_cell),
 		layer.wall_atlas_coords,
@@ -2551,7 +2552,6 @@ func _test_generation_dock_captures_generation_validation_failure() -> void:
 	var document = HexMapDocumentAdapter.from_map_resource(
 		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
 	)
-	document.ensure_v2_defaults()
 	HexMapDocumentAdapter.set_label(document, HexVector.q_axis(), {
 		"label_id": "outside",
 		"text": "Outside",
@@ -2614,7 +2614,7 @@ func _test_generation_dock_batch_runner_scores_and_sorts() -> void:
 	await process_frame
 
 
-func _test_generation_dock_promotes_batch_seed_to_v2_document() -> void:
+func _test_generation_dock_promotes_batch_seed_to_canonical_document() -> void:
 	var dock = await _new_ready_dock()
 	dock._generate_option.select(HexMapGenDock.GENERATE_SIMPLE)
 	dock._shape_option_simple.select(HexMapGenDock.SHAPE_RECTANGLE)
@@ -2628,11 +2628,10 @@ func _test_generation_dock_promotes_batch_seed_to_v2_document() -> void:
 	var chosen = dock.generation_batch_score_table("score", true)[0]
 	var document = dock.promote_generation_batch_row(chosen)
 	_assert_true(document is HexMapDocumentResource, "promoted seed creates a document resource")
-	_assert_eq(document.version, HexMapDocumentResource.VERSION_V2, "promoted seed creates v2 document")
 	_assert_true(document.metadata != null, "promoted seed creates document metadata")
-	_assert_eq(document.map.to_map_data().cells.size(), 2, "promoted seed stores generated map cells")
 	_assert_eq(document.terrain_layers.size(), 1, "promoted seed stores typed terrain layer")
 	_assert_true(document.terrain_layers[0].map != null, "promoted terrain layer stores map resource")
+	_assert_eq(document.terrain_layers[0].map.to_map_data().cells.size(), 2, "promoted seed stores generated map cells")
 	_assert_eq(document.metadata.generation_seed, int(chosen.get("seed", 0)), "promoted metadata stores chosen seed")
 	_assert_eq(
 		int(document.metadata.generation_snapshot.get("seed", 0)),
@@ -2662,7 +2661,6 @@ func _test_generation_dock_promotes_batch_seed_to_v2_document() -> void:
 	_save_resource(path, document)
 	var loaded = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
 	_assert_true(loaded is HexMapDocumentResource, "promoted seed saved document reloads as document")
-	_assert_eq(loaded.version, HexMapDocumentResource.VERSION_V2, "reloaded promoted document stays v2")
 	_assert_eq(loaded.metadata.generation_seed, document.metadata.generation_seed, "reloaded promoted document keeps seed")
 	_assert_eq(
 		int(loaded.metadata.generation_snapshot.get("seed", 0)),
@@ -3307,8 +3305,9 @@ func _test_generation_dock_overlay_applies_to_hex_tile_map_layer() -> void:
 	var state = layer.display_state_for_hex(HexVector.zero())
 	_assert_eq(state["overlay_count"], 1, "HexTileMapLayer overlay apply exposes overlay state")
 	var snapshot = layer.to_document_resource()
-	_assert_eq(snapshot.tile_overrides.size(), 2, "HexTileMapLayer overlay apply exports overlay entries")
-	_assert_eq(snapshot.tile_overrides[0]["kind"], HexMapDocumentAdapter.KIND_OVERLAY, "HexTileMapLayer overlay snapshot stores overlay kind")
+	var snapshot_tile_entries = HexMapDocumentAdapter.document_tile_entries(snapshot)
+	_assert_eq(snapshot_tile_entries.size(), 2, "HexTileMapLayer overlay apply exports overlay entries")
+	_assert_eq(snapshot_tile_entries[0]["kind"], HexMapDocumentAdapter.KIND_OVERLAY, "HexTileMapLayer overlay snapshot stores overlay kind")
 
 	layer.queue_free()
 	dock.queue_free()
@@ -4167,11 +4166,10 @@ func _connect_method_index(method: int) -> int:
 	return 0
 
 
-func _sample_v2_editor_document() -> HexMapDocumentResource:
+func _sample_editor_document() -> HexMapDocumentResource:
 	var data = HexMapData.rectangle(2, 1)
 	data.set_walls([HexVector.q_axis()])
 	var document = HexMapDocumentResource.new()
-	document.ensure_v2_defaults()
 
 	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
 	terrain_layer.map = HexMapResource.from_map_data(data, HexMapResource.ORIENTATION_POINTY_TOP)

@@ -59,20 +59,17 @@ func _run() -> void:
 	_test_map_resource_roundtrips_to_map_data()
 	_test_hex_map_document_roundtrips_map_and_payloads()
 	_test_hex_object_database_v2_migrates_legacy_arrays_and_roundtrips()
-	_test_hex_map_document_v2_schema_roundtrips_typed_resources()
-	_test_hex_map_document_v1_fixture_still_loads_with_v2_fields()
-	_test_hex_map_document_migrates_v1_to_v2_preserving_legacy_fields()
-	_test_hex_map_document_migration_handles_missing_fields()
-	_test_hex_map_document_summary_reports_v2_counts()
+	_test_hex_map_document_schema_roundtrips_canonical_resources()
+	_test_hex_map_document_summary_reports_canonical_counts()
 	_test_hex_map_validation_result_serializes_summary_and_warnings()
 	_test_hex_map_document_validator_reports_core_rules()
 	_test_hex_map_document_validator_rule_matrix()
 	_test_hex_map_document_validator_profile_reachability()
 	_test_hex_movement_profile_resource_roundtrips_gameplay_defaults()
 	_test_hex_gameplay_layer_data_uses_profile_catalog_and_objects()
-	_test_hex_map_document_adapter_roundtrips_v2_payload_entries()
+	_test_hex_map_document_adapter_roundtrips_canonical_payload_entries()
 	_test_hex_map_document_object_placement_schema_mutates_and_cleans_deleted_cell()
-	_test_hex_map_document_adapter_cleans_v2_payloads_for_deleted_cell()
+	_test_hex_map_document_adapter_cleans_canonical_payloads_for_deleted_cell()
 	_test_hex_map_document_adapter_updates_wall_floor()
 	_test_hex_map_document_adapter_applies_tile_overrides()
 	_test_hex_map_document_catalog_compatibility_warnings_preserve_fallback_display()
@@ -477,10 +474,10 @@ func _test_hex_map_document_roundtrips_map_and_payloads() -> void:
 	_assert_eq(error, OK, "hex map document resource saves")
 	_assert_keys_eq(roundtrip.cells, data.cells, "hex map document preserves cells")
 	_assert_keys_eq(roundtrip.walls, data.walls, "hex map document preserves walls")
-	_assert_eq(loaded.map.orientation, HexMapResource.ORIENTATION_POINTY_TOP, "hex map document preserves orientation")
-	_assert_eq(loaded.tile_overrides[0]["atlas_coords"], Vector2i(4, 5), "hex map document preserves tile override")
-	_assert_eq(loaded.objects[0]["properties"]["gold"], 2, "hex map document preserves object properties")
-	_assert_eq(loaded.labels[0]["text"], "North Gate", "hex map document preserves labels")
+	_assert_eq(loaded.terrain_layers[0].map.orientation, HexMapResource.ORIENTATION_POINTY_TOP, "hex map document preserves orientation")
+	_assert_eq(loaded.terrain_layers[0].tile_assignments[0]["atlas_coords"], Vector2i(4, 5), "hex map document preserves tile assignment")
+	_assert_eq(loaded.object_placements[0].properties["gold"], 2, "hex map document preserves object properties")
+	_assert_eq(loaded.label_placements[0].text, "North Gate", "hex map document preserves labels")
 	_assert_eq(object_db.objects[0]["object_id"], "chest", "object database stores object definitions")
 	_assert_eq(label_db.labels[0]["label_id"], "area", "label database stores label definitions")
 
@@ -545,11 +542,10 @@ func _test_hex_object_database_v2_migrates_legacy_arrays_and_roundtrips() -> voi
 	_assert_eq(loaded.legacy_objects()[1]["object_id"], "spawn", "object database v2 roundtrip keeps legacy array fallback")
 
 
-func _test_hex_map_document_v2_schema_roundtrips_typed_resources() -> void:
+func _test_hex_map_document_schema_roundtrips_canonical_resources() -> void:
 	var data = HexMapData.rectangle(2, 1)
 	var overlay_data = HexOverlayData.from_item_cells(data.cells, "Treasure", [HexVector.zero()])
 	var document = HexMapDocumentResource.new()
-	document.ensure_v2_defaults()
 	document.metadata.document_id = "level-001"
 	document.metadata.display_name = "North Gate"
 	document.metadata.generation_seed = 42
@@ -610,22 +606,13 @@ func _test_hex_map_document_v2_schema_roundtrips_typed_resources() -> void:
 	dependency.role = "terrain"
 	document.dependencies.append(dependency)
 
-	var path = _test_resource_path("test_hex_map_document_v2.tres")
+	var path = _test_resource_path("test_hex_map_document_canonical.tres")
 	var error = ResourceSaver.save(document, path)
 	var loaded = load(path)
-	var fields = loaded.v2_schema_fields()
 
-	_assert_eq(error, OK, "hex map document v2 resource saves")
-	_assert_eq(loaded.version, HexMapDocumentResource.VERSION_V2, "v2 document stores version")
-	_assert_eq(loaded.is_v2(), true, "v2 document reports v2 schema")
-	_assert_eq(fields.has("terrain_layers"), true, "v2 fields include terrain layers")
-	_assert_eq(fields.has("overlay_layers"), true, "v2 fields include overlay layers")
-	_assert_eq(fields.has("object_placements"), true, "v2 fields include object placements")
-	_assert_eq(fields.has("label_placements"), true, "v2 fields include label placements")
-	_assert_eq(fields.has("zones"), true, "v2 fields include zones")
-	_assert_eq(fields.has("metadata"), true, "v2 fields include metadata")
-	_assert_eq(fields.has("dependencies"), true, "v2 fields include dependencies")
-	_assert_eq(loaded.metadata.document_id, "level-001", "v2 document metadata roundtrips")
+	_assert_eq(error, OK, "hex map document canonical resource saves")
+	_assert_eq(loaded.metadata != null, true, "canonical document loads metadata")
+	_assert_eq(loaded.metadata.document_id, "level-001", "canonical document metadata roundtrips")
 	_assert_eq(loaded.terrain_layers[0] is HexMapDocumentTerrainLayerResource, true, "terrain layer keeps typed resource")
 	_assert_eq(loaded.terrain_layers[0].default_floor_key, "terrain.grass", "terrain layer preserves floor key")
 	_assert_eq(loaded.terrain_layers[0].map.orientation, HexMapResource.ORIENTATION_POINTY_TOP, "terrain layer map preserves orientation")
@@ -647,150 +634,10 @@ func _test_hex_map_document_v2_schema_roundtrips_typed_resources() -> void:
 	_assert_eq(loaded.dependencies[0].kind, HexMapDocumentDependencyResource.KIND_TILE_CATALOG, "dependency preserves kind")
 
 
-func _test_hex_map_document_v1_fixture_still_loads_with_v2_fields() -> void:
-	var data = HexMapData.rectangle(2, 1)
-	var document = HexMapDocumentResource.new()
-	document.version = HexMapDocumentResource.VERSION_V1
-	document.map = HexMapResource.from_map_data(data)
-	document.tile_overrides = [{
-		"cell": Vector3i.ZERO,
-		"kind": HexMapDocumentAdapter.KIND_FLOOR,
-		"source_id": 1,
-		"atlas_coords": Vector2i(2, 3),
-	}]
-	document.objects = [{
-		"cell": Vector3i(1, 0, 0),
-		"object_id": "chest",
-	}]
-	document.labels = [{
-		"cell": Vector3i.ZERO,
-		"label_id": "area",
-		"text": "North",
-	}]
-
-	var path = _test_resource_path("test_hex_map_document_v1_compat.tres")
-	var error = ResourceSaver.save(document, path)
-	var loaded = load(path)
-
-	_assert_eq(error, OK, "hex map document v1 fixture saves after v2 fields exist")
-	_assert_eq(loaded.version, HexMapDocumentResource.VERSION_V1, "v1 fixture keeps version")
-	_assert_eq(loaded.is_v2(), false, "v1 fixture is not reported as v2")
-	_assert_keys_eq(loaded.map.to_map_data().cells, data.cells, "v1 fixture preserves cells")
-	_assert_eq(loaded.tile_overrides[0]["atlas_coords"], Vector2i(2, 3), "v1 fixture preserves tile overrides")
-	_assert_eq(loaded.objects[0]["object_id"], "chest", "v1 fixture preserves objects")
-	_assert_eq(loaded.labels[0]["text"], "North", "v1 fixture preserves labels")
-	_assert_eq(loaded.terrain_layers.size(), 0, "v1 fixture leaves v2 terrain layers empty")
-	_assert_eq(loaded.overlay_layers.size(), 0, "v1 fixture leaves v2 overlay layers empty")
-	_assert_eq(loaded.object_placements.size(), 0, "v1 fixture leaves v2 object placements empty")
-	_assert_eq(loaded.label_placements.size(), 0, "v1 fixture leaves v2 label placements empty")
-	_assert_eq(loaded.zones.size(), 0, "v1 fixture leaves v2 zones empty")
-	_assert_eq(loaded.dependencies.size(), 0, "v1 fixture leaves v2 dependencies empty")
-
-
-func _test_hex_map_document_migrates_v1_to_v2_preserving_legacy_fields() -> void:
+func _test_hex_map_document_summary_reports_canonical_counts() -> void:
 	var data = HexMapData.rectangle(2, 1)
 	data.set_walls([HexVector.q_axis()])
 	var document = HexMapDocumentResource.new()
-	document.version = HexMapDocumentResource.VERSION_V1
-	document.map = HexMapResource.from_map_data(data, HexMapResource.ORIENTATION_POINTY_TOP)
-	document.tile_overrides = [{
-		"cell": Vector3i.ZERO,
-		"kind": HexMapDocumentAdapter.KIND_FLOOR,
-		"item_key": "Floor",
-		"source_id": 2,
-		"atlas_coords": Vector2i(3, 4),
-		"alternative_tile": 1,
-	}, {
-		"cell": Vector3i.ZERO,
-		"kind": HexMapDocumentAdapter.KIND_OVERLAY,
-		"item_key": "Treasure",
-		"source_id": 5,
-		"atlas_coords": Vector2i(6, 7),
-	}]
-	document.objects = [{
-		"cell": Vector3i(1, 0, 0),
-		"object_id": "chest",
-		"placement_id": "chest-legacy",
-		"properties": {"gold": 8},
-		"variant": "rare",
-		"rotation": 30.0,
-		"spawn_condition": "night",
-		"layer_id": "props",
-		"runtime_enabled": false,
-		"metadata": {"unique": true},
-	}]
-	document.labels = [{
-		"cell": Vector3i.ZERO,
-		"label_id": "area",
-		"text": "North Gate",
-	}]
-
-	var migrated = HexMapDocumentAdapter.migrate_v1_to_v2(document)
-	var path = _test_resource_path("test_hex_map_document_v1_to_v2.tres")
-	var error = ResourceSaver.save(migrated, path)
-	var loaded = load(path)
-
-	_assert_eq(document.version, HexMapDocumentResource.VERSION_V1, "migration does not mutate source version")
-	_assert_eq(migrated.version, HexMapDocumentResource.VERSION_V2, "migration creates v2 document")
-	_assert_eq(migrated.metadata.custom_properties["source_version"], HexMapDocumentResource.VERSION_V1, "migration records source version")
-	_assert_keys_eq(migrated.map.to_map_data().cells, data.cells, "migration preserves legacy map cells")
-	_assert_keys_eq(migrated.map.to_map_data().walls, data.walls, "migration preserves legacy map walls")
-	_assert_eq(migrated.map.orientation, HexMapResource.ORIENTATION_POINTY_TOP, "migration preserves legacy map orientation")
-	_assert_eq(migrated.tile_overrides[0]["atlas_coords"], Vector2i(3, 4), "migration preserves legacy tile overrides")
-	_assert_eq(migrated.objects[0]["properties"]["gold"], 8, "migration preserves legacy objects")
-	_assert_eq(migrated.labels[0]["text"], "North Gate", "migration preserves legacy labels")
-	_assert_eq(migrated.terrain_layers.size(), 1, "migration creates default terrain layer")
-	_assert_eq(migrated.terrain_layers[0].tile_assignments.size(), 1, "migration moves non-overlay tile override to terrain assignment")
-	_assert_eq(migrated.terrain_layers[0].tile_assignments[0]["source_id"], 2, "terrain assignment preserves source id fallback")
-	_assert_eq(migrated.overlay_layers.size(), 1, "migration creates overlay layer")
-	_assert_eq(migrated.overlay_layers[0].item_key, "Treasure", "migration groups overlay by item key")
-	_assert_eq(migrated.overlay_layers[0].tile_assignments[0]["atlas_coords"], Vector2i(6, 7), "overlay assignment preserves atlas fallback")
-	_assert_eq(migrated.object_placements.size(), 1, "migration creates object placement")
-	_assert_eq(migrated.object_placements[0].object_id, "chest", "object placement preserves object id")
-	_assert_eq(migrated.object_placements[0].properties["gold"], 8, "object placement preserves properties")
-	_assert_eq(migrated.object_placements[0].placement_id, "chest-legacy", "object placement preserves placement id")
-	_assert_eq(migrated.object_placements[0].rotation_degrees, 30.0, "object placement migrates legacy rotation")
-	_assert_eq(migrated.object_placements[0].variant, "rare", "object placement preserves variant")
-	_assert_eq(migrated.object_placements[0].spawn_condition, "night", "object placement preserves spawn condition")
-	_assert_eq(migrated.object_placements[0].layer_id, "props", "object placement preserves layer id")
-	_assert_eq(migrated.object_placements[0].runtime_enabled, false, "object placement preserves runtime flag")
-	_assert_eq(migrated.object_placements[0].metadata["unique"], true, "object placement preserves metadata")
-	_assert_eq(migrated.label_placements.size(), 1, "migration creates label placement")
-	_assert_eq(migrated.label_placements[0].text, "North Gate", "label placement preserves text")
-	_assert_eq(error, OK, "migrated document saves")
-	_assert_eq(loaded.version, HexMapDocumentResource.VERSION_V2, "migrated roundtrip preserves v2 version")
-	_assert_eq(loaded.metadata.custom_properties["source_version"], HexMapDocumentResource.VERSION_V1, "migrated roundtrip preserves source version")
-	_assert_eq(loaded.terrain_layers[0] is HexMapDocumentTerrainLayerResource, true, "migrated roundtrip keeps typed terrain")
-	_assert_eq(loaded.overlay_layers[0] is HexMapDocumentOverlayLayerResource, true, "migrated roundtrip keeps typed overlay")
-	_assert_eq(loaded.object_placements[0] is HexMapDocumentObjectPlacementResource, true, "migrated roundtrip keeps typed object placement")
-	_assert_eq(loaded.label_placements[0] is HexMapDocumentLabelPlacementResource, true, "migrated roundtrip keeps typed label placement")
-
-
-func _test_hex_map_document_migration_handles_missing_fields() -> void:
-	var empty_document = HexMapDocumentResource.new()
-	var migrated = HexMapDocumentAdapter.migrate_v1_to_v2(empty_document)
-	var null_migrated = HexMapDocumentAdapter.migrate_v1_to_v2(null)
-
-	_assert_eq(migrated.version, HexMapDocumentResource.VERSION_V2, "empty document migrates to v2")
-	_assert_eq(migrated.metadata.custom_properties["source_version"], HexMapDocumentResource.VERSION_V1, "empty document records default source version")
-	_assert_eq(migrated.map, null, "empty document keeps missing map empty")
-	_assert_eq(migrated.tile_overrides.size(), 0, "empty document keeps tile overrides empty")
-	_assert_eq(migrated.objects.size(), 0, "empty document keeps objects empty")
-	_assert_eq(migrated.labels.size(), 0, "empty document keeps labels empty")
-	_assert_eq(migrated.terrain_layers.size(), 0, "empty document creates no terrain layer without map")
-	_assert_eq(migrated.overlay_layers.size(), 0, "empty document creates no overlay layers")
-	_assert_eq(migrated.object_placements.size(), 0, "empty document creates no object placements")
-	_assert_eq(migrated.label_placements.size(), 0, "empty document creates no label placements")
-	_assert_eq(null_migrated.version, HexMapDocumentResource.VERSION_V2, "null document migrates to v2")
-	_assert_eq(null_migrated.metadata.custom_properties["source_version"], 0, "null migration records missing source version")
-	_assert_eq(null_migrated.terrain_layers.size(), 0, "null migration creates no terrain layer")
-
-
-func _test_hex_map_document_summary_reports_v2_counts() -> void:
-	var data = HexMapData.rectangle(2, 1)
-	data.set_walls([HexVector.q_axis()])
-	var document = HexMapDocumentResource.new()
-	document.ensure_v2_defaults()
 
 	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
 	terrain_layer.map = HexMapResource.from_map_data(data)
@@ -820,7 +667,6 @@ func _test_hex_map_document_summary_reports_v2_counts() -> void:
 
 	var summary = HexMapDocumentAdapter.document_summary(document)
 
-	_assert_eq(summary["version"], HexMapDocumentResource.VERSION_V2, "summary reports version")
 	_assert_eq(summary["cells"], 2, "summary reports cells")
 	_assert_eq(summary["walls"], 1, "summary reports walls")
 	_assert_eq(summary["floors"], 1, "summary reports floors")
@@ -881,7 +727,6 @@ func _test_hex_map_document_validator_reports_core_rules() -> void:
 	_assert_eq(result.error_count() >= 4, true, "validator reports core document errors")
 
 	var catalog_document = HexMapDocumentResource.new()
-	catalog_document.ensure_v2_defaults()
 	var catalog_terrain = HexMapDocumentTerrainLayerResource.new()
 	catalog_terrain.map = HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
 	catalog_terrain.tile_assignments.append({
@@ -1178,7 +1023,6 @@ func _test_hex_map_document_validator_profile_reachability() -> void:
 
 func _catalog_key_document(catalog_key: String) -> HexMapDocumentResource:
 	var document = HexMapDocumentResource.new()
-	document.ensure_v2_defaults()
 	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
 	terrain_layer.map = HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
 	terrain_layer.tile_assignments.append({
@@ -1234,7 +1078,6 @@ func _test_hex_gameplay_layer_data_uses_profile_catalog_and_objects() -> void:
 	var data = HexMapData.rectangle(3, 1)
 	data.set_walls([HexVector.q_axis()])
 	var document = HexMapDocumentResource.new()
-	document.ensure_v2_defaults()
 	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
 	terrain_layer.map = HexMapResource.from_map_data(data)
 	terrain_layer.tile_assignments.append({
@@ -1280,11 +1123,10 @@ func _test_hex_gameplay_layer_data_uses_profile_catalog_and_objects() -> void:
 	)
 
 
-func _test_hex_map_document_adapter_roundtrips_v2_payload_entries() -> void:
+func _test_hex_map_document_adapter_roundtrips_canonical_payload_entries() -> void:
 	var data = HexMapData.rectangle(2, 1)
 	data.set_walls([HexVector.q_axis()])
 	var document = HexMapDocumentResource.new()
-	document.ensure_v2_defaults()
 
 	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
 	terrain_layer.map = HexMapResource.from_map_data(data, HexMapResource.ORIENTATION_POINTY_TOP)
@@ -1329,31 +1171,30 @@ func _test_hex_map_document_adapter_roundtrips_v2_payload_entries() -> void:
 	var label_entries = HexMapDocumentAdapter.document_label_entries(document)
 	var copy = HexMapDocumentAdapter.duplicate_document(document)
 
-	_assert_keys_eq(map_resource.to_map_data().cells, data.cells, "v2 adapter map resource preserves cells")
-	_assert_keys_eq(map_resource.to_map_data().walls, data.walls, "v2 adapter map resource preserves walls")
-	_assert_eq(map_resource.orientation, HexMapResource.ORIENTATION_POINTY_TOP, "v2 adapter map resource preserves orientation")
-	_assert_eq(tile_entries.size(), 2, "v2 adapter exposes terrain and overlay tile entries")
-	_assert_eq(tile_entries[0]["atlas_coords"], Vector2i(1, 0), "v2 adapter exposes terrain tile assignment")
-	_assert_eq(tile_entries[1]["kind"], HexMapDocumentAdapter.KIND_OVERLAY, "v2 adapter marks overlay assignment kind")
-	_assert_eq(tile_entries[1]["item_key"], "Treasure", "v2 adapter fills overlay item key from layer")
-	_assert_eq(object_entries[0]["object_id"], "chest", "v2 adapter exposes object placement")
-	_assert_eq(object_entries[0]["properties"]["gold"], 3, "v2 adapter preserves object properties")
-	_assert_eq(object_entries[0]["placement_id"], "chest-003", "v2 adapter exposes object placement id")
-	_assert_eq(object_entries[0]["rotation_degrees"], 15.0, "v2 adapter exposes object rotation")
-	_assert_eq(object_entries[0]["rotation"], 15.0, "v2 adapter exposes object rotation alias")
-	_assert_eq(object_entries[0]["variant"], "small", "v2 adapter exposes object variant")
-	_assert_eq(object_entries[0]["spawn_condition"], "always", "v2 adapter exposes object spawn condition")
-	_assert_eq(object_entries[0]["layer_id"], "props", "v2 adapter exposes object layer id")
-	_assert_eq(object_entries[0]["metadata"]["unique"], false, "v2 adapter exposes object metadata")
-	_assert_eq(label_entries[0]["text"], "North", "v2 adapter exposes label placement")
-	_assert_eq(copy.terrain_layers[0] is HexMapDocumentTerrainLayerResource, true, "v2 duplicate preserves typed terrain layer")
-	_assert_eq(copy.object_placements[0] is HexMapDocumentObjectPlacementResource, true, "v2 duplicate preserves typed object placement")
+	_assert_keys_eq(map_resource.to_map_data().cells, data.cells, "document adapter map resource preserves cells")
+	_assert_keys_eq(map_resource.to_map_data().walls, data.walls, "document adapter map resource preserves walls")
+	_assert_eq(map_resource.orientation, HexMapResource.ORIENTATION_POINTY_TOP, "document adapter map resource preserves orientation")
+	_assert_eq(tile_entries.size(), 2, "document adapter exposes terrain and overlay tile entries")
+	_assert_eq(tile_entries[0]["atlas_coords"], Vector2i(1, 0), "document adapter exposes terrain tile assignment")
+	_assert_eq(tile_entries[1]["kind"], HexMapDocumentAdapter.KIND_OVERLAY, "document adapter marks overlay assignment kind")
+	_assert_eq(tile_entries[1]["item_key"], "Treasure", "document adapter fills overlay item key from layer")
+	_assert_eq(object_entries[0]["object_id"], "chest", "document adapter exposes object placement")
+	_assert_eq(object_entries[0]["properties"]["gold"], 3, "document adapter preserves object properties")
+	_assert_eq(object_entries[0]["placement_id"], "chest-003", "document adapter exposes object placement id")
+	_assert_eq(object_entries[0]["rotation_degrees"], 15.0, "document adapter exposes object rotation")
+	_assert_eq(object_entries[0]["rotation"], 15.0, "document adapter exposes object rotation alias")
+	_assert_eq(object_entries[0]["variant"], "small", "document adapter exposes object variant")
+	_assert_eq(object_entries[0]["spawn_condition"], "always", "document adapter exposes object spawn condition")
+	_assert_eq(object_entries[0]["layer_id"], "props", "document adapter exposes object layer id")
+	_assert_eq(object_entries[0]["metadata"]["unique"], false, "document adapter exposes object metadata")
+	_assert_eq(label_entries[0]["text"], "North", "document adapter exposes label placement")
+	_assert_eq(copy.terrain_layers[0] is HexMapDocumentTerrainLayerResource, true, "duplicate preserves typed terrain layer")
+	_assert_eq(copy.object_placements[0] is HexMapDocumentObjectPlacementResource, true, "duplicate preserves typed object placement")
 
 
 func _test_hex_map_document_object_placement_schema_mutates_and_cleans_deleted_cell() -> void:
 	var data = HexMapData.rectangle(2, 1)
 	var document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(data))
-	document.ensure_v2_defaults()
 
 	HexMapDocumentAdapter.set_object(document, HexVector.q_axis(), {
 		"object_id": "chest",
@@ -1368,7 +1209,6 @@ func _test_hex_map_document_object_placement_schema_mutates_and_cleans_deleted_c
 	})
 	var entries = HexMapDocumentAdapter.document_object_entries(document)
 
-	_assert_eq(document.objects.size(), 1, "object placement mutation keeps legacy object fallback")
 	_assert_eq(document.object_placements.size(), 1, "object placement mutation creates typed placement")
 	_assert_eq(entries[0]["object_id"], "chest", "object placement entry has object id")
 	_assert_eq(entries[0]["cell"], Vector3i(1, 0, 0), "object placement entry has cell")
@@ -1384,9 +1224,6 @@ func _test_hex_map_document_object_placement_schema_mutates_and_cleans_deleted_c
 	_assert_eq(document.object_placements[0].layer_id, "props", "typed object placement has layer id")
 	_assert_eq(document.object_placements[0].runtime_enabled, false, "typed object placement has runtime flag")
 	_assert_eq(document.object_placements[0].metadata["unique"], true, "typed object placement has metadata")
-	_assert_eq(document.objects[0]["rotation_degrees"], 120.0, "legacy object fallback has rotation")
-	_assert_eq(document.objects[0]["spawn_condition"], "flag:opened_gate", "legacy object fallback has spawn condition")
-
 	var path = _test_resource_path("test_hex_map_document_object_placement_schema.tres")
 	var error = ResourceSaver.save(document, path)
 	var loaded = load(path)
@@ -1396,14 +1233,12 @@ func _test_hex_map_document_object_placement_schema_mutates_and_cleans_deleted_c
 
 	HexMapDocumentAdapter.set_cell_exists(document, HexVector.q_axis(), false)
 	_assert_eq(document.object_placements.size(), 0, "object placement schema cleanup removes typed placement")
-	_assert_eq(document.objects.size(), 0, "object placement schema cleanup removes legacy fallback")
 
 
-func _test_hex_map_document_adapter_cleans_v2_payloads_for_deleted_cell() -> void:
+func _test_hex_map_document_adapter_cleans_canonical_payloads_for_deleted_cell() -> void:
 	var data = HexMapData.rectangle(2, 1)
 	var deleted = HexVector.q_axis()
 	var document = HexMapDocumentResource.new()
-	document.ensure_v2_defaults()
 
 	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
 	terrain_layer.map = HexMapResource.from_map_data(data)
@@ -1443,12 +1278,12 @@ func _test_hex_map_document_adapter_cleans_v2_payloads_for_deleted_cell() -> voi
 
 	HexMapDocumentAdapter.set_cell_exists(document, deleted, false)
 
-	_assert_eq(HexMapDocumentAdapter.to_map_resource(document).to_map_data().has_cell(deleted), false, "v2 delete removes map cell")
-	_assert_eq(document.terrain_layers[0].tile_assignments.size(), 0, "v2 delete removes terrain tile assignment")
-	_assert_eq(document.overlay_layers[0].tile_assignments.size(), 0, "v2 delete removes overlay tile assignment")
-	_assert_eq(document.object_placements.size(), 0, "v2 delete removes object placement")
-	_assert_eq(document.label_placements.size(), 0, "v2 delete removes label placement")
-	_assert_eq(document.zones.size(), 0, "v2 delete removes empty zone")
+	_assert_eq(HexMapDocumentAdapter.to_map_resource(document).to_map_data().has_cell(deleted), false, "canonical delete removes map cell")
+	_assert_eq(document.terrain_layers[0].tile_assignments.size(), 0, "canonical delete removes terrain tile assignment")
+	_assert_eq(document.overlay_layers[0].tile_assignments.size(), 0, "canonical delete removes overlay tile assignment")
+	_assert_eq(document.object_placements.size(), 0, "canonical delete removes object placement")
+	_assert_eq(document.label_placements.size(), 0, "canonical delete removes label placement")
+	_assert_eq(document.zones.size(), 0, "canonical delete removes empty zone")
 
 
 func _test_hex_map_document_adapter_updates_wall_floor() -> void:
@@ -1457,13 +1292,13 @@ func _test_hex_map_document_adapter_updates_wall_floor() -> void:
 	)
 
 	HexMapDocumentAdapter.set_wall(document, HexVector.zero(), true)
-	_assert_eq(document.map.to_map_data().has_wall(HexVector.zero()), true, "document adapter sets wall")
+	_assert_eq(HexMapDocumentAdapter.to_map_resource(document).to_map_data().has_wall(HexVector.zero()), true, "document adapter sets wall")
 	HexMapDocumentAdapter.set_wall(document, HexVector.zero(), false)
-	_assert_eq(document.map.to_map_data().has_wall(HexVector.zero()), false, "document adapter clears wall")
+	_assert_eq(HexMapDocumentAdapter.to_map_resource(document).to_map_data().has_wall(HexVector.zero()), false, "document adapter clears wall")
 
 	var new_cell = HexVector.q_axis().scaled(2)
 	HexMapDocumentAdapter.set_cell_exists(document, new_cell, true)
-	_assert_eq(document.map.to_map_data().has_cell(new_cell), true, "document adapter adds shape cell")
+	_assert_eq(HexMapDocumentAdapter.to_map_resource(document).to_map_data().has_cell(new_cell), true, "document adapter adds shape cell")
 	HexMapDocumentAdapter.set_tile_override(document, HexVector.q_axis(), {
 		"kind": HexMapDocumentAdapter.KIND_FLOOR,
 		"source_id": 8,
@@ -1475,10 +1310,10 @@ func _test_hex_map_document_adapter_updates_wall_floor() -> void:
 		"text": "North Gate",
 	})
 	HexMapDocumentAdapter.set_cell_exists(document, HexVector.q_axis(), false)
-	_assert_eq(document.map.to_map_data().has_cell(HexVector.q_axis()), false, "document adapter removes shape cell")
-	_assert_eq(document.tile_overrides.size(), 0, "document adapter removes tile overrides for deleted shape cell")
-	_assert_eq(document.objects.size(), 0, "document adapter removes objects for deleted shape cell")
-	_assert_eq(document.labels.size(), 0, "document adapter removes labels for deleted shape cell")
+	_assert_eq(HexMapDocumentAdapter.to_map_resource(document).to_map_data().has_cell(HexVector.q_axis()), false, "document adapter removes shape cell")
+	_assert_eq(document.terrain_layers[0].tile_assignments.size(), 0, "document adapter removes tile assignments for deleted shape cell")
+	_assert_eq(document.object_placements.size(), 0, "document adapter removes objects for deleted shape cell")
+	_assert_eq(document.label_placements.size(), 0, "document adapter removes labels for deleted shape cell")
 
 
 func _test_hex_map_document_adapter_applies_tile_overrides() -> void:
@@ -1540,20 +1375,19 @@ func _test_hex_map_document_catalog_compatibility_warnings_preserve_fallback_dis
 	}
 	var layer = TileMapLayer.new()
 	HexMapDocumentAdapter.apply_to_tile_map_layer(document, layer, options)
-	_assert_eq(layer.get_cell_source_id(Vector2i.ZERO), 8, "v1 catalogless document keeps numeric tile override source")
-	_assert_eq(layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(4, 5), "v1 catalogless document keeps numeric tile override atlas")
-	_assert_eq(layer.get_cell_source_id(Vector2i(1, 0)), 2, "v1 catalogless document keeps numeric wall default source")
+	_assert_eq(layer.get_cell_source_id(Vector2i.ZERO), 8, "catalogless canonical document keeps numeric tile assignment source")
+	_assert_eq(layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(4, 5), "catalogless canonical document keeps numeric tile assignment atlas")
+	_assert_eq(layer.get_cell_source_id(Vector2i(1, 0)), 2, "catalogless canonical document keeps numeric wall default source")
 	var warnings = HexMapDocumentAdapter.catalog_compatibility_warnings(document, options)
-	_assert_eq(warnings.size() >= 3, true, "v1 catalogless document reports fallback warnings")
+	_assert_eq(warnings.size() >= 3, true, "catalogless canonical document reports fallback warnings")
 	var has_entry_key_warning := false
 	for warning in warnings:
 		if String(warning.get("rule_id", "")) == "catalog.entry_key_missing":
 			has_entry_key_warning = true
-	_assert_eq(has_entry_key_warning, true, "v1 catalogless tile override reports missing catalog key warning")
+	_assert_eq(has_entry_key_warning, true, "catalogless canonical tile assignment reports missing catalog key warning")
 	layer.free()
 
-	var v2_document = HexMapDocumentResource.new()
-	v2_document.ensure_v2_defaults()
+	var canonical_document = HexMapDocumentResource.new()
 	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
 	terrain_layer.map = HexMapResource.from_map_data(data)
 	terrain_layer.tile_assignments.append({
@@ -1562,14 +1396,14 @@ func _test_hex_map_document_catalog_compatibility_warnings_preserve_fallback_dis
 		"source_id": 6,
 		"atlas_coords": Vector2i(7, 8),
 	})
-	v2_document.terrain_layers.append(terrain_layer)
-	var v2_layer = TileMapLayer.new()
-	HexMapDocumentAdapter.apply_to_tile_map_layer(v2_document, v2_layer, options)
-	_assert_eq(v2_layer.get_cell_source_id(Vector2i.ZERO), 6, "v2 catalogless document keeps numeric tile assignment source")
-	_assert_eq(v2_layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(7, 8), "v2 catalogless document keeps numeric tile assignment atlas")
-	var v2_warnings = HexMapDocumentAdapter.catalog_compatibility_warnings(v2_document, options)
-	_assert_eq(v2_warnings.size() >= 3, true, "v2 catalogless document reports fallback warnings")
-	v2_layer.free()
+	canonical_document.terrain_layers.append(terrain_layer)
+	var canonical_layer = TileMapLayer.new()
+	HexMapDocumentAdapter.apply_to_tile_map_layer(canonical_document, canonical_layer, options)
+	_assert_eq(canonical_layer.get_cell_source_id(Vector2i.ZERO), 6, "canonical catalogless document keeps numeric tile assignment source")
+	_assert_eq(canonical_layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(7, 8), "canonical catalogless document keeps numeric tile assignment atlas")
+	var canonical_warnings = HexMapDocumentAdapter.catalog_compatibility_warnings(canonical_document, options)
+	_assert_eq(canonical_warnings.size() >= 3, true, "canonical catalogless document reports fallback warnings")
+	canonical_layer.free()
 
 
 func _test_hex_tile_catalog_resource_resolves_logical_keys() -> void:
@@ -1831,7 +1665,6 @@ func _test_hex_map_document_adapter_resolves_catalog_tile_entries() -> void:
 	var data = HexMapData.rectangle(3, 1)
 	data.set_walls([HexVector.q_axis()])
 	var document = HexMapDocumentResource.new()
-	document.ensure_v2_defaults()
 
 	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
 	terrain_layer.map = HexMapResource.from_map_data(data)

@@ -32,7 +32,6 @@ Hex 座標系・ランダム壁生成・通路生成(連結性回復)処理を G
 - `docs/manual/MANUAL_SCRIPTING.md`
 - `docs/manual/MANUAL_EDITOR_PLUGIN.md`
 - `docs/manual/MANUAL_PACKAGE.md`
-- `docs/manual/MIGRATION_V0_2_TO_V0_3.md`
 - `docs/api/API_REFERENCE.md`
 
 Examples:

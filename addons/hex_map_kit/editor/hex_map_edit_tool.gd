@@ -232,11 +232,7 @@ func document() -> HexMapDocumentResource:
 
 
 func _document_for_editor(document: HexMapDocumentResource) -> HexMapDocumentResource:
-	if document == null:
-		return null
-	if document.has_method("is_v2") and document.is_v2():
-		return document
-	return HexMapDocumentAdapter.migrate_v1_to_v2(document)
+	return document
 
 
 func _document_map_resource(document: HexMapDocumentResource) -> HexMapResource:

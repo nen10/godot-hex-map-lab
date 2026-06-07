@@ -2529,7 +2529,6 @@ func _generated_document_snapshot_for_data(primary_data, overlay_data):
 		return null
 	var resource = HexMapResource.from_map_data(data, _current_orientation)
 	var document = HexMapDocumentAdapter.from_map_resource(resource)
-	document.ensure_v2_defaults()
 	_ensure_generated_document_terrain_layer(document, data)
 	if overlay_data != null:
 		for item_key in overlay_data.item_keys():
@@ -2708,7 +2707,6 @@ func _attach_generation_metadata(
 	validation_summary: Dictionary,
 	options: Dictionary
 ) -> void:
-	document.ensure_v2_defaults()
 	document.metadata.generation_seed = seed
 	document.metadata.generation_snapshot = _metadata_generation_snapshot(snapshot)
 	document.metadata.custom_properties["generation_source"] = "hex_map_gen_dock"

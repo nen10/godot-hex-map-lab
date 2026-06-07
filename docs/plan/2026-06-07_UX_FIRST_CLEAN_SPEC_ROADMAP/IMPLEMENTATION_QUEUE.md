@@ -52,11 +52,11 @@ proof:
 
 | id | status | priority | dependencies | plan_dir | deliverable | target files | acceptance / test path | maturity |
 |---|---|---:|---|---|---|---|---|---|
-| `CLEAN-10` | `READY` | P0 | `CLEAN-00`, `CLEAN-30` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-10_DOCUMENT_CANONICAL_SCHEMA/` | `HexMapDocumentResource` canonical schema | `addons/hex_map_kit/adapter/hex_map_document_resource.gd`, `hex_map_document_adapter.gd`, document child resources, `tests/test_hex_adapter.gd`, docs/API/manual | `v1` / `v2` / `version` / legacy fields / `ensure_v2_defaults()` are removed from public contract; new document is canonical by construction; tests verify canonical save/load and roundtrip, not migration fixtures | `HEADLESS_TEST_COMPLETE` |
-| `CLEAN-11` | `BACKLOG` | P0 | `CLEAN-10` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-11_ADAPTER_COMPATIBILITY_REMOVAL/` | Adapter migration / compatibility removal | `hex_map_document_adapter.gd`, `hex_map_tile_adapter.gd`, `hex_overlay_tile_adapter.gd`, `hex_tile_map_layer.gd`, adapter/layer tests | Normal adapter path has no `legacy` / `v1` / `fallback`; missing catalog or assignment becomes validation issue; runtime apply succeeds for validation-clean document | `HEADLESS_TEST_COMPLETE` |
-| `CLEAN-13` | `BACKLOG` | P0 | `CLEAN-10` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-13_TILE_CATALOG_CANONICAL_RESOURCE/` | Tile catalog canonical resource | `hex_tile_catalog_resource.gd`, `hex_tile_catalog_entry.gd`, `hex_tile_catalog_validator.gd`, tile/overlay adapters, sample catalog | `tile_set_path` / `scene_path` / fallback fields are removed; TileSet / PackedScene resource references are canonical; sample catalog validator is clean | `HEADLESS_TEST_COMPLETE` |
-| `CLEAN-12` | `BACKLOG` | P0 | `CLEAN-10` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-12_OBJECT_DATABASE_CANONICAL_RESOURCE/` | Object database canonical resource | `hex_object_database_resource.gd`, `hex_object_definition_resource.gd`, `hex_object_layer_adapter.gd`, runtime sample, object tests | `definitions` is the only normal object definition field; scene uses `PackedScene`; runtime export returns resource references rather than scene path strings | `HEADLESS_TEST_COMPLETE` |
-| `CLEAN-14` | `BACKLOG` | P1 | `CLEAN-10` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-14_LABEL_DEPENDENCY_CANONICAL_RESOURCE/` | Label / dependency canonical resources | `hex_label_database_resource.gd`, new label definition resource, `hex_map_document_dependency_resource.gd`, validator/docs/tests | Label database uses typed definitions; dependency uses Resource / kind / role / required, not editable path string; validation detects null or type mismatch | `HEADLESS_TEST_COMPLETE` |
+| `CLEAN-10` | `COMPLETE` | P0 | `CLEAN-00`, `CLEAN-30` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-10_DOCUMENT_CANONICAL_SCHEMA/` | `HexMapDocumentResource` canonical schema | `addons/hex_map_kit/adapter/hex_map_document_resource.gd`, `hex_map_document_adapter.gd`, document child resources, `tests/test_hex_adapter.gd`, docs/API/manual | `v1` / `v2` / `version` / legacy fields / `ensure_v2_defaults()` are removed from public contract; new document is canonical by construction; tests verify canonical save/load and roundtrip, not migration fixtures | `HEADLESS_TEST_COMPLETE` |
+| `CLEAN-11` | `READY` | P0 | `CLEAN-10` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-11_ADAPTER_COMPATIBILITY_REMOVAL/` | Adapter migration / compatibility removal | `hex_map_document_adapter.gd`, `hex_map_tile_adapter.gd`, `hex_overlay_tile_adapter.gd`, `hex_tile_map_layer.gd`, adapter/layer tests | Normal adapter path has no `legacy` / `v1` / `fallback`; missing catalog or assignment becomes validation issue; runtime apply succeeds for validation-clean document | `HEADLESS_TEST_COMPLETE` |
+| `CLEAN-13` | `READY` | P0 | `CLEAN-10` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-13_TILE_CATALOG_CANONICAL_RESOURCE/` | Tile catalog canonical resource | `hex_tile_catalog_resource.gd`, `hex_tile_catalog_entry.gd`, `hex_tile_catalog_validator.gd`, tile/overlay adapters, sample catalog | `tile_set_path` / `scene_path` / fallback fields are removed; TileSet / PackedScene resource references are canonical; sample catalog validator is clean | `HEADLESS_TEST_COMPLETE` |
+| `CLEAN-12` | `READY` | P0 | `CLEAN-10` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-12_OBJECT_DATABASE_CANONICAL_RESOURCE/` | Object database canonical resource | `hex_object_database_resource.gd`, `hex_object_definition_resource.gd`, `hex_object_layer_adapter.gd`, runtime sample, object tests | `definitions` is the only normal object definition field; scene uses `PackedScene`; runtime export returns resource references rather than scene path strings | `HEADLESS_TEST_COMPLETE` |
+| `CLEAN-14` | `READY` | P1 | `CLEAN-10` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-14_LABEL_DEPENDENCY_CANONICAL_RESOURCE/` | Label / dependency canonical resources | `hex_label_database_resource.gd`, new label definition resource, `hex_map_document_dependency_resource.gd`, validator/docs/tests | Label database uses typed definitions; dependency uses Resource / kind / role / required, not editable path string; validation detects null or type mismatch | `HEADLESS_TEST_COMPLETE` |
 
 ---
 
@@ -114,17 +114,58 @@ proof:
 
 ## 8. Current pointer
 
-Current recommended next task: `CLEAN-10`.
+Current recommended next task: `CLEAN-11`.
 
 Reason:
 
-- Dependency sweep completed on 2026-06-07 after `CLEAN-30` completion.
-- `CLEAN-10` is the first `READY` task by table order.
-- `CLEAN-31` and `CLEAN-52` are also `READY`, but `CLEAN-10` runs first because the queue prioritizes canonical schema foundation before later UI architecture and analog deferral docs.
+- Dependency sweep completed on 2026-06-07 after `CLEAN-10` completion.
+- `CLEAN-11` is the first `READY` task by table order.
+- `CLEAN-13`, `CLEAN-12`, `CLEAN-14`, `CLEAN-31`, and `CLEAN-52` are also `READY`, but `CLEAN-11` runs first because adapter compatibility removal follows the document schema cleanup directly.
 
 ---
 
 ## 9. Completed task proof log
+
+### CLEAN-10
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot / `autopilot/roadmap-main`
+plan: `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-10_DOCUMENT_CANONICAL_SCHEMA/`
+review: `docs/review/autopilot/CLEAN-10_SELF_REVIEW_2026-06-07.md`
+test result: `docs/review/autopilot/CLEAN-10_TEST_RESULT_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+- docs:
+  - `docs/TEST.md`
+  - `docs/api/API_REFERENCE.md`
+  - `docs/manual/MANUAL_WORKFLOW.md`
+  - `docs/manual/MANUAL_SCRIPTING.md`
+  - `docs/review/autopilot/CLEAN-10_SELF_REVIEW_2026-06-07.md`
+  - `docs/review/autopilot/CLEAN-10_TEST_RESULT_2026-06-07.md`
+- major files:
+  - `addons/hex_map_kit/adapter/hex_map_document_resource.gd`
+  - `addons/hex_map_kit/adapter/hex_map_document_adapter.gd`
+  - `addons/hex_map_kit/adapter/hex_tile_map_layer.gd`
+  - `addons/hex_map_kit/editor/hex_map_edit_tool.gd`
+  - `addons/hex_map_kit/editor/hex_map_gen_dock.gd`
+  - `tests/test_hex_adapter.gd`
+  - `tests/test_hex_tile_map_layer.gd`
+  - `tests/test_editor_plugin.gd`
+  - `tests/test_debug_scenes.gd`
+- maturity:
+  - `HEADLESS_TEST_COMPLETE`
+
+Notes:
+
+- `HexMapDocumentResource` now exposes only canonical fields and creates metadata by default.
+- Document `version`, `map`, `tile_overrides`, `objects`, `labels`, `ensure_v2_defaults()`, `is_v2()`, `v2_schema_fields()`, and `migrate_v1_to_v2()` were removed from current document contract.
+- Current API/manual/examples now describe canonical documents; the public v0.2 -> v0.3 migration guide was deleted.
+- Intermediate stale test assertions were repaired before the final passing run.
+- Dependency sweep promoted `CLEAN-11`, `CLEAN-13`, `CLEAN-12`, and `CLEAN-14` to `READY`; `CLEAN-31` and `CLEAN-52` remain `READY`.
+- `repair-now`: complete.
 
 ### CLEAN-30
 

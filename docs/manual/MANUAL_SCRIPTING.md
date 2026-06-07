@@ -171,7 +171,7 @@ var path = HexGrid.shortest_path(
 
 toric map では `cyclic_size` を渡すことで、端を越える近傍が wrap されます。
 
-Weighted path と movement range は `HexGrid.weighted_path()` / `HexGrid.movement_range()`、または `HexTileMapLayer.find_weighted_path()` / `HexTileMapLayer.movement_range()` を使います。Level Document v2 を runtime で読み込む最小例は `examples/basic_runtime/runtime_query_sample.gd` です。API の短い一覧は `docs/api/API_REFERENCE.md`、authoring から runtime までの流れは `docs/manual/MANUAL_WORKFLOW.md` を参照してください。
+Weighted path と movement range は `HexGrid.weighted_path()` / `HexGrid.movement_range()`、または `HexTileMapLayer.find_weighted_path()` / `HexTileMapLayer.movement_range()` を使います。Canonical Level Document を runtime で読み込む最小例は `examples/basic_runtime/runtime_query_sample.gd` です。API の短い一覧は `docs/api/API_REFERENCE.md`、authoring から runtime までの流れは `docs/manual/MANUAL_WORKFLOW.md` を参照してください。
 
 ```gdscript
 const HexRuntimeQuerySample = preload("res://examples/basic_runtime/runtime_query_sample.gd")

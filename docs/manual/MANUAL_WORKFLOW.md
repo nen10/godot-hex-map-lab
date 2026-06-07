@@ -26,18 +26,17 @@ res://addons/hex_map_kit/assets/sample_hex_tile_catalog.tres
 
 More setup details: `docs/manual/MANUAL_SETUP.md`.
 
-## 2. Author A Level Document V2
+## 2. Author A Level Document
 
-Use `HexMapDocumentResource` v2 for maps that need terrain, overlay, objects, labels, zones, metadata, and dependencies in one resource.
+Use `HexMapDocumentResource` for maps that need terrain, overlay, objects, labels, zones, metadata, and dependencies in one resource.
 
 Script construction starts with:
 
 ```gdscript
 var document = HexMapDocumentResource.new()
-document.ensure_v2_defaults()
 ```
 
-Typical v2 authoring fields:
+Typical authoring fields:
 
 - `terrain_layers`: primary map and terrain tile assignments.
 - `overlay_layers`: generated/user item overlays.
@@ -46,7 +45,7 @@ Typical v2 authoring fields:
 - `metadata`: document id, display name, generation seed/snapshot, custom properties.
 - `dependencies`: catalog, object database, TileSet, script, or scene dependencies.
 
-The public editor workflow sample builds a small document v2:
+The public editor workflow sample builds a small canonical document:
 
 ```gdscript
 const HexEditorWorkflowExample = preload("res://examples/editor_workflow/editor_workflow_example.gd")
@@ -87,7 +86,7 @@ Individual payloads can also carry `catalog_key`. Numeric tile fallback remains 
 - overlay
 - debug
 
-Use a layer stack when applying one v2 document to multiple child layers. Use the compatibility single-layer path only for simple scenes or older documents.
+Use a layer stack when applying one document to multiple child layers. Use the single-layer path only for simple scenes or advanced debugging.
 
 ```gdscript
 var stack = HexLayerStackResource.standard_template()
@@ -115,7 +114,7 @@ In the editor, use the validation dashboard and Copy Debug Report paths describe
 
 ## 6. Runtime Query
 
-Load a saved v2 document path and ask movement/path queries with the basic runtime example:
+Load a saved canonical document path and ask movement/path queries with the basic runtime example:
 
 ```gdscript
 const HexRuntimeQuerySample = preload("res://examples/basic_runtime/runtime_query_sample.gd")
@@ -172,4 +171,3 @@ The returned dictionaries are copies. Runtime-only changes do not write back int
 - Editor workflow example: `examples/editor_workflow/`
 - Scripting basics: `docs/manual/MANUAL_SCRIPTING.md`
 - Editor operation details: `docs/manual/MANUAL_EDITOR_PLUGIN.md`
-

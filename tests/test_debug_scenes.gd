@@ -356,11 +356,11 @@ func _run() -> void:
 	)
 	runtime_layer.queue_free()
 
-	var document_path = _test_resource_path("runtime_v2_document.tres")
+	var document_path = _test_resource_path("runtime_document.tres")
 	_assert_eq(
-		ResourceSaver.save(_runtime_v2_document(), document_path),
+		ResourceSaver.save(_runtime_document(), document_path),
 		OK,
-		"debug test saves runtime v2 document fixture"
+		"debug test saves runtime canonical document fixture"
 	)
 	var document_layer = HexTileMapLayer.new()
 	root.add_child(document_layer)
@@ -373,16 +373,16 @@ func _run() -> void:
 			5,
 			Vector2i(1, 0)
 		),
-		"runtime v2 document layer configures display tiles"
+		"runtime canonical document layer configures display tiles"
 	)
-	_assert_true(document_layer.load_document_path(document_path), "runtime helper loads v2 document path")
-	_assert_true(not document_layer.load_document_path(_test_resource_path("missing_runtime_v2_document.tres")), "runtime helper rejects missing document path")
-	_assert_eq(document_layer.hex_map.to_map_data().walls.size(), 1, "runtime helper applies v2 terrain map")
+	_assert_true(document_layer.load_document_path(document_path), "runtime helper loads canonical document path")
+	_assert_true(not document_layer.load_document_path(_test_resource_path("missing_runtime_document.tres")), "runtime helper rejects missing document path")
+	_assert_eq(document_layer.hex_map.to_map_data().walls.size(), 1, "runtime helper applies canonical terrain map")
 	var runtime_state = document_layer.display_state_for_hex(HexVector.zero())
-	_assert_eq(runtime_state["atlas_coords"], Vector2i(1, 0), "runtime helper applies v2 terrain tile assignment")
-	_assert_eq(runtime_state["overlay_count"], 1, "runtime helper applies v2 overlay assignment")
-	_assert_eq(runtime_state["object_count"], 1, "runtime helper applies v2 object placement")
-	_assert_eq(runtime_state["label_count"], 1, "runtime helper applies v2 label placement")
+	_assert_eq(runtime_state["atlas_coords"], Vector2i(1, 0), "runtime helper applies canonical terrain tile assignment")
+	_assert_eq(runtime_state["overlay_count"], 1, "runtime helper applies canonical overlay assignment")
+	_assert_eq(runtime_state["object_count"], 1, "runtime helper applies canonical object placement")
+	_assert_eq(runtime_state["label_count"], 1, "runtime helper applies canonical label placement")
 	document_layer.queue_free()
 
 	var movement_profile = HexMovementProfileResource.new()
@@ -396,7 +396,7 @@ func _run() -> void:
 		1.0,
 		movement_profile
 	)
-	_assert_true(query_result["loaded"], "runtime query sample loads v2 document path")
+	_assert_true(query_result["loaded"], "runtime query sample loads canonical document path")
 	_assert_eq(query_result["profile_id"], "runtime-sample", "runtime query sample reports movement profile id")
 	_assert_eq(query_result["path_count"], 2, "runtime query sample returns weighted path")
 	_assert_eq(query_result["range_count"], 2, "runtime query sample returns movement range")
@@ -407,7 +407,7 @@ func _run() -> void:
 	var missing_query = HexRuntimeQuerySample.query_document_path(_test_resource_path("missing_runtime_query_document.tres"))
 	_assert_true(not bool(missing_query["loaded"]), "runtime query sample reports missing document path")
 
-	var runtime_export_document = _runtime_v2_document()
+	var runtime_export_document = _runtime_document()
 	runtime_export_document.object_placements[0].properties = {"loot": true}
 	runtime_export_document.object_placements[0].rotation_degrees = 15.0
 	var object_database = HexObjectDatabaseResource.new()
@@ -445,14 +445,13 @@ func _run() -> void:
 	root.add_child(runtime_example)
 	await process_frame
 	var runtime_example_result = runtime_example.run_example(document_path)
-	_assert_true(runtime_example_result["loaded"], "PKG-01 runtime example scene loads saved v2 document")
+	_assert_true(runtime_example_result["loaded"], "PKG-01 runtime example scene loads saved canonical document")
 	_assert_eq(runtime_example_result["profile_id"], "runtime-example", "PKG-01 runtime example scene uses runtime profile")
 	_assert_eq(runtime_example_result["path_count"], 2, "PKG-01 runtime example scene returns weighted path")
 	runtime_example.queue_free()
 
 	var workflow_document = HexEditorWorkflowExample.build_authoring_document()
 	var workflow_summary = HexEditorWorkflowExample.workflow_summary(workflow_document)
-	_assert_eq(workflow_summary["summary"]["version"], HexMapDocumentResource.VERSION_V2, "PKG-01 editor workflow sample builds v2 document")
 	_assert_eq(workflow_summary["summary"]["cells"], 6, "PKG-01 editor workflow sample reports cells")
 	_assert_eq(workflow_summary["summary"]["objects"], 1, "PKG-01 editor workflow sample reports object placement")
 	_assert_true(
@@ -467,7 +466,6 @@ func _run() -> void:
 	var workflow_scene = HexEditorWorkflowExampleScene.instantiate()
 	root.add_child(workflow_scene)
 	await process_frame
-	_assert_eq(workflow_scene.last_summary["summary"]["version"], HexMapDocumentResource.VERSION_V2, "PKG-01 editor workflow scene initializes summary")
 	_assert_true(workflow_scene.sample_document != null, "PKG-01 editor workflow scene builds sample document")
 	workflow_scene.queue_free()
 
@@ -494,11 +492,10 @@ func _assert_eq(actual: Variant, expected: Variant, message: String) -> void:
 		_failures.append("%s: expected %s, got %s" % [message, str(expected), str(actual)])
 
 
-func _runtime_v2_document() -> HexMapDocumentResource:
+func _runtime_document() -> HexMapDocumentResource:
 	var data = HexMapData.rectangle(2, 1)
 	data.set_walls([HexVector.q_axis()])
 	var document = HexMapDocumentResource.new()
-	document.ensure_v2_defaults()
 
 	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
 	terrain_layer.map = HexMapResource.from_map_data(data)

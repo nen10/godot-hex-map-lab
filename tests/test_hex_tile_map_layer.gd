@@ -50,10 +50,10 @@ func _run() -> void:
 	await _test_apply_edit_command_and_inverse_roundtrip()
 	await _test_hex_map_resource_assignment_creates_visible_tiles()
 	await _test_apply_document_payloads_create_visible_tile_and_markers()
-	await _test_apply_v2_document_payloads_create_visible_tile_and_markers()
+	await _test_apply_canonical_document_payloads_create_visible_tile_and_markers()
 	await _test_layer_stack_standard_template_roles()
 	await _test_layer_stack_resource_roundtrips()
-	await _test_apply_document_to_layer_stack_routes_v2_roles()
+	await _test_apply_document_to_layer_stack_routes_canonical_roles()
 	await _test_object_layer_adapter_applies_scene_tiles_and_direct_instances()
 	await _test_ensure_display_tiles_uses_custom_floor_wall_sources()
 	await _test_display_tile_size_syncs_hex_size_and_overlay()
@@ -159,10 +159,10 @@ func _test_apply_edit_command_and_inverse_roundtrip() -> void:
 	_assert_eq(display_state["overlay_count"], 1, "apply_edit_command applies overlay tile state")
 	_assert_eq(display_state["marker_count"], 2, "apply_edit_command applies object and label markers")
 	var snapshot = layer.to_document_resource()
-	_assert_true(snapshot.map.to_map_data().has_wall(hex), "to_document_resource exports command wall state")
-	_assert_eq(snapshot.tile_overrides.size(), 2, "to_document_resource exports tile and overlay entries")
-	_assert_eq(snapshot.objects.size(), 1, "to_document_resource exports object entries")
-	_assert_eq(snapshot.labels.size(), 1, "to_document_resource exports label entries")
+	_assert_true(HexMapDocumentAdapter.to_map_resource(snapshot).to_map_data().has_wall(hex), "to_document_resource exports command wall state")
+	_assert_eq(HexMapDocumentAdapter.document_tile_entries(snapshot).size(), 2, "to_document_resource exports tile and overlay entries")
+	_assert_eq(HexMapDocumentAdapter.document_object_entries(snapshot).size(), 1, "to_document_resource exports object entries")
+	_assert_eq(HexMapDocumentAdapter.document_label_entries(snapshot).size(), 1, "to_document_resource exports label entries")
 
 	_assert_true(layer.apply_edit_command(layer.inverse_edit_command(command)), "inverse_edit_command can be applied")
 	_assert_true(layer.is_floor(hex), "inverse_edit_command restores floor state")
@@ -233,11 +233,10 @@ func _test_apply_document_payloads_create_visible_tile_and_markers() -> void:
 	await process_frame
 
 
-func _test_apply_v2_document_payloads_create_visible_tile_and_markers() -> void:
+func _test_apply_canonical_document_payloads_create_visible_tile_and_markers() -> void:
 	var data = HexMapData.rectangle(2, 1)
 	data.set_walls([HexVector.q_axis()])
 	var document = HexMapDocumentResource.new()
-	document.ensure_v2_defaults()
 
 	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
 	terrain_layer.map = HexMapResource.from_map_data(data)
@@ -283,12 +282,12 @@ func _test_apply_v2_document_payloads_create_visible_tile_and_markers() -> void:
 	var floor_state = layer.display_state_for_hex(HexVector.zero())
 	var wall_state = layer.display_state_for_hex(HexVector.q_axis())
 
-	_assert_eq(layer.hex_map.to_map_data().walls.size(), 1, "apply_document stores v2 terrain map")
-	_assert_eq(floor_state["atlas_coords"], Vector2i(1, 0), "apply_document displays v2 floor tile assignment")
-	_assert_eq(floor_state["overlay_count"], 1, "apply_document displays v2 overlay assignment")
-	_assert_eq(floor_state["object_count"], 1, "apply_document exposes v2 object marker state")
-	_assert_eq(floor_state["label_count"], 1, "apply_document exposes v2 label marker state")
-	_assert_eq(wall_state["atlas_coords"], Vector2i(0, 0), "apply_document displays v2 wall tile assignment")
+	_assert_eq(layer.hex_map.to_map_data().walls.size(), 1, "apply_document stores canonical terrain map")
+	_assert_eq(floor_state["atlas_coords"], Vector2i(1, 0), "apply_document displays canonical floor tile assignment")
+	_assert_eq(floor_state["overlay_count"], 1, "apply_document displays canonical overlay assignment")
+	_assert_eq(floor_state["object_count"], 1, "apply_document exposes canonical object marker state")
+	_assert_eq(floor_state["label_count"], 1, "apply_document exposes canonical label marker state")
+	_assert_eq(wall_state["atlas_coords"], Vector2i(0, 0), "apply_document displays canonical wall tile assignment")
 
 	layer.queue_free()
 	await process_frame
@@ -354,11 +353,10 @@ func _test_layer_stack_resource_roundtrips() -> void:
 	await process_frame
 
 
-func _test_apply_document_to_layer_stack_routes_v2_roles() -> void:
+func _test_apply_document_to_layer_stack_routes_canonical_roles() -> void:
 	var data = HexMapData.rectangle(2, 1)
 	data.set_walls([HexVector.q_axis()])
 	var document = HexMapDocumentResource.new()
-	document.ensure_v2_defaults()
 
 	var terrain_layer_resource = HexMapDocumentTerrainLayerResource.new()
 	terrain_layer_resource.map = HexMapResource.from_map_data(data)
@@ -423,8 +421,6 @@ func _test_apply_document_to_layer_stack_routes_v2_roles() -> void:
 
 func _test_object_layer_adapter_applies_scene_tiles_and_direct_instances() -> void:
 	var document = HexMapDocumentResource.new()
-	document.ensure_v2_defaults()
-	document.map = HexMapResource.from_map_data(HexMapData.rectangle(2, 1))
 	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
 	terrain_layer.map = HexMapResource.from_map_data(HexMapData.rectangle(2, 1))
 	document.terrain_layers.append(terrain_layer)

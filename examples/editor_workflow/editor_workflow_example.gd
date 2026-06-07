@@ -50,7 +50,6 @@ static func build_authoring_document() -> HexMapDocumentResource:
 	data.set_walls([HexVector.q_axis()])
 
 	var document = HexMapDocumentResource.new()
-	document.ensure_v2_defaults()
 	document.metadata.document_id = "editor-workflow-example"
 	document.metadata.display_name = "Editor Workflow Example"
 	document.metadata.custom_properties = {
@@ -136,4 +135,3 @@ static func _dependency_paths(document: HexMapDocumentResource) -> Array[String]
 			result.append(path)
 	result.sort()
 	return result
-
