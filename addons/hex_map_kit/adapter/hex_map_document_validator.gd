@@ -243,13 +243,13 @@ static func _validate_object_entries(result, document, cell_set: Dictionary, wal
 				details
 			)
 		if require_object_scenes:
-			var scene_path = _object_scene_path(entry, definition)
-			if scene_path == "" or not ResourceLoader.exists(scene_path):
+			var scene = _object_scene(entry, definition)
+			if not scene is PackedScene:
 				var scene_details = details.duplicate(true)
-				scene_details["scene_path"] = scene_path
+				scene_details["metadata"] = {"scene_present": false}
 				result.add_error(
 					RULE_OBJECT_SCENE_MISSING,
-					"Object scene is missing: %s." % object_id,
+					"Object scene resource is missing: %s." % object_id,
 					HexMapValidationResultScript.SCOPE_OBJECT,
 					scene_details
 				)
@@ -275,11 +275,15 @@ static func _object_definition(object_database, object_id: String):
 	return object_database.definition_for_id(object_id)
 
 
-static func _object_scene_path(entry: Dictionary, definition) -> String:
-	var scene_path = String(entry.get("scene_path", ""))
-	if scene_path == "" and definition != null:
-		scene_path = String(definition.get("scene_path"))
-	return scene_path
+static func _object_scene(entry: Dictionary, definition):
+	var scene = entry.get("scene", null)
+	if scene is PackedScene:
+		return scene
+	if definition != null:
+		var definition_scene = definition.get("scene")
+		if definition_scene is PackedScene:
+			return definition_scene
+	return null
 
 
 static func _object_is_unique(entry: Dictionary, definition) -> bool:

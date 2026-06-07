@@ -15,6 +15,8 @@ const HexObjectLayerAdapter = preload("res://addons/hex_map_kit/adapter/hex_obje
 const HexLayerStackEntryResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_entry_resource.gd")
 const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
 const HexMovementProfileResource = preload("res://addons/hex_map_kit/adapter/hex_movement_profile_resource.gd")
+const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
+const HexObjectDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_object_definition_resource.gd")
 const HexTileCatalogEntry = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd")
 const HexTileCatalogResource = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
@@ -501,6 +503,15 @@ func _test_object_layer_adapter_applies_scene_tiles_and_direct_instances() -> vo
 	var cleared_count = layer.apply_object_instances(document, null, {"scene_prototypes": {}})
 	_assert_eq(cleared_count, 0, "object layer adapter skips missing direct prototype")
 	_assert_eq(instance_layer.get_child_count(), 0, "object layer adapter clears previous direct instances before apply")
+
+	var object_database = HexObjectDatabaseResource.new()
+	var object_definition = HexObjectDefinitionResource.new()
+	object_definition.id = "object.crate"
+	object_definition.scene = packed_scene
+	object_database.add_definition(object_definition)
+	var database_count = layer.apply_object_instances(document, null, {"object_database": object_database})
+	_assert_eq(database_count, 1, "object layer adapter instantiates database scene resource")
+	_assert_eq(instance_layer.get_child_count(), 1, "object layer adapter stores database direct instance")
 
 	layer.queue_free()
 	await process_frame

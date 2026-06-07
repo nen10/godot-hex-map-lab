@@ -55,7 +55,7 @@ proof:
 | `CLEAN-10` | `COMPLETE` | P0 | `CLEAN-00`, `CLEAN-30` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-10_DOCUMENT_CANONICAL_SCHEMA/` | `HexMapDocumentResource` canonical schema | `addons/hex_map_kit/adapter/hex_map_document_resource.gd`, `hex_map_document_adapter.gd`, document child resources, `tests/test_hex_adapter.gd`, docs/API/manual | `v1` / `v2` / `version` / legacy fields / `ensure_v2_defaults()` are removed from public contract; new document is canonical by construction; tests verify canonical save/load and roundtrip, not migration fixtures | `HEADLESS_TEST_COMPLETE` |
 | `CLEAN-11` | `COMPLETE` | P0 | `CLEAN-10` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-11_ADAPTER_COMPATIBILITY_REMOVAL/` | Adapter migration / compatibility removal | `hex_map_document_adapter.gd`, `hex_map_tile_adapter.gd`, `hex_overlay_tile_adapter.gd`, `hex_tile_map_layer.gd`, adapter/layer tests | Normal adapter path has no `legacy` / `v1` / `fallback`; missing catalog or assignment becomes validation issue; runtime apply succeeds for validation-clean document | `HEADLESS_TEST_COMPLETE` |
 | `CLEAN-13` | `COMPLETE` | P0 | `CLEAN-10` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-13_TILE_CATALOG_CANONICAL_RESOURCE/` | Tile catalog canonical resource | `hex_tile_catalog_resource.gd`, `hex_tile_catalog_entry.gd`, `hex_tile_catalog_validator.gd`, tile/overlay adapters, sample catalog | `tile_set_path` / `scene_path` / fallback fields are removed; TileSet / PackedScene resource references are canonical; sample catalog validator is clean | `HEADLESS_TEST_COMPLETE` |
-| `CLEAN-12` | `READY` | P0 | `CLEAN-10` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-12_OBJECT_DATABASE_CANONICAL_RESOURCE/` | Object database canonical resource | `hex_object_database_resource.gd`, `hex_object_definition_resource.gd`, `hex_object_layer_adapter.gd`, runtime sample, object tests | `definitions` is the only normal object definition field; scene uses `PackedScene`; runtime export returns resource references rather than scene path strings | `HEADLESS_TEST_COMPLETE` |
+| `CLEAN-12` | `COMPLETE` | P0 | `CLEAN-10` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-12_OBJECT_DATABASE_CANONICAL_RESOURCE/` | Object database canonical resource | `hex_object_database_resource.gd`, `hex_object_definition_resource.gd`, `hex_object_layer_adapter.gd`, runtime sample, object tests | `definitions` is the only normal object definition field; scene uses `PackedScene`; runtime export returns resource references rather than scene path strings | `HEADLESS_TEST_COMPLETE` |
 | `CLEAN-14` | `READY` | P1 | `CLEAN-10` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-14_LABEL_DEPENDENCY_CANONICAL_RESOURCE/` | Label / dependency canonical resources | `hex_label_database_resource.gd`, new label definition resource, `hex_map_document_dependency_resource.gd`, validator/docs/tests | Label database uses typed definitions; dependency uses Resource / kind / role / required, not editable path string; validation detects null or type mismatch | `HEADLESS_TEST_COMPLETE` |
 
 ---
@@ -107,26 +107,67 @@ proof:
 
 | id | status | priority | dependencies | plan_dir | deliverable | target files | acceptance / test path | maturity |
 |---|---|---:|---|---|---|---|---|---|
-| `CLEAN-60` | `BACKLOG` | P1 | `CLEAN-12`, `CLEAN-13` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-60_SAMPLE_ASSET_INTEGRITY/` | Sample asset integrity after clean references | `addons/hex_map_kit/assets/sample_hex_tile_catalog.tres`, sample TileSet/PackedScene/Texture resources, package tests | Sample catalog has no debug path or missing scene; package manifest includes sample dependencies; sample catalog validator is clean | `PACKAGE_READY` |
+| `CLEAN-60` | `READY` | P1 | `CLEAN-12`, `CLEAN-13` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-60_SAMPLE_ASSET_INTEGRITY/` | Sample asset integrity after clean references | `addons/hex_map_kit/assets/sample_hex_tile_catalog.tres`, sample TileSet/PackedScene/Texture resources, package tests | Sample catalog has no debug path or missing scene; package manifest includes sample dependencies; sample catalog validator is clean | `PACKAGE_READY` |
 | `CLEAN-61` | `BACKLOG` | P2 | `CLEAN-40`, `CLEAN-41`, `CLEAN-51`, `CLEAN-60` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-61_DIST_REGENERATION_AFTER_CLEAN_SPEC/` | Dist regeneration after clean spec | `tools/package_addon.sh`, `dist/`, package docs/tests | `tools/package_addon.sh` regenerates current-tree package; manifest has no dev-only files and no legacy/migration docs; release upload is not performed | `PACKAGE_READY` |
 
 ---
 
 ## 8. Current pointer
 
-Current recommended next task: `CLEAN-12`.
+Current recommended next task: `CLEAN-14`.
 
 Reason:
 
-- Dependency sweep completed on 2026-06-07 after `CLEAN-13` completion.
-- `CLEAN-20` was promoted to `READY` because `CLEAN-10` and `CLEAN-13` are complete.
-- `CLEAN-60` remains `BACKLOG` until `CLEAN-12` is complete.
-- `CLEAN-12` is the first `READY` task by table order.
-- `CLEAN-14`, `CLEAN-20`, `CLEAN-31`, and `CLEAN-52` remain `READY`.
+- Dependency sweep completed on 2026-06-07 after `CLEAN-12` completion.
+- `CLEAN-60` was promoted to `READY` because `CLEAN-12` and `CLEAN-13` are complete.
+- `CLEAN-23` remains `BACKLOG` until `CLEAN-20` is complete.
+- `CLEAN-41` and `CLEAN-51` still wait on `CLEAN-14`.
+- `CLEAN-14` is the first `READY` task by table order.
+- `CLEAN-20`, `CLEAN-31`, `CLEAN-52`, and `CLEAN-60` remain `READY`.
 
 ---
 
 ## 9. Completed task proof log
+
+### CLEAN-12
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot / `autopilot/roadmap-main`
+plan: `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-12_OBJECT_DATABASE_CANONICAL_RESOURCE/`
+review: `docs/review/autopilot/CLEAN-12_SELF_REVIEW_2026-06-07.md`
+test result: `docs/review/autopilot/CLEAN-12_TEST_RESULT_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+- docs:
+  - `docs/TEST.md`
+  - `docs/api/API_REFERENCE.md`
+  - `docs/manual/MANUAL_WORKFLOW.md`
+  - `examples/basic_runtime/README.md`
+  - `docs/review/autopilot/CLEAN-12_SELF_REVIEW_2026-06-07.md`
+  - `docs/review/autopilot/CLEAN-12_TEST_RESULT_2026-06-07.md`
+- major files:
+  - `addons/hex_map_kit/adapter/hex_object_database_resource.gd`
+  - `addons/hex_map_kit/adapter/hex_object_definition_resource.gd`
+  - `addons/hex_map_kit/adapter/hex_object_layer_adapter.gd`
+  - `addons/hex_map_kit/adapter/hex_map_document_validator.gd`
+  - `examples/basic_runtime/runtime_query_sample.gd`
+  - `tests/test_hex_adapter.gd`
+  - `tests/test_hex_tile_map_layer.gd`
+  - `tests/test_debug_scenes.gd`
+- maturity:
+  - `HEADLESS_TEST_COMPLETE`
+
+Notes:
+
+- `HexObjectDatabaseResource` no longer exports `version` or legacy `objects`; typed `definitions` are the canonical object definition collection.
+- `HexObjectDefinitionResource` now uses `scene: PackedScene` and `preview_texture: Texture2D`.
+- Object scene validation and direct instance resolution use resource references, not path strings.
+- Runtime object export returns `scene` `PackedScene` references.
+- Dependency sweep promoted `CLEAN-60` to `READY`; `CLEAN-14` is the next task by table order.
+- `repair-now`: complete.
 
 ### CLEAN-13
 

@@ -58,7 +58,7 @@ func _run() -> void:
 	_test_map_resource_stores_map_data()
 	_test_map_resource_roundtrips_to_map_data()
 	_test_hex_map_document_roundtrips_map_and_payloads()
-	_test_hex_object_database_v2_migrates_legacy_arrays_and_roundtrips()
+	_test_hex_object_database_definitions_roundtrip_resources()
 	_test_hex_map_document_schema_roundtrips_canonical_resources()
 	_test_hex_map_document_summary_reports_canonical_counts()
 	_test_hex_map_validation_result_serializes_summary_and_warnings()
@@ -462,7 +462,10 @@ func _test_hex_map_document_roundtrips_map_and_payloads() -> void:
 		"text": "North Gate",
 	})
 	var object_db = HexObjectDatabaseResource.new()
-	object_db.objects = [{"object_id": "chest", "display_name": "Chest"}]
+	var object_definition = HexObjectDefinitionResource.new()
+	object_definition.id = "chest"
+	object_definition.display_name = "Chest"
+	object_db.add_definition(object_definition)
 	var label_db = HexLabelDatabaseResource.new()
 	label_db.labels = [{"label_id": "area", "display_name": "Area"}]
 
@@ -478,68 +481,59 @@ func _test_hex_map_document_roundtrips_map_and_payloads() -> void:
 	_assert_eq(loaded.terrain_layers[0].tile_assignments[0]["atlas_coords"], Vector2i(4, 5), "hex map document preserves tile assignment")
 	_assert_eq(loaded.object_placements[0].properties["gold"], 2, "hex map document preserves object properties")
 	_assert_eq(loaded.label_placements[0].text, "North Gate", "hex map document preserves labels")
-	_assert_eq(object_db.objects[0]["object_id"], "chest", "object database stores object definitions")
+	_assert_eq(object_db.definition_for_id("chest").display_name, "Chest", "object database stores typed definitions")
 	_assert_eq(label_db.labels[0]["label_id"], "area", "label database stores label definitions")
 
 
-func _test_hex_object_database_v2_migrates_legacy_arrays_and_roundtrips() -> void:
-	var legacy_database = HexObjectDatabaseResource.new()
-	legacy_database.objects = [{
-		"object_id": "chest",
-		"display_name": "Chest",
-		"scene_path": "res://objects/chest.tscn",
-		"tags": ["loot", "blocking"],
-		"properties": {"gold": 5},
-		"preview_path": "res://icons/chest.png",
-	}]
-	legacy_database.ensure_v2_defaults()
+func _test_hex_object_database_definitions_roundtrip_resources() -> void:
+	var database = HexObjectDatabaseResource.new()
+	var chest = HexObjectDefinitionResource.new()
+	chest.id = "chest"
+	chest.display_name = "Chest"
+	chest.scene = _test_packed_scene("ChestScene")
+	chest.tags = PackedStringArray(["loot", "blocking"])
+	chest.default_properties = {"gold": 5}
+	chest.preview_texture = HexMapTileAdapter.load_sample_tile_texture()
+	database.add_definition(chest)
 
-	var migrated = legacy_database.definition_for_id("chest")
-	_assert_eq(legacy_database.version, 2, "object database migration normalizes version")
-	_assert_eq(legacy_database.definitions.size(), 1, "object database migrates legacy objects to definitions")
-	_assert_eq(migrated.id, "chest", "object definition migrates object_id to id")
-	_assert_eq(migrated.object_id(), "chest", "object definition exposes object id compatibility")
-	_assert_eq(migrated.display_name, "Chest", "object definition migrates display name")
-	_assert_eq(migrated.scene_path, "res://objects/chest.tscn", "object definition migrates scene path")
-	_assert_eq(migrated.tags.has("loot"), true, "object definition migrates tags")
-	_assert_eq(migrated.default_properties["gold"], 5, "object definition migrates default properties")
-	_assert_eq(migrated.preview, "res://icons/chest.png", "object definition migrates preview path")
-	_assert_eq(legacy_database.objects[0]["id"], "chest", "object database syncs v2 id into legacy array")
-	_assert_eq(legacy_database.objects[0]["object_id"], "chest", "object database keeps legacy object_id fallback")
+	_assert_eq(database.get("version"), null, "object database has no version field")
+	_assert_eq(database.get("objects"), null, "object database has no legacy objects field")
+	_assert_eq(database.definitions.size(), 1, "object database stores typed definitions")
+	_assert_eq(chest.object_id(), "chest", "object definition exposes object id")
+	_assert_eq(chest.to_dictionary()["scene"] is PackedScene, true, "object definition dictionary uses scene resource")
+	_assert_eq(chest.to_dictionary()["preview_texture"] is Texture2D, true, "object definition dictionary uses preview texture resource")
 
 	var spawn = HexObjectDefinitionResource.new()
 	spawn.id = "spawn"
 	spawn.display_name = "Spawn Point"
-	spawn.scene_path = "res://objects/spawn_point.tscn"
+	spawn.scene = _test_packed_scene("SpawnScene")
 	spawn.tags = PackedStringArray(["spawn"])
 	spawn.default_properties = {"team": "player"}
-	spawn.preview = "res://icons/spawn.png"
-	legacy_database.add_definition(spawn)
-	_assert_eq(legacy_database.definition_ids().size(), 2, "object database stores added v2 definition")
-	_assert_eq(legacy_database.definitions_with_tag("spawn").size(), 1, "object database filters definitions by tag")
-	_assert_eq(legacy_database.definition_for_id("spawn").default_properties["team"], "player", "object database resolves added definition")
+	spawn.preview_texture = HexMapTileAdapter.load_sample_tile_texture()
+	database.add_definition(spawn)
+	_assert_eq(database.definition_ids().size(), 2, "object database stores added definition")
+	_assert_eq(database.definitions_with_tag("spawn").size(), 1, "object database filters definitions by tag")
+	_assert_eq(database.definition_for_id("spawn").default_properties["team"], "player", "object database resolves added definition")
 
-	var replacement = HexObjectDefinitionResource.from_dictionary({
-		"id": "spawn",
-		"display_name": "Hero Spawn",
-		"scene_path": "res://objects/hero_spawn.tscn",
-		"tags": PackedStringArray(["spawn", "hero"]),
-		"default_properties": {"team": "hero"},
-		"preview": "res://icons/hero_spawn.png",
-	})
-	legacy_database.add_definition(replacement)
-	_assert_eq(legacy_database.definition_ids().size(), 2, "object database replaces matching id instead of duplicating")
-	_assert_eq(legacy_database.definition_for_id("spawn").display_name, "Hero Spawn", "object database replaces definition by id")
-	_assert_eq(legacy_database.has_definition("missing"), false, "object database reports missing definitions")
+	var replacement = HexObjectDefinitionResource.new()
+	replacement.id = "spawn"
+	replacement.display_name = "Hero Spawn"
+	replacement.scene = _test_packed_scene("HeroSpawnScene")
+	replacement.tags = PackedStringArray(["spawn", "hero"])
+	replacement.default_properties = {"team": "hero"}
+	replacement.preview_texture = HexMapTileAdapter.load_sample_tile_texture()
+	database.add_definition(replacement)
+	_assert_eq(database.definition_ids().size(), 2, "object database replaces matching id instead of duplicating")
+	_assert_eq(database.definition_for_id("spawn").display_name, "Hero Spawn", "object database replaces definition by id")
+	_assert_eq(database.has_definition("missing"), false, "object database reports missing definitions")
 
-	var path = _test_resource_path("test_hex_object_database_v2.tres")
-	var error = ResourceSaver.save(legacy_database, path)
+	var path = _test_resource_path("test_hex_object_database.tres")
+	var error = ResourceSaver.save(database, path)
 	var loaded = load(path)
-	loaded.ensure_v2_defaults()
-	_assert_eq(error, OK, "object database v2 resource saves")
-	_assert_eq(loaded.definition_for_id("chest").scene_path, "res://objects/chest.tscn", "object database v2 roundtrip preserves migrated scene path")
-	_assert_eq(loaded.definition_for_id("spawn").preview, "res://icons/hero_spawn.png", "object database v2 roundtrip preserves preview")
-	_assert_eq(loaded.legacy_objects()[1]["object_id"], "spawn", "object database v2 roundtrip keeps legacy array fallback")
+	_assert_eq(error, OK, "object database resource saves")
+	_assert_eq(loaded.definition_for_id("chest").scene is PackedScene, true, "object database roundtrip preserves scene resource")
+	_assert_eq(loaded.definition_for_id("spawn").preview_texture is Texture2D, true, "object database roundtrip preserves preview texture")
+	_assert_eq(loaded.definition_for_id("spawn").default_properties["team"], "hero", "object database roundtrip preserves replacement definition")
 
 
 func _test_hex_map_document_schema_roundtrips_canonical_resources() -> void:
@@ -885,17 +879,11 @@ func _test_hex_map_document_validator_rule_matrix() -> void:
 		"rule matrix accepts object on floor"
 	)
 
-	var object_scene_path = _test_resource_path("test_object_scene.tscn")
-	var object_scene_node = Node2D.new()
-	var object_scene = PackedScene.new()
-	_assert_eq(object_scene.pack(object_scene_node), OK, "rule matrix packs object scene")
-	object_scene_node.free()
-	_assert_eq(ResourceSaver.save(object_scene, object_scene_path), OK, "rule matrix saves object scene")
+	var object_scene = _test_packed_scene("RuleMatrixObjectScene")
 
 	var missing_scene_database = HexObjectDatabaseResource.new()
 	var missing_scene_definition = HexObjectDefinitionResource.new()
 	missing_scene_definition.id = "missing-scene-object"
-	missing_scene_definition.scene_path = "res://missing_object_scene_for_rule_matrix.tscn"
 	missing_scene_database.add_definition(missing_scene_definition)
 	var missing_scene_document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(HexMapData.rectangle(1, 1)))
 	HexMapDocumentAdapter.set_object(missing_scene_document, HexVector.zero(), {"object_id": "missing-scene-object"})
@@ -904,7 +892,7 @@ func _test_hex_map_document_validator_rule_matrix() -> void:
 		HexMapDocumentValidator.RULE_OBJECT_SCENE_MISSING,
 		"rule matrix detects missing object scene"
 	)
-	missing_scene_definition.scene_path = object_scene_path
+	missing_scene_definition.scene = object_scene
 	missing_scene_database.add_definition(missing_scene_definition)
 	_assert_no_issue(
 		HexMapDocumentValidator.validate_document(missing_scene_document, {"object_database": missing_scene_database}),
@@ -915,7 +903,7 @@ func _test_hex_map_document_validator_rule_matrix() -> void:
 	var unique_database = HexObjectDatabaseResource.new()
 	var unique_definition = HexObjectDefinitionResource.new()
 	unique_definition.id = "boss"
-	unique_definition.scene_path = object_scene_path
+	unique_definition.scene = object_scene
 	unique_definition.default_properties = {"unique": true}
 	unique_database.add_definition(unique_definition)
 	var duplicate_unique_document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(HexMapData.rectangle(2, 1)))
@@ -1784,6 +1772,15 @@ func _test_catalog_entry(key: String, source_id: int, atlas_coords: Vector2i, ta
 	entry.atlas_coords = atlas_coords
 	entry.tags = PackedStringArray(tags)
 	return entry
+
+
+func _test_packed_scene(node_name: String = "PackedSceneRoot") -> PackedScene:
+	var node = Node2D.new()
+	node.name = node_name
+	var scene = PackedScene.new()
+	_assert_eq(scene.pack(node), OK, "test packed scene packs")
+	node.free()
+	return scene
 
 
 func _test_catalog_tile_set() -> TileSet:

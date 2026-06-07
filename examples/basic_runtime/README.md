@@ -20,4 +20,4 @@ The sample uses core/adapter scripts only and does not depend on editor plugin c
 
 `runtime_query_example.tscn` wraps the same helper as a minimal scene. Set `document_path` to a saved canonical document, then call `run_example()` from gameplay code or tests to populate `last_query_result`.
 
-For object placements, `HexRuntimeQuerySample.export_runtime_objects(document, object_database)` returns copied runtime dictionaries with resolved `scene_path`, rotation, variant, properties, and spawn condition. The helper does not mutate authoring `object_placements`; runtime code can instantiate from the returned data while the document remains an editor/source-of-truth resource.
+For object placements, `HexRuntimeQuerySample.export_runtime_objects(document, object_database)` returns copied runtime dictionaries with resolved `scene` `PackedScene` resources, rotation, variant, properties, and spawn condition. The helper does not mutate authoring `object_placements`; runtime code can instantiate from the returned data while the document remains an editor/source-of-truth resource.

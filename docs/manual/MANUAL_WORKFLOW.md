@@ -161,7 +161,7 @@ Use runtime object export when gameplay code should instantiate objects without 
 ```gdscript
 var export = HexRuntimeQuerySample.export_runtime_objects(document, object_database)
 for item in export["runtime_objects"]:
-	print(item["object_id"], item["scene_path"], item["properties"])
+	print(item["object_id"], item["scene"], item["properties"])
 ```
 
 The returned dictionaries are copies. Runtime-only changes do not write back into `document.object_placements`.

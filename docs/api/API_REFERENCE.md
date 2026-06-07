@@ -132,6 +132,18 @@ Path: `res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd`
 
 Entries are `HexTileCatalogEntry` resources with `key`, `entry_type`, `source_id`, `atlas_coords`, `alternative_tile`, `scene`, `tags`, and `metadata`. Catalogs own a `TileSet` resource through `tile_set`; scene entries own a `PackedScene` resource through `scene`.
 
+### `HexObjectDatabaseResource`
+
+Path: `res://addons/hex_map_kit/adapter/hex_object_database_resource.gd`
+
+- `add_definition(definition)`
+- `definition_for_id(object_id)`
+- `has_definition(object_id)`
+- `definition_ids()`
+- `definitions_with_tag(tag)`
+
+Definitions are `HexObjectDefinitionResource` resources with `id`, `display_name`, `scene`, `tags`, `default_properties`, and `preview_texture`.
+
 ## Validation
 
 ### `HexMapDocumentValidator`

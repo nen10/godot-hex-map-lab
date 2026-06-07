@@ -86,15 +86,15 @@ static func direct_instance_prototype(placement: Dictionary, object_database = n
 	var object_id = String(placement.get("object_id", ""))
 	if object_id != "" and prototypes.has(object_id) and prototypes[object_id] is PackedScene:
 		return prototypes[object_id]
-	var scene_path = String(placement.get("scene_path", ""))
-	if scene_path == "" and object_database != null and object_database.has_method("definition_for_id"):
+	var placement_scene = placement.get("scene", null)
+	if placement_scene is PackedScene:
+		return placement_scene
+	if object_database != null and object_database.has_method("definition_for_id"):
 		var definition = object_database.definition_for_id(object_id)
 		if definition != null:
-			scene_path = String(definition.get("scene_path"))
-	if scene_path != "" and ResourceLoader.exists(scene_path):
-		var resource = ResourceLoader.load(scene_path, "", ResourceLoader.CACHE_MODE_IGNORE)
-		if resource is PackedScene:
-			return resource
+			var definition_scene = definition.get("scene")
+			if definition_scene is PackedScene:
+				return definition_scene
 	return null
 
 

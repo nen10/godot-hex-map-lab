@@ -413,13 +413,17 @@ func _run() -> void:
 	var object_database = HexObjectDatabaseResource.new()
 	var object_definition = HexObjectDefinitionResource.new()
 	object_definition.id = "chest"
-	object_definition.scene_path = "res://objects/chest.tscn"
+	var object_scene_node = Node2D.new()
+	var object_scene = PackedScene.new()
+	_assert_eq(object_scene.pack(object_scene_node), OK, "runtime object export packs object scene")
+	object_scene_node.free()
+	object_definition.scene = object_scene
 	object_database.add_definition(object_definition)
 	var object_export = HexRuntimeQuerySample.export_runtime_objects(runtime_export_document, object_database)
 	_assert_true(object_export["loaded"], "runtime object export sample returns loaded result")
 	_assert_eq(object_export["authoring_count"], 1, "runtime object export reports authoring count")
 	_assert_eq(object_export["runtime_objects"][0]["object_id"], "chest", "runtime object export keeps object id")
-	_assert_eq(object_export["runtime_objects"][0]["scene_path"], "res://objects/chest.tscn", "runtime object export resolves scene path")
+	_assert_true(object_export["runtime_objects"][0]["scene"] is PackedScene, "runtime object export resolves scene resource")
 	_assert_eq(object_export["runtime_objects"][0]["rotation_degrees"], 15.0, "runtime object export keeps rotation")
 	object_export["runtime_objects"][0]["properties"]["runtime_only"] = true
 	_assert_true(
