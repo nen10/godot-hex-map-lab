@@ -27,6 +27,8 @@ const HexMapEditMutationBuilder = preload("res://addons/hex_map_kit/editor/hex_m
 const HexMapEditViewportInputAdapter = preload("res://addons/hex_map_kit/editor/hex_map_edit_viewport_input_adapter.gd")
 const HexMapDocumentInspector = preload("res://addons/hex_map_kit/editor/hex_map_document_inspector.gd")
 const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
+const HexMapEditorAssetSlotState = preload("res://addons/hex_map_kit/editor/hex_map_editor_asset_slot_state.gd")
+const HexMapEditorAssetSlotControl = preload("res://addons/hex_map_kit/editor/hex_map_editor_asset_slot_control.gd")
 const HexMapWorkspace = preload("res://addons/hex_map_kit/editor/hex_map_workspace.gd")
 const HexDistEditor = preload("res://addons/hex_map_kit/editor/hex_dist_editor.gd")
 const HexAdjacencyRuleEditor = preload("res://addons/hex_map_kit/editor/hex_adjacency_rule_editor.gd")
@@ -85,6 +87,8 @@ func _init() -> void:
 func _run() -> void:
 	_test_plugin_registration_files()
 	await _test_hex_map_workspace_exposes_tabs_and_routes_editing()
+	_test_asset_slot_state_model_reports_selection_validation_and_sample_source()
+	await _test_asset_slot_control_exposes_state_snapshot_contract()
 	await _test_map_edit_tool_builds_dock_controls()
 	await _test_plugin_handles_canvas_item_when_map_edit_ready()
 	await _test_editor_session_state_shares_generate_target_and_edit_document()
@@ -252,6 +256,102 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 
 	layer.queue_free()
 	workspace.queue_free()
+	await process_frame
+
+
+func _test_asset_slot_state_model_reports_selection_validation_and_sample_source() -> void:
+	var slot = HexMapEditorAssetSlotState.new()
+	slot.configure("tile_catalog", "Tile Catalog", &"HexTileCatalogResource", true)
+	var snapshot = slot.snapshot()
+	_assert_eq(snapshot["status"], HexMapEditorAssetSlotState.STATUS_NOT_SELECTED, "asset slot starts not selected")
+	_assert_true(not bool(snapshot["selected"]), "asset slot starts without current selection")
+	_assert_true(String(snapshot["validation_messages"][0]).contains("required"), "required slot reports missing selection")
+
+	var sample_catalog = HexTileCatalogResource.new()
+	slot.set_sample_source(
+		sample_catalog,
+		"res://addons/hex_map_kit/assets/sample_hex_tile_catalog.tres",
+		"Sample Catalog"
+	)
+	snapshot = slot.snapshot()
+	_assert_true(bool(snapshot["sample_available"]), "asset slot records optional sample source")
+	_assert_true(not bool(snapshot["selected"]), "sample source is not selected by default")
+	_assert_eq(snapshot["current_source"], HexMapEditorAssetSlotState.SOURCE_NONE, "sample source does not become current source")
+
+	slot.set_selected_resource(HexMapDocumentResource.new(), "res://project/document.tres")
+	snapshot = slot.snapshot()
+	_assert_eq(snapshot["status"], HexMapEditorAssetSlotState.STATUS_INVALID, "asset slot detects type mismatch")
+	_assert_true(not bool(snapshot["type_matches"]), "asset slot exposes failed type match")
+	_assert_true(
+		String(snapshot["validation_messages"][0]).contains("Expected HexTileCatalogResource"),
+		"asset slot mismatch message names expected type"
+	)
+
+	var project_catalog = HexTileCatalogResource.new()
+	slot.set_selected_resource(project_catalog, "res://project/catalog.tres")
+	snapshot = slot.snapshot()
+	_assert_eq(snapshot["status"], HexMapEditorAssetSlotState.STATUS_SELECTED, "asset slot accepts required project resource type")
+	_assert_true(bool(snapshot["type_matches"]), "asset slot exposes successful type match")
+	_assert_eq(snapshot["current_source"], HexMapEditorAssetSlotState.SOURCE_PROJECT, "project resource is current source")
+	_assert_eq(snapshot["current_path"], "res://project/catalog.tres", "asset slot stores selected project path")
+
+	slot.mark_warning(["TileSet missing."])
+	snapshot = slot.snapshot()
+	_assert_eq(snapshot["status"], HexMapEditorAssetSlotState.STATUS_WARNING, "asset slot represents warning state")
+	_assert_eq(snapshot["validation_messages"][0], "TileSet missing.", "asset slot stores warning messages")
+
+	slot.clear_selection()
+	snapshot = slot.snapshot()
+	_assert_eq(snapshot["status"], HexMapEditorAssetSlotState.STATUS_NOT_SELECTED, "clear returns slot to not selected")
+	_assert_true(not bool(snapshot["selected"]), "clear removes selected resource")
+
+	_assert_true(slot.apply_sample_source(), "asset slot can explicitly apply sample source")
+	snapshot = slot.snapshot()
+	_assert_eq(snapshot["current_source"], HexMapEditorAssetSlotState.SOURCE_SAMPLE, "explicit sample application marks sample source")
+	_assert_eq(snapshot["current_resource"], sample_catalog, "explicit sample application selects sample resource")
+	_assert_eq(snapshot["status"], HexMapEditorAssetSlotState.STATUS_SELECTED, "explicit sample application can produce selected state")
+
+
+func _test_asset_slot_control_exposes_state_snapshot_contract() -> void:
+	var state = HexMapEditorAssetSlotState.new()
+	state.configure("object_database", "Object Database", &"HexObjectDatabaseResource", true)
+	state.allows_create_new = true
+	state.set_sample_source(HexObjectDatabaseResource.new(), "res://addons/hex_map_kit/assets/sample_object_db.tres", "Sample Object DB")
+
+	var control = HexMapEditorAssetSlotControl.new()
+	root.add_child(control)
+	control.set_slot_state(state)
+	await process_frame
+
+	var snapshot = control.slot_state_snapshot()
+	_assert_eq(snapshot["slot_id"], "object_database", "asset slot control exposes slot id in state snapshot")
+	_assert_eq(snapshot["status"], HexMapEditorAssetSlotState.STATUS_NOT_SELECTED, "asset slot control exposes missing state")
+	_assert_true(bool(snapshot["allows_sample"]), "asset slot control snapshot exposes sample availability")
+	_assert_true(bool(snapshot["allows_create_new"]), "asset slot control snapshot exposes create-new availability")
+	_assert_true(not bool(snapshot["selected"]), "asset slot control does not auto-select sample source")
+
+	var database = HexObjectDatabaseResource.new()
+	control.set_selected_resource(database, "res://project/object_database.tres")
+	snapshot = control.slot_state_snapshot()
+	_assert_eq(snapshot["status"], HexMapEditorAssetSlotState.STATUS_SELECTED, "asset slot control records selected state")
+	_assert_eq(snapshot["current_resource"], database, "asset slot control records selected resource")
+	_assert_eq(snapshot["current_path"], "res://project/object_database.tres", "asset slot control records selected path")
+
+	control.mark_invalid(["Object database is missing required definitions."])
+	snapshot = control.slot_state_snapshot()
+	_assert_eq(snapshot["status"], HexMapEditorAssetSlotState.STATUS_INVALID, "asset slot control can expose invalid state")
+	_assert_eq(
+		snapshot["validation_messages"][0],
+		"Object database is missing required definitions.",
+		"asset slot control exposes validation messages"
+	)
+
+	_assert_true(control.apply_sample_source(), "asset slot control applies sample only through explicit action")
+	snapshot = control.slot_state_snapshot()
+	_assert_eq(snapshot["current_source"], HexMapEditorAssetSlotState.SOURCE_SAMPLE, "asset slot control records explicit sample source")
+	_assert_eq(snapshot["current_path"], "res://addons/hex_map_kit/assets/sample_object_db.tres", "asset slot control records sample path after explicit action")
+
+	control.queue_free()
 	await process_frame
 
 

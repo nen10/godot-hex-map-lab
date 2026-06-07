@@ -33,9 +33,9 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `ASSET-10` | `READY` | `ASSET-01` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/ASSET-10_ASSET_SLOT_STATE_MODEL/` | Unified asset slot state/control model | new `addons/hex_map_kit/editor/hex_map_editor_asset_slot_state.gd`, new `hex_map_editor_asset_slot_control.gd`, existing resource selector component, editor tests | Slot state represents Not selected / Selected / Invalid / Warning, type mismatch, and optional sample source without making sample the default; tests inspect state model, not private widget names. |
-| `ASSET-11` | `BACKLOG` | `ASSET-10` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/ASSET-11_WORKSPACE_ASSET_CONTEXT_RESOURCE/` | Workspace asset context | new `HexMapWorkspaceAssetContext`, `HexMapEditorSessionState`, `HexMapWorkspace`, editor tests | Catalog, Object DB, Label DB, Layer Stack, Movement Profile, Validation Suite, Generation Profile are held in shared context; Generate/Paint/Validate/QA use the same context and do not search sample assets independently. |
-| `ASSET-12` | `BACKLOG` | `ASSET-10` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/ASSET-12_CREATE_NEW_RESOURCE_ACTIONS/` | Create-new actions for asset slots | asset slot control/model, resource creation helpers, editor tests | Asset slots can create required resources through FileDialog / Save As; created resource enters asset context; sample assets are not silently mixed into new project asset creation. |
+| `ASSET-10` | `COMPLETE` | `ASSET-01` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/ASSET-10_ASSET_SLOT_STATE_MODEL/` | Unified asset slot state/control model | new `addons/hex_map_kit/editor/hex_map_editor_asset_slot_state.gd`, new `hex_map_editor_asset_slot_control.gd`, existing resource selector component, editor tests | Slot state represents Not selected / Selected / Invalid / Warning, type mismatch, and optional sample source without making sample the default; tests inspect state model, not private widget names. |
+| `ASSET-11` | `READY` | `ASSET-10` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/ASSET-11_WORKSPACE_ASSET_CONTEXT_RESOURCE/` | Workspace asset context | new `HexMapWorkspaceAssetContext`, `HexMapEditorSessionState`, `HexMapWorkspace`, editor tests | Catalog, Object DB, Label DB, Layer Stack, Movement Profile, Validation Suite, Generation Profile are held in shared context; Generate/Paint/Validate/QA use the same context and do not search sample assets independently. |
+| `ASSET-12` | `READY` | `ASSET-10` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/ASSET-12_CREATE_NEW_RESOURCE_ACTIONS/` | Create-new actions for asset slots | asset slot control/model, resource creation helpers, editor tests | Asset slots can create required resources through FileDialog / Save As; created resource enters asset context; sample assets are not silently mixed into new project asset creation. |
 
 ---
 
@@ -43,7 +43,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `SAMPLE-10` | `BACKLOG` | `ASSET-10` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/SAMPLE-10_SAMPLE_MODE_SETTINGS_TAB/` | Settings / Samples tab | `HexMapWorkspace`, new `HexMapSampleSettingsPanel`, bundled sample asset references, editor tests | Sample controls move out of Generate/Paint main UI; sample mode OFF hides bundled samples from main selectors; sample mode ON still keeps user-selected project assets primary. |
+| `SAMPLE-10` | `READY` | `ASSET-10` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/SAMPLE-10_SAMPLE_MODE_SETTINGS_TAB/` | Settings / Samples tab | `HexMapWorkspace`, new `HexMapSampleSettingsPanel`, bundled sample asset references, editor tests | Sample controls move out of Generate/Paint main UI; sample mode OFF hides bundled samples from main selectors; sample mode ON still keeps user-selected project assets primary. |
 | `SAMPLE-11` | `BACKLOG` | `SAMPLE-10` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/SAMPLE-11_DUPLICATE_SAMPLE_TO_PROJECT/` | Duplicate sample to project workflow | sample settings panel, duplication helpers, sample resources, package tests | Sample catalog/scene/tile dependencies can be duplicated to a project path; duplicate enters asset context as a project asset; no sample is silently assigned as project default. |
 | `SAMPLE-12` | `BACKLOG` | `SAMPLE-10` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/SAMPLE-12_FIRST_RUN_LEARNING_CTA/` | First-run learning CTA | workspace/settings UI, editor setting state, tests | First-run `Learn with bundled samples` CTA opens Settings / Samples; dismissing it shows normal project asset selection; CTA does not replace the production flow. |
 
@@ -86,7 +86,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `TEST-40` | `BACKLOG` | `ASSET-10` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/TEST-40_NO_SAMPLE_ONLY_COMPLETION_TESTS/` | No sample-only completion tests | editor tests, package/sample tests, `docs/TEST.md` | Feature screen tests run sample mode OFF and verify arbitrary project asset selection state; sample mode ON/OFF is tested separately; package integrity tests own sample asset validity. |
+| `TEST-40` | `READY` | `ASSET-10` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/TEST-40_NO_SAMPLE_ONLY_COMPLETION_TESTS/` | No sample-only completion tests | editor tests, package/sample tests, `docs/TEST.md` | Feature screen tests run sample mode OFF and verify arbitrary project asset selection state; sample mode ON/OFF is tested separately; package integrity tests own sample asset validity. |
 | `TEST-41` | `BACKLOG` | `WORKSPACE-11` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/TEST-41_WORKSPACE_TAB_CONTENT_CONTRACT_TESTS/` | Workspace tab content contract tests | workspace query methods, editor tests, `docs/TEST.md` | Each tab exposes expected component ids and asset slot ids through query methods; tests avoid private child node names. |
 | `TEST-42` | `BACKLOG` | `ASSET-10`, `SAMPLE-11` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/TEST-42_ASSET_SLOT_STATE_MODEL_TESTS/` | Asset slot state model tests | asset slot state/control tests, sample duplication tests, `docs/TEST.md` | Required asset missing, invalid type, selected project asset, sample mode OFF hiding samples, sample mode ON showing learning candidates, and duplicate sample project state are covered. |
 
@@ -135,12 +135,12 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `ASSET-10`.
+Current recommended next task: `ASSET-11`.
 
 Reason:
 
-- `ASSET-01` is complete and documents current asset slot gaps.
-- `ASSET-10` is the first dependency-satisfied READY task.
+- `ASSET-10` is complete and provides the shared slot state/control contract.
+- `ASSET-11` is the first dependency-satisfied READY task in queue order.
 
 ---
 
@@ -176,3 +176,18 @@ proof:
   major files:
     - `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/IMPLEMENTATION_QUEUE.md`
     - `docs/review/autopilot/ASSET-01_TEST_RESULT_2026-06-08.md`
+
+### ASSET-10 Asset slot state model
+
+proof:
+  plan: `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/ASSET-10_ASSET_SLOT_STATE_MODEL/`
+  review: `docs/review/autopilot/ASSET-10_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_editor_asset_slot_state.gd`
+    - `addons/hex_map_kit/editor/hex_map_editor_asset_slot_control.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/ASSET-10_TEST_RESULT_2026-06-08.md`
