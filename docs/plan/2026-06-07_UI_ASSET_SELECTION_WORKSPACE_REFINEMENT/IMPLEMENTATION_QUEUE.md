@@ -25,7 +25,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
 | `ASSET-00` | `COMPLETE` | none | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/ASSET-00_ASSET_SELECTION_POLICY_RESET/` | Asset selection policy reset | `AGENTS.md`, `docs/policy/DOMAIN_POLICY.md`, `docs/policy/IMPLEMENTATION_POLICY.md`, `docs/policy/TEST_DESIGN_POLICY.md`, `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`, roadmap/queue docs | `sample-only prototype` and `No sample-only completion` are documented; headless tests cannot treat sample preset success as feature complete; analog tests remain deferred. |
-| `ASSET-01` | `READY` | `ASSET-00` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/ASSET-01_ASSET_SLOT_INVENTORY/` | Asset slot inventory | `docs/review/roadmap/ASSET_SLOT_INVENTORY_2026-06-07.md`, editor UI source review notes | Inventory lists slot id, screen/tab, required type, current sample dependency, arbitrary selection path, validation state, flow classification, cleanup task id. |
+| `ASSET-01` | `COMPLETE` | `ASSET-00` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/ASSET-01_ASSET_SLOT_INVENTORY/` | Asset slot inventory | `docs/review/roadmap/ASSET_SLOT_INVENTORY_2026-06-07.md`, editor UI source review notes | Inventory lists slot id, screen/tab, required type, current sample dependency, arbitrary selection path, validation state, flow classification, cleanup task id. |
 
 ---
 
@@ -33,7 +33,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `ASSET-10` | `BACKLOG` | `ASSET-01` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/ASSET-10_ASSET_SLOT_STATE_MODEL/` | Unified asset slot state/control model | new `addons/hex_map_kit/editor/hex_map_editor_asset_slot_state.gd`, new `hex_map_editor_asset_slot_control.gd`, existing resource selector component, editor tests | Slot state represents Not selected / Selected / Invalid / Warning, type mismatch, and optional sample source without making sample the default; tests inspect state model, not private widget names. |
+| `ASSET-10` | `READY` | `ASSET-01` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/ASSET-10_ASSET_SLOT_STATE_MODEL/` | Unified asset slot state/control model | new `addons/hex_map_kit/editor/hex_map_editor_asset_slot_state.gd`, new `hex_map_editor_asset_slot_control.gd`, existing resource selector component, editor tests | Slot state represents Not selected / Selected / Invalid / Warning, type mismatch, and optional sample source without making sample the default; tests inspect state model, not private widget names. |
 | `ASSET-11` | `BACKLOG` | `ASSET-10` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/ASSET-11_WORKSPACE_ASSET_CONTEXT_RESOURCE/` | Workspace asset context | new `HexMapWorkspaceAssetContext`, `HexMapEditorSessionState`, `HexMapWorkspace`, editor tests | Catalog, Object DB, Label DB, Layer Stack, Movement Profile, Validation Suite, Generation Profile are held in shared context; Generate/Paint/Validate/QA use the same context and do not search sample assets independently. |
 | `ASSET-12` | `BACKLOG` | `ASSET-10` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/ASSET-12_CREATE_NEW_RESOURCE_ACTIONS/` | Create-new actions for asset slots | asset slot control/model, resource creation helpers, editor tests | Asset slots can create required resources through FileDialog / Save As; created resource enters asset context; sample assets are not silently mixed into new project asset creation. |
 
@@ -135,12 +135,12 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `ASSET-01`.
+Current recommended next task: `ASSET-10`.
 
 Reason:
 
-- `ASSET-00` is complete and defines the completion rule needed by all later tasks.
-- `ASSET-01` is the first dependency-satisfied READY task.
+- `ASSET-01` is complete and documents current asset slot gaps.
+- `ASSET-10` is the first dependency-satisfied READY task.
 
 ---
 
@@ -163,3 +163,16 @@ proof:
   major files:
     - `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/IMPLEMENTATION_QUEUE.md`
     - `docs/review/autopilot/ASSET-00_TEST_RESULT_2026-06-08.md`
+
+### ASSET-01 Asset slot inventory
+
+proof:
+  plan: `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/ASSET-01_ASSET_SLOT_INVENTORY/`
+  review: `docs/review/autopilot/ASSET-01_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/review/roadmap/ASSET_SLOT_INVENTORY_2026-06-07.md`
+  major files:
+    - `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/IMPLEMENTATION_QUEUE.md`
+    - `docs/review/autopilot/ASSET-01_TEST_RESULT_2026-06-08.md`
