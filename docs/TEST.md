@@ -8,6 +8,7 @@
 自動テスト設計は `docs/policy/TEST_DESIGN_POLICY.md` に従う。
 interactiveなテスト作成時、実行方法を簡潔にdocumentationする
 Editor Plugin 操作で複数機能の結合性を確認する任意検証は、アナログテストとして `docs/policy/ANALOG_TEST_POLICY.md` に従い、操作手順マニュアルを `tests/analog_test/` 以下に作成する。アナログテスト文書は Test path の代替ではなく、ユーザー依頼時の追加検証記録として扱う。
+CLEAN UI再編中の manual-only task は `./tools/test.sh` と self-review で完了確認し、新規アナログテスト文書は作成しない。
 
 ### Test path
 
@@ -39,6 +40,7 @@ GodotでのDebug実行によるテストが有用なケースについては、�
 - `tests/test_editor_plugin.gd` QA-01 coverage: 生成結果の validation suite pass/fail capture、raw validation result保持、auto apply 前の capture order を headless で検証する。
 - `tests/test_editor_plugin.gd` QA-02 coverage: 複数seedの batch generation、validation summary / score row、score table sort、batch結果がcurrent mapへpromoteされないことを headless で検証する。
 - `tests/test_editor_plugin.gd` QA-03 coverage: batch rowからのseed promotion、canonical document生成、generation snapshot metadata、保存/再読み込みroundtripを headless で検証する。
+- CLEAN-40 manual coverage: `docs/manual/MANUAL_EDITOR_PLUGIN.md` / `docs/manual/MANUAL_WORKFLOW.md` / `docs/manual/MANUAL_SCRIPTING.md` / `README.md` が Catalog、Layer Stack、Object Placement、Validation、Generation QA、Copy Debug Report、Resource picker workflow を user goal として説明し、新規アナログテスト文書を追加しないことを self-review と `./tools/test.sh` で確認する。
 - `tests/test_editor_plugin.gd` ARCH-02 coverage: `HexMapGenStateEvaluator` の Generate Dock control visibility / disabled state / label text / generation block reason を pure state input で検証し、既存 Generate Dock headless tests が UI delegation の回帰を検証する。
 - `tests/test_editor_plugin.gd` ARCH-03 coverage: `HexMapEditMutationBuilder` の document edit / `HexTileMapLayer` command construction と `HexMapEditViewportInputAdapter` の viewport press filtering / local trace / hit editabilityを検証し、既存 viewport hit/edit/undo tests が Edit Dock delegation の回帰を検証する。
 - `tests/test_editor_plugin.gd` ARCH-04 coverage: `HexMapDocumentInspector` の document summary / validation summary / validation issue row formatting、Edit Dock inspector integration、既存 Edit / Generate validation debug summary behaviorを headless で検証する。

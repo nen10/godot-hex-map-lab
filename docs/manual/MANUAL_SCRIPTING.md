@@ -11,6 +11,8 @@ const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator
 const HexMapDebug = preload("res://addons/hex_map_kit/core/hex_map_debug.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
+const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
+const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 ```
 
@@ -192,11 +194,31 @@ print(result["path_count"])
 print(result["range_count"])
 ```
 
-## 6. Godot 表示層との接続
+## 6. Resource-backed authoring
+
+Editor-authored levels should use `HexMapDocumentResource` and Resource references first. The document is the authoring container for terrain layers, overlay layers, object placements, label placements, zones, metadata, and dependencies.
+
+```gdscript
+const HexEditorWorkflowExample = preload("res://examples/editor_workflow/editor_workflow_example.gd")
+
+var document: HexMapDocumentResource = HexEditorWorkflowExample.build_authoring_document()
+ResourceSaver.save(document, "res://maps/level_document.tres")
+```
+
+Use catalog keys in document payloads and catalog resources instead of raw tile source numbers in gameplay-facing authoring code. Use `HexLayerStackResource` when the same document should apply to multiple role-specific layers:
+
+```gdscript
+var stack = HexLayerStackResource.standard_template()
+$HexTileMapLayer.apply_document_to_layer_stack(document, stack)
+```
+
+For editor workflows, Resource pickers select documents, catalogs, TileSets, object databases, label databases, and PackedScenes. Path strings are useful for `load()` / `ResourceSaver.save()` calls, but they are not the normal authoring UI.
+
+## 7. Godot 表示層との接続
 
 ### HexMapTileAdapter
 
-既存の `TileMapLayer` に一括適用する場合は adapter を使います。
+`HexMapTileAdapter` は既存の `TileMapLayer` に `HexMapData` を一括表示する低レベル bridge です。簡単な debug 表示や既存 scene への接続には使えますが、editor-authored level では document、catalog key、layer stack を優先します。
 
 ```gdscript
 HexMapTileAdapter.apply_to_tile_map_layer(
@@ -227,7 +249,7 @@ HexMapTileAdapter.configure_hex_tile_set(
 
 ### HexMapResource
 
-`.tres` に保存する場合は `HexMapResource` に変換します。
+Core の `HexMapData` だけを `.tres` に保存する場合は `HexMapResource` に変換します。terrain、overlay、objects、labels、metadata、dependencies を一緒に扱う level authoring では `HexMapDocumentResource` を使います。
 
 ```gdscript
 var resource = HexMapResource.from_map_data(data, HexMapResource.ORIENTATION_FLAT_TOP)
@@ -277,7 +299,7 @@ func _unhandled_input(event: InputEvent) -> void:
 - `highlight_cell(hex, color)`, `clear_highlights()`
 - `is_map_connected()`, `connected_component(hex)`
 
-## 7. デバッグ
+## 8. デバッグ
 
 スクリプトから文字列で確認する場合:
 

@@ -1,260 +1,217 @@
-# EditorPlugin Manual
+# Editor Plugin Manual
 
-Hex Map Kit の EditorPlugin は、エディタ上で `HexMapResource` を生成・保存し、シーン内の `TileMapLayer` へ反映するための Dock と Inspector 拡張を提供します。
+Hex Map Kit provides one editor workspace for authoring, generating, validating, and exporting hex-map level documents.
 
-## 警告
+This manual describes user workflows. For API details, use `docs/api/API_REFERENCE.md`. For end-to-end authoring and runtime handoff, use `docs/manual/MANUAL_WORKFLOW.md`.
 
-  - manualは仕様書ではない。
-  - 記載する事項はユースケースに基づくものであり、実装した事項に基づくべきではない。
-  - ユースケースをサポートするための手順・情報以外を記載しない。
+## 1. Enable The Addon
 
-このマニュアルは上記ポリシーを満たしていません。
-
-## 1. 有効化
-
-`project.godot` の `[editor_plugins]` に plugin が登録されていることを確認します。
+Confirm that `project.godot` enables the plugin:
 
 ```ini
 [editor_plugins]
 enabled=PackedStringArray("res://addons/hex_map_kit/plugin.cfg")
 ```
 
-Godot エディタ起動後、Dock に **Hex Map Kit** が表示されます。
+After Godot starts, the editor shows the **Hex Map Workspace** dock. The workspace uses these task tabs:
 
-## 2. Map Generation Dock
+- `Document`
+- `Generate`
+- `Paint`
+- `Catalog`
+- `Layers`
+- `Validate`
+- `QA`
+- `Export`
 
-Dock は生成パラメータの変更だけでは `_current_data` を再生成しません。`Generate` ボタンを押したときだけ現在の設定で明示的に再生成し、対象 `TileMapLayer` があれば自動で反映します。
+During the staged workspace extraction, the active Generate controls are mounted in `Generate`, and the active document, paint, catalog, layer, validation, object, label, and export controls are mounted in `Paint`. The tab names are the stable task map for the editor UI.
 
-### Generator
+## 2. Start Or Open A Level Document
 
-`Generator` で生成方式を選びます。
+Use `HexMapDocumentResource` when a map needs terrain, overlays, objects, labels, zones, metadata, dependencies, and runtime handoff in one resource.
 
-- `Simple`: 独立乱数で壁を置く基本生成
-- `Hex-inward Markov mesh model`: 外周から中心へ進む対称生成
+Normal document actions:
 
-### Simple
+- `New Document`: create a canonical document in memory.
+- `Document Resource`: select an existing `HexMapDocumentResource` with a Resource picker.
+- `Open...`: choose a document through a FileDialog.
+- `Save`: write the current document to its saved location.
+- `Save As...`: choose a new save location through a FileDialog.
+- `Validate`: run document validation before handoff.
 
-`Simple` では `Shape` とサイズを指定します。
+The saved path is shown as read-only status. Do not use editable `res://...` text as the normal document workflow.
 
-- `Hexagon`: `Radius`
-- `Rectangle`: `Width`, `Height`
+Use Advanced Convert only when bringing an older `HexMapResource` into document authoring:
 
-生成 API は `HexMapGenerator.generate_hexagon()` または `generate_rectangle()` です。
+- `Convert Resource`
+- `Browse...`
+- `Convert`
 
-### Hex-inward Markov Mesh Model
+Use `Export...` / `Export As...` when producing a runtime-oriented `HexMapResource`.
 
-対称生成では `Shape` と `Generation Radius` を指定します。
+## 3. Generate A Map
 
-- `Hexagon`: 対称 toric square の外周側 split 0 / split 7 を除いた hex 領域
-- `Square`: non-toric square
-- `Torus`: toric square
+The `Generate` task builds primary terrain or overlay data from explicit parameters. Changing a parameter does not regenerate the map; press `Generate` to run the current settings.
 
-`Generation Radius` は `map_unit_radius` です。square / torus の一辺は `2 * radius + 1` になります。`Generation Radius = 1 / 2` では安定した参照リングが存在しないため、distribution ではなく `Wall Prob` で直接壁を生成します。
+Common generation controls:
 
-### Distribution
+- `Generator`: `Simple` or `Hex-inward Markov mesh model`.
+- `Shape`: hexagon, rectangle, square, or torus depending on the generator.
+- `Wall Prob`: wall probability from `0.00` to `1.00`.
+- `Seed`: deterministic generation seed.
+- `Rand`: replace the seed.
+- `Restore Connectivity`: reconnect floor regions after generation.
 
-対称生成時は `Dist` で preset を選びます。`Edit` を押すと Distribution Editor が開きます。
+For display, choose a `Target`, orientation, tile size, and catalog keys:
 
-Preset は `HexRandomizer.get_preset_names()` の順に表示されます。preset を選んでいる場合は、生成時に preset id を `HexMapGenerator` へ渡します。`.tres` を保存・読み込みした場合は `HexDistribution` resource を custom distribution として渡します。
-
-### 共通パラメータ
-
-- `Wall Prob`: 壁確率。0.00 から 1.00
-- `Seed`: 乱数シード
-- `Rand`: seed をランダム更新
-- `Restore Connectivity`: floor 全体の連結性回復
-
-`Restore Connectivity` が有効な場合、生成後に `HexMapGenerator.restore_connectivity()` が実行されます。`HexVector.zero()` は protected floor として扱われます。
-Overlay mode の Markov Mesh では同じ選択肢を Overlay Deductor として使い、生成itemを通行阻害itemとして必要分だけ削除して、Placement Mask のfloor集合の連結性を回復します。
-
-### Overlay Generation
-
-`Overlay` を有効にすると、`Generate` ボタンは `Overlay Generation` になり、ユーザー定義 item key を持つ `HexOverlayData` を生成します。`Overlay` が無効な場合は `Primary Generation` として従来の床・壁 `HexMapData` を生成します。
-
-Overlay generation は Placement Mask Query Rows を現在の Shape / サイズの universe に対して評価し、placement candidates として使います。Query Row が0行の場合はShape universe全体を候補にし、Query Row が1行以上あって結果が空の場合はGenerateを実行しません。
-
-- `Uniform Distribution`: Item Pool の各 row を使って item を配置する
-- `Add Item`: Item Pool row を追加する
-- `Item Num Limit`: Off の場合は各 row の数値を `Weight` として扱い、`Placement Probability` に従って配置する
-- `Item Num Limit`: On の場合は各 row の数値を `Limit` として扱い、`Placement Probability` を非表示にする
-- Item Pool row の `Tile` は、その item key を `TileMapLayer` に表示するときの source / atlas coords。`Floor Tile` / `Wall Tile` でDock上部のFloor / Wall tile設定をrowへコピーできる
-- `Target Item`: `Markov Mesh` で生成する item key。`Wall` など既存名も入力できる
-- `Markov Mesh`: `Target Item` に対して対称 toric item generation を使う
-- `Placement Mask`: Source Registry の `HexMapResource` / `HexOverlayResource` item keys から生成候補cellを作る
-- `Deductor Floor Source`: `Markov Mesh` かつ `Adjacency Rules` Off のOverlay Deductorで、連結性回復に使うfloor集合をPlacement Maskとは別に指定する。未指定時は、生成後に配置item集合のShape universe内complementをfloor集合として使う
-- `Enable Adjacency Reference`: On にすると `Markov Mesh` に切り替え、Reference Items と Adjacency Rules を使う
-- `Reference Items`: Primary / current Overlay の item keys から参照cellを作る
-- `Neighbor Radius`: Adjacency Reference の参照範囲
-- `Adjacency Rules`: `default=0.2;1=0.8;2,1=0.4` のように、参照item近傍数または `近傍数,連結成分数` ごとの確率を指定する。`2,1` は内部では `Vector2i(2, 1)` keyとして正規化される。不正entryはstatusに表示され、有効ruleがない場合はGenerateを実行しない。`Edit` で専用editorを開く
-- `Apply Write`: `Clear And Write` または `Add Item`。Primary / Overlay 共通で、`TileMapLayer` をclearするか、既存cellを残して書くかを決める
-- `Existing Item`: `Merge Existing` / `Replace Existing` / `Skip Existing`
-
-Source Registry では保存済み `HexMapResource` / `HexOverlayResource` を読み込み、Mask / Reference の Query Row にsourceとして追加できます。Query Row追加時はsourceを選び、row内部ではsource名のラベルと、そのsourceに含まれるItemKeyのcomboで対象を絞ります。各sourceにはresource pathと `Item: cell数` が表示されます。同じ resource path を再読み込みした場合は既存sourceを更新します。sourceをClearすると、そのsourceを参照するQuery Rowも削除されます。
-
-Mask Query Row は `AND` / `OR`、`Contain` / `Exclude`、offset を持ちます。offset は現在値ラベル横の六角形cell panelで操作します。`Query Cell` の `Cell Radius` / `Gap` / `Padding` はQuery Rowのhex cell panel共通の表示サイズ設定です。Mask result は Crop On / Off に関わらず現在のShape / サイズを query universe として評価し、Overlay Generateのcandidate cellsにも使います。source が toric square の場合、offset参照はsource本来の `cyclic_size` でwrapします。Crop On中にMask Query RowまたはShape / サイズを編集するとCrop Offに戻ります。
-
-Overlay mode はCrop状態で動作が変わります。Crop OnではCrop resultをShow Mask / `HexOverlayResource` 保存に使います。Crop OffではSource Registry内のOverlay sourceを表示順でstackし、`Apply Write` / `Existing Item` policyに従ってcurrent overlayへ反映します。`Apply Write = Clear And Write` はcurrent overlayを置換し、`TileMapLayer` をclearしてから書きます。`Apply Write = Add Item` はcurrent overlayへ合成し、`TileMapLayer` の既存cellを残して書きます。stack実行後はSource Registryのstatusにsource数、item数、occupied数、policyが表示されます。Generate後の自動applyは同じ `Apply Write` に従ってcurrent overlayをTarget `TileMapLayer` に表示します。Item Pool の通常UXでは catalog key を選び、数値tile指定は表示しません。
-
-`Generate History` を有効にすると、Generate成功時に `.tres` を保存し、保存済みsourceとしてSource Registryへ追加します。Primaryは生成された `HexMapData` 全体、OverlayはApply Policy反映前の生成差分 `HexOverlayData` を保存します。Generate Combination の履歴ファイル名には `overlay-combination` を使います。生成キャンセル時は保存しません。
-
-### Stats
-
-Stats は以下を表示します。
-
-```text
-Shape  seed=1201  wall_prob=0.45  cells=48  walls=12  floors=36  connected=yes  Generator Name
-```
-
-`connected` は現在の `HexMapData` に対する `HexMapGenerator.is_floor_connected()` の結果です。
-
-### Generation Progress
-
-`Generate` ボタンから開始した生成中は Dock 内の progress UI に進行状況と `Cancel` を表示します。Dock は生成処理の状態を `generation_status()` に保持します。
-
-- `running`: 生成中かどうか
-- `cancel_requested`: `Cancel` が押されたかどうか
-- `progress`: 0.0 から 1.0
-- `status`: `Generating` / `Preparing` / `Updating` / `Ready` / `Cancel requested` / `Cancelled`
-
-生成は Worker Thread で実行され、Core の `interrupt_options` に `progress_callback` / `cancel_callback` / `chunk_size` を渡します。`Generate` ボタンから開始した生成は短時間で完了する場合でも Dock 内 progress を表示し、成功時は最低 0.8 秒は表示してから非表示にします。Dock 内 progress の `Cancel` は cancel request を立て、Core の cancel callback が検出した時点で生成を中断します。Generate flow では modal progress window を作成しません。cancel 時は生成途中の partial data を Dock の current map へ反映せず、最後に完了した map を保持します。
-
-### TileMapLayer Settings
-
-Generate 後の自動 apply で使う TileMapLayer 設定を Dock から指定できます。
-
-| 設定 | 内容 |
+| Setting | Purpose |
 |---|---|
-| `Target` | Generate 後の自動 apply 先 |
-| `Orientation` | `flat-top / Vertical Offset` または `pointy-top / Horizontal Offset` |
-| `Tile Size` | `TileSet.tile_size` に設定する width / height |
-| `Floor Catalog` | floor tile に使う catalog key |
-| `Wall Catalog` | wall tile に使う catalog key |
-| `Apply Write` | `Clear And Write` はApply前に対象 `TileMapLayer` をclearする。`Add Item` は既存cellを残して生成結果を重ね書きする |
+| `Target` | Auto-selected or explicit `TileMapLayer` / `HexTileMapLayer` target |
+| `Orientation` | `flat-top / Vertical Offset` or `pointy-top / Horizontal Offset` |
+| `Tile Size` | TileSet tile size |
+| `Floor Catalog` | catalog key used for floor display |
+| `Wall Catalog` | catalog key used for wall display |
+| `Apply Write` | clear target first or add generated cells over existing cells |
 
-`Orientation` は `HexMapResource` に保存されます。Generate 後の自動 apply はこの orientation を正として、対象 `TileMapLayer.tile_set` と `set_cell()` 用の cell 座標を同時に設定します。
-`Orientation` を切り替えると、flat-top / pointy-top で横長・縦長が入れ替わる前提に合わせて `Tile Size` の width / height も入れ替えます。
+Generation normally auto-applies to the target layer. Numeric source and atlas controls are not part of normal authoring; catalog entries and the target `TileSet` own those details.
 
-`Target` は常に `Auto: Selected / first scene layer`、scene root 以下の `TileMapLayer`、`Add new layer...` を表示します。通常は Scene Tree と同じ短い node 名で表示し、同名レイヤーが複数ある場合だけ root からの短い相対 path で区別します。`Refresh` は scene 内の `TileMapLayer` を再取得し、Auto 項目を保持します。Target が `Auto` の場合、Generate 後の自動 apply は Editor の選択中 `TileMapLayer`、または scene 内の最初の `TileMapLayer` を使います。
+## 4. Compare Seeds In QA
 
-`Add new layer...` を選ぶと、編集中 scene root 直下に新しい `TileMapLayer` を追加し、そのレイヤーを Target と Scene Tree 選択にします。
+Use the Seed Lab workflow when the map shape and rules are known but the seed needs comparison.
 
-数値の source / atlas controls は通常UXから外し、catalog entry と Target TileSet 側の責務にしています。内部的な数値状態は既存adapterとdebug検証のために残っていますが、通常の生成操作では catalog key と Resource picker を使います。生成が完了した場合は Target が指すレイヤーへ自動 apply します。
+1. Set generation parameters in `Generate`.
+2. In `Seed Lab`, choose the seed count.
+3. Press `Run Batch`.
+4. Compare the score table by rank, seed, score, status, cells, and validation summary.
+5. Select a row to update the selected seed preview.
+6. Press `Promote to Document` to create a canonical document from that seed.
 
-TileSet は以下に設定されます。
+After promotion, Seed Lab status shows Dirty state and `generation_seed` metadata. Promotion does not silently save; use the document save workflow.
 
-```text
-tile_shape = TILE_SHAPE_HEXAGON
-tile_layout = TILE_LAYOUT_STACKED
-tile_offset_axis = TILE_OFFSET_AXIS_VERTICAL    # flat-top
-tile_offset_axis = TILE_OFFSET_AXIS_HORIZONTAL  # pointy-top
-```
+## 5. Use A Tile Catalog
 
-TileSet が未設定の `TileMapLayer` へ適用した場合は、新しい `TileSet` を作成してから設定します。
-同じ `TileSet` resource を複数 `TileMapLayer` が共有している場合、Dock は設定変更前に選択中レイヤー側の `TileSet` を複製して、他レイヤーへ Tile Size / Orientation / atlas 設定が伝播しないようにします。
-`Apply Write = Add Item` のApplyでは、既存 `TileMapLayer` cellは維持され、生成結果があるcellだけが上書きされます。
-Apply 後に TileMapLayer Inspector 側だけで `Horizontal Offset` / `Vertical Offset` を手動変更する経路は管理対象外です。
+Use catalog keys instead of raw tile source numbers in normal authoring.
 
-Godot 側の対応 API は公式ドキュメントの `TileMapLayer`、`TileSet`、`TileSetAtlasSource` を参照します。
+Catalog setup:
 
-- https://docs.godotengine.org/en/stable/classes/class_tilemaplayer.html
-- https://docs.godotengine.org/en/stable/classes/class_tileset.html
-- https://docs.godotengine.org/en/stable/classes/class_tilesetatlassource.html
+- `Catalog Resource`: select a `HexTileCatalogResource`.
+- `TileSet`: select the catalog TileSet resource.
+- `Scene Entry Resource`: select a `PackedScene` for scene-tile entries.
+- `Add Atlas Entry`: add an atlas tile entry to the catalog.
+- `Add Scene Entry`: add a scene entry that references the selected `PackedScene`.
+- `Validate Catalog`: show missing TileSet, missing source, invalid atlas coords, missing scene, and tag/status issues.
 
-### Hex Map Edit Document Header
+The catalog entry list shows key, type, preview, tags, and status. Paint and generation controls select catalog keys such as `terrain.floor`, `terrain.wall`, or `overlay.treasure`. `source_id` and `atlas_coords` are catalog-entry internals, not normal paint inputs.
 
-`Hex Map Edit` Dock の document 操作は `New Document` / `Open...` / `Save` / `Save As...` / `Validate` に集約されています。`Document` 表示には selected state、Saved path、Dirty state、Validation summary が表示されます。
+## 6. Paint Terrain, Objects, And Labels
 
-`Open...` または `Document Resource` で `HexMapDocumentResource` を選びます。`Save` は保存済み path がある場合に上書き保存し、未保存documentでは `Save As...` と同じ保存先選択になります。`Save As...` は常に保存先を選び直します。
+Choose a target layer, then use `Edit Mode` for the authoring intent:
 
-`HexMapResource` から document に変換する場合は Advanced convert の `Convert Resource` / `Browse...` / `Convert` を使います。runtime向け `HexMapResource` を出力する場合は `Export...` / `Export As...` を使います。
+- `Shape`: create or remove canonical document cells.
+- `Wall / Floor`: toggle terrain occupancy.
+- `Floor Tile`: assign a floor catalog key.
+- `Wall Tile`: assign a wall catalog key.
+- `Object`: place object definitions by object key.
+- `Label`: place text labels by label key.
 
-### Hex Map Edit Catalog
+Viewport edits update the document and target display together. Undo / Redo should restore both document state and visible tiles.
 
-`Catalog` では `HexTileCatalogResource`、catalog用 `TileSet`、scene entry用 `PackedScene` をResourcePickerで選択します。entry list は key、type、preview、tags、status を表示し、`Validate Catalog` で missing TileSet / source / atlas coords / scene resource などをstatusへ反映します。
+### Object Placement
 
-`Add Atlas Entry` は atlas entryをcatalogに追加します。`Add Scene Entry` は `Scene Entry Resource` の `PackedScene` を参照するscene entryを追加します。通常の Floor Tile / Wall Tile / Overlay Tile / Object paint UI は catalog key を選ぶだけで、`source_id` や `atlas_coords` の直接編集はcatalog entry詳細側の責務です。
+Object mode uses typed resources:
 
-### Hex Map Edit Object Palette
+- `Object DB`: select a `HexObjectDatabaseResource`.
+- definition list: choose the object key to place.
+- `Definition Scene`: select the definition `PackedScene`.
+- `Placement Properties`: edit bool, number, string, and enum values through typed controls.
 
-Object modeでは `Object DB` に `HexObjectDatabaseResource` を選び、definition listから配置するobject keyを選びます。選択中definitionのsceneは `Definition Scene` の `PackedScene` ResourcePickerで設定します。
+Normal object placement does not use raw `object_id` text or raw JSON property editing.
 
-`Placement Properties` はdefinitionの `default_properties` と現在のplacement payloadから型を推定し、boolはCheckBox、int/floatはSpinBox、stringはLineEdit、enum schemaはOptionButtonで編集します。通常UXでは `object_id` 手入力や raw JSON properties text を使いません。
+### Labels
 
-### Hex Map Edit Layer Stack
+Label mode uses the selected label database and label key. Label placement belongs to the document and can be validated with the same validation dashboard as terrain and objects.
 
-`Layer Stack` では Standard Authoring / Minimal Runtime template を選び、role listで role、node name、visible、locked、z-index、writable source を確認します。`Create Missing Layers` は選択中 `HexTileMapLayer` に不足role layerを作り、`Apply Document` はdocumentをroleごとのTileMapLayerへ反映します。`Clear Role` は選択中roleのTileMapLayer内容を消去します。
+## 7. Manage A Layer Stack
 
-通常のlayer stack workflowは `HexTileMapLayer` targetを使います。plain `TileMapLayer` への直接applyは互換・debug用の経路であり、主要な画面操作ではありません。
+Use `Layer Stack` when one document should apply into multiple role-specific layers.
 
-### Hex Map Edit Validation
+Typical workflow:
 
-`Validation` は issue を Document / Catalog / Layer / Object / Gameplay / Package の domain と Error / Warning / Info の severity で表示します。issue を選択すると focus target と fix suggestion が表示され、cell issue は target cell、catalog issue は catalog entry、resource issue は dependency/resource 情報へ接続します。
+1. Choose `Standard Authoring` or `Minimal Runtime` template.
+2. Review each role, node name, visible state, locked state, z-index, and writable source.
+3. Select a `HexTileMapLayer` target.
+4. Press `Create Missing Layers` to add absent role layers.
+5. Press `Apply Document` to apply the current document by role.
+6. Press `Clear Role` to clear the selected role layer.
 
-`Copy Debug Report` は support 用の詳細textを維持します。通常のstatus表示は短く、rule dump は dashboard row または debug reportで確認します。
+The normal layer stack workflow targets `HexTileMapLayer`. Plain `TileMapLayer` direct apply is an advanced/debug route, not the primary authoring path.
 
-### Hex Map Generate Seed Lab
+## 8. Validate And Focus Issues
 
-Generate Dock の `Seed Lab` では seed数を指定して `Run Batch` を実行し、score tableで rank、seed、score、status、cells、validation summaryを比較します。score rowを選ぶと selected seed preview が更新され、`Promote to Document` で選択seedを canonical document に昇格します。
+Use `Validate` before treating a document as runtime-ready.
 
-promotion後は Seed Lab status に Dirty state と `generation_seed` metadata が表示されます。visual previewは今後の画面再編対象ですが、seedの比較・選択・document化の流れはこのscreen内で完結します。
+Validation rows are grouped by domain and severity:
 
-### Atlas Image
+- domains: Document, Catalog, Layer, Object, Gameplay, Package
+- severities: Error, Warning, Info
 
-`Browse Atlas Image` は resource path の画像を読み込み、Scene Tree で選択中の `TileMapLayer.tile_set` または `HexTileMapLayer` の表示用 TileSet に `TileSetAtlasSource` を作成します。source id は Dock の `Floor` source を使い、floor / wall の atlas coords と `Tile Size` を TileSetAtlasSource に反映します。設定後は `Wall` source も同じ source id に同期されます。
+Selecting an issue shows:
 
-`Use Sample Tiles` は addon 同梱の `addons/hex_map_kit/assets/sample_hex_tiles.png` を使うショートカットです。Scene Tree で選択中の `TileMapLayer` に対して、sample は `source_id=0`、floor `Vector2i(0, 0)`、wall `Vector2i(1, 0)`、tile size `64 x 57` に設定します。
+- focus target, such as a cell, catalog entry, dependency, or resource
+- fix suggestion
+- issue details needed for support or debugging
 
-`Hex Map Edit` Dock側の `Target TileSet / Atlas` でも、`Browse` から画像を選んでTarget TileSetへ反映できます。`TileSet` ResourcePicker、sample preset、direct path入力は同じTarget TileSetを更新し、documentにはasset pathやTileSet referenceを保存しません。`Target Status` にはTileSet path、source count、tile size、floor / wall / overlay payload、overlay visibilityが表示されます。
+Cell issues can focus the target cell. Catalog issues can focus catalog entries. Resource issues point back to the relevant dependency or selected resource.
 
-### Buttons
+## 9. Copy A Debug Report
 
-- `Generate`: 現在の設定で Primary または Overlay を再生成し、対象 `TileMapLayer` があれば自動 apply
-- `Cancel`: 生成中の Dock 内 progress から実行中 generation に cancel request を記録
-- `Save As .tres`: Primary mode では `HexMapResource`、Overlay mode では `HexOverlayResource` として保存
-- `Browse Atlas Image`: 画像 resource を `TileSetAtlasSource` として Scene Tree 選択中 `TileMapLayer` / `HexTileMapLayer` に設定
-- `Use Sample Tiles`: addon 同梱 sample atlas を Scene Tree 選択中 `TileMapLayer` に設定
+Use `Copy Debug Report` when reporting an authoring or validation problem.
 
-Generate 後の自動 apply は `HexMapTileAdapter.apply_to_tile_map_layer()` を使います。表示するには、対象 `TileMapLayer` の `TileSet` と catalog entry が対応している必要があります。
+The report includes:
 
-## 3. Distribution Editor
+- target status
+- last edit details
+- save/export details
+- validation summary
+- raw status needed for support
 
-Distribution Editor は `HexDistribution` の 3-neighbor / 2-neighbor / 1-neighbor table を編集します。
+Normal authoring should use concise status and validation rows. The debug report is for support, not for everyday editing.
 
-### 表示
+## 10. Configure Sample Tiles And Atlases
 
-各 pattern は、参照セルの floor/wall 状態と、中央セルの生成値を表示します。SpinBox の値は 0.0 から 8.0 で、生成確率は `value / 8.0` です。
-
-中央セルの色は以下です。
-
-```text
-brightness = 0.9 - value / 10.0
-```
-
-値が大きいほど暗く表示されます。
-
-### Preset
-
-Window 起動時は preset の値が SpinBox に入ります。`Preset` を変更すると、現在の編集 path はクリアされ、preset 値が再読み込みされます。
-
-`Duplicate Preset...` は現在表示中の preset 値を新しい custom `.tres` として保存します。保存後はその path が編集中 path になり、`Recent` に追加されます。
-
-### Load / Save
-
-- `Load .tres`: `HexDistribution` resource を読み込み、SpinBox に反映
-- `Save New...`: 現在値を新しい `.tres` として保存
-- `Apply`: 読み込み済み path へ保存し、Map Generation Dock へ適用
-- `Cancel` または window close: 保存せず閉じる
-
-読み込みまたは保存した custom `.tres` は `Recent` に表示されます。`Recent` から path を選ぶと、その custom distribution を再読み込みします。
-
-保存後は FileSystem scan が実行されます。
-
-## 4. HexMapResource Inspector
-
-`HexMapResource` を Inspector で選択すると、先頭に以下の summary が表示されます。
+Use `Use Sample Tiles` for the included sample atlas:
 
 ```text
-cells=49  walls=20  floors=29  connected=yes  orientation=flat-top  torus=7x7
+res://addons/hex_map_kit/assets/sample_hex_tiles.png
 ```
 
-この表示は `resource.to_map_data()` の結果をもとに算出されます。
+The sample setup uses:
+
+- source id `0`
+- floor atlas coords `Vector2i(0, 0)`
+- wall atlas coords `Vector2i(1, 0)`
+- tile size `64 x 57`
+
+These numeric values are sample asset details. Normal workflow should still select catalog keys for generated, painted, and overlay tiles.
+
+Use `Browse Atlas Image` or the target TileSet/Atlas browser when preparing a target `TileSet`. Target status reports TileSet path, source count, tile size, floor/wall/overlay payload, and overlay visibility.
+
+## 11. Distribution Editor
+
+For symmetric generation, use `Dist` to choose a preset. Press `Edit` to open Distribution Editor.
+
+Distribution Editor actions:
+
+- `Load .tres`: load a `HexDistribution` resource.
+- `Save New...`: save current values to a new resource.
+- `Apply`: save the current resource and apply it to Generate.
+- `Duplicate Preset...`: copy a preset into a custom editable resource.
+
+Distribution values are generator weights from `0.0` to `8.0`; probability is `value / 8.0`.
+
+## 12. Reference
+
+- Workflow: `docs/manual/MANUAL_WORKFLOW.md`
+- Scripting: `docs/manual/MANUAL_SCRIPTING.md`
+- API: `docs/api/API_REFERENCE.md`
+- Tests and manual debug notes: `docs/TEST.md`

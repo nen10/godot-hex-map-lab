@@ -15,10 +15,12 @@ Hex 座標系・ランダム壁生成・通路生成(連結性回復)処理を G
   - protected floor と terminal 接続回復
   - toric square の 9 split と外周から中心へ進む対称生成
 - Godot 連携
-  - `HexMapResource` による `.tres` 保存
-  - `HexMapTileAdapter` による `TileMapLayer` 反映
+  - `HexMapDocumentResource` による terrain / overlay / object / label / metadata / dependency authoring
+  - `HexTileCatalogResource` と catalog key による tile assignment
+  - `HexMapResource` による runtime map `.tres` 保存
+  - `HexMapTileAdapter` / `HexTileMapLayer` による `TileMapLayer` 反映
   - `HexTileMapLayer` による実行時 helper
-  - EditorPlugin の生成 Dock、Distribution Editor、Resource Inspector
+  - EditorPlugin の Hex Map Workspace、Resource picker workflow、Catalog、Layer Stack、Validation、Seed Lab、Distribution Editor
 - Debug scene
   - flat-top / pointy-top の配置確認
   - 生成 map、toric domain、9 split、対称生成 overlay の視覚確認
@@ -33,6 +35,8 @@ Hex 座標系・ランダム壁生成・通路生成(連結性回復)処理を G
 - `docs/manual/MANUAL_EDITOR_PLUGIN.md`
 - `docs/manual/MANUAL_PACKAGE.md`
 - `docs/api/API_REFERENCE.md`
+
+Editor authoring starts in **Hex Map Workspace**. Use Resource pickers and FileDialogs for documents, catalogs, TileSets, object databases, label databases, scenes, and save/export targets. Normal tile and object workflows use catalog keys and object keys rather than raw tile source numbers or editable path text.
 
 Examples:
 

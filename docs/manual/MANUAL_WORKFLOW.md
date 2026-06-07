@@ -28,7 +28,22 @@ The sample catalog owns its `TileSet` resource and its scene-tile entry referenc
 
 More setup details: `docs/manual/MANUAL_SETUP.md`.
 
-## 2. Author A Level Document
+## 2. Use The Editor By Goal
+
+Open **Hex Map Workspace** and work from the authoring goal:
+
+- Document: create, open, save, save as, validate, and export a `HexMapDocumentResource`.
+- Generate: choose generator shape, seed, catalog keys, target, orientation, and tile size.
+- QA: run Seed Lab batch comparison and promote a selected seed to a document.
+- Catalog: select a `HexTileCatalogResource`, catalog `TileSet`, and scene-entry `PackedScene`; validate catalog status.
+- Paint: edit terrain, floor tile keys, wall tile keys, objects, and labels in the viewport.
+- Layers: create missing role layers and apply the document through a `HexTileMapLayer` layer stack.
+- Validate: inspect domain/severity grouped issues, focus cells/resources/catalog entries, and read fix suggestions.
+- Support: use `Copy Debug Report` when a compact status row is not enough.
+
+Normal editor selection uses Resource pickers and FileDialogs. Saved paths may be displayed as read-only status, but path text is not the primary input workflow.
+
+## 3. Author A Level Document
 
 Use `HexMapDocumentResource` for maps that need terrain, overlay, objects, labels, zones, metadata, and dependencies in one resource.
 
@@ -56,7 +71,7 @@ var document = HexEditorWorkflowExample.build_authoring_document()
 var info = HexEditorWorkflowExample.workflow_summary(document)
 ```
 
-## 3. Use Catalog Keys
+## 4. Use Catalog Keys
 
 Use catalog keys instead of raw `source_id` / `atlas_coords` in normal authoring flows.
 
@@ -76,7 +91,9 @@ terrain_layer.default_wall_key = "terrain.wall"
 
 Individual payloads can also carry `catalog_key`. Missing catalog assignments are validation issues; document apply does not silently replace them with numeric fallback tiles.
 
-## 4. Use A Layer Stack
+In the editor, use `Catalog Resource`, `TileSet`, `Scene Entry Resource`, `Add Atlas Entry`, `Add Scene Entry`, and `Validate Catalog`. Paint and Generate controls then choose catalog keys rather than tile coordinates.
+
+## 5. Use A Layer Stack
 
 `HexLayerStackResource.standard_template()` defines authoring roles:
 
@@ -95,7 +112,20 @@ var stack = HexLayerStackResource.standard_template()
 hex_tile_map_layer.apply_document_to_layer_stack(document, stack)
 ```
 
-## 5. Validate Before Runtime Handoff
+In the editor, use `Create Missing Layers`, `Apply Document`, and `Clear Role` with a `HexTileMapLayer` target.
+
+## 6. Place Runtime Objects
+
+Object authoring uses a typed object database:
+
+- `Object DB`: `HexObjectDatabaseResource`.
+- definition list: object key selection.
+- `Definition Scene`: `PackedScene` reference.
+- `Placement Properties`: typed bool, number, string, and enum controls.
+
+Script-side runtime export is covered in section 9.
+
+## 7. Validate Before Runtime Handoff
 
 Run validation before treating a document as runtime-ready.
 
@@ -112,9 +142,9 @@ if result.error_count() > 0:
 
 Validation checks include payloads outside the map, orphan objects/labels, missing catalog or tile entries, missing dependencies, objects on walls, missing object scenes, duplicate unique objects, and movement-profile reachability rules.
 
-In the editor, use the validation dashboard and Copy Debug Report paths described in `docs/manual/MANUAL_EDITOR_PLUGIN.md`.
+In the editor, use the validation dashboard for domain/severity rows, focus targets, and fix suggestions. Use `Copy Debug Report` for support reports that need target status, last edit, save/export status, validation summary, and raw details.
 
-## 6. Runtime Query
+## 8. Runtime Query
 
 Load a saved canonical document path and ask movement/path queries with the basic runtime example:
 
@@ -154,7 +184,7 @@ For a scene wrapper, open:
 res://examples/basic_runtime/runtime_query_example.tscn
 ```
 
-## 7. Runtime Object Export
+## 9. Runtime Object Export
 
 Use runtime object export when gameplay code should instantiate objects without mutating authoring placements.
 
@@ -166,7 +196,7 @@ for item in export["runtime_objects"]:
 
 The returned dictionaries are copies. Runtime-only changes do not write back into `document.object_placements`.
 
-## 8. Reference
+## 10. Reference
 
 - API surface: `docs/api/API_REFERENCE.md`
 - Runtime example: `examples/basic_runtime/`
