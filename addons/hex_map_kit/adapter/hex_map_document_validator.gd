@@ -154,7 +154,8 @@ static func _validate_catalog_key(
 		)
 		return
 	var catalog_entry = catalog.entry_for_key(catalog_key)
-	if tile_set == null:
+	var active_tile_set = tile_set if tile_set != null else _catalog_tile_set(catalog)
+	if active_tile_set == null:
 		result.add_error(
 			RULE_TILE_MISSING,
 			"TileSet is missing for catalog tile key: %s." % catalog_key,
@@ -162,7 +163,7 @@ static func _validate_catalog_key(
 			details
 		)
 		return
-	_validate_catalog_entry_tile(result, catalog_entry, tile_set, details)
+	_validate_catalog_entry_tile(result, catalog_entry, active_tile_set, details)
 
 
 static func _default_terrain_key(document, field_name: String) -> String:
@@ -178,6 +179,10 @@ static func _default_terrain_key(document, field_name: String) -> String:
 
 
 static func _validate_catalog_entry_tile(result, entry, tile_set: TileSet, details: Dictionary) -> void:
+	var entry_type = String(entry.get("entry_type"))
+	if entry_type == HexTileCatalogEntryScript.TYPE_PLACEHOLDER:
+		result.add_error(RULE_TILE_MISSING, "Catalog key is a placeholder and has no drawable tile.", HexMapValidationResultScript.SCOPE_DEPENDENCY, details)
+		return
 	var source_id = int(entry.get("source_id"))
 	if not tile_set.has_source(source_id):
 		result.add_error(
@@ -188,7 +193,6 @@ static func _validate_catalog_entry_tile(result, entry, tile_set: TileSet, detai
 		)
 		return
 	var source = tile_set.get_source(source_id)
-	var entry_type = String(entry.get("entry_type"))
 	if entry_type == HexTileCatalogEntryScript.TYPE_ATLAS:
 		if not source is TileSetAtlasSource:
 			result.add_error(RULE_TILE_MISSING, "Catalog key source is not an atlas source.", HexMapValidationResultScript.SCOPE_DEPENDENCY, details)
@@ -200,9 +204,15 @@ static func _validate_catalog_entry_tile(result, entry, tile_set: TileSet, detai
 	elif entry_type == HexTileCatalogEntryScript.TYPE_SCENE:
 		if not source is TileSetScenesCollectionSource:
 			result.add_error(RULE_TILE_MISSING, "Catalog key source is not a scene collection source.", HexMapValidationResultScript.SCOPE_DEPENDENCY, details)
-		var scene_path = String(entry.get("scene_path"))
-		if scene_path == "" or not ResourceLoader.exists(scene_path):
+		if not entry.get("scene") is PackedScene:
 			result.add_error(RULE_TILE_MISSING, "Catalog scene tile resource is missing.", HexMapValidationResultScript.SCOPE_DEPENDENCY, details)
+
+
+static func _catalog_tile_set(catalog) -> TileSet:
+	if catalog == null:
+		return null
+	var resource = catalog.get("tile_set")
+	return resource if resource is TileSet else null
 
 
 static func _validate_object_entries(result, document, cell_set: Dictionary, wall_set: Dictionary, options: Dictionary) -> void:

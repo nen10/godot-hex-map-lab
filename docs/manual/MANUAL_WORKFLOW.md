@@ -24,6 +24,8 @@ res://addons/hex_map_kit/assets/sample_hex_tiles.png
 res://addons/hex_map_kit/assets/sample_hex_tile_catalog.tres
 ```
 
+The sample catalog owns its `TileSet` resource and its scene-tile entry references a package-contained `PackedScene`.
+
 More setup details: `docs/manual/MANUAL_SETUP.md`.
 
 ## 2. Author A Level Document

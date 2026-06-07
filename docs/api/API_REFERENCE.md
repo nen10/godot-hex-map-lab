@@ -130,7 +130,7 @@ Path: `res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd`
 - `keys()`
 - `entries_with_tag(tag)`
 
-Entries are `HexTileCatalogEntry` resources with `key`, `entry_type`, `source_id`, `atlas_coords`, `scene_path`, `tags`, and fallback fields.
+Entries are `HexTileCatalogEntry` resources with `key`, `entry_type`, `source_id`, `atlas_coords`, `alternative_tile`, `scene`, `tags`, and `metadata`. Catalogs own a `TileSet` resource through `tile_set`; scene entries own a `PackedScene` resource through `scene`.
 
 ## Validation
 

@@ -462,7 +462,7 @@ func _test_object_layer_adapter_applies_scene_tiles_and_direct_instances() -> vo
 	catalog_entry.entry_type = HexTileCatalogEntry.TYPE_SCENE
 	catalog_entry.source_id = 7
 	catalog_entry.atlas_coords = Vector2i(scene_tile_id, 0)
-	catalog_entry.scene_path = "res://objects/crate.tscn"
+	catalog_entry.scene = packed_scene
 	catalog.entries.append(catalog_entry)
 
 	var layer = HexTileMapLayer.new()

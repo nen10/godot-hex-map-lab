@@ -6,7 +6,7 @@ const HexTileCatalogEntryScript = preload("res://addons/hex_map_kit/adapter/hex_
 
 @export var catalog_id: String = ""
 @export var display_name: String = ""
-@export var tile_set_path: String = ""
+@export var tile_set: TileSet
 @export var entries: Array[Resource] = []
 @export var metadata: Dictionary = {}
 

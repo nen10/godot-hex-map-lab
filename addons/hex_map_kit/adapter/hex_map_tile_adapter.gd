@@ -28,9 +28,12 @@ static func tile_config_from_catalog(catalog, catalog_key: String) -> Dictionary
 	var entry = catalog.entry_for_key(catalog_key)
 	if entry == null:
 		return config
+	var entry_type = String(entry.get("entry_type"))
 	config["catalog_key"] = catalog_key
-	config["entry_type"] = String(entry.get("entry_type"))
-	config["scene_path"] = String(entry.get("scene_path"))
+	config["entry_type"] = entry_type
+	config["scene"] = entry.get("scene")
+	if entry_type not in ["atlas", "scene"]:
+		return config
 	config["source_id"] = int(entry.get("source_id"))
 	config["atlas_coords"] = entry.get("atlas_coords")
 	config["alternative_tile"] = int(entry.get("alternative_tile"))

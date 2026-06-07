@@ -19,10 +19,11 @@ const RULE_SCENE_MISSING := "catalog.scene_missing"
 
 static func validate_catalog(catalog, tile_set: TileSet = null):
 	var result = HexMapValidationResultScript.new()
+	var active_tile_set = tile_set if tile_set != null else _catalog_tile_set(catalog)
 	result.summary = {
 		"catalog_id": String(catalog.get("catalog_id")) if catalog != null else "",
 		"entries": catalog.entries.size() if catalog != null else 0,
-		"tile_set_present": tile_set != null,
+		"tile_set_present": active_tile_set != null,
 		"errors": 0,
 		"warnings": 0,
 	}
@@ -31,7 +32,7 @@ static func validate_catalog(catalog, tile_set: TileSet = null):
 		_update_counts(result)
 		return result
 
-	if tile_set == null:
+	if active_tile_set == null:
 		result.add_error(RULE_TILE_SET_MISSING, "TileSet is missing for catalog validation.", HexMapValidationResultScript.SCOPE_DEPENDENCY)
 
 	var seen_keys := {}
@@ -45,7 +46,7 @@ static func validate_catalog(catalog, tile_set: TileSet = null):
 				{"metadata": {"entry_index": index}}
 			)
 			continue
-		_validate_entry(result, entry, tile_set, seen_keys, index)
+		_validate_entry(result, entry, active_tile_set, seen_keys, index)
 
 	_update_counts(result)
 	return result
@@ -54,7 +55,8 @@ static func validate_catalog(catalog, tile_set: TileSet = null):
 static func catalog_key_tags_and_custom_data(catalog, key: String, tile_set: TileSet = null) -> Dictionary:
 	if catalog == null:
 		return {"tags": PackedStringArray(), "custom_data": {}}
-	return entry_tags_and_custom_data(tile_set, catalog.entry_for_key(key))
+	var active_tile_set = tile_set if tile_set != null else _catalog_tile_set(catalog)
+	return entry_tags_and_custom_data(active_tile_set, catalog.entry_for_key(key))
 
 
 static func entry_tags_and_custom_data(tile_set: TileSet, entry) -> Dictionary:
@@ -91,7 +93,7 @@ static func _validate_entry(result, entry, tile_set: TileSet, seen_keys: Diction
 	if entry_type not in [
 		HexTileCatalogEntryScript.TYPE_ATLAS,
 		HexTileCatalogEntryScript.TYPE_SCENE,
-		HexTileCatalogEntryScript.TYPE_FALLBACK,
+		HexTileCatalogEntryScript.TYPE_PLACEHOLDER,
 	]:
 		result.add_error(
 			RULE_ENTRY_TYPE_INVALID,
@@ -153,11 +155,11 @@ static func _validate_atlas_entry(result, entry, tile_set: TileSet, details: Dic
 
 
 static func _validate_scene_entry(result, entry, tile_set: TileSet, details: Dictionary) -> void:
-	var scene_path = String(entry.get("scene_path"))
-	if scene_path == "" or not ResourceLoader.exists(scene_path):
+	var scene = entry.get("scene")
+	if not scene is PackedScene:
 		result.add_error(
 			RULE_SCENE_MISSING,
-			"Catalog scene path is missing or cannot be loaded: %s." % scene_path,
+			"Catalog scene resource is missing.",
 			HexMapValidationResultScript.SCOPE_DEPENDENCY,
 			details
 		)
@@ -183,6 +185,18 @@ static func _validate_scene_entry(result, entry, tile_set: TileSet, details: Dic
 			HexMapValidationResultScript.SCOPE_DEPENDENCY,
 			details
 		)
+		return
+
+	var scene_source = source as TileSetScenesCollectionSource
+	var scene_tile_id = _scene_tile_id(entry)
+	if scene_tile_id >= 0 and scene_source.has_method("has_scene_tile"):
+		if not scene_source.has_scene_tile(scene_tile_id):
+			result.add_error(
+				RULE_ATLAS_COORDS_INVALID,
+				"Catalog scene tile id is not present in the source.",
+				HexMapValidationResultScript.SCOPE_DEPENDENCY,
+				details
+			)
 
 
 static func _entry_custom_data(tile_set: TileSet, entry) -> Dictionary:
@@ -220,6 +234,18 @@ static func _tile_set_has_source(tile_set: TileSet, source_id: int) -> bool:
 	return tile_set != null and source_id >= 0 and tile_set.has_source(source_id)
 
 
+static func _catalog_tile_set(catalog) -> TileSet:
+	if catalog == null:
+		return null
+	var resource = catalog.get("tile_set")
+	return resource if resource is TileSet else null
+
+
+static func _scene_tile_id(entry) -> int:
+	var coords: Vector2i = entry.get("atlas_coords")
+	return coords.x
+
+
 static func _entry_metadata(entry, index: int) -> Dictionary:
 	return {
 		"entry_index": index,
@@ -228,7 +254,7 @@ static func _entry_metadata(entry, index: int) -> Dictionary:
 		"source_id": int(entry.get("source_id")),
 		"atlas_coords": entry.get("atlas_coords"),
 		"alternative_tile": int(entry.get("alternative_tile")),
-		"scene_path": String(entry.get("scene_path")),
+		"scene_present": entry.get("scene") is PackedScene,
 	}
 
 

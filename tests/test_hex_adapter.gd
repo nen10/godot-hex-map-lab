@@ -1378,18 +1378,16 @@ func _test_hex_tile_catalog_resource_resolves_logical_keys() -> void:
 	var catalog = HexTileCatalogResource.new()
 	catalog.catalog_id = "test-catalog"
 	catalog.display_name = "Test Catalog"
-	catalog.tile_set_path = "res://addons/hex_map_kit/assets/sample_hex_tiles.png"
+	catalog.tile_set = _test_catalog_tile_set()
 
 	var floor = HexTileCatalogEntry.new()
 	floor.key = "terrain.floor"
 	floor.display_name = "Floor"
 	floor.entry_type = HexTileCatalogEntry.TYPE_ATLAS
 	floor.source_id = 2
-	floor.atlas_coords = Vector2i(3, 4)
+	floor.atlas_coords = Vector2i(3, 0)
 	floor.alternative_tile = 1
 	floor.tags = PackedStringArray(["terrain", "floor", "walkable"])
-	floor.fallback_source_id = 0
-	floor.fallback_atlas_coords = Vector2i.ZERO
 	floor.metadata = {"terrain_kind": "floor"}
 	catalog.add_entry(floor)
 
@@ -1403,21 +1401,21 @@ func _test_hex_tile_catalog_resource_resolves_logical_keys() -> void:
 	scene.display_name = "Spawn"
 	scene.entry_type = HexTileCatalogEntry.TYPE_SCENE
 	scene.source_id = 7
-	scene.scene_path = "res://addons/hex_map_kit/debug/spawn_marker.tscn"
+	var scene_root = Node2D.new()
+	scene_root.name = "SpawnMarker"
+	var scene_resource = PackedScene.new()
+	_assert_eq(scene_resource.pack(scene_root), OK, "catalog test scene packs")
+	scene_root.free()
+	scene.scene = scene_resource
 	scene.tags = PackedStringArray(["object", "spawn", "scene"])
-	scene.fallback_source_id = 0
-	scene.fallback_atlas_coords = Vector2i(1, 0)
 	catalog.add_entry(scene)
 
-	var fallback_only = HexTileCatalogEntry.new()
-	fallback_only.key = "terrain.unknown"
-	fallback_only.entry_type = HexTileCatalogEntry.TYPE_FALLBACK
-	fallback_only.source_id = -1
-	fallback_only.fallback_source_id = 5
-	fallback_only.fallback_atlas_coords = Vector2i(6, 7)
-	fallback_only.fallback_alternative_tile = 2
-	fallback_only.tags = PackedStringArray(["terrain"])
-	catalog.add_entry(fallback_only)
+	var placeholder = HexTileCatalogEntry.new()
+	placeholder.key = "terrain.unknown"
+	placeholder.entry_type = HexTileCatalogEntry.TYPE_PLACEHOLDER
+	placeholder.source_id = -1
+	placeholder.tags = PackedStringArray(["terrain"])
+	catalog.add_entry(placeholder)
 
 	var empty = HexTileCatalogEntry.new()
 	catalog.add_entry(empty)
@@ -1427,26 +1425,25 @@ func _test_hex_tile_catalog_resource_resolves_logical_keys() -> void:
 	var loaded = load(path)
 	var loaded_floor = loaded.entry_for_key("terrain.floor")
 	var loaded_scene = loaded.entry_for_key("object.spawn")
-	var loaded_fallback = loaded.entry_for_key("terrain.unknown")
+	var loaded_placeholder = loaded.entry_for_key("terrain.unknown")
 
 	_assert_eq(error, OK, "tile catalog resource saves")
 	_assert_eq(loaded is HexTileCatalogResource, true, "tile catalog loads as typed resource")
+	_assert_eq(loaded.tile_set is TileSet, true, "catalog preserves TileSet resource")
 	_assert_eq(loaded.has_key("terrain.floor"), true, "catalog reports existing key")
 	_assert_eq(loaded.has_key(""), false, "catalog rejects empty key lookup")
 	_assert_eq(loaded.entry_for_key("missing"), null, "catalog returns null for missing key")
 	_assert_eq(loaded.keys(), PackedStringArray(["terrain.floor", "terrain.floor", "object.spawn", "terrain.unknown"]), "catalog keys omit empty keys and preserve order")
 	_assert_eq(loaded_floor is HexTileCatalogEntry, true, "catalog entry keeps typed resource")
 	_assert_eq(loaded_floor.source_id, 2, "catalog lookup returns first duplicate key")
-	_assert_eq(loaded_floor.atlas_coords, Vector2i(3, 4), "catalog preserves atlas coords")
+	_assert_eq(loaded_floor.atlas_coords, Vector2i(3, 0), "catalog preserves atlas coords")
 	_assert_eq(loaded_floor.alternative_tile, 1, "catalog preserves alternative tile")
 	_assert_eq(loaded_floor.has_tag("walkable"), true, "catalog entry preserves tags")
 	_assert_eq(loaded_floor.metadata["terrain_kind"], "floor", "catalog entry preserves metadata")
 	_assert_eq(loaded_scene.is_scene_tile(), true, "catalog scene entry reports scene type")
-	_assert_eq(loaded_scene.scene_path, "res://addons/hex_map_kit/debug/spawn_marker.tscn", "catalog preserves scene path")
-	_assert_eq(loaded_scene.fallback_atlas_coords, Vector2i(1, 0), "scene entry preserves fallback atlas")
-	_assert_eq(loaded_fallback.effective_source_id(), 5, "fallback entry exposes effective source id")
-	_assert_eq(loaded_fallback.effective_atlas_coords(), Vector2i(6, 7), "fallback entry exposes effective atlas")
-	_assert_eq(loaded_fallback.effective_alternative_tile(), 2, "fallback entry exposes effective alternative tile")
+	_assert_eq(loaded_scene.scene is PackedScene, true, "catalog preserves scene resource")
+	_assert_eq(loaded_placeholder.is_placeholder(), true, "placeholder entry reports placeholder type")
+	_assert_eq(HexMapTileAdapter.tile_config_from_catalog(loaded, "terrain.unknown")["source_id"], -1, "placeholder entry resolves to no tile")
 	_assert_eq(loaded.entries_with_tag("terrain").size(), 2, "catalog tag filter returns matching entries")
 	_assert_eq(loaded.entries_with_tag("spawn")[0].key, "object.spawn", "catalog tag filter preserves entry order")
 
@@ -1456,12 +1453,15 @@ func _test_sample_hex_tile_catalog_loads() -> void:
 
 	_assert_eq(sample is HexTileCatalogResource, true, "sample tile catalog loads")
 	_assert_eq(sample.catalog_id, "sample_hex_tile_catalog", "sample catalog stores id")
+	_assert_eq(sample.tile_set is TileSet, true, "sample catalog owns TileSet resource")
 	_assert_eq(sample.has_key("terrain.floor"), true, "sample catalog has floor key")
 	_assert_eq(sample.entry_for_key("terrain.wall").atlas_coords, Vector2i(1, 0), "sample catalog maps wall key to atlas tile")
 	_assert_eq(sample.entry_for_key("object.spawn_marker").is_scene_tile(), true, "sample catalog includes scene tile entry")
-	_assert_eq(sample.entry_for_key("object.spawn_marker").scene_path, "res://addons/hex_map_kit/debug/hex_spawn_marker.tscn", "sample catalog preserves scene path")
+	_assert_eq(sample.entry_for_key("object.spawn_marker").scene is PackedScene, true, "sample catalog preserves scene resource")
 	_assert_eq(sample.entries_with_tag("terrain").size(), 2, "sample catalog terrain tags load")
 	_assert_eq(sample.entries_with_tag("blocking")[0].key, "terrain.wall", "sample catalog wall blocking tag loads")
+	var validation = HexTileCatalogValidator.validate_catalog(sample)
+	_assert_eq(validation.error_count(), 0, "sample catalog validator is clean")
 
 
 func _test_hex_tile_catalog_validator_reports_missing_assets() -> void:
@@ -1487,7 +1487,6 @@ func _test_hex_tile_catalog_validator_reports_missing_assets() -> void:
 	missing_scene.key = "object.missing_scene"
 	missing_scene.entry_type = HexTileCatalogEntry.TYPE_SCENE
 	missing_scene.source_id = 0
-	missing_scene.scene_path = "res://missing/catalog_scene.tscn"
 	catalog.add_entry(missing_scene)
 
 	var duplicate = HexTileCatalogEntry.new()
@@ -1534,6 +1533,7 @@ func _test_hex_tile_catalog_validator_extracts_tags_and_custom_data() -> void:
 	tile_data.set_custom_data("terrain_kind", "grass")
 
 	var catalog = HexTileCatalogResource.new()
+	catalog.tile_set = tile_set
 	var floor = HexTileCatalogEntry.new()
 	floor.key = "terrain.grass"
 	floor.entry_type = HexTileCatalogEntry.TYPE_ATLAS
@@ -1542,9 +1542,9 @@ func _test_hex_tile_catalog_validator_extracts_tags_and_custom_data() -> void:
 	floor.tags = PackedStringArray(["terrain", "grass", "cost:3"])
 	catalog.add_entry(floor)
 
-	var result = HexTileCatalogValidator.validate_catalog(catalog, tile_set)
-	var extracted = HexTileCatalogValidator.catalog_key_tags_and_custom_data(catalog, "terrain.grass", tile_set)
-	var missing = HexTileCatalogValidator.catalog_key_tags_and_custom_data(catalog, "missing", tile_set)
+	var result = HexTileCatalogValidator.validate_catalog(catalog)
+	var extracted = HexTileCatalogValidator.catalog_key_tags_and_custom_data(catalog, "terrain.grass")
+	var missing = HexTileCatalogValidator.catalog_key_tags_and_custom_data(catalog, "missing")
 
 	_assert_eq(result.error_count(), 0, "catalog validator accepts valid atlas entry")
 	_assert_no_issue(result, HexTileCatalogValidator.RULE_TILE_SET_MISSING, "catalog validator has TileSet for valid entry")
@@ -1769,6 +1769,7 @@ func _test_resource_path(filename: String) -> String:
 
 func _test_tile_catalog() -> HexTileCatalogResource:
 	var catalog = HexTileCatalogResource.new()
+	catalog.tile_set = _test_catalog_tile_set()
 	catalog.add_entry(_test_catalog_entry("terrain.floor", 4, Vector2i(0, 0), ["terrain", "floor"]))
 	catalog.add_entry(_test_catalog_entry("terrain.wall", 5, Vector2i(1, 0), ["terrain", "wall"]))
 	catalog.add_entry(_test_catalog_entry("overlay.treasure", 6, Vector2i(2, 0), ["overlay", "treasure"]))
@@ -1782,9 +1783,30 @@ func _test_catalog_entry(key: String, source_id: int, atlas_coords: Vector2i, ta
 	entry.source_id = source_id
 	entry.atlas_coords = atlas_coords
 	entry.tags = PackedStringArray(tags)
-	entry.fallback_source_id = source_id
-	entry.fallback_atlas_coords = atlas_coords
 	return entry
+
+
+func _test_catalog_tile_set() -> TileSet:
+	var tile_set = TileSet.new()
+	var texture = HexMapTileAdapter.load_tile_texture("res://addons/hex_map_kit/assets/tactics_flat_top_hex_tiles_64x57_10.png")
+	for entry in [
+		{"source_id": 2, "coords": Vector2i(3, 0)},
+		{"source_id": 4, "coords": Vector2i(0, 0)},
+		{"source_id": 5, "coords": Vector2i(1, 0)},
+		{"source_id": 6, "coords": Vector2i(2, 0)},
+		{"source_id": 7, "coords": Vector2i(3, 0)},
+	]:
+		var coords: Vector2i = entry["coords"]
+		var tile_coords: Array[Vector2i] = [coords]
+		HexMapTileAdapter.configure_atlas_tile_set(
+			tile_set,
+			texture,
+			true,
+			HexMapTileAdapter.SAMPLE_TILE_SIZE,
+			int(entry["source_id"]),
+			tile_coords
+		)
+	return tile_set
 
 
 func _test_output_dir() -> String:
