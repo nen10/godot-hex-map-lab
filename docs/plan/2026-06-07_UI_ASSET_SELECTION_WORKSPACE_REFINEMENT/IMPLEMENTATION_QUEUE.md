@@ -66,7 +66,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 | `SCREEN-21` | `COMPLETE` | `WORKSPACE-10`, `ASSET-12` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/SCREEN-21_CATALOG_ASSET_SCREEN/` | Catalog asset screen | Catalog tab/component, catalog resources, TileSet/entry UI, editor/catalog tests | Arbitrary catalog and TileSet can be selected or created; sample catalog is only available through sample mode; entry authoring starts from TileSet / PackedScene selection. |
 | `SCREEN-22` | `COMPLETE` | `WORKSPACE-10`, `ASSET-12` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/SCREEN-22_LAYER_STACK_ASSET_SCREEN/` | Layer stack asset screen | Layers tab/component, layer stack resources, target root picker, editor/layer tests | Layer Stack can be selected or created without sample template; target root is picked from scene; templates are presets that can be duplicated to project assets. |
 | `SCREEN-23` | `COMPLETE` | `WORKSPACE-10`, `ASSET-12` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/SCREEN-23_OBJECT_LABEL_ASSET_SCREEN/` | Object / Label asset screen | Object/Label tab or panels, object database, label database, PackedScene/preview selectors, editor/object/label tests | Object placement uses Object Definition picker, not raw object id text; label placement uses Label Definition picker; sample object scene is isolated in Settings / Samples. |
-| `SCREEN-24` | `READY` | `SCREEN-21`, `SCREEN-23` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/SCREEN-24_PAINT_BRUSH_ASSET_SCREEN/` | Paint brush asset screen | Paint tab/component, brush palette, catalog/object/label selection state, editor tests | Paint focuses on Terrain/Overlay/Object/Label/Zone mode and current brush asset; source id, atlas coords, raw object id, and raw label id are absent from normal Paint UI; missing asset state points to owning tab. |
+| `SCREEN-24` | `COMPLETE` | `SCREEN-21`, `SCREEN-23` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/SCREEN-24_PAINT_BRUSH_ASSET_SCREEN/` | Paint brush asset screen | Paint tab/component, brush palette, catalog/object/label selection state, editor tests | Paint focuses on Terrain/Overlay/Object/Label/Zone mode and current brush asset; source id, atlas coords, raw object id, and raw label id are absent from normal Paint UI; missing asset state points to owning tab. |
 | `SCREEN-25` | `READY` | `WORKSPACE-10` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/SCREEN-25_VALIDATE_ASSET_SCREEN/` | Validate asset screen | Validate tab/component, validation rule suite selection, issue navigator, editor tests | Missing user assets are validation issues, not sample fallback; issues point to the Document/Catalog/Object/Layer/QA place the user should fix. |
 | `SCREEN-26` | `READY` | `WORKSPACE-10`, `ASSET-12` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/SCREEN-26_QA_ASSET_SCREEN/` | QA / Seed Lab asset screen | QA tab/component, generation profile resources, validation suite, score table, promotion target, editor/generation tests | Custom Generation Profile and Validation Suite can be selected or created; built-in presets can be duplicated; score table displays selected profile and validation suite. |
 | `SCREEN-27` | `READY` | `WORKSPACE-10`, `ASSET-12` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/SCREEN-27_EXPORT_ASSET_SCREEN/` | Export asset screen | Export tab/component, export profile, destination FileDialog/recent destinations, package/runtime handoff, package tests | Export destination uses FileDialog/recent destination, not text input; user-selected destination is required; no sample export destination exists. |
@@ -77,8 +77,8 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `CLEANUP-30` | `BACKLOG` | `SCREEN-21`, `SCREEN-24` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/CLEANUP-30_DEBUG_NUMERIC_FALLBACK_QUARANTINE/` | Debug numeric fallback quarantine | catalog/paint UI, adapters, validation helpers, tests | Normal apply path does not silently fill missing catalog through numeric fallback; debug fallback requires explicit Settings / Debug opt-in; tests assert missing catalog is validation issue. |
-| `CLEANUP-31` | `BACKLOG` | `SCREEN-23`, `SCREEN-24` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/CLEANUP-31_RAW_TEXT_AUTHORING_FIELD_REPLACEMENT/` | Raw text authoring field replacement | overlay/object/label UI, property schema editors, tests | Overlay item key, Label ID, Object variant, Spawn condition, and Object property key/value have asset/definition/enum/schema selection sources; raw text is advanced/debug only or removed. |
+| `CLEANUP-30` | `READY` | `SCREEN-21`, `SCREEN-24` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/CLEANUP-30_DEBUG_NUMERIC_FALLBACK_QUARANTINE/` | Debug numeric fallback quarantine | catalog/paint UI, adapters, validation helpers, tests | Normal apply path does not silently fill missing catalog through numeric fallback; debug fallback requires explicit Settings / Debug opt-in; tests assert missing catalog is validation issue. |
+| `CLEANUP-31` | `READY` | `SCREEN-23`, `SCREEN-24` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/CLEANUP-31_RAW_TEXT_AUTHORING_FIELD_REPLACEMENT/` | Raw text authoring field replacement | overlay/object/label UI, property schema editors, tests | Overlay item key, Label ID, Object variant, Spawn condition, and Object property key/value have asset/definition/enum/schema selection sources; raw text is advanced/debug only or removed. |
 
 ---
 
@@ -135,7 +135,7 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `SCREEN-24`.
+Current recommended next task: `SCREEN-25`.
 
 Reason:
 
@@ -148,8 +148,9 @@ Reason:
 - `SCREEN-21` is complete and makes the Catalog tab manage project Tile Catalog assets.
 - `SCREEN-22` is complete and makes the Layers tab manage project Layer Stack assets.
 - `SCREEN-23` is complete and makes Object / Label placement use project definition assets.
-- `SCREEN-24` is now dependency-satisfied because `SCREEN-21` and `SCREEN-23` are complete.
-- `SCREEN-24` is the first dependency-satisfied READY task in queue order.
+- `SCREEN-24` is complete and makes Paint report current brush asset state with owning-tab CTAs.
+- `CLEANUP-30` and `CLEANUP-31` are now dependency-satisfied and READY.
+- `SCREEN-25` is the first dependency-satisfied READY task in queue order.
 
 ---
 
@@ -372,3 +373,18 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_workspace_component_registry.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/SCREEN-23_TEST_RESULT_2026-06-08.md`
+
+### SCREEN-24 Paint brush asset screen
+
+proof:
+  plan: `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/SCREEN-24_PAINT_BRUSH_ASSET_SCREEN/`
+  review: `docs/review/autopilot/SCREEN-24_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_edit_tool.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/SCREEN-24_TEST_RESULT_2026-06-08.md`

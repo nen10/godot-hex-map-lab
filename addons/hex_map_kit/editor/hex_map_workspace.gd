@@ -749,6 +749,40 @@ func select_label_definition(label_id: String) -> Dictionary:
 	}
 
 
+func paint_brush_screen_snapshot() -> Dictionary:
+	return {
+		"tab": HexMapWorkspaceComponentRegistry.TAB_PAINT,
+		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_PAINT),
+		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_PAINT),
+		"brush": _edit_tool.paint_brush_snapshot() if _edit_tool != null else {},
+	}
+
+
+func select_paint_brush_mode(mode_id: String) -> Dictionary:
+	if _edit_tool == null:
+		return _paint_brush_action_result(false, ERR_UNAVAILABLE, mode_id)
+	var ok := _edit_tool.set_paint_brush_mode(mode_id)
+	return {
+		"ok": ok,
+		"error": OK if ok else ERR_INVALID_PARAMETER,
+		"mode": mode_id,
+		"brush": _edit_tool.paint_brush_snapshot(),
+	}
+
+
+func select_paint_catalog_brush_key(key: String, mode_id: String = "terrain") -> Dictionary:
+	if _edit_tool == null:
+		return _paint_brush_action_result(false, ERR_UNAVAILABLE, mode_id)
+	var ok := _edit_tool.select_catalog_brush_key(key, mode_id)
+	return {
+		"ok": ok,
+		"error": OK if ok else ERR_DOES_NOT_EXIST,
+		"mode": mode_id,
+		"key": key,
+		"brush": _edit_tool.paint_brush_snapshot(),
+	}
+
+
 func _build_ui() -> void:
 	if _tabs != null:
 		return
@@ -1070,6 +1104,15 @@ func _label_definition_action_result(ok: bool, error: int, label_id: String, def
 		"label_id": label_id,
 		"definition": definition,
 		"payload": _edit_tool.label_placement_payload_snapshot() if _edit_tool != null else {},
+	}
+
+
+func _paint_brush_action_result(ok: bool, error: int, mode_id: String) -> Dictionary:
+	return {
+		"ok": ok,
+		"error": error,
+		"mode": mode_id,
+		"brush": _edit_tool.paint_brush_snapshot() if _edit_tool != null else {},
 	}
 
 

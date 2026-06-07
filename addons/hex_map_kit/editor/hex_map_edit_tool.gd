@@ -609,6 +609,58 @@ func select_label_definition_id(definition_id: String) -> bool:
 	return true
 
 
+func set_paint_brush_mode(mode_id: String) -> bool:
+	var mode := _paint_edit_mode_for_mode_id(mode_id)
+	if mode < 0:
+		return false
+	set_edit_mode(mode)
+	return true
+
+
+func select_catalog_brush_key(key: String, mode_id: String = "terrain") -> bool:
+	if _tile_catalog == null or key.strip_edges() == "":
+		return false
+	if _tile_catalog.entry_for_key(key) == null:
+		return false
+	var mode := _paint_edit_mode_for_mode_id(mode_id)
+	if not [EditMode.FLOOR_TILE, EditMode.WALL_TILE, EditMode.OVERLAY_TILE].has(mode):
+		return false
+	set_edit_mode(mode)
+	_tile_payload["catalog_key"] = key
+	_store_current_tile_payload_for_mode()
+	_select_catalog_option_by_key(_tile_catalog_option, key)
+	_refresh_target_status_detail()
+	return true
+
+
+func paint_brush_snapshot() -> Dictionary:
+	var mode_id := _paint_mode_id_for_edit_mode(_edit_mode)
+	var brush_key := _paint_brush_key_for_current_mode()
+	var cta := _paint_missing_asset_cta(mode_id, brush_key)
+	return {
+		"mode": mode_id,
+		"mode_label": EDIT_MODE_NAMES[_edit_mode],
+		"brush_key": brush_key,
+		"ready": cta.is_empty(),
+		"missing_asset_cta": cta,
+		"tile_catalog_present": _tile_catalog != null,
+		"object_database_present": _object_database != null,
+		"label_database_present": _label_database != null,
+		"selected_object_definition_id": _selected_object_definition_id,
+		"selected_label_definition_id": _selected_label_definition_id,
+		"zone_mode_available": false,
+		"normal_internal_controls_visible": {
+			"source_id": _control_row_is_visible(_tile_source_spin),
+			"atlas_x": _control_row_is_visible(_tile_atlas_x_spin),
+			"atlas_y": _control_row_is_visible(_tile_atlas_y_spin),
+			"default_floor_source_id": _control_row_is_visible(_default_floor_source_spin),
+			"default_wall_source_id": _control_row_is_visible(_default_wall_source_spin),
+			"raw_object_id": _control_row_is_visible(_object_id_edit),
+			"raw_label_id": _control_row_is_visible(_label_id_edit),
+		},
+	}
+
+
 func set_layer_stack_resource(stack: HexLayerStackResource, publish_context: bool = true) -> void:
 	_layer_stack_resource = stack
 	_selected_layer_stack_role = ""
@@ -2846,6 +2898,77 @@ func _control_row_is_visible(control) -> bool:
 	if parent is Control:
 		return (parent as Control).visible
 	return (control as Control).visible
+
+
+func _paint_edit_mode_for_mode_id(mode_id: String) -> int:
+	match mode_id.strip_edges().to_lower():
+		"terrain", "floor", "floor_tile":
+			return EditMode.FLOOR_TILE
+		"wall", "wall_tile":
+			return EditMode.WALL_TILE
+		"overlay", "overlay_tile":
+			return EditMode.OVERLAY_TILE
+		"object":
+			return EditMode.OBJECT
+		"label":
+			return EditMode.LABEL
+	return -1
+
+
+func _paint_mode_id_for_edit_mode(mode: int) -> String:
+	match mode:
+		EditMode.FLOOR_TILE, EditMode.WALL_TILE:
+			return "terrain"
+		EditMode.OVERLAY_TILE:
+			return "overlay"
+		EditMode.OBJECT:
+			return "object"
+		EditMode.LABEL:
+			return "label"
+	return "shape"
+
+
+func _paint_brush_key_for_current_mode() -> String:
+	match _edit_mode:
+		EditMode.FLOOR_TILE, EditMode.WALL_TILE, EditMode.OVERLAY_TILE:
+			return String(_tile_payload.get("catalog_key", ""))
+		EditMode.OBJECT:
+			return _selected_object_definition_id
+		EditMode.LABEL:
+			return _selected_label_definition_id
+	return ""
+
+
+func _paint_missing_asset_cta(mode_id: String, brush_key: String) -> Dictionary:
+	match mode_id:
+		"terrain", "overlay":
+			if _tile_catalog != null and brush_key != "":
+				return {}
+			return {
+				"target_tab": "Catalog",
+				"target_component_id": "catalog_asset_panel",
+				"target_slot_id": HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG,
+				"reason": "missing_tile_catalog" if _tile_catalog == null else "missing_catalog_key",
+			}
+		"object":
+			if _object_database != null and brush_key != "":
+				return {}
+			return {
+				"target_tab": "Paint",
+				"target_component_id": "object_label_asset_panel",
+				"target_slot_id": HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE,
+				"reason": "missing_object_database" if _object_database == null else "missing_object_definition",
+			}
+		"label":
+			if _label_database != null and brush_key != "":
+				return {}
+			return {
+				"target_tab": "Paint",
+				"target_component_id": "object_label_asset_panel",
+				"target_slot_id": HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE,
+				"reason": "missing_label_database" if _label_database == null else "missing_label_definition",
+			}
+	return {}
 
 
 func _sync_resource_pickers() -> void:

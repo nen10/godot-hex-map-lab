@@ -117,6 +117,7 @@ func _run() -> void:
 	await _test_catalog_asset_screen_manages_project_catalog_without_samples()
 	await _test_layer_stack_asset_screen_manages_project_stack_without_samples()
 	await _test_object_label_asset_screen_manages_project_definitions_without_samples()
+	await _test_paint_brush_asset_screen_routes_missing_assets_without_raw_controls()
 	await _test_workspace_sample_settings_panel_controls_sample_mode_sources()
 	_test_sample_asset_duplicator_copies_catalog_dependencies_to_project()
 	_test_asset_slot_state_model_reports_selection_validation_and_sample_source()
@@ -927,6 +928,105 @@ func _test_object_label_asset_screen_manages_project_definitions_without_samples
 	_assert_true(bool(label_clear_result["ok"]), "Object/Label screen clears Label Database")
 	_assert_eq(workspace.workspace_asset_context().label_database, null, "cleared label database leaves workspace context")
 	_assert_true(not session.show_bundled_samples_in_main_selectors, "Object/Label screen actions do not enable sample mode")
+
+	workspace.queue_free()
+	await process_frame
+
+
+func _test_paint_brush_asset_screen_routes_missing_assets_without_raw_controls() -> void:
+	var session = HexMapEditorSessionState.new()
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	var terrain_mode = workspace.select_paint_brush_mode("terrain")
+	_assert_true(bool(terrain_mode["ok"]), "Paint brush screen selects terrain mode")
+	var brush = (terrain_mode["brush"] as Dictionary)
+	_assert_eq(brush["mode"], "terrain", "Paint brush snapshot reports terrain mode")
+	_assert_true(not bool(brush["ready"]), "Paint brush terrain is not ready without catalog")
+	var cta = brush["missing_asset_cta"] as Dictionary
+	_assert_eq(cta["target_tab"], "Catalog", "Paint brush missing terrain catalog points to Catalog tab")
+	_assert_eq(cta["target_component_id"], "catalog_asset_panel", "Paint brush missing terrain catalog points to catalog panel")
+	_assert_eq(cta["target_slot_id"], HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, "Paint brush missing terrain catalog points to tile catalog slot")
+
+	var controls = brush["normal_internal_controls_visible"] as Dictionary
+	_assert_true(not bool(controls["source_id"]), "Paint brush hides source id control")
+	_assert_true(not bool(controls["atlas_x"]), "Paint brush hides atlas x control")
+	_assert_true(not bool(controls["atlas_y"]), "Paint brush hides atlas y control")
+	_assert_true(not bool(controls["raw_object_id"]), "Paint brush hides raw object id control")
+	_assert_true(not bool(controls["raw_label_id"]), "Paint brush hides raw label id control")
+
+	var output_dir = _test_resource_dir("screen24_paint_brush")
+	var catalog_path = "%s/tile_catalog.tres" % output_dir
+	var catalog_result = workspace.create_tile_catalog(catalog_path)
+	_assert_true(bool(catalog_result["ok"]), "Paint brush test creates project Tile Catalog")
+	var tile_set := _test_catalog_tileset()
+	_assert_true(bool(workspace.set_catalog_tile_set(tile_set)["ok"]), "Paint brush test assigns TileSet")
+	_assert_true(
+		bool(workspace.create_catalog_atlas_entry_from_tileset("terrain.floor", tile_set, 0, Vector2i.ZERO)["ok"]),
+		"Paint brush test creates catalog key"
+	)
+	var terrain_brush = workspace.select_paint_catalog_brush_key("terrain.floor", "terrain")
+	_assert_true(bool(terrain_brush["ok"]), "Paint brush selects terrain catalog key")
+	brush = terrain_brush["brush"] as Dictionary
+	_assert_true(bool(brush["ready"]), "Paint brush terrain is ready with selected catalog key")
+	_assert_eq(brush["brush_key"], "terrain.floor", "Paint brush terrain reports catalog key")
+
+	var overlay_brush = workspace.select_paint_catalog_brush_key("terrain.floor", "overlay")
+	_assert_true(bool(overlay_brush["ok"]), "Paint brush selects overlay catalog key")
+	brush = overlay_brush["brush"] as Dictionary
+	_assert_eq(brush["mode"], "overlay", "Paint brush snapshot reports overlay mode")
+	_assert_true(bool(brush["ready"]), "Paint brush overlay is ready with selected catalog key")
+
+	var object_mode = workspace.select_paint_brush_mode("object")
+	_assert_true(bool(object_mode["ok"]), "Paint brush screen selects object mode")
+	brush = object_mode["brush"] as Dictionary
+	_assert_true(not bool(brush["ready"]), "Paint brush object is not ready without object database")
+	cta = brush["missing_asset_cta"] as Dictionary
+	_assert_eq(cta["target_component_id"], "object_label_asset_panel", "Paint brush missing object points to object/label panel")
+	_assert_eq(cta["target_slot_id"], HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE, "Paint brush missing object points to object database slot")
+
+	var object_db_result = workspace.create_object_database("%s/object_database.tres" % output_dir)
+	_assert_true(bool(object_db_result["ok"]), "Paint brush test creates project Object Database")
+	var marker := Node2D.new()
+	var scene := PackedScene.new()
+	_assert_eq(scene.pack(marker), OK, "test PackedScene packs for paint brush object")
+	marker.free()
+	_assert_true(
+		bool(workspace.create_object_definition_from_packed_scene("object.spawn", scene, "Spawn")["ok"]),
+		"Paint brush test creates object definition"
+	)
+	var object_select = workspace.select_object_definition("object.spawn")
+	_assert_true(bool(object_select["ok"]), "Paint brush selects object definition")
+	brush = (workspace.paint_brush_screen_snapshot()["brush"] as Dictionary)
+	_assert_true(bool(brush["ready"]), "Paint brush object is ready with selected definition")
+	_assert_eq(brush["brush_key"], "object.spawn", "Paint brush object reports definition id")
+
+	var label_mode = workspace.select_paint_brush_mode("label")
+	_assert_true(bool(label_mode["ok"]), "Paint brush screen selects label mode")
+	brush = label_mode["brush"] as Dictionary
+	_assert_true(not bool(brush["ready"]), "Paint brush label is not ready without label database")
+	cta = brush["missing_asset_cta"] as Dictionary
+	_assert_eq(cta["target_component_id"], "object_label_asset_panel", "Paint brush missing label points to object/label panel")
+	_assert_eq(cta["target_slot_id"], HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE, "Paint brush missing label points to label database slot")
+
+	var label_db_result = workspace.create_label_database("%s/label_database.tres" % output_dir)
+	_assert_true(bool(label_db_result["ok"]), "Paint brush test creates project Label Database")
+	_assert_true(
+		bool(workspace.create_label_definition("label.spawn", "Spawn Label", "Spawn", "map")["ok"]),
+		"Paint brush test creates label definition"
+	)
+	var label_select = workspace.select_label_definition("label.spawn")
+	_assert_true(bool(label_select["ok"]), "Paint brush selects label definition")
+	brush = (workspace.paint_brush_screen_snapshot()["brush"] as Dictionary)
+	_assert_true(bool(brush["ready"]), "Paint brush label is ready with selected definition")
+	_assert_eq(brush["brush_key"], "label.spawn", "Paint brush label reports definition id")
+	_assert_true(not bool(brush["zone_mode_available"]), "Paint brush reports zone mode as deferred")
+
+	var zone_mode = workspace.select_paint_brush_mode("zone")
+	_assert_true(not bool(zone_mode["ok"]), "Paint brush rejects zone mode until document mutation exists")
+	_assert_true(not session.show_bundled_samples_in_main_selectors, "Paint brush actions do not enable sample mode")
 
 	workspace.queue_free()
 	await process_frame
