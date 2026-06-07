@@ -186,6 +186,12 @@ Object modeでは `Object DB` に `HexObjectDatabaseResource` を選び、defini
 
 通常のlayer stack workflowは `HexTileMapLayer` targetを使います。plain `TileMapLayer` への直接applyは互換・debug用の経路であり、主要な画面操作ではありません。
 
+### Hex Map Generate Seed Lab
+
+Generate Dock の `Seed Lab` では seed数を指定して `Run Batch` を実行し、score tableで rank、seed、score、status、cells、validation summaryを比較します。score rowを選ぶと selected seed preview が更新され、`Promote to Document` で選択seedを canonical document に昇格します。
+
+promotion後は Seed Lab status に Dirty state と `generation_seed` metadata が表示されます。visual previewは今後の画面再編対象ですが、seedの比較・選択・document化の流れはこのscreen内で完結します。
+
 ### Atlas Image
 
 `Browse Atlas Image` は resource path の画像を読み込み、Scene Tree で選択中の `TileMapLayer.tile_set` または `HexTileMapLayer` の表示用 TileSet に `TileSetAtlasSource` を作成します。source id は Dock の `Floor` source を使い、floor / wall の atlas coords と `Tile Size` を TileSetAtlasSource に反映します。設定後は `Wall` source も同じ source id に同期されます。

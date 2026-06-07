@@ -119,6 +119,13 @@ var _wall_prob_label: Label
 var _wall_prob_row: Control
 var _seed_spin: SpinBox
 var _seed_random_button: Button
+var _seed_lab_count_spin: SpinBox
+var _seed_lab_run_button: Button
+var _seed_lab_score_tree: Tree
+var _seed_lab_preview_label: Label
+var _seed_lab_promote_button: Button
+var _seed_lab_status_label: Label
+var _seed_lab_selected_row: Dictionary = {}
 
 var _deductor_row: HBoxContainer
 var _connect_method_option: OptionButton
@@ -402,6 +409,7 @@ func _build_ui() -> void:
 	root.add_child(generate_methods)
 
 	root.add_child(_build_seed_controls())
+	root.add_child(_build_seed_lab_controls())
 	root.add_child(_build_generation_progress_controls())
 
 	var mode_row = HBoxContainer.new()
@@ -806,6 +814,52 @@ func _build_seed_controls() -> Control:
 	_generate_history_dir_button.pressed.connect(_on_generate_history_dir_pressed)
 	row.add_child(_generate_history_dir_button)
 	return row
+
+
+func _build_seed_lab_controls() -> Control:
+	var box = VBoxContainer.new()
+	box.add_child(_build_section_label("Seed Lab"))
+	var action_row = HBoxContainer.new()
+	var count_label = Label.new()
+	count_label.text = "Seeds"
+	action_row.add_child(count_label)
+	_seed_lab_count_spin = SpinBox.new()
+	_seed_lab_count_spin.min_value = 1
+	_seed_lab_count_spin.max_value = 100
+	_seed_lab_count_spin.value = 3
+	_seed_lab_count_spin.step = 1
+	action_row.add_child(_seed_lab_count_spin)
+	_seed_lab_run_button = Button.new()
+	_seed_lab_run_button.text = "Run Batch"
+	_seed_lab_run_button.pressed.connect(_on_seed_lab_run_pressed)
+	action_row.add_child(_seed_lab_run_button)
+	_seed_lab_promote_button = Button.new()
+	_seed_lab_promote_button.text = "Promote to Document"
+	_seed_lab_promote_button.pressed.connect(_on_seed_lab_promote_pressed)
+	action_row.add_child(_seed_lab_promote_button)
+	box.add_child(action_row)
+	_seed_lab_score_tree = Tree.new()
+	_seed_lab_score_tree.hide_root = true
+	_seed_lab_score_tree.columns = 6
+	_seed_lab_score_tree.set_column_titles_visible(true)
+	_seed_lab_score_tree.set_column_title(0, "rank")
+	_seed_lab_score_tree.set_column_title(1, "seed")
+	_seed_lab_score_tree.set_column_title(2, "score")
+	_seed_lab_score_tree.set_column_title(3, "status")
+	_seed_lab_score_tree.set_column_title(4, "cells")
+	_seed_lab_score_tree.set_column_title(5, "validation")
+	_seed_lab_score_tree.custom_minimum_size = Vector2(0, 120)
+	_seed_lab_score_tree.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_seed_lab_score_tree.item_selected.connect(_on_seed_lab_score_selected)
+	box.add_child(_seed_lab_score_tree)
+	_seed_lab_preview_label = Label.new()
+	_seed_lab_preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(_seed_lab_preview_label)
+	_seed_lab_status_label = Label.new()
+	_seed_lab_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(_seed_lab_status_label)
+	_refresh_seed_lab_screen()
+	return box
 
 
 func _build_tile_layer_controls() -> Control:
@@ -2403,6 +2457,97 @@ func run_generation_batch(seed_count: int, options: Dictionary = {}) -> Array[Di
 
 	_last_batch_generation_results = _duplicate_batch_rows(rows)
 	return generation_batch_results()
+
+
+func _on_seed_lab_run_pressed() -> void:
+	var count = int(_seed_lab_count_spin.value) if _seed_lab_count_spin != null else 3
+	run_generation_batch(count)
+	_seed_lab_selected_row.clear()
+	_refresh_seed_lab_screen()
+
+
+func _on_seed_lab_score_selected() -> void:
+	if _seed_lab_score_tree == null:
+		return
+	var selected = _seed_lab_score_tree.get_selected()
+	if selected == null:
+		return
+	var row_index = int(selected.get_metadata(0))
+	var rows = generation_batch_score_table("score", true)
+	if row_index < 0 or row_index >= rows.size():
+		return
+	_seed_lab_selected_row = rows[row_index].duplicate(true)
+	_refresh_seed_lab_preview()
+
+
+func _on_seed_lab_promote_pressed() -> void:
+	if _seed_lab_selected_row.is_empty():
+		_seed_lab_status_label.text = "No seed selected."
+		return
+	var document = promote_generation_batch_row(_seed_lab_selected_row)
+	_refresh_seed_lab_screen()
+	if document == null:
+		_seed_lab_status_label.text = "Promotion failed."
+	else:
+		_seed_lab_status_label.text = "Promoted seed %d. Dirty: yes. Metadata: generation_seed=%d." % [
+			int(_seed_lab_selected_row.get("seed", 0)),
+			document.metadata.generation_seed,
+		]
+
+
+func _refresh_seed_lab_screen() -> void:
+	_refresh_seed_lab_score_tree()
+	_refresh_seed_lab_preview()
+	if _seed_lab_status_label != null:
+		_seed_lab_status_label.text = "Batch rows=%d promoted=%s" % [
+			_last_batch_generation_results.size(),
+			"yes" if _last_promoted_generation_document != null else "no",
+		]
+
+
+func _refresh_seed_lab_score_tree() -> void:
+	if _seed_lab_score_tree == null:
+		return
+	_seed_lab_score_tree.clear()
+	var root_item = _seed_lab_score_tree.create_item()
+	var rows = generation_batch_score_table("score", true)
+	for index in range(rows.size()):
+		var row = rows[index]
+		var item = _seed_lab_score_tree.create_item(root_item)
+		item.set_metadata(0, index)
+		item.set_text(0, str(int(row.get("rank", index + 1))))
+		item.set_text(1, str(int(row.get("seed", 0))))
+		item.set_text(2, "%.2f" % float(row.get("score", 0.0)))
+		item.set_text(3, String(row.get("status", "")))
+		item.set_text(4, str(int(row.get("cells", 0))))
+		item.set_text(5, _seed_lab_validation_text(row))
+
+
+func _refresh_seed_lab_preview() -> void:
+	if _seed_lab_preview_label == null:
+		return
+	if _seed_lab_selected_row.is_empty():
+		_seed_lab_preview_label.text = "Selected Seed: none"
+		return
+	_seed_lab_preview_label.text = "Selected Seed: %d  score=%.2f  cells=%d  status=%s" % [
+		int(_seed_lab_selected_row.get("seed", 0)),
+		float(_seed_lab_selected_row.get("score", 0.0)),
+		int(_seed_lab_selected_row.get("cells", 0)),
+		String(_seed_lab_selected_row.get("status", "")),
+	]
+
+
+func _seed_lab_validation_text(row: Dictionary) -> String:
+	var summary = row.get("validation_summary", {})
+	if summary is Dictionary:
+		return "%dE/%dW" % [
+			int((summary as Dictionary).get("errors", row.get("validation_errors", 0))),
+			int((summary as Dictionary).get("warnings", row.get("validation_warnings", 0))),
+		]
+	return "%dE/%dW" % [
+		int(row.get("validation_errors", 0)),
+		int(row.get("validation_warnings", 0)),
+	]
 
 
 func generation_batch_results() -> Array[Dictionary]:

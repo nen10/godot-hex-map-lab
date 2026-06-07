@@ -70,7 +70,7 @@ proof:
 | `CLEAN-22` | `COMPLETE` | P0 | `CLEAN-13`, `CLEAN-20` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-22_CATALOG_SCREEN_REDESIGN/` | Catalog Screen redesign | catalog editor UI, `hex_map_gen_dock.gd`, `hex_map_edit_tool.gd`, catalog tests | Catalog resource picker, TileSet picker, entry list, preview/status, PackedScene picker for scene entries; normal paint UI selects catalog key, not `source_id / atlas_coords` | `HEADLESS_TEST_COMPLETE` |
 | `CLEAN-23` | `COMPLETE` | P1 | `CLEAN-12`, `CLEAN-20` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-23_OBJECT_PALETTE_REDESIGN/` | Object Palette / Property Editor redesign | object editor UI, object resources/adapters, editor/object tests | Object database picker, definition list, PackedScene picker, object-key placement brush, and type-aware property editor exist; raw dictionary text is not normal UX | `HEADLESS_TEST_COMPLETE` |
 | `CLEAN-24` | `COMPLETE` | P1 | `CLEAN-21` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-24_LAYER_STACK_SCREEN_REDESIGN/` | Layer Stack Screen redesign | layer stack UI, `hex_tile_map_layer.gd`, editor/layer tests | Template picker, role list, visible/locked/z-index/writable source, Create Missing Layers, Apply Document, Clear Role are available; plain TileMapLayer apply is not primary UX | `HEADLESS_TEST_COMPLETE` |
-| `CLEAN-25` | `READY` | P1 | `CLEAN-21` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-25_GENERATION_QA_SCREEN_REDESIGN/` | Generation QA Screen redesign | generation QA UI, `hex_map_gen_dock.gd`, generation/editor tests | Batch seed run, score table, selected seed preview/state, Promote to Document, metadata and dirty state are visible as screen workflow | `HEADLESS_TEST_COMPLETE` |
+| `CLEAN-25` | `COMPLETE` | P1 | `CLEAN-21` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-25_GENERATION_QA_SCREEN_REDESIGN/` | Generation QA Screen redesign | generation QA UI, `hex_map_gen_dock.gd`, generation/editor tests | Batch seed run, score table, selected seed preview/state, Promote to Document, metadata and dirty state are visible as screen workflow | `HEADLESS_TEST_COMPLETE` |
 | `CLEAN-26` | `READY` | P1 | `CLEAN-21` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-26_VALIDATION_SCREEN_REFINEMENT/` | Validation Screen refinement | validation panel/dashboard, validator helpers, editor tests | Issues are grouped by domain and severity; issue click can focus cell/resource/catalog entry where applicable; fix suggestions exist; Copy Debug Report remains detailed | `HEADLESS_TEST_COMPLETE` |
 
 ---
@@ -114,18 +114,41 @@ proof:
 
 ## 8. Current pointer
 
-Current recommended next task: `CLEAN-25`.
+Current recommended next task: `CLEAN-26`.
 
 Reason:
 
-- Dependency sweep completed on 2026-06-07 after `CLEAN-24` completion.
-- No additional tasks were promoted because `CLEAN-40` still depends on `CLEAN-25` and `CLEAN-26`.
-- `CLEAN-25` is the first `READY` task by table order.
-- `CLEAN-26`, `CLEAN-31`, `CLEAN-33`, `CLEAN-41`, `CLEAN-51`, `CLEAN-52`, and `CLEAN-60` remain `READY`.
+- Dependency sweep completed on 2026-06-07 after `CLEAN-25` completion.
+- No additional tasks were promoted because `CLEAN-40` still depends on `CLEAN-26`.
+- `CLEAN-26` is the first `READY` task by table order.
+- `CLEAN-31`, `CLEAN-33`, `CLEAN-41`, `CLEAN-51`, `CLEAN-52`, and `CLEAN-60` remain `READY`.
 
 ---
 
 ## 9. Completed task proof log
+
+### CLEAN-25
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot / `autopilot/roadmap-main`
+plan: `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-25_GENERATION_QA_SCREEN_REDESIGN/`
+review: `docs/review/autopilot/CLEAN-25_SELF_REVIEW_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+  - `git diff --check` PASS
+- docs:
+  - `docs/TEST.md`
+  - `docs/manual/MANUAL_EDITOR_PLUGIN.md`
+  - `docs/review/autopilot/CLEAN-25_SELF_REVIEW_2026-06-07.md`
+  - `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-25_GENERATION_QA_SCREEN_REDESIGN/`
+- major files:
+  - `addons/hex_map_kit/editor/hex_map_gen_dock.gd`
+  - `tests/test_editor_plugin.gd`
+- maturity:
+  - `HEADLESS_TEST_COMPLETE`
 
 ### CLEAN-24
 

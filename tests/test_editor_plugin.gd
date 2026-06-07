@@ -2740,6 +2740,22 @@ func _test_generation_dock_batch_runner_scores_and_sorts() -> void:
 	_assert_eq(int(seed_table[0].get("seed", 0)), 501, "score table sorts by seed ascending")
 	_assert_eq(int(seed_table[2].get("seed", 0)), 503, "score table keeps seed ascending order")
 
+	_assert_true(dock._seed_lab_count_spin != null, "generation dock exposes Seed Lab seed count")
+	_assert_true(dock._seed_lab_run_button != null, "generation dock exposes Seed Lab batch run")
+	_assert_true(dock._seed_lab_score_tree != null, "generation dock exposes Seed Lab score table")
+	_assert_true(dock._seed_lab_promote_button != null, "generation dock exposes Promote to Document")
+	dock._seed_lab_count_spin.set_value_no_signal(3)
+	dock._on_seed_lab_run_pressed()
+	var score_root = dock._seed_lab_score_tree.get_root()
+	_assert_true(score_root.get_first_child() != null, "Seed Lab score table renders rows")
+	var first_score_item = score_root.get_first_child()
+	first_score_item.select(0)
+	dock._on_seed_lab_score_selected()
+	_assert_true(dock._seed_lab_preview_label.text.contains("Selected Seed:"), "Seed Lab selection updates preview")
+	dock._on_seed_lab_promote_pressed()
+	_assert_true(dock.promoted_generation_document() is HexMapDocumentResource, "Seed Lab promotes selected row to document")
+	_assert_true(dock._seed_lab_status_label.text.contains("Dirty: yes"), "Seed Lab promotion displays dirty state")
+
 	dock.queue_free()
 	await process_frame
 
