@@ -113,6 +113,7 @@ func _run() -> void:
 	await _test_workspace_first_run_learning_cta_routes_to_settings_without_sample_defaults()
 	await _test_workspace_asset_context_is_shared_by_workspace_generate_and_paint()
 	await _test_document_asset_screen_manages_project_document_without_samples()
+	await _test_catalog_asset_screen_manages_project_catalog_without_samples()
 	await _test_workspace_sample_settings_panel_controls_sample_mode_sources()
 	_test_sample_asset_duplicator_copies_catalog_dependencies_to_project()
 	_test_asset_slot_state_model_reports_selection_validation_and_sample_source()
@@ -617,6 +618,89 @@ func _test_document_asset_screen_manages_project_document_without_samples() -> v
 	)
 	_assert_true(not session.show_bundled_samples_in_main_selectors, "Document screen actions do not enable sample mode")
 	_assert_eq(workspace.generation_dock().tile_catalog(), null, "Document screen actions do not inject generation sample catalog")
+
+	workspace.queue_free()
+	await process_frame
+
+
+func _test_catalog_asset_screen_manages_project_catalog_without_samples() -> void:
+	var session = HexMapEditorSessionState.new()
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	var snapshot = workspace.catalog_screen_snapshot()
+	_assert_true(
+		PackedStringArray(snapshot["component_ids"]).has("catalog_asset_panel"),
+		"Catalog screen exposes catalog asset component"
+	)
+	_assert_true(
+		PackedStringArray(snapshot["asset_slot_ids"]).has(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG),
+		"Catalog screen exposes tile catalog slot"
+	)
+	_assert_true(not bool(snapshot["sample_candidates_visible"]), "Catalog screen hides sample catalog candidates while sample mode is OFF")
+	_assert_eq(workspace.workspace_asset_context().tile_catalog, null, "Catalog screen starts without sample catalog")
+	_assert_eq(workspace.generation_dock().tile_catalog(), null, "Catalog screen does not inject generation sample catalog")
+
+	var output_dir = _test_resource_dir("screen21_catalog")
+	var catalog_path = "%s/tile_catalog.tres" % output_dir
+	var create_result = workspace.create_tile_catalog(catalog_path)
+	_assert_true(bool(create_result["ok"]), "Catalog screen creates project Tile Catalog")
+	_assert_true(FileAccess.file_exists(catalog_path), "Catalog screen writes project Tile Catalog")
+	var catalog = create_result["resource"] as HexTileCatalogResource
+	_assert_true(catalog is HexTileCatalogResource, "Catalog screen create returns catalog resource")
+	_assert_eq(workspace.workspace_asset_context().tile_catalog, catalog, "created catalog enters workspace context")
+	_assert_eq(
+		workspace.tab_asset_slot_snapshot("Catalog", HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG).get("current_source", ""),
+		HexMapEditorAssetSlotState.SOURCE_PROJECT,
+		"Catalog screen marks created catalog as project asset"
+	)
+
+	var tile_set := _test_catalog_tileset()
+	var tile_set_result = workspace.set_catalog_tile_set(tile_set)
+	_assert_true(bool(tile_set_result["ok"]), "Catalog screen assigns arbitrary TileSet")
+	_assert_eq(catalog.tile_set, tile_set, "Catalog screen stores selected TileSet on catalog")
+
+	var atlas_result = workspace.create_catalog_atlas_entry_from_tileset("terrain.floor", tile_set, 0, Vector2i.ZERO)
+	_assert_true(bool(atlas_result["ok"]), "Catalog screen creates atlas entry from TileSet selection")
+	var atlas_entry = atlas_result["entry"] as HexTileCatalogEntry
+	_assert_true(atlas_entry is HexTileCatalogEntry, "Catalog screen returns atlas entry")
+	_assert_eq(atlas_entry.entry_type, HexTileCatalogEntry.TYPE_ATLAS, "Catalog atlas entry uses atlas type")
+
+	var marker := Node2D.new()
+	var scene := PackedScene.new()
+	_assert_eq(scene.pack(marker), OK, "test PackedScene packs")
+	marker.free()
+	var scene_result = workspace.create_catalog_scene_entry_from_packed_scene("object.spawn", scene)
+	_assert_true(bool(scene_result["ok"]), "Catalog screen creates scene entry from PackedScene selection")
+	var scene_entry = scene_result["entry"] as HexTileCatalogEntry
+	_assert_true(scene_entry is HexTileCatalogEntry, "Catalog screen returns scene entry")
+	_assert_eq(scene_entry.entry_type, HexTileCatalogEntry.TYPE_SCENE, "Catalog scene entry uses scene type")
+	_assert_eq(scene_entry.scene, scene, "Catalog scene entry stores selected PackedScene")
+
+	snapshot = workspace.catalog_screen_snapshot()
+	_assert_eq(int(snapshot["entry_count"]), 2, "Catalog screen snapshot reports created entries")
+	_assert_true(PackedStringArray(snapshot["entry_keys"]).has("terrain.floor"), "Catalog screen snapshot lists atlas key")
+	_assert_true(PackedStringArray(snapshot["entry_keys"]).has("object.spawn"), "Catalog screen snapshot lists scene key")
+	var validation = workspace.validate_tile_catalog()
+	_assert_true(validation is HexMapValidationResult, "Catalog screen validate returns validation result")
+	_assert_eq(validation.issue_count(), 0, "Catalog screen validates project catalog with selected TileSet and PackedScene")
+
+	var open_result = workspace.open_tile_catalog()
+	_assert_true(bool(open_result["ok"]), "Catalog screen opens selected Tile Catalog")
+	_assert_eq(open_result["resource"], catalog, "Catalog screen open returns selected catalog")
+
+	var save_as_path = "%s/tile_catalog_saved_as.tres" % output_dir
+	var save_result = workspace.save_tile_catalog_as(save_as_path)
+	_assert_true(bool(save_result["ok"]), "Catalog screen saves Tile Catalog as project resource")
+	_assert_true(FileAccess.file_exists(save_as_path), "Catalog screen Save As writes project catalog")
+	_assert_eq(catalog.resource_path, save_as_path, "Catalog screen Save As updates catalog resource path")
+
+	var clear_result = workspace.clear_tile_catalog()
+	_assert_true(bool(clear_result["ok"]), "Catalog screen clears Tile Catalog")
+	_assert_eq(workspace.workspace_asset_context().tile_catalog, null, "cleared catalog leaves workspace context")
+	_assert_true(not session.show_bundled_samples_in_main_selectors, "Catalog screen actions do not enable sample mode")
 
 	workspace.queue_free()
 	await process_frame
@@ -5088,6 +5172,22 @@ func _sample_editor_document() -> HexMapDocumentResource:
 	label.text = "North"
 	document.label_placements.append(label)
 	return document
+
+
+func _test_catalog_tileset() -> TileSet:
+	var image := Image.create(32, 32, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0.2, 0.7, 0.4, 1.0))
+	var texture := ImageTexture.create_from_image(image)
+	var tile_set := TileSet.new()
+	HexMapTileAdapter.configure_atlas_tile_set(
+		tile_set,
+		texture,
+		true,
+		Vector2i(32, 32),
+		0,
+		[Vector2i.ZERO]
+	)
+	return tile_set
 
 
 func _new_ready_dock():

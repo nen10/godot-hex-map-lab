@@ -6,6 +6,9 @@ const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_ma
 const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
 const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
 const HexMapDocumentValidator = preload("res://addons/hex_map_kit/adapter/hex_map_document_validator.gd")
+const HexTileCatalogEntry = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd")
+const HexTileCatalogResource = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd")
+const HexTileCatalogValidator = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_validator.gd")
 const HexMapGenDock = preload("res://addons/hex_map_kit/editor/hex_map_gen_dock.gd")
 const HexMapEditTool = preload("res://addons/hex_map_kit/editor/hex_map_edit_tool.gd")
 const HexMapSampleSettingsPanel = preload("res://addons/hex_map_kit/editor/hex_map_sample_settings_panel.gd")
@@ -265,6 +268,142 @@ func validate_level_document():
 	)
 
 
+func catalog_screen_snapshot() -> Dictionary:
+	var context := workspace_asset_context()
+	var catalog := context.tile_catalog
+	var catalog_slot := tab_asset_slot_snapshot(
+		HexMapWorkspaceComponentRegistry.TAB_CATALOG,
+		HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG
+	)
+	return {
+		"tab": HexMapWorkspaceComponentRegistry.TAB_CATALOG,
+		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_CATALOG),
+		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_CATALOG),
+		"tile_catalog": catalog,
+		"catalog_slot": catalog_slot,
+		"tile_set": catalog.tile_set if catalog != null else null,
+		"tile_set_present": catalog != null and catalog.tile_set != null,
+		"entry_count": catalog.entries.size() if catalog != null else 0,
+		"entry_keys": catalog.keys() if catalog != null else PackedStringArray(),
+		"sample_candidates_visible": _ensure_session_state().show_bundled_samples_in_main_selectors,
+	}
+
+
+func create_tile_catalog(path: String) -> Dictionary:
+	var panel := _catalog_asset_panel()
+	if panel == null:
+		return _catalog_action_result(false, ERR_UNAVAILABLE, path)
+	return panel.create_asset_for_slot(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, path)
+
+
+func save_tile_catalog_as(path: String) -> Dictionary:
+	var panel := _catalog_asset_panel()
+	if panel == null:
+		return _catalog_action_result(false, ERR_UNAVAILABLE, path)
+	return panel.save_asset_slot_as(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, path)
+
+
+func open_tile_catalog() -> Dictionary:
+	var panel := _catalog_asset_panel()
+	if panel == null:
+		return _catalog_action_result(false, ERR_UNAVAILABLE, "")
+	return panel.open_asset_slot(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG)
+
+
+func clear_tile_catalog() -> Dictionary:
+	var panel := _catalog_asset_panel()
+	if panel == null:
+		return _catalog_action_result(false, ERR_UNAVAILABLE, "")
+	return panel.clear_asset_slot(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG)
+
+
+func set_catalog_tile_set(tile_set: TileSet) -> Dictionary:
+	var catalog := workspace_asset_context().tile_catalog
+	if catalog == null or tile_set == null:
+		return _catalog_action_result(false, ERR_INVALID_PARAMETER, "")
+	catalog.tile_set = tile_set
+	_sync_workspace_asset_context()
+	return {
+		"ok": true,
+		"error": OK,
+		"slot_id": HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG,
+		"resource": catalog,
+		"tile_set": tile_set,
+	}
+
+
+func create_catalog_atlas_entry_from_tileset(
+	key: String,
+	tile_set: TileSet,
+	source_id: int,
+	atlas_coords: Vector2i,
+	alternative_tile: int = 0
+) -> Dictionary:
+	var catalog := workspace_asset_context().tile_catalog
+	var entry_key := key.strip_edges()
+	if catalog == null or tile_set == null or entry_key == "":
+		return _catalog_action_result(false, ERR_INVALID_PARAMETER, "")
+	catalog.tile_set = tile_set
+	var entry := HexTileCatalogEntry.new()
+	entry.key = entry_key
+	entry.display_name = entry_key
+	entry.entry_type = HexTileCatalogEntry.TYPE_ATLAS
+	entry.source_id = source_id
+	entry.atlas_coords = atlas_coords
+	entry.alternative_tile = alternative_tile
+	catalog.add_entry(entry)
+	_sync_workspace_asset_context()
+	return {
+		"ok": true,
+		"error": OK,
+		"slot_id": HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG,
+		"resource": catalog,
+		"entry": entry,
+	}
+
+
+func create_catalog_scene_entry_from_packed_scene(
+	key: String,
+	scene: PackedScene,
+	source_id: int = 1,
+	scene_tile_id: int = 1
+) -> Dictionary:
+	var catalog := workspace_asset_context().tile_catalog
+	var entry_key := key.strip_edges()
+	if catalog == null or scene == null or entry_key == "":
+		return _catalog_action_result(false, ERR_INVALID_PARAMETER, "")
+	if catalog.tile_set == null:
+		catalog.tile_set = TileSet.new()
+	var scene_source = null
+	if catalog.tile_set.has_source(source_id):
+		scene_source = catalog.tile_set.get_source(source_id) as TileSetScenesCollectionSource
+	if scene_source == null:
+		scene_source = TileSetScenesCollectionSource.new()
+		catalog.tile_set.add_source(scene_source, source_id)
+	if not scene_source.has_scene_tile_id(scene_tile_id):
+		scene_source.create_scene_tile(scene, scene_tile_id)
+	var entry := HexTileCatalogEntry.new()
+	entry.key = entry_key
+	entry.display_name = entry_key
+	entry.entry_type = HexTileCatalogEntry.TYPE_SCENE
+	entry.source_id = source_id
+	entry.atlas_coords = Vector2i(scene_tile_id, 0)
+	entry.scene = scene
+	catalog.add_entry(entry)
+	_sync_workspace_asset_context()
+	return {
+		"ok": true,
+		"error": OK,
+		"slot_id": HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG,
+		"resource": catalog,
+		"entry": entry,
+	}
+
+
+func validate_tile_catalog():
+	return HexTileCatalogValidator.validate_catalog(workspace_asset_context().tile_catalog)
+
+
 func _build_ui() -> void:
 	if _tabs != null:
 		return
@@ -437,6 +576,10 @@ func _document_asset_panel() -> HexMapWorkspaceAssetPanel:
 	return _asset_panels.get(HexMapWorkspaceComponentRegistry.TAB_DOCUMENT, null) as HexMapWorkspaceAssetPanel
 
 
+func _catalog_asset_panel() -> HexMapWorkspaceAssetPanel:
+	return _asset_panels.get(HexMapWorkspaceComponentRegistry.TAB_CATALOG, null) as HexMapWorkspaceAssetPanel
+
+
 func _sync_session_document_from_result(result: Dictionary, reason: String) -> void:
 	if not bool(result.get("ok", false)):
 		return
@@ -467,6 +610,16 @@ func _document_action_result(ok: bool, error: int, path: String) -> Dictionary:
 		"ok": ok,
 		"error": error,
 		"slot_id": HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT,
+		"path": path,
+		"resource": null,
+	}
+
+
+func _catalog_action_result(ok: bool, error: int, path: String) -> Dictionary:
+	return {
+		"ok": ok,
+		"error": error,
+		"slot_id": HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG,
 		"path": path,
 		"resource": null,
 	}
