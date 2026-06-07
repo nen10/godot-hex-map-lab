@@ -125,6 +125,7 @@ func _run() -> void:
 	await _test_export_asset_screen_requires_user_destination_and_exports_project_document()
 	await _test_feature_screen_completion_contract_uses_project_assets_with_sample_mode_off()
 	await _test_workspace_sample_settings_panel_controls_sample_mode_sources()
+	await _test_sample_learning_package_contract_keeps_bundled_assets_opt_in()
 	await _test_debug_numeric_fallback_quarantine_requires_settings_opt_in()
 	_test_sample_asset_duplicator_copies_catalog_dependencies_to_project()
 	_test_asset_slot_state_model_reports_selection_validation_and_sample_source()
@@ -1703,6 +1704,75 @@ func _test_workspace_sample_settings_panel_controls_sample_mode_sources() -> voi
 
 	workspace.queue_free()
 	await process_frame
+
+
+func _test_sample_learning_package_contract_keeps_bundled_assets_opt_in() -> void:
+	var sample_catalog_path := "res://addons/hex_map_kit/assets/sample_hex_tile_catalog.tres"
+	var sample_texture_path := HexMapTileAdapter.SAMPLE_TILE_ATLAS_PATH
+	var sample_scene_path := "res://addons/hex_map_kit/assets/sample_spawn_marker.tscn"
+	_assert_true(ResourceLoader.exists(sample_catalog_path), "PKG-70 sample catalog exists for package learning")
+	_assert_true(ResourceLoader.exists(sample_texture_path), "PKG-70 sample tile texture exists for package learning")
+	_assert_true(ResourceLoader.exists(sample_scene_path), "PKG-70 sample object scene exists for package learning")
+
+	var sample_catalog = ResourceLoader.load(sample_catalog_path, "HexTileCatalogResource", ResourceLoader.CACHE_MODE_IGNORE) as HexTileCatalogResource
+	_assert_true(sample_catalog is HexTileCatalogResource, "PKG-70 sample catalog loads as tile catalog")
+	_assert_true(sample_catalog.tile_set is TileSet, "PKG-70 sample catalog owns TileSet")
+	_assert_true(sample_catalog.has_key("terrain.floor"), "PKG-70 sample catalog exposes floor learning key")
+	_assert_true(sample_catalog.has_key("terrain.wall"), "PKG-70 sample catalog exposes wall learning key")
+	var texture = ResourceLoader.load(sample_texture_path, "Texture2D", ResourceLoader.CACHE_MODE_IGNORE) as Texture2D
+	_assert_true(texture is Texture2D, "PKG-70 sample tile texture loads")
+	var sample_scene = ResourceLoader.load(sample_scene_path, "PackedScene", ResourceLoader.CACHE_MODE_IGNORE) as PackedScene
+	_assert_true(sample_scene is PackedScene, "PKG-70 sample object scene loads")
+	var scene_instance = sample_scene.instantiate()
+	_assert_true(scene_instance is Node, "PKG-70 sample object scene instantiates")
+	scene_instance.free()
+
+	var scene_entry = sample_catalog.entry_for_key("object.spawn_marker")
+	_assert_true(scene_entry != null, "PKG-70 sample catalog includes object scene entry")
+	_assert_eq(
+		(scene_entry.get("scene") as PackedScene).resource_path,
+		sample_scene_path,
+		"PKG-70 sample scene entry points to packaged scene"
+	)
+
+	var session = HexMapEditorSessionState.new()
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	var panel = workspace.sample_settings_panel()
+	var snapshot = panel.snapshot()
+	_assert_true(_sample_asset_rows_have_path(snapshot["sample_assets"] as Array, sample_catalog_path), "PKG-70 sample settings list catalog")
+	_assert_true(_sample_asset_rows_have_path(snapshot["sample_assets"] as Array, sample_texture_path), "PKG-70 sample settings list tile texture")
+	_assert_true(_sample_asset_rows_have_path(snapshot["sample_assets"] as Array, sample_scene_path), "PKG-70 sample settings list object scene")
+	_assert_true(not bool(snapshot["show_bundled_samples_in_main_selectors"]), "PKG-70 sample mode starts OFF")
+	_assert_eq(workspace.generation_dock().tile_catalog(), null, "PKG-70 sample mode OFF does not inject Generate sample catalog")
+	_assert_eq(workspace.edit_tool().tile_catalog(), null, "PKG-70 sample mode OFF does not inject Paint sample catalog")
+
+	panel.set_show_bundled_samples_in_main_selectors(true)
+	_assert_true(bool(workspace.catalog_screen_snapshot()["sample_candidates_visible"]), "PKG-70 sample mode ON exposes Catalog learning candidates")
+	var generation_catalog = workspace.generation_dock().tile_catalog() as HexTileCatalogResource
+	var paint_catalog = workspace.edit_tool().tile_catalog() as HexTileCatalogResource
+	_assert_true(generation_catalog is HexTileCatalogResource, "PKG-70 sample mode ON exposes Generate sample catalog")
+	_assert_true(paint_catalog is HexTileCatalogResource, "PKG-70 sample mode ON exposes Paint sample catalog")
+	_assert_eq(generation_catalog.resource_path, sample_catalog_path, "PKG-70 Generate sample catalog path is packaged sample")
+	_assert_eq(paint_catalog.resource_path, sample_catalog_path, "PKG-70 Paint sample catalog path is packaged sample")
+
+	var project_catalog = HexTileCatalogResource.new()
+	session.set_workspace_asset(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, project_catalog, "pkg70.project_catalog")
+	_assert_eq(workspace.generation_dock().tile_catalog(), project_catalog, "PKG-70 project catalog stays primary in Generate")
+	_assert_eq(workspace.edit_tool().tile_catalog(), project_catalog, "PKG-70 project catalog stays primary in Paint")
+
+	workspace.queue_free()
+	await process_frame
+
+
+func _sample_asset_rows_have_path(rows: Array, path: String) -> bool:
+	for row in rows:
+		if String((row as Dictionary).get("path", "")) == path:
+			return true
+	return false
 
 
 func _test_debug_numeric_fallback_quarantine_requires_settings_opt_in() -> void:
