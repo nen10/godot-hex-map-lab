@@ -66,12 +66,12 @@ proof:
 |---|---|---:|---|---|---|---|---|---|
 | `CLEAN-20` | `COMPLETE` | P0 | `CLEAN-10`, `CLEAN-13` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-20_RESOURCE_SELECTION_UI_STANDARD/` | Resource selection UI standard | `hex_map_edit_tool.gd`, `hex_map_gen_dock.gd`, path selector/session state helpers, editor tests | Normal document/catalog/object/label selection uses Resource picker or FileDialog; editable path LineEdit is removed or read-only status; path-based headless tests are deleted or rewritten | `HEADLESS_TEST_COMPLETE` |
 | `CLEAN-50` | `COMPLETE` | P0 | `CLEAN-20` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-50_HEADLESS_EDITOR_TEST_DESTRUCTION_PASS/` | Headless editor test destruction pass | `tests/test_editor_plugin.gd`, editor UI tests, `docs/TEST.md` | Tests no longer require old path LineEdit or fallback/numeric controls; tests check clean UI state transitions instead of obsolete node existence | `HEADLESS_TEST_COMPLETE` |
-| `CLEAN-21` | `READY` | P0 | `CLEAN-20`, `CLEAN-50` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-21_DOCUMENT_HEADER_REDESIGN/` | Document Header redesign | editor document/session/header code, `hex_map_edit_tool.gd`, `hex_map_gen_dock.gd`, editor tests | New/Open/Save/Save As/Validate/Dirty state work without path text editing; `v2` and `migration` wording is absent from UI | `HEADLESS_TEST_COMPLETE` |
+| `CLEAN-21` | `COMPLETE` | P0 | `CLEAN-20`, `CLEAN-50` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-21_DOCUMENT_HEADER_REDESIGN/` | Document Header redesign | editor document/session/header code, `hex_map_edit_tool.gd`, `hex_map_gen_dock.gd`, editor tests | New/Open/Save/Save As/Validate/Dirty state work without path text editing; `v2` and `migration` wording is absent from UI | `HEADLESS_TEST_COMPLETE` |
 | `CLEAN-22` | `READY` | P0 | `CLEAN-13`, `CLEAN-20` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-22_CATALOG_SCREEN_REDESIGN/` | Catalog Screen redesign | catalog editor UI, `hex_map_gen_dock.gd`, `hex_map_edit_tool.gd`, catalog tests | Catalog resource picker, TileSet picker, entry list, preview/status, PackedScene picker for scene entries; normal paint UI selects catalog key, not `source_id / atlas_coords` | `HEADLESS_TEST_COMPLETE` |
 | `CLEAN-23` | `READY` | P1 | `CLEAN-12`, `CLEAN-20` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-23_OBJECT_PALETTE_REDESIGN/` | Object Palette / Property Editor redesign | object editor UI, object resources/adapters, editor/object tests | Object database picker, definition list, PackedScene picker, object-key placement brush, and type-aware property editor exist; raw dictionary text is not normal UX | `HEADLESS_TEST_COMPLETE` |
-| `CLEAN-24` | `BACKLOG` | P1 | `CLEAN-21` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-24_LAYER_STACK_SCREEN_REDESIGN/` | Layer Stack Screen redesign | layer stack UI, `hex_tile_map_layer.gd`, editor/layer tests | Template picker, role list, visible/locked/z-index/writable source, Create Missing Layers, Apply Document, Clear Role are available; plain TileMapLayer apply is not primary UX | `HEADLESS_TEST_COMPLETE` |
-| `CLEAN-25` | `BACKLOG` | P1 | `CLEAN-21` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-25_GENERATION_QA_SCREEN_REDESIGN/` | Generation QA Screen redesign | generation QA UI, `hex_map_gen_dock.gd`, generation/editor tests | Batch seed run, score table, selected seed preview/state, Promote to Document, metadata and dirty state are visible as screen workflow | `HEADLESS_TEST_COMPLETE` |
-| `CLEAN-26` | `BACKLOG` | P1 | `CLEAN-21` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-26_VALIDATION_SCREEN_REFINEMENT/` | Validation Screen refinement | validation panel/dashboard, validator helpers, editor tests | Issues are grouped by domain and severity; issue click can focus cell/resource/catalog entry where applicable; fix suggestions exist; Copy Debug Report remains detailed | `HEADLESS_TEST_COMPLETE` |
+| `CLEAN-24` | `READY` | P1 | `CLEAN-21` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-24_LAYER_STACK_SCREEN_REDESIGN/` | Layer Stack Screen redesign | layer stack UI, `hex_tile_map_layer.gd`, editor/layer tests | Template picker, role list, visible/locked/z-index/writable source, Create Missing Layers, Apply Document, Clear Role are available; plain TileMapLayer apply is not primary UX | `HEADLESS_TEST_COMPLETE` |
+| `CLEAN-25` | `READY` | P1 | `CLEAN-21` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-25_GENERATION_QA_SCREEN_REDESIGN/` | Generation QA Screen redesign | generation QA UI, `hex_map_gen_dock.gd`, generation/editor tests | Batch seed run, score table, selected seed preview/state, Promote to Document, metadata and dirty state are visible as screen workflow | `HEADLESS_TEST_COMPLETE` |
+| `CLEAN-26` | `READY` | P1 | `CLEAN-21` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-26_VALIDATION_SCREEN_REFINEMENT/` | Validation Screen refinement | validation panel/dashboard, validator helpers, editor tests | Issues are grouped by domain and severity; issue click can focus cell/resource/catalog entry where applicable; fix suggestions exist; Copy Debug Report remains detailed | `HEADLESS_TEST_COMPLETE` |
 
 ---
 
@@ -114,18 +114,41 @@ proof:
 
 ## 8. Current pointer
 
-Current recommended next task: `CLEAN-21`.
+Current recommended next task: `CLEAN-22`.
 
 Reason:
 
-- Dependency sweep completed on 2026-06-07 after `CLEAN-50` completion.
-- `CLEAN-21` was promoted to `READY` because `CLEAN-20` and `CLEAN-50` are complete.
-- `CLEAN-21` is the first `READY` task by table order.
-- `CLEAN-22`, `CLEAN-23`, `CLEAN-31`, `CLEAN-33`, `CLEAN-41`, `CLEAN-51`, `CLEAN-52`, and `CLEAN-60` remain `READY`.
+- Dependency sweep completed on 2026-06-07 after `CLEAN-21` completion.
+- `CLEAN-24`, `CLEAN-25`, and `CLEAN-26` were promoted to `READY` because `CLEAN-21` is complete.
+- `CLEAN-22` is the first `READY` task by table order.
+- `CLEAN-23`, `CLEAN-24`, `CLEAN-25`, `CLEAN-26`, `CLEAN-31`, `CLEAN-33`, `CLEAN-41`, `CLEAN-51`, `CLEAN-52`, and `CLEAN-60` remain `READY`.
 
 ---
 
 ## 9. Completed task proof log
+
+### CLEAN-21
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot / `autopilot/roadmap-main`
+plan: `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-21_DOCUMENT_HEADER_REDESIGN/`
+review: `docs/review/autopilot/CLEAN-21_SELF_REVIEW_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+  - `git diff --check` PASS
+- docs:
+  - `docs/TEST.md`
+  - `docs/manual/MANUAL_EDITOR_PLUGIN.md`
+  - `docs/review/autopilot/CLEAN-21_SELF_REVIEW_2026-06-07.md`
+  - `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-21_DOCUMENT_HEADER_REDESIGN/`
+- major files:
+  - `addons/hex_map_kit/editor/hex_map_edit_tool.gd`
+  - `tests/test_editor_plugin.gd`
+- maturity:
+  - `HEADLESS_TEST_COMPLETE`
 
 ### CLEAN-50
 

@@ -160,6 +160,14 @@ Godot 側の対応 API は公式ドキュメントの `TileMapLayer`、`TileSet`
 - https://docs.godotengine.org/en/stable/classes/class_tileset.html
 - https://docs.godotengine.org/en/stable/classes/class_tilesetatlassource.html
 
+### Hex Map Edit Document Header
+
+`Hex Map Edit` Dock の document 操作は `New Document` / `Open...` / `Save` / `Save As...` / `Validate` に集約されています。`Document` 表示には selected state、Saved path、Dirty state、Validation summary が表示されます。
+
+`Open...` または `Document Resource` で `HexMapDocumentResource` を選びます。`Save` は保存済み path がある場合に上書き保存し、未保存documentでは `Save As...` と同じ保存先選択になります。`Save As...` は常に保存先を選び直します。
+
+`HexMapResource` から document に変換する場合は Advanced convert の `Convert Resource` / `Browse...` / `Convert` を使います。runtime向け `HexMapResource` を出力する場合は `Export...` / `Export As...` を使います。
+
 ### Atlas Image
 
 `Browse Atlas Image` は resource path の画像を読み込み、Scene Tree で選択中の `TileMapLayer.tile_set` または `HexTileMapLayer` の表示用 TileSet に `TileSetAtlasSource` を作成します。source id は Dock の `Floor` source を使い、floor / wall の atlas coords と `Tile Size` を TileSetAtlasSource に反映します。設定後は `Wall` source も同じ source id に同期されます。

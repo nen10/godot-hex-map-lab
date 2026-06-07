@@ -405,9 +405,11 @@ func _test_map_edit_tool_builds_dock_controls() -> void:
 		_assert_true(tool._document_resource_picker != null, "map edit tool exposes document resource picker")
 	else:
 		_assert_true(tool._document_browse_button != null, "map edit tool exposes document Browse fallback")
-	_assert_true(tool._document_browse_button != null, "map edit tool exposes document browse button")
-	_assert_true(tool._document_load_button != null, "map edit tool exposes document load button")
-	_assert_true(tool._document_save_button != null, "map edit tool exposes document save button")
+	_assert_true(tool._document_new_button != null, "map edit tool exposes New Document button")
+	_assert_eq(tool._document_open_button.text, "Open...", "map edit tool exposes Open action")
+	_assert_eq(tool._document_save_button.text, "Save", "map edit tool exposes Save action")
+	_assert_eq(tool._document_save_as_button.text, "Save As...", "map edit tool exposes Save As action")
+	_assert_eq(tool._document_validate_button.text, "Validate", "map edit tool exposes header Validate action")
 	if tool._can_use_editor_resource_picker():
 		_assert_true(tool._import_map_resource_picker != null, "map edit tool exposes HexMapResource import resource picker")
 	else:
@@ -677,21 +679,34 @@ func _test_map_edit_tool_path_file_handlers_and_action_states() -> void:
 	_save_resource(import_path, map_resource)
 
 	var tool = await _new_ready_edit_tool()
-	_assert_true(tool._document_load_button.disabled, "document Load is disabled while path is empty")
-	_assert_true(tool._import_map_button.disabled, "Import is disabled while path is empty")
-	_assert_true(tool._document_browse_button != null and not tool._document_browse_button.disabled, "Document Browse remains enabled")
+	_assert_true(tool._document_save_button.disabled, "Save is disabled without a document")
+	_assert_true(tool._document_save_as_button.disabled, "Save As is disabled without a document")
+	_assert_true(tool._document_validate_button.disabled, "header Validate is disabled without a document")
+	_assert_true(tool._import_map_button.disabled, "Convert is disabled while resource is empty")
+	_assert_true(tool._document_open_button != null and not tool._document_open_button.disabled, "Document Open remains enabled")
 	_assert_true(tool._export_button.disabled, "Export is disabled without document")
+
+	tool.new_document()
+	_assert_true(tool.document() != null, "New Document creates a document")
+	_assert_true(tool._document_label.text.contains("Document: new"), "document header shows new document state")
+	_assert_true(tool._document_label.text.contains("Dirty: yes"), "document header marks new document dirty")
+	_assert_true(not tool._document_save_as_button.disabled, "Save As is enabled after New Document")
 
 	tool._on_document_file_selected(document_path)
 	_assert_true(tool.document() != null, "document file selected handler loads document")
 	_assert_eq(tool.document_path(), document_path, "document file selected handler syncs path")
 	_assert_eq(tool._document_source, HexMapEditTool.DOCUMENT_SOURCE_LOAD, "document file selected handler records load source")
-	_assert_true(not tool._document_save_button.disabled, "Save As is enabled after document load")
+	_assert_true(tool._document_label.text.contains("Saved: " + document_path), "document header shows saved path")
+	_assert_true(tool._document_label.text.contains("Dirty: no"), "document header marks loaded document clean")
+	_assert_true(not tool._document_save_button.disabled, "Save is enabled after document load")
+	_assert_true(not tool._document_validate_button.disabled, "header Validate is enabled after document load")
 
 	tool._on_import_map_file_selected(import_path)
 	_assert_eq(tool.import_map_path(), import_path, "import file selected handler syncs path")
 	_assert_true(tool.import_map_resource_selection() is HexMapResource, "import file selected handler stores resource selection")
 	_assert_eq(tool._document_source, HexMapEditTool.DOCUMENT_SOURCE_IMPORT, "import file selected handler records import source")
+	_assert_true(tool._document_label.text.contains("Document: converted"), "document header shows converted document state")
+	_assert_true(tool._document_label.text.contains("Dirty: yes"), "document header marks converted document dirty")
 	_assert_true(not tool._export_button.disabled, "Export is enabled after import")
 
 	tool._on_export_file_selected(export_path)

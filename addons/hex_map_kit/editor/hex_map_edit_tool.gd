@@ -26,6 +26,7 @@ const DOCUMENT_SOURCE_IMPORT := "import"
 const DOCUMENT_SOURCE_LOAD := "load"
 const DOCUMENT_SOURCE_TARGET := "target"
 const DOCUMENT_SOURCE_SAVE := "save"
+const DOCUMENT_SOURCE_NEW := "new"
 const SAMPLE_TILE_CATALOG_PATH := "res://addons/hex_map_kit/assets/sample_hex_tile_catalog.tres"
 const CATALOG_FALLBACK_LABEL := "Advanced numeric fallback"
 
@@ -55,6 +56,7 @@ const EDIT_MODE_NAMES := [
 var _document: HexMapDocumentResource
 var _document_source := DOCUMENT_SOURCE_NONE
 var _document_path := ""
+var _document_dirty := false
 var _import_map_resource: HexMapResource
 var _import_map_path := ""
 var _export_path := ""
@@ -127,10 +129,14 @@ var _test_viewport_canvas_transform := Transform2D.IDENTITY
 var _document_label: Label
 var _document_inspector: HexMapDocumentInspector
 var _document_resource_picker
+var _document_new_button: Button
+var _document_open_button: Button
 var _document_path_edit: LineEdit
 var _document_browse_button: Button
 var _document_load_button: Button
 var _document_save_button: Button
+var _document_save_as_button: Button
+var _document_validate_button: Button
 var _import_map_resource_picker
 var _import_map_path_edit: LineEdit
 var _import_map_browse_button: Button
@@ -227,6 +233,7 @@ func editor_session_state() -> HexMapEditorSessionState:
 func set_document(document: HexMapDocumentResource) -> void:
 	_document = document
 	_document_source = DOCUMENT_SOURCE_PROVIDED if document != null else DOCUMENT_SOURCE_NONE
+	_document_dirty = false
 	_document_path = document.resource_path if document != null and document.resource_path != "" else ""
 	if _document_path_edit != null:
 		_document_path_edit.text = _document_path
@@ -272,6 +279,7 @@ func import_map_resource(resource: HexMapResource) -> HexMapDocumentResource:
 	set_import_map_resource(resource)
 	_document = _document_for_editor(HexMapDocumentAdapter.from_map_resource(resource))
 	_document_source = DOCUMENT_SOURCE_IMPORT if _document != null else DOCUMENT_SOURCE_NONE
+	_document_dirty = _document != null
 	set_document_path("")
 	_refresh_plain_target_tile_options_from_document(_document)
 	_read_target_tile_settings(false)
@@ -427,6 +435,7 @@ func validate_document_now() -> bool:
 		_validation_dashboard.set_validation_result(_last_validation_result)
 	_refresh_document_inspector()
 	_set_status("Validation complete: %d issue(s)." % _last_validation_result.issue_count())
+	_refresh_state_labels()
 	return true
 
 
@@ -526,6 +535,7 @@ func load_document(path: String = "") -> bool:
 		return false
 	_document = _document_for_editor(resource)
 	_document_source = DOCUMENT_SOURCE_LOAD
+	_document_dirty = false
 	set_document_path(actual_path)
 	_sync_resource_pickers()
 	_refresh_overlay_item_key_options()
@@ -557,6 +567,7 @@ func save_document(path: String = "") -> bool:
 		return false
 	set_document_path(actual_path)
 	_document_source = DOCUMENT_SOURCE_SAVE
+	_document_dirty = false
 	_set_persistence_status("save_document", actual_path, true, OK, "HexMapDocumentResource")
 	_set_status("Saved document.")
 	_refresh_state_labels()
@@ -789,7 +800,32 @@ func _build_ui() -> void:
 	title.text = "Hex Map Edit"
 	root.add_child(title)
 
+	var document_actions_row = HBoxContainer.new()
+	_document_new_button = Button.new()
+	_document_new_button.text = "New Document"
+	_document_new_button.pressed.connect(_on_new_document_pressed)
+	document_actions_row.add_child(_document_new_button)
+	_document_open_button = Button.new()
+	_document_open_button.text = "Open..."
+	_document_open_button.pressed.connect(_on_document_browse_pressed)
+	document_actions_row.add_child(_document_open_button)
+	_document_browse_button = _document_open_button
+	_document_save_button = Button.new()
+	_document_save_button.text = "Save"
+	_document_save_button.pressed.connect(_on_save_document_pressed)
+	document_actions_row.add_child(_document_save_button)
+	_document_save_as_button = Button.new()
+	_document_save_as_button.text = "Save As..."
+	_document_save_as_button.pressed.connect(_on_save_document_as_pressed)
+	document_actions_row.add_child(_document_save_as_button)
+	_document_validate_button = Button.new()
+	_document_validate_button.text = "Validate"
+	_document_validate_button.pressed.connect(_on_validate_document_pressed)
+	document_actions_row.add_child(_document_validate_button)
+	root.add_child(document_actions_row)
+
 	_document_label = Label.new()
+	_document_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	root.add_child(_document_label)
 	_document_inspector = HexMapDocumentInspector.new()
 	root.add_child(_document_inspector)
@@ -805,18 +841,6 @@ func _build_ui() -> void:
 	_document_path_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_document_path_edit.tooltip_text = "Saved location. Use Document Resource, Browse, or Save As to change it."
 	document_path_row.add_child(_wrap_labeled("Saved", _document_path_edit))
-	_document_browse_button = Button.new()
-	_document_browse_button.text = "Browse"
-	_document_browse_button.pressed.connect(_on_document_browse_pressed)
-	document_path_row.add_child(_document_browse_button)
-	_document_load_button = Button.new()
-	_document_load_button.text = "Load"
-	_document_load_button.pressed.connect(_on_load_document_pressed)
-	document_path_row.add_child(_document_load_button)
-	_document_save_button = Button.new()
-	_document_save_button.text = "Save As"
-	_document_save_button.pressed.connect(_on_save_document_pressed)
-	document_path_row.add_child(_document_save_button)
 	root.add_child(document_path_row)
 
 	var import_resource_row = HBoxContainer.new()
@@ -824,22 +848,22 @@ func _build_ui() -> void:
 		_import_map_resource_picker = EditorResourcePicker.new()
 		_import_map_resource_picker.base_type = "HexMapResource"
 		_import_map_resource_picker.resource_changed.connect(_on_import_map_resource_changed)
-		import_resource_row.add_child(_wrap_labeled("Import Resource", _import_map_resource_picker))
+		import_resource_row.add_child(_wrap_labeled("Convert Resource", _import_map_resource_picker))
 		_import_map_browse_button = Button.new()
-		_import_map_browse_button.text = "Browse"
+		_import_map_browse_button.text = "Browse..."
 		_import_map_browse_button.pressed.connect(_on_import_map_browse_pressed)
 		import_resource_row.add_child(_import_map_browse_button)
 		_import_map_button = Button.new()
-		_import_map_button.text = "Import"
+		_import_map_button.text = "Convert"
 		_import_map_button.pressed.connect(_on_import_map_pressed)
 		import_resource_row.add_child(_import_map_button)
 	else:
 		_import_map_browse_button = Button.new()
-		_import_map_browse_button.text = "Browse"
+		_import_map_browse_button.text = "Browse..."
 		_import_map_browse_button.pressed.connect(_on_import_map_browse_pressed)
 		import_resource_row.add_child(_import_map_browse_button)
 		_import_map_button = Button.new()
-		_import_map_button.text = "Import"
+		_import_map_button.text = "Convert"
 		_import_map_button.pressed.connect(_on_import_map_pressed)
 		import_resource_row.add_child(_import_map_button)
 	root.add_child(import_resource_row)
@@ -860,11 +884,11 @@ func _build_ui() -> void:
 	_export_path_edit.tooltip_text = "Last export destination. Use Save As to choose it."
 	export_path_row.add_child(_wrap_labeled("Export Saved", _export_path_edit))
 	_export_button = Button.new()
-	_export_button.text = "Export"
+	_export_button.text = "Export..."
 	_export_button.pressed.connect(_on_export_pressed)
 	export_path_row.add_child(_export_button)
 	_export_save_as_button = Button.new()
-	_export_save_as_button.text = "Save As"
+	_export_save_as_button.text = "Export As..."
 	_export_save_as_button.pressed.connect(_on_export_save_as_pressed)
 	export_path_row.add_child(_export_save_as_button)
 	root.add_child(export_path_row)
@@ -1295,6 +1319,8 @@ func _commit_document_change(before, after, action_name: String, hex = null, tar
 	else:
 		_replace_document_state(after)
 		_apply_document_change_to_target(hex, target_apply_reason)
+	_document_dirty = true
+	_refresh_state_labels()
 	return _last_applied_to_target
 
 
@@ -1375,11 +1401,15 @@ func _on_document_resource_changed(resource: Resource) -> void:
 	if resource is HexMapDocumentResource:
 		_document = _document_for_editor(resource)
 		_document_source = DOCUMENT_SOURCE_PROVIDED
+		_document_dirty = false
 		if resource.resource_path != "":
 			set_document_path(resource.resource_path)
+		else:
+			set_document_path("")
 	elif resource == null:
 		_document = null
 		_document_source = DOCUMENT_SOURCE_NONE
+		_document_dirty = false
 		set_document_path("")
 	_refresh_plain_target_tile_options_from_document(_document)
 	_refresh_overlay_item_key_options()
@@ -1407,13 +1437,39 @@ func _on_export_path_changed(text: String) -> void:
 	_refresh_action_button_states()
 
 
+func _on_new_document_pressed() -> void:
+	new_document()
+
+
+func new_document() -> HexMapDocumentResource:
+	_document = HexMapDocumentResource.new()
+	_document_source = DOCUMENT_SOURCE_NEW
+	_document_dirty = true
+	set_document_path("")
+	_last_validation_result = null
+	_selected_validation_issue.clear()
+	_validation_focus_status.clear()
+	if _validation_dashboard != null:
+		_validation_dashboard.clear_result("No validation run.")
+	_refresh_plain_target_tile_options_from_document(_document)
+	_sync_resource_pickers()
+	_refresh_overlay_item_key_options()
+	_refresh_state_labels()
+	_set_status("Created new document.")
+	_publish_session_document("edit.new_document")
+	return _document
+
+
 func _on_load_document_pressed() -> void:
 	var selected_resource = _selected_document_resource()
 	if selected_resource != null:
 		_document = _document_for_editor(selected_resource)
 		_document_source = DOCUMENT_SOURCE_LOAD
+		_document_dirty = false
 		if selected_resource.resource_path != "":
 			set_document_path(selected_resource.resource_path)
+		else:
+			set_document_path("")
 		_refresh_plain_target_tile_options_from_document(_document)
 		_read_target_tile_settings(false)
 		_apply_document_to_target()
@@ -1426,6 +1482,13 @@ func _on_load_document_pressed() -> void:
 
 
 func _on_save_document_pressed() -> void:
+	if _document_path != "":
+		save_document(_document_path)
+		return
+	_on_save_document_as_pressed()
+
+
+func _on_save_document_as_pressed() -> void:
 	var default_filename = _document_path.get_file() if _document_path != "" else "hex_map_document.tres"
 	if not _popup_resource_file_dialog(
 		EditorFileDialog.FILE_MODE_SAVE_FILE,
@@ -1942,15 +2005,49 @@ func _refresh_overlay_item_key_options() -> void:
 		_overlay_item_key_option.select(selected_index)
 
 
+func _document_state_text() -> String:
+	if _document == null:
+		return "none"
+	match _document_source:
+		DOCUMENT_SOURCE_NEW:
+			return "new"
+		DOCUMENT_SOURCE_LOAD:
+			return "opened"
+		DOCUMENT_SOURCE_IMPORT:
+			return "converted"
+		DOCUMENT_SOURCE_TARGET:
+			return "from target"
+		DOCUMENT_SOURCE_SAVE:
+			return "saved"
+		DOCUMENT_SOURCE_PROVIDED:
+			return "selected"
+	return "selected"
+
+
+func _document_saved_text() -> String:
+	return _document_path if _document_path != "" else "Unsaved"
+
+
+func _document_validation_text() -> String:
+	if _document == null:
+		return "none"
+	if _last_validation_result == null:
+		return "not run"
+	return "%d errors / %d warnings" % [
+		_last_validation_result.error_count() if _last_validation_result.has_method("error_count") else 0,
+		_last_validation_result.warning_count() if _last_validation_result.has_method("warning_count") else 0,
+	]
+
+
 func _refresh_state_labels() -> void:
 	_target_layer = _resolve_target_layer()
 	_ensure_document_from_target_if_needed()
 	if _document_label != null:
-		_document_label.text = "Document: %s source=%s path=%s%s" % [
-			"selected" if _document != null else "none",
-			_document_source,
-			_document_path if _document_path != "" else "(unsaved)",
-			" Unsaved target document" if _document_source == DOCUMENT_SOURCE_TARGET else "",
+		_document_label.text = "Document: %s   Saved: %s   Dirty: %s   Validation: %s" % [
+			_document_state_text(),
+			_document_saved_text(),
+			_bool_text(_document_dirty),
+			_document_validation_text(),
 		]
 	_refresh_document_inspector()
 	if _target_label != null:
@@ -1991,6 +2088,7 @@ func _ensure_document_from_target_if_needed() -> bool:
 		return false
 	_document = _document_for_editor(hex_layer.to_document_resource())
 	_document_source = DOCUMENT_SOURCE_TARGET
+	_document_dirty = true
 	_refresh_plain_target_tile_options_from_document(_document)
 	_sync_resource_pickers()
 	_publish_session_document("edit.target_document")
@@ -2009,8 +2107,10 @@ func _sync_document_snapshot_from_hex_target() -> bool:
 	if _document == null:
 		_document = snapshot
 		_document_source = DOCUMENT_SOURCE_TARGET
+		_document_dirty = true
 	else:
 		HexMapDocumentAdapter.copy_document_state(_document, snapshot)
+		_document_dirty = true
 	_refresh_overlay_item_key_options()
 	_sync_resource_pickers()
 	_publish_session_document("edit.sync_target_document")
@@ -3036,6 +3136,8 @@ func _refresh_action_button_states() -> void:
 		"No document resource selected."
 	)
 	_set_button_enabled(_document_save_button, document_present, "No document selected.")
+	_set_button_enabled(_document_save_as_button, document_present, "No document selected.")
+	_set_button_enabled(_document_validate_button, document_present, "No document selected.")
 	_set_button_enabled(_import_map_browse_button, true, "")
 	_set_button_enabled(
 		_import_map_button,

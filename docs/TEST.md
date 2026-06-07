@@ -71,14 +71,14 @@ Godot が出す終了コード 0の macOS 証明書関連の非致命的な ERRO
 Hex Map Edit Dock の手動確認:
 
 1. Godot Editorで addon を有効にし、`Hex Map Edit` Dock が生成Dockとは別に表示されることを確認する。
-2. Generate Dockで `HexMapResource` を作成するか、既存 `.tres` を用意し、Hex Map Editで documentへimportまたは保存済み `HexMapDocumentResource` をLoadする。
+2. Generate Dockで `HexMapResource` を作成するか、既存 `.tres` を用意し、Hex Map Editで `New Document` / `Open...` / `Convert` により編集用documentを用意する。
 3. Targetで編集対象の `TileMapLayer` または `HexTileMapLayer` を選ぶ。
 4. `Target Status` に target class、TileSet readiness、floor / wall atlas、used cell count、`HexTileMapLayer` の loop state が表示されることを確認する。
 5. `Edit Mode` を `Shape` / `Wall / Floor` / `Floor Tile` / `Wall Tile` / `Object` / `Label` に切り替え、viewport上のhex cellをclickする。
 6. `Last Edit` に canonical / visual cell、document mutation、target apply、display tile change、tile atlas before / after、target used cell count before / after が表示されることを確認する。
 7. Undo / Redoで document と TileMapLayer 表示が同時に戻ることを確認する。
-8. `Browse` / `Load` で documentを読み込み、`Save As` でTarget由来documentを保存できることを確認する。保存後はDocument表示とdebug reportで保存pathとsource状態が分かることを確認する。
-9. `Import Map` の `Browse` と `Export` / `Save As` で `HexMapResource` を入出力し、`Save / Export` detail に path、resource class、cell count、wall count が表示されることを確認する。
+8. `Open...` で documentを読み込み、`Save` / `Save As...` でTarget由来documentを保存できることを確認する。保存後はDocument表示で Saved / Dirty 状態が分かることを確認する。
+9. Advanced convert の `Browse...` / `Convert` と `Export...` / `Export As...` で `HexMapResource` を入出力し、`Save / Export` detail に path、resource class、cell count、wall count が表示されることを確認する。
 10. `HexTileMapLayer` の toric loop表示では、複製表示されたcellが outline だけでなく floor / wall tile として表示されることを確認する。
 11. 複製表示されたcellをclickしてcanonical cellが編集され、Undo / Redo 後も canonical cell と duplicate tile が同じ floor / wall 状態へ戻ることを確認する。
 12. 連続して別cellを編集したとき、highlight が最後の canonical cell だけに残ることを確認する。
