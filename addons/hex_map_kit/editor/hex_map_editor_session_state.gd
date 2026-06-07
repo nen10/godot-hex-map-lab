@@ -14,6 +14,9 @@ var import_map: Resource = null
 var import_map_saved_path: String = ""
 var export_saved_path: String = ""
 var workspace_asset_context: HexMapWorkspaceAssetContext = HexMapWorkspaceAssetContext.new()
+var show_bundled_samples_in_main_selectors := false
+var use_bundled_sample_assets_for_scratch_documents := false
+var auto_create_project_copy_when_applying_sample := false
 var last_reason: String = ""
 
 
@@ -100,6 +103,34 @@ func set_workspace_asset(slot_id: String, resource: Resource, reason: String = "
 	current_workspace_asset_context().set_asset(slot_id, resource)
 
 
+func set_show_bundled_samples_in_main_selectors(enabled: bool, reason: String = "") -> void:
+	if show_bundled_samples_in_main_selectors == enabled:
+		return
+	show_bundled_samples_in_main_selectors = enabled
+	last_reason = reason
+	changed.emit("sample_settings.show_bundled_samples_in_main_selectors")
+
+
+func bundled_samples_visible_in_main_selectors() -> bool:
+	return show_bundled_samples_in_main_selectors
+
+
+func set_use_bundled_sample_assets_for_scratch_documents(enabled: bool, reason: String = "") -> void:
+	if use_bundled_sample_assets_for_scratch_documents == enabled:
+		return
+	use_bundled_sample_assets_for_scratch_documents = enabled
+	last_reason = reason
+	changed.emit("sample_settings.use_bundled_sample_assets_for_scratch_documents")
+
+
+func set_auto_create_project_copy_when_applying_sample(enabled: bool, reason: String = "") -> void:
+	if auto_create_project_copy_when_applying_sample == enabled:
+		return
+	auto_create_project_copy_when_applying_sample = enabled
+	last_reason = reason
+	changed.emit("sample_settings.auto_create_project_copy_when_applying_sample")
+
+
 func snapshot() -> Dictionary:
 	var context := current_workspace_asset_context()
 	return {
@@ -112,6 +143,9 @@ func snapshot() -> Dictionary:
 		"export_saved_path": export_saved_path,
 		"workspace_asset_context": context,
 		"workspace_asset_context_snapshot": context.snapshot(),
+		"show_bundled_samples_in_main_selectors": show_bundled_samples_in_main_selectors,
+		"use_bundled_sample_assets_for_scratch_documents": use_bundled_sample_assets_for_scratch_documents,
+		"auto_create_project_copy_when_applying_sample": auto_create_project_copy_when_applying_sample,
 		"last_reason": last_reason,
 	}
 

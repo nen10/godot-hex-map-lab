@@ -276,6 +276,8 @@ func set_editor_session_state(session: HexMapEditorSessionState) -> void:
 	var session_target = _editor_session_state.current_target_layer()
 	if session_target != null and _tile_layer_option != null:
 		_select_tile_layer_target(session_target)
+	if _shape_symmetric_row != null:
+		_refresh_controls()
 
 
 func editor_session_state() -> HexMapEditorSessionState:
@@ -296,9 +298,20 @@ func workspace_asset_context() -> HexMapWorkspaceAssetContext:
 	return null
 
 
+func main_sample_controls_visible() -> bool:
+	if _sample_tiles_button != null:
+		return _sample_tiles_button.visible
+	return _sample_controls_visible_in_main_ui()
+
+
 func _on_editor_session_changed(key: String) -> void:
 	if key == "workspace_asset_context" or key.begins_with("workspace_asset_context."):
 		set_workspace_asset_context(_editor_session_state.current_workspace_asset_context())
+	elif key.begins_with("sample_settings."):
+		_clear_sample_catalog_if_hidden()
+		_refresh_catalog_options()
+		if _shape_symmetric_row != null:
+			_refresh_controls()
 
 
 func _process(_delta: float) -> void:
@@ -1054,7 +1067,7 @@ func _ensure_tile_catalog() -> HexTileCatalogResource:
 	if context != null and context.tile_catalog != null:
 		_tile_catalog = context.tile_catalog
 		return _tile_catalog
-	if _tile_catalog == null:
+	if _tile_catalog == null and _sample_catalog_fallback_enabled():
 		_tile_catalog = load(SAMPLE_TILE_CATALOG_PATH) as HexTileCatalogResource
 	return _tile_catalog
 
@@ -3566,9 +3579,31 @@ func _refresh_controls() -> void:
 		_overlay_reference_container.visible = bool(control_state["overlay_reference_visible"])
 	if _wall_prob_row != null:
 		_wall_prob_row.visible = bool(control_state["wall_probability_row_visible"])
+	if _sample_tiles_button != null:
+		_sample_tiles_button.visible = _sample_controls_visible_in_main_ui()
 	_refresh_overlay_item_pool_rows()
 	_refresh_adjacency_rules_status()
 	_refresh_generation_block_state()
+
+
+func _sample_catalog_fallback_enabled() -> bool:
+	if _editor_session_state != null:
+		return _editor_session_state.bundled_samples_visible_in_main_selectors()
+	return true
+
+
+func _sample_controls_visible_in_main_ui() -> bool:
+	return _editor_session_state == null
+
+
+func _clear_sample_catalog_if_hidden() -> void:
+	if _sample_catalog_fallback_enabled():
+		return
+	var context := workspace_asset_context()
+	if context != null and context.tile_catalog != null:
+		return
+	if _tile_catalog != null and _tile_catalog.resource_path == SAMPLE_TILE_CATALOG_PATH:
+		_tile_catalog = null
 
 
 func _uses_symmetric_generation() -> bool:

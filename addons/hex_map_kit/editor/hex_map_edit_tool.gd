@@ -204,6 +204,7 @@ var _target_tile_set_picker
 var _target_atlas_path_edit: LineEdit
 var _target_atlas_browse_button: Button
 var _target_atlas_apply_button: Button
+var _target_sample_row: HBoxContainer
 var _target_sample_option: OptionButton
 var _target_sample_apply_button: Button
 var _select_display_layer_button: Button
@@ -263,6 +264,7 @@ func set_editor_session_state(session: HexMapEditorSessionState) -> void:
 		set_import_map_path(session_import_map_saved_path)
 	if session_export_saved_path != "":
 		set_export_path(session_export_saved_path)
+	_refresh_action_button_states()
 
 
 func editor_session_state() -> HexMapEditorSessionState:
@@ -285,9 +287,19 @@ func workspace_asset_context() -> HexMapWorkspaceAssetContext:
 	return null
 
 
+func main_sample_controls_visible() -> bool:
+	if _target_sample_row != null:
+		return _target_sample_row.visible
+	return _sample_controls_visible_in_main_ui()
+
+
 func _on_editor_session_changed(key: String) -> void:
 	if key == "workspace_asset_context" or key.begins_with("workspace_asset_context."):
 		set_workspace_asset_context(_editor_session_state.current_workspace_asset_context())
+	elif key.begins_with("sample_settings."):
+		_clear_sample_catalog_if_hidden()
+		_refresh_catalog_options()
+		_refresh_action_button_states()
 
 
 func set_document(document: HexMapDocumentResource) -> void:
@@ -1175,6 +1187,7 @@ func _build_ui() -> void:
 	root.add_child(target_atlas_row)
 
 	var sample_row = HBoxContainer.new()
+	_target_sample_row = sample_row
 	_target_sample_option = OptionButton.new()
 	for preset in _target_atlas_presets():
 		_target_sample_option.add_item(String(preset.get("label", "")))
@@ -4077,6 +4090,8 @@ func _refresh_action_button_states() -> void:
 		"No editable target layer or atlas path."
 	)
 	_set_button_enabled(_target_sample_apply_button, target_valid, "No editable target layer.")
+	if _target_sample_row != null:
+		_target_sample_row.visible = _sample_controls_visible_in_main_ui()
 	_set_button_enabled(_select_display_layer_button, hex_target, "No HexTileMapLayer target.")
 	_set_button_enabled(_default_tile_read_button, target_valid, "No editable target layer.")
 	_set_button_enabled(_default_tile_apply_button, target_valid, "No editable target layer.")
@@ -4152,9 +4167,29 @@ func _ensure_tile_catalog() -> HexTileCatalogResource:
 	if context != null and context.tile_catalog != null:
 		_tile_catalog = context.tile_catalog
 		return _tile_catalog
-	if _tile_catalog == null:
+	if _tile_catalog == null and _sample_catalog_fallback_enabled():
 		_tile_catalog = load(SAMPLE_TILE_CATALOG_PATH) as HexTileCatalogResource
 	return _tile_catalog
+
+
+func _sample_catalog_fallback_enabled() -> bool:
+	if _editor_session_state != null:
+		return _editor_session_state.bundled_samples_visible_in_main_selectors()
+	return true
+
+
+func _sample_controls_visible_in_main_ui() -> bool:
+	return _editor_session_state == null
+
+
+func _clear_sample_catalog_if_hidden() -> void:
+	if _sample_catalog_fallback_enabled():
+		return
+	var context := workspace_asset_context()
+	if context != null and context.tile_catalog != null:
+		return
+	if _tile_catalog != null and _tile_catalog.resource_path == SAMPLE_TILE_CATALOG_PATH:
+		_tile_catalog = null
 
 
 func _refresh_catalog_options() -> void:

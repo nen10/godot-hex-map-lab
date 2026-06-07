@@ -32,6 +32,7 @@ const HexMapEditorAssetSlotState = preload("res://addons/hex_map_kit/editor/hex_
 const HexMapEditorAssetSlotControl = preload("res://addons/hex_map_kit/editor/hex_map_editor_asset_slot_control.gd")
 const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
 const HexMapWorkspaceAssetResourceFactory = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_resource_factory.gd")
+const HexMapSampleSettingsPanel = preload("res://addons/hex_map_kit/editor/hex_map_sample_settings_panel.gd")
 const HexMapWorkspace = preload("res://addons/hex_map_kit/editor/hex_map_workspace.gd")
 const HexDistEditor = preload("res://addons/hex_map_kit/editor/hex_dist_editor.gd")
 const HexAdjacencyRuleEditor = preload("res://addons/hex_map_kit/editor/hex_adjacency_rule_editor.gd")
@@ -108,6 +109,7 @@ func _run() -> void:
 	_test_plugin_registration_files()
 	await _test_hex_map_workspace_exposes_tabs_and_routes_editing()
 	await _test_workspace_asset_context_is_shared_by_workspace_generate_and_paint()
+	await _test_workspace_sample_settings_panel_controls_sample_mode_sources()
 	_test_asset_slot_state_model_reports_selection_validation_and_sample_source()
 	await _test_asset_slot_control_exposes_state_snapshot_contract()
 	_test_asset_resource_factory_creates_project_resources_and_assigns_context()
@@ -248,6 +250,7 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 		"Validate",
 		"QA",
 		"Export",
+		"Settings",
 	])
 	_assert_eq(workspace.name, "Hex Map Workspace", "workspace has stable dock name")
 	_assert_eq(workspace.workspace_tab_names(), expected_tabs, "workspace exposes UX responsibility tabs")
@@ -262,10 +265,17 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 		"Validate",
 		"workspace maps ValidationPanel to Validate tab"
 	)
+	_assert_eq(
+		workspace.component_for_responsibility("SampleSettingsPanel").get("tab", ""),
+		"Settings",
+		"workspace maps SampleSettingsPanel to Settings tab"
+	)
 	_assert_true(workspace.generation_dock() is HexMapGenDock, "workspace mounts generation component")
 	_assert_true(workspace.edit_tool() is HexMapEditTool, "workspace mounts paint/edit component")
+	_assert_true(workspace.sample_settings_panel() is HexMapSampleSettingsPanel, "workspace mounts sample settings component")
 	_assert_eq(workspace.generation_dock().editor_session_state(), session, "workspace forwards session to generation component")
 	_assert_eq(workspace.edit_tool().editor_session_state(), session, "workspace forwards session to paint/edit component")
+	_assert_eq(workspace.sample_settings_panel().editor_session_state(), session, "workspace forwards session to sample settings component")
 
 	var layer = TileMapLayer.new()
 	root.add_child(layer)
@@ -401,6 +411,74 @@ func _test_workspace_asset_context_is_shared_by_workspace_generate_and_paint() -
 		paint_catalog,
 		"generation dock consumes paint-selected project catalog through context"
 	)
+
+	workspace.queue_free()
+	await process_frame
+
+
+func _test_workspace_sample_settings_panel_controls_sample_mode_sources() -> void:
+	var session = HexMapEditorSessionState.new()
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	var panel = workspace.sample_settings_panel()
+	_assert_true(panel is HexMapSampleSettingsPanel, "workspace exposes sample settings panel")
+	var snapshot = panel.snapshot()
+	_assert_true(
+		not bool(snapshot["show_bundled_samples_in_main_selectors"]),
+		"sample visibility is off by default"
+	)
+	_assert_true(
+		not bool(snapshot["use_bundled_sample_assets_for_scratch_documents"]),
+		"scratch sample assets are off by default"
+	)
+	_assert_true(
+		not bool(snapshot["auto_create_project_copy_when_applying_sample"]),
+		"auto project copy is off by default"
+	)
+	_assert_eq(Array(snapshot["sample_assets"]).size(), 3, "sample settings lists bundled sample assets")
+	_assert_eq(workspace.generation_dock().tile_catalog(), null, "sample mode OFF hides generation sample catalog fallback")
+	_assert_eq(workspace.edit_tool().tile_catalog(), null, "sample mode OFF hides paint sample catalog fallback")
+	_assert_true(
+		not workspace.generation_dock().main_sample_controls_visible(),
+		"workspace generation main UI hides sample controls"
+	)
+	_assert_true(
+		not workspace.edit_tool().main_sample_controls_visible(),
+		"workspace paint main UI hides sample controls"
+	)
+
+	panel.set_show_bundled_samples_in_main_selectors(true)
+	snapshot = panel.snapshot()
+	_assert_true(bool(snapshot["show_bundled_samples_in_main_selectors"]), "sample setting can enable sample selector visibility")
+	var generation_sample_catalog = workspace.generation_dock().tile_catalog()
+	var paint_sample_catalog = workspace.edit_tool().tile_catalog()
+	_assert_true(generation_sample_catalog is HexTileCatalogResource, "sample mode ON exposes generation sample catalog fallback")
+	_assert_true(paint_sample_catalog is HexTileCatalogResource, "sample mode ON exposes paint sample catalog fallback")
+	_assert_eq(
+		generation_sample_catalog.resource_path,
+		"res://addons/hex_map_kit/assets/sample_hex_tile_catalog.tres",
+		"generation sample fallback is the bundled sample catalog"
+	)
+	_assert_eq(
+		paint_sample_catalog.resource_path,
+		"res://addons/hex_map_kit/assets/sample_hex_tile_catalog.tres",
+		"paint sample fallback is the bundled sample catalog"
+	)
+
+	var project_catalog = HexTileCatalogResource.new()
+	session.set_workspace_asset(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, project_catalog, "test.project_catalog")
+	_assert_eq(workspace.generation_dock().tile_catalog(), project_catalog, "project catalog remains primary for generation when sample mode is ON")
+	_assert_eq(workspace.edit_tool().tile_catalog(), project_catalog, "project catalog remains primary for paint when sample mode is ON")
+
+	panel.set_show_bundled_samples_in_main_selectors(false)
+	_assert_eq(workspace.generation_dock().tile_catalog(), project_catalog, "project catalog remains primary for generation when sample mode is OFF")
+	_assert_eq(workspace.edit_tool().tile_catalog(), project_catalog, "project catalog remains primary for paint when sample mode is OFF")
+	session.set_workspace_asset(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, null, "test.clear_project_catalog")
+	_assert_eq(workspace.generation_dock().tile_catalog(), null, "cleared project catalog does not reveal generation sample fallback while sample mode is OFF")
+	_assert_eq(workspace.edit_tool().tile_catalog(), null, "cleared project catalog does not reveal paint sample fallback while sample mode is OFF")
 
 	workspace.queue_free()
 	await process_frame

@@ -10,6 +10,7 @@ const TAB_LAYERS := "Layers"
 const TAB_VALIDATE := "Validate"
 const TAB_QA := "QA"
 const TAB_EXPORT := "Export"
+const TAB_SETTINGS := "Settings"
 
 
 static func tab_names() -> PackedStringArray:
@@ -22,6 +23,7 @@ static func tab_names() -> PackedStringArray:
 		TAB_VALIDATE,
 		TAB_QA,
 		TAB_EXPORT,
+		TAB_SETTINGS,
 	])
 
 
@@ -35,6 +37,7 @@ static func component_rows() -> Array[Dictionary]:
 		_component(TAB_VALIDATE, "validation_panel", "HexMapValidationPanel", "ValidationPanel", "edit"),
 		_component(TAB_QA, "seed_lab_panel", "HexMapSeedLabPanel", "SeedLabPanel", "generate"),
 		_component(TAB_EXPORT, "export_panel", "HexMapExportPanel", "ExportPanel", "edit"),
+		_component(TAB_SETTINGS, "sample_settings_panel", "HexMapSampleSettingsPanel", "SampleSettingsPanel", "settings"),
 	]
 
 

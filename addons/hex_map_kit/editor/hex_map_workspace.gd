@@ -5,6 +5,7 @@ extends VBoxContainer
 const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
 const HexMapGenDock = preload("res://addons/hex_map_kit/editor/hex_map_gen_dock.gd")
 const HexMapEditTool = preload("res://addons/hex_map_kit/editor/hex_map_edit_tool.gd")
+const HexMapSampleSettingsPanel = preload("res://addons/hex_map_kit/editor/hex_map_sample_settings_panel.gd")
 const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
 const HexMapWorkspaceComponentRegistry = preload("res://addons/hex_map_kit/editor/hex_map_workspace_component_registry.gd")
 
@@ -12,6 +13,7 @@ var _editor_session_state: HexMapEditorSessionState = null
 var _tabs: TabContainer
 var _generation_dock: HexMapGenDock
 var _edit_tool: HexMapEditTool
+var _sample_settings_panel: HexMapSampleSettingsPanel
 var _tab_pages: Dictionary = {}
 
 
@@ -26,6 +28,8 @@ func set_editor_session_state(session: HexMapEditorSessionState) -> void:
 		_generation_dock.set_editor_session_state(_ensure_session_state())
 	if _edit_tool != null:
 		_edit_tool.set_editor_session_state(_ensure_session_state())
+	if _sample_settings_panel != null:
+		_sample_settings_panel.set_editor_session_state(_ensure_session_state())
 	_sync_workspace_asset_context()
 
 
@@ -54,6 +58,10 @@ func generation_dock() -> HexMapGenDock:
 
 func edit_tool() -> HexMapEditTool:
 	return _edit_tool
+
+
+func sample_settings_panel() -> HexMapSampleSettingsPanel:
+	return _sample_settings_panel
 
 
 func viewport_input_enabled() -> bool:
@@ -96,6 +104,7 @@ func _build_ui() -> void:
 		_add_tab_page(String(tab_name))
 	_mount_generation_panel()
 	_mount_edit_panel()
+	_mount_sample_settings_panel()
 
 
 func _add_tab_page(tab_name: String) -> VBoxContainer:
@@ -130,6 +139,17 @@ func _mount_edit_panel() -> void:
 	_edit_tool.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_edit_tool.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	(page as Control).add_child(_edit_tool)
+
+
+func _mount_sample_settings_panel() -> void:
+	var page = _tab_pages.get(HexMapWorkspaceComponentRegistry.TAB_SETTINGS, null)
+	if page == null:
+		return
+	_sample_settings_panel = HexMapSampleSettingsPanel.new()
+	_sample_settings_panel.set_editor_session_state(_ensure_session_state())
+	_sample_settings_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_sample_settings_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	(page as Control).add_child(_sample_settings_panel)
 
 
 func _ensure_session_state() -> HexMapEditorSessionState:
