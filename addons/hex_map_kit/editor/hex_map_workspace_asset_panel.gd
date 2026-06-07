@@ -62,6 +62,68 @@ func asset_slot_snapshot(slot_id: String) -> Dictionary:
 	return control.slot_state_snapshot()
 
 
+func create_asset_for_slot(slot_id: String, path: String) -> Dictionary:
+	var result := HexMapWorkspaceAssetResourceFactory.create_and_save_for_slot(slot_id, path, _context)
+	_sync_slots_from_context()
+	return result
+
+
+func save_asset_slot_as(slot_id: String, path: String) -> Dictionary:
+	var control = _slot_controls.get(slot_id, null) as HexMapEditorAssetSlotControl
+	var actual_path := HexMapWorkspaceAssetResourceFactory.normalized_resource_path(path)
+	var resource = null if control == null else control.slot_state_snapshot().get("current_resource", null) as Resource
+	if resource == null or actual_path == "":
+		return {
+			"ok": false,
+			"error": ERR_INVALID_PARAMETER,
+			"slot_id": slot_id,
+			"path": actual_path,
+			"resource": resource,
+		}
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(actual_path.get_base_dir()))
+	var error := ResourceSaver.save(resource, actual_path)
+	if error == OK:
+		resource.resource_path = actual_path
+		if _context != null:
+			_context.set_asset(slot_id, resource)
+	_sync_slots_from_context()
+	return {
+		"ok": error == OK,
+		"error": error,
+		"slot_id": slot_id,
+		"path": actual_path,
+		"resource": resource,
+	}
+
+
+func open_asset_slot(slot_id: String) -> Dictionary:
+	var snapshot := asset_slot_snapshot(slot_id)
+	var resource = snapshot.get("current_resource", null) as Resource
+	var path := String(snapshot.get("current_path", ""))
+	return {
+		"ok": resource != null or path != "",
+		"slot_id": slot_id,
+		"path": path,
+		"resource": resource,
+	}
+
+
+func clear_asset_slot(slot_id: String) -> Dictionary:
+	var control = _slot_controls.get(slot_id, null) as HexMapEditorAssetSlotControl
+	if control == null:
+		return {
+			"ok": false,
+			"slot_id": slot_id,
+		}
+	control.clear_selection()
+	if _context != null:
+		_context.set_asset(slot_id, null)
+	return {
+		"ok": true,
+		"slot_id": slot_id,
+	}
+
+
 func _build_ui() -> void:
 	if _title_label != null:
 		return

@@ -112,6 +112,7 @@ func _run() -> void:
 	await _test_hex_map_workspace_exposes_tabs_and_routes_editing()
 	await _test_workspace_first_run_learning_cta_routes_to_settings_without_sample_defaults()
 	await _test_workspace_asset_context_is_shared_by_workspace_generate_and_paint()
+	await _test_document_asset_screen_manages_project_document_without_samples()
 	await _test_workspace_sample_settings_panel_controls_sample_mode_sources()
 	_test_sample_asset_duplicator_copies_catalog_dependencies_to_project()
 	_test_asset_slot_state_model_reports_selection_validation_and_sample_source()
@@ -541,6 +542,81 @@ func _test_workspace_asset_context_is_shared_by_workspace_generate_and_paint() -
 		paint_catalog,
 		"Catalog tab asset slot tracks paint-selected project catalog through context"
 	)
+
+	workspace.queue_free()
+	await process_frame
+
+
+func _test_document_asset_screen_manages_project_document_without_samples() -> void:
+	var session = HexMapEditorSessionState.new()
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	var snapshot = workspace.document_screen_snapshot()
+	_assert_true(
+		PackedStringArray(snapshot["component_ids"]).has("document_asset_panel"),
+		"Document screen exposes document asset component"
+	)
+	_assert_true(
+		PackedStringArray(snapshot["asset_slot_ids"]).has(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT),
+		"Document screen exposes level document slot"
+	)
+	_assert_true(
+		PackedStringArray(snapshot["dependency_slot_ids"]).has(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG),
+		"Document screen exposes catalog dependency slot"
+	)
+	_assert_true(
+		PackedStringArray(snapshot["dependency_slot_ids"]).has(HexMapWorkspaceAssetContext.SLOT_LAYER_STACK),
+		"Document screen exposes layer stack dependency slot"
+	)
+	_assert_eq(workspace.workspace_asset_context().level_document, null, "Document screen starts without a sample document")
+	_assert_true(not session.show_bundled_samples_in_main_selectors, "Document screen starts with sample mode OFF")
+
+	var output_dir = _test_resource_dir("screen20_document")
+	var document_path = "%s/level_document.tres" % output_dir
+	var create_result = workspace.create_level_document(document_path)
+	_assert_true(bool(create_result["ok"]), "Document screen creates Level Document")
+	_assert_true(FileAccess.file_exists(document_path), "Document screen writes created Level Document")
+	var document = create_result["resource"] as HexMapDocumentResource
+	_assert_true(document is HexMapDocumentResource, "Document screen create returns document resource")
+	_assert_eq(workspace.workspace_asset_context().level_document, document, "created document enters workspace context")
+	_assert_eq(session.current_document(), document, "created document enters editor session")
+	_assert_eq(session.document_saved_path, document_path, "created document updates session saved path")
+	_assert_eq(
+		workspace.tab_asset_slot_snapshot("Document", HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT).get("current_source", ""),
+		HexMapEditorAssetSlotState.SOURCE_PROJECT,
+		"Document screen marks created document as project asset"
+	)
+
+	var open_result = workspace.open_level_document()
+	_assert_true(bool(open_result["ok"]), "Document screen opens selected Level Document")
+	_assert_eq(open_result["resource"], document, "Document screen open returns selected document")
+
+	var save_as_path = "%s/level_document_saved_as.tres" % output_dir
+	var save_result = workspace.save_level_document_as(save_as_path)
+	_assert_true(bool(save_result["ok"]), "Document screen saves Level Document as project resource")
+	_assert_true(FileAccess.file_exists(save_as_path), "Document screen Save As writes project resource")
+	_assert_eq(document.resource_path, save_as_path, "Document screen Save As updates document resource path")
+	_assert_eq(session.document_saved_path, save_as_path, "Document screen Save As updates session saved path")
+
+	var validation = workspace.validate_level_document()
+	_assert_true(validation is HexMapValidationResult, "Document screen validate returns validation result")
+	_assert_true(validation.summary.has("cells"), "Document screen validation returns document summary")
+	_assert_true(validation.to_dictionary().has("errors"), "Document screen validation returns issue counts")
+
+	var clear_result = workspace.clear_level_document()
+	_assert_true(bool(clear_result["ok"]), "Document screen clears Level Document")
+	_assert_eq(workspace.workspace_asset_context().level_document, null, "cleared document leaves workspace context")
+	_assert_eq(session.current_document(), null, "cleared document leaves editor session")
+	_assert_eq(session.document_saved_path, "", "cleared document resets saved path")
+	_assert_true(
+		not bool(workspace.tab_asset_slot_snapshot("Document", HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT).get("selected", true)),
+		"Document screen level document slot becomes unselected after clear"
+	)
+	_assert_true(not session.show_bundled_samples_in_main_selectors, "Document screen actions do not enable sample mode")
+	_assert_eq(workspace.generation_dock().tile_catalog(), null, "Document screen actions do not inject generation sample catalog")
 
 	workspace.queue_free()
 	await process_frame

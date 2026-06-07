@@ -3,6 +3,9 @@ class_name HexMapWorkspace
 extends VBoxContainer
 
 const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
+const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
+const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
+const HexMapDocumentValidator = preload("res://addons/hex_map_kit/adapter/hex_map_document_validator.gd")
 const HexMapGenDock = preload("res://addons/hex_map_kit/editor/hex_map_gen_dock.gd")
 const HexMapEditTool = preload("res://addons/hex_map_kit/editor/hex_map_edit_tool.gd")
 const HexMapSampleSettingsPanel = preload("res://addons/hex_map_kit/editor/hex_map_sample_settings_panel.gd")
@@ -192,6 +195,76 @@ func tab_asset_slot_snapshot(tab_name: String, slot_id: String) -> Dictionary:
 	return panel.asset_slot_snapshot(slot_id)
 
 
+func document_screen_snapshot() -> Dictionary:
+	var context := workspace_asset_context()
+	var document := context.level_document
+	var document_slot := tab_asset_slot_snapshot(
+		HexMapWorkspaceComponentRegistry.TAB_DOCUMENT,
+		HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT
+	)
+	return {
+		"tab": HexMapWorkspaceComponentRegistry.TAB_DOCUMENT,
+		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_DOCUMENT),
+		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_DOCUMENT),
+		"dependency_slot_ids": PackedStringArray([
+			HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG,
+			HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE,
+			HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE,
+			HexMapWorkspaceAssetContext.SLOT_LAYER_STACK,
+		]),
+		"level_document": document,
+		"document_slot": document_slot,
+		"summary": HexMapDocumentAdapter.document_summary(document),
+		"saved_path": document.resource_path if document != null else "",
+		"saved_status": "saved" if document != null and document.resource_path != "" else "unsaved",
+		"dirty": false,
+	}
+
+
+func create_level_document(path: String) -> Dictionary:
+	var panel := _document_asset_panel()
+	if panel == null:
+		return _document_action_result(false, ERR_UNAVAILABLE, path)
+	var result := panel.create_asset_for_slot(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, path)
+	_sync_session_document_from_result(result, "workspace.document.create")
+	return result
+
+
+func save_level_document_as(path: String) -> Dictionary:
+	var panel := _document_asset_panel()
+	if panel == null:
+		return _document_action_result(false, ERR_UNAVAILABLE, path)
+	var result := panel.save_asset_slot_as(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, path)
+	_sync_session_document_from_result(result, "workspace.document.save_as")
+	return result
+
+
+func open_level_document() -> Dictionary:
+	var panel := _document_asset_panel()
+	if panel == null:
+		return _document_action_result(false, ERR_UNAVAILABLE, "")
+	var result := panel.open_asset_slot(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT)
+	_sync_session_document_from_result(result, "workspace.document.open")
+	return result
+
+
+func clear_level_document() -> Dictionary:
+	var panel := _document_asset_panel()
+	if panel == null:
+		return _document_action_result(false, ERR_UNAVAILABLE, "")
+	var result := panel.clear_asset_slot(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT)
+	_ensure_session_state().set_document(null, "", "", "workspace.document.clear")
+	_ensure_session_state().set_document_saved_path("", "workspace.document.clear")
+	return result
+
+
+func validate_level_document():
+	return HexMapDocumentValidator.validate_document(
+		workspace_asset_context().level_document,
+		_document_validation_options()
+	)
+
+
 func _build_ui() -> void:
 	if _tabs != null:
 		return
@@ -357,6 +430,45 @@ func _slot_row(slot_id: String, display_name: String, required: bool = true) -> 
 		"required": required,
 		"required_type": HexMapWorkspaceAssetResourceFactory.resource_type_name(slot_id),
 		"allows_create_new": true,
+	}
+
+
+func _document_asset_panel() -> HexMapWorkspaceAssetPanel:
+	return _asset_panels.get(HexMapWorkspaceComponentRegistry.TAB_DOCUMENT, null) as HexMapWorkspaceAssetPanel
+
+
+func _sync_session_document_from_result(result: Dictionary, reason: String) -> void:
+	if not bool(result.get("ok", false)):
+		return
+	var document = result.get("resource", null) as HexMapDocumentResource
+	if document == null:
+		return
+	var path := String(result.get("path", document.resource_path))
+	_ensure_session_state().set_document(document, "workspace.document_asset_screen", path, reason)
+	_ensure_session_state().set_document_saved_path(path, reason)
+
+
+func _document_validation_options() -> Dictionary:
+	var context := workspace_asset_context()
+	var options := {}
+	if context.tile_catalog != null:
+		options["tile_catalog"] = context.tile_catalog
+		if context.tile_catalog.tile_set != null:
+			options["tile_set"] = context.tile_catalog.tile_set
+	if context.object_database != null:
+		options["object_database"] = context.object_database
+	if context.movement_profile != null:
+		options["movement_profile"] = context.movement_profile
+	return options
+
+
+func _document_action_result(ok: bool, error: int, path: String) -> Dictionary:
+	return {
+		"ok": ok,
+		"error": error,
+		"slot_id": HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT,
+		"path": path,
+		"resource": null,
 	}
 
 
