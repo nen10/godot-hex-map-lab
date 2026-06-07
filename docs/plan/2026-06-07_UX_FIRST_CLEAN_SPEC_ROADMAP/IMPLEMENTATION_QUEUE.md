@@ -108,22 +108,56 @@ proof:
 | id | status | priority | dependencies | plan_dir | deliverable | target files | acceptance / test path | maturity |
 |---|---|---:|---|---|---|---|---|---|
 | `CLEAN-60` | `COMPLETE` | P1 | `CLEAN-12`, `CLEAN-13` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-60_SAMPLE_ASSET_INTEGRITY/` | Sample asset integrity after clean references | `addons/hex_map_kit/assets/sample_hex_tile_catalog.tres`, sample TileSet/PackedScene/Texture resources, package tests | Sample catalog has no debug path or missing scene; package manifest includes sample dependencies; sample catalog validator is clean | `PACKAGE_READY` |
-| `CLEAN-61` | `READY` | P2 | `CLEAN-40`, `CLEAN-41`, `CLEAN-51`, `CLEAN-60` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-61_DIST_REGENERATION_AFTER_CLEAN_SPEC/` | Dist regeneration after clean spec | `tools/package_addon.sh`, `dist/`, package docs/tests | `tools/package_addon.sh` regenerates current-tree package; manifest has no dev-only files and no legacy/migration docs; release upload is not performed | `PACKAGE_READY` |
+| `CLEAN-61` | `COMPLETE` | P2 | `CLEAN-40`, `CLEAN-41`, `CLEAN-51`, `CLEAN-60` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-61_DIST_REGENERATION_AFTER_CLEAN_SPEC/` | Dist regeneration after clean spec | `tools/package_addon.sh`, `dist/`, package docs/tests | `tools/package_addon.sh` regenerates current-tree package; manifest has no dev-only files and no legacy/migration docs; release upload is not performed | `PACKAGE_READY` |
 
 ---
 
 ## 8. Current pointer
 
-Current recommended next task: `CLEAN-61`.
+Current recommended next task: none. All CLEAN roadmap queue tasks are `COMPLETE`.
 
 Reason:
 
-- Dependency sweep completed on 2026-06-07 after `CLEAN-60` completion.
-- `CLEAN-61` was promoted from `BACKLOG` to `READY` because `CLEAN-40`, `CLEAN-41`, `CLEAN-51`, and `CLEAN-60` are complete.
+- Dependency sweep completed on 2026-06-07 after `CLEAN-61` completion.
+- No `READY`, `BACKLOG`, `RUNNING`, `VERIFYING`, or `REPAIR_NOW` tasks remain in this queue.
 
 ---
 
 ## 9. Completed task proof log
+
+### CLEAN-61
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot / `autopilot/roadmap-main`
+plan: `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-61_DIST_REGENERATION_AFTER_CLEAN_SPEC/`
+review: `docs/review/autopilot/CLEAN-61_SELF_REVIEW_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/package_addon.sh` PASS
+  - `./tools/package_addon.sh --check --output-dir .godot_user/package-check/clean61-verify` PASS
+  - `diff -u .godot_user/package-check/clean61-verify/hex_map_kit-0.3.0.manifest.txt dist/hex_map_kit-0.3.0.manifest.txt` PASS
+  - `rg -n "^(docs|tests|debug|tools|examples|\\.godot|\\.godot_user|dist)/|legacy|migration|MIGRATION|v0_2|v2" dist/hex_map_kit-0.3.0.manifest.txt` PASS with no matches
+  - `rg -n "sample_hex_tiles.png|sample_hex_tile_catalog.tres|sample_spawn_marker.tscn" dist/hex_map_kit-0.3.0.manifest.txt` PASS
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+  - `git diff --check` PASS
+- docs:
+  - `docs/review/autopilot/CLEAN-61_SELF_REVIEW_2026-06-07.md`
+  - `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-61_DIST_REGENERATION_AFTER_CLEAN_SPEC/`
+  - `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/IMPLEMENTATION_QUEUE.md`
+- major files:
+  - `dist/hex_map_kit-0.3.0.zip`
+  - `dist/hex_map_kit-0.3.0.manifest.txt`
+- maturity:
+  - `PACKAGE_READY`
+
+Notes:
+
+- Generated package artifacts are force-added because `dist/` is ignored and this task requires committed distribution artifacts.
+- Release upload was not performed.
+- Dependency sweep found no remaining queue tasks to promote.
+- `repair-now`: none.
 
 ### CLEAN-60
 
