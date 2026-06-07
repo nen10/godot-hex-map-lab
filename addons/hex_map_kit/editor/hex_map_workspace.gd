@@ -6,6 +6,7 @@ const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_ma
 const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
 const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
 const HexMapDocumentValidator = preload("res://addons/hex_map_kit/adapter/hex_map_document_validator.gd")
+const HexMapValidationResult = preload("res://addons/hex_map_kit/adapter/hex_map_validation_result.gd")
 const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
 const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
 const HexLabelDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_label_definition_resource.gd")
@@ -33,6 +34,7 @@ var _sample_settings_panel: HexMapSampleSettingsPanel
 var _asset_panels: Dictionary = {}
 var _tab_components: Dictionary = {}
 var _tab_pages: Dictionary = {}
+var _last_workspace_validation_result: HexMapValidationResult = null
 
 
 func _ready() -> void:
@@ -271,6 +273,135 @@ func validate_level_document():
 		workspace_asset_context().level_document,
 		_document_validation_options()
 	)
+
+
+func validate_screen_snapshot() -> Dictionary:
+	var context := workspace_asset_context()
+	return {
+		"tab": HexMapWorkspaceComponentRegistry.TAB_VALIDATE,
+		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_VALIDATE),
+		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_VALIDATE),
+		"level_document": context.level_document,
+		"tile_catalog": context.tile_catalog,
+		"object_database": context.object_database,
+		"label_database": context.label_database,
+		"layer_stack": context.layer_stack,
+		"validation_rule_suite": context.validation_rule_suite,
+		"generation_profile": context.generation_profile,
+		"last_result": _last_workspace_validation_result,
+		"issue_rows": validate_screen_issue_rows(_last_workspace_validation_result),
+		"sample_candidates_visible": _ensure_session_state().show_bundled_samples_in_main_selectors,
+	}
+
+
+func run_validate_screen() -> Dictionary:
+	_last_workspace_validation_result = validate_workspace_assets()
+	return {
+		"ok": true,
+		"result": _last_workspace_validation_result,
+		"issue_rows": validate_screen_issue_rows(_last_workspace_validation_result),
+	}
+
+
+func validate_workspace_assets() -> HexMapValidationResult:
+	var context := workspace_asset_context()
+	var result := HexMapValidationResult.new()
+	result.summary = {
+		"workspace_assets": 7,
+		"errors": 0,
+		"warnings": 0,
+		"infos": 0,
+	}
+	_add_missing_asset_issue(
+		result,
+		context.level_document == null,
+		"workspace.level_document_missing",
+		"Level Document is not selected.",
+		HexMapWorkspaceComponentRegistry.TAB_DOCUMENT,
+		"document_asset_panel",
+		HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT
+	)
+	_add_missing_asset_issue(
+		result,
+		context.tile_catalog == null,
+		"workspace.tile_catalog_missing",
+		"Tile Catalog is not selected.",
+		HexMapWorkspaceComponentRegistry.TAB_CATALOG,
+		"catalog_asset_panel",
+		HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG
+	)
+	_add_missing_asset_issue(
+		result,
+		context.object_database == null,
+		"workspace.object_database_missing",
+		"Object Database is not selected.",
+		HexMapWorkspaceComponentRegistry.TAB_PAINT,
+		"object_label_asset_panel",
+		HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE
+	)
+	_add_missing_asset_issue(
+		result,
+		context.label_database == null,
+		"workspace.label_database_missing",
+		"Label Database is not selected.",
+		HexMapWorkspaceComponentRegistry.TAB_PAINT,
+		"object_label_asset_panel",
+		HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE
+	)
+	_add_missing_asset_issue(
+		result,
+		context.layer_stack == null,
+		"workspace.layer_stack_missing",
+		"Layer Stack is not selected.",
+		HexMapWorkspaceComponentRegistry.TAB_LAYERS,
+		"layer_stack_asset_panel",
+		HexMapWorkspaceAssetContext.SLOT_LAYER_STACK
+	)
+	_add_missing_asset_issue(
+		result,
+		context.validation_rule_suite == null,
+		"workspace.validation_suite_missing",
+		"Validation Rule Suite is not selected.",
+		HexMapWorkspaceComponentRegistry.TAB_VALIDATE,
+		"validation_asset_panel",
+		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE
+	)
+	_add_missing_asset_issue(
+		result,
+		context.generation_profile == null,
+		"workspace.generation_profile_missing",
+		"Generation Profile is not selected.",
+		HexMapWorkspaceComponentRegistry.TAB_QA,
+		"qa_asset_panel",
+		HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE
+	)
+	if context.level_document != null:
+		var document_result = HexMapDocumentValidator.validate_document(context.level_document, _document_validation_options())
+		for issue in document_result.issues:
+			if issue is Dictionary:
+				result.issues.append((issue as Dictionary).duplicate(true))
+	_update_workspace_validation_counts(result)
+	return result
+
+
+func validate_screen_issue_rows(result: HexMapValidationResult) -> Array[Dictionary]:
+	var rows: Array[Dictionary] = []
+	if result == null:
+		return rows
+	for issue in result.issues:
+		if not issue is Dictionary:
+			continue
+		var metadata = (issue as Dictionary).get("metadata", {})
+		var route: Dictionary = metadata if metadata is Dictionary else {}
+		rows.append({
+			"severity": String((issue as Dictionary).get("severity", "")),
+			"rule_id": String((issue as Dictionary).get("rule_id", "")),
+			"message": String((issue as Dictionary).get("message", "")),
+			"target_tab": String(route.get("target_tab", "")),
+			"target_component_id": String(route.get("target_component_id", "")),
+			"target_slot_id": String(route.get("target_slot_id", "")),
+		})
+	return rows
 
 
 func catalog_screen_snapshot() -> Dictionary:
@@ -1035,6 +1166,40 @@ func _document_validation_options() -> Dictionary:
 	if context.movement_profile != null:
 		options["movement_profile"] = context.movement_profile
 	return options
+
+
+func _add_missing_asset_issue(
+	result: HexMapValidationResult,
+	missing: bool,
+	rule_id: String,
+	message: String,
+	target_tab: String,
+	target_component_id: String,
+	target_slot_id: String
+) -> void:
+	if not missing:
+		return
+	result.add_error(
+		rule_id,
+		message,
+		HexMapValidationResult.SCOPE_DEPENDENCY,
+		{
+			"metadata": {
+				"target_tab": target_tab,
+				"target_component_id": target_component_id,
+				"target_slot_id": target_slot_id,
+			},
+		}
+	)
+
+
+func _update_workspace_validation_counts(result: HexMapValidationResult) -> void:
+	if result == null:
+		return
+	result.summary["errors"] = result.error_count()
+	result.summary["warnings"] = result.warning_count()
+	result.summary["infos"] = result.info_count()
+	result.summary["issues"] = result.issue_count()
 
 
 func _document_action_result(ok: bool, error: int, path: String) -> Dictionary:

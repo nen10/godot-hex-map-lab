@@ -118,6 +118,7 @@ func _run() -> void:
 	await _test_layer_stack_asset_screen_manages_project_stack_without_samples()
 	await _test_object_label_asset_screen_manages_project_definitions_without_samples()
 	await _test_paint_brush_asset_screen_routes_missing_assets_without_raw_controls()
+	await _test_validate_asset_screen_reports_missing_project_assets_without_samples()
 	await _test_workspace_sample_settings_panel_controls_sample_mode_sources()
 	_test_sample_asset_duplicator_copies_catalog_dependencies_to_project()
 	_test_asset_slot_state_model_reports_selection_validation_and_sample_source()
@@ -1027,6 +1028,76 @@ func _test_paint_brush_asset_screen_routes_missing_assets_without_raw_controls()
 	var zone_mode = workspace.select_paint_brush_mode("zone")
 	_assert_true(not bool(zone_mode["ok"]), "Paint brush rejects zone mode until document mutation exists")
 	_assert_true(not session.show_bundled_samples_in_main_selectors, "Paint brush actions do not enable sample mode")
+
+	workspace.queue_free()
+	await process_frame
+
+
+func _test_validate_asset_screen_reports_missing_project_assets_without_samples() -> void:
+	var session = HexMapEditorSessionState.new()
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	var snapshot = workspace.validate_screen_snapshot()
+	_assert_true(
+		PackedStringArray(snapshot["component_ids"]).has("validation_asset_panel"),
+		"Validate screen exposes validation asset panel"
+	)
+	_assert_true(
+		PackedStringArray(snapshot["component_ids"]).has("validation_issue_navigator"),
+		"Validate screen exposes issue navigator"
+	)
+	_assert_true(
+		PackedStringArray(snapshot["asset_slot_ids"]).has(HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE),
+		"Validate screen exposes validation suite asset slot"
+	)
+	_assert_true(not bool(snapshot["sample_candidates_visible"]), "Validate screen starts with sample mode OFF")
+
+	var validate_result = workspace.run_validate_screen()
+	_assert_true(bool(validate_result["ok"]), "Validate screen runs workspace validation")
+	var result = validate_result["result"] as HexMapValidationResult
+	_assert_true(result is HexMapValidationResult, "Validate screen returns validation result")
+	_assert_eq(result.error_count(), 7, "Validate screen reports missing project assets as errors")
+	var rows = validate_result["issue_rows"] as Array
+	var document_row = _validation_issue_row_for_rule(rows, "workspace.level_document_missing")
+	_assert_eq(document_row["target_tab"], "Document", "missing document points to Document tab")
+	_assert_eq(document_row["target_component_id"], "document_asset_panel", "missing document points to document panel")
+	_assert_eq(document_row["target_slot_id"], HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "missing document points to level document slot")
+
+	var catalog_row = _validation_issue_row_for_rule(rows, "workspace.tile_catalog_missing")
+	_assert_eq(catalog_row["target_tab"], "Catalog", "missing catalog points to Catalog tab")
+	_assert_eq(catalog_row["target_component_id"], "catalog_asset_panel", "missing catalog points to catalog panel")
+	_assert_eq(catalog_row["target_slot_id"], HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, "missing catalog points to tile catalog slot")
+
+	var object_row = _validation_issue_row_for_rule(rows, "workspace.object_database_missing")
+	_assert_eq(object_row["target_tab"], "Paint", "missing object database points to Paint tab object/label panel")
+	_assert_eq(object_row["target_component_id"], "object_label_asset_panel", "missing object database points to object/label panel")
+	_assert_eq(object_row["target_slot_id"], HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE, "missing object database points to object database slot")
+
+	var label_row = _validation_issue_row_for_rule(rows, "workspace.label_database_missing")
+	_assert_eq(label_row["target_component_id"], "object_label_asset_panel", "missing label database points to object/label panel")
+	_assert_eq(label_row["target_slot_id"], HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE, "missing label database points to label database slot")
+
+	var layer_row = _validation_issue_row_for_rule(rows, "workspace.layer_stack_missing")
+	_assert_eq(layer_row["target_tab"], "Layers", "missing layer stack points to Layers tab")
+	_assert_eq(layer_row["target_component_id"], "layer_stack_asset_panel", "missing layer stack points to layer stack panel")
+
+	var suite_row = _validation_issue_row_for_rule(rows, "workspace.validation_suite_missing")
+	_assert_eq(suite_row["target_tab"], "Validate", "missing validation suite points to Validate tab")
+	_assert_eq(suite_row["target_slot_id"], HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE, "missing validation suite points to validation suite slot")
+
+	var qa_row = _validation_issue_row_for_rule(rows, "workspace.generation_profile_missing")
+	_assert_eq(qa_row["target_tab"], "QA", "missing generation profile points to QA tab")
+	_assert_eq(qa_row["target_component_id"], "qa_asset_panel", "missing generation profile points to QA panel")
+	_assert_eq(qa_row["target_slot_id"], HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE, "missing generation profile points to generation profile slot")
+
+	snapshot = workspace.validate_screen_snapshot()
+	_assert_eq((snapshot["issue_rows"] as Array).size(), rows.size(), "Validate screen snapshot keeps last issue rows")
+	_assert_eq(workspace.workspace_asset_context().tile_catalog, null, "Validate screen does not inject sample catalog")
+	_assert_eq(workspace.generation_dock().tile_catalog(), null, "Validate screen does not inject generation sample catalog")
+	_assert_true(not session.show_bundled_samples_in_main_selectors, "Validate screen actions do not enable sample mode")
 
 	workspace.queue_free()
 	await process_frame
@@ -5685,6 +5756,13 @@ func _object_definition_row_for_id(rows: Array, object_id: String) -> Dictionary
 func _layer_stack_row_for_role(rows: Array, role: String) -> Dictionary:
 	for row in rows:
 		if String(row.get("role", "")) == role:
+			return row
+	return {}
+
+
+func _validation_issue_row_for_rule(rows: Array, rule_id: String) -> Dictionary:
+	for row in rows:
+		if String(row.get("rule_id", "")) == rule_id:
 			return row
 	return {}
 
