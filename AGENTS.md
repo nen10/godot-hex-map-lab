@@ -21,8 +21,11 @@ Godot開発におけるノウハウを随時 `docs/knowledge/DEV_GODOT.md` にdo
 addonとしては未公開状態であり、互換性を維持する必要はない。清潔な仕様及び実装に随時更新する。
 本質的な機能はCoreとして安定しており、問題はその提示の仕方である。UI層は柔軟に機能変更することができる。
 ゲーム開発上のUXの合理性を基準にUIおよびAPIを設計する。
+CLEAN roadmap では `UX合理性` を優先し、headless test や compatibilityは優先度を検討しない。
 headless test等のtest要件をUX改善よりも優先したUI設計について、testを削除しUIを変更する。
 UIの根拠はtest可能性ではなく。ゲーム開発上のUX合理性に基づく。
+互換性維持は、ユーザーが明示した場合のみ例外として扱う。
+UI再編中は新規analog testを作らない。UI改善後にユーザー指示がある場合のみ再開する。
 
 ## 実行メモ
 

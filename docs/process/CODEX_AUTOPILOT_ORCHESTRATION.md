@@ -15,12 +15,14 @@
 3. ユーザーの毎回承認をゲートにしない。
 4. ゲートは、計画文書の閉じ方、Test path、`tools/test.sh`、self-review、fix loop によって置き換える。
 5. Codex は、計画文書作成・実装・テスト追加・レビュー・不足修正・キュー更新までを同一の自走ループとして扱う。
+6. CLEAN roadmap では addon が未公開であることを前提に、破壊的 schema cleanup、legacy/fallback 削除、古い headless test の削除・再設計を許可する。
 
 重要な設計判断:
 
 - Plan は「承認待ち成果物」ではなく「実装前に Codex が自分の判断を固定する作業メモ」である。
 - Review は「人間に聞く場所」ではなく「テスト不足・schema debt・回帰リスクを repair queue へ戻す場所」である。
 - Human validation は release 判断、UX 方向転換、外部認証・配布・破壊的削除などの例外だけに使う。
+- CLEAN roadmap では `UX合理性` を優先し、headless test や compatibilityは優先度を検討しない。互換性はユーザーが明示した場合だけ例外にする。
 
 ---
 
@@ -105,7 +107,7 @@ Self-review と test failure で見つけた不足は、以下に分類する。
 | `follow-up-ready` | 現 task の acceptance には不要だが roadmap に必要。queue へ `READY` または `BACKLOG` で追加。 |
 | `known-env-failure` | Godot binary 欠落など環境起因。`BLOCKED_BY_TEST_ENV` として記録。 |
 | `accepted-risk` | 仕様上許容する一時状態。理由と解除条件を review に残す。 |
-| `manual-optional` | 目視や操作感の確認。自動実装ループは止めない。analog test 候補へ記録。 |
+| `manual-optional` | 目視や操作感の確認。自動実装ループは止めない。CLEAN UI再編中は新規analog testを作らず、必要なら deferred として記録する。 |
 
 `repair-now` を人間に相談してはいけない。Codex が直す。
 
@@ -139,13 +141,13 @@ IMPLEMENTATION_PLAN.md
 - Operation Steps が roadmap の UX と一致している。
 - 対象ファイル・resource schema・saved document の扱いが明記されている。
 - `docs/TEST.md` の Test path へ接続している。
-- 破壊的変更または migration が testable である。
+- 破壊的変更、canonical schema 変更、または current task が明示する migration が testable である。
 
 計画中に UX の細部が曖昧な場合は、以下の規則で決める。
 
 1. ユーザーの操作語彙を減らす方を選ぶ。
 2. logical key / resource schema / adapter 境界を優先し、UI に生の内部値を露出させない。
-3. 既存 saved `.tres` を壊す可能性がある場合、migration helper と migration test を追加する。
+3. CLEAN roadmap では、既存 saved `.tres` 互換はユーザーが明示した場合だけ維持する。明示がない場合は canonical schema と clean test へ更新する。
 4. fallback / hack は仕様根拠にしない。
 5. 迷った内容は `POLICY.md` に decision として固定し、実装する。
 
@@ -157,9 +159,9 @@ Codex は `IMPLEMENTATION_PLAN.md` の番号順に実装する。ただし、テ
 
 - code と tests を同じ task 内で更新する。
 - 自動テスト追加時は `docs/TEST.md` を更新する。
-- saved resource schema 変更時は migration または compatibility test を追加する。
-- UI 変更時は headless test または analog test 候補を追加する。
-- 既存 UX の互換性を壊す場合、代替 Operation Steps を UX/POLICY に書く。
+- saved resource schema 変更時は canonical schema の保存・読込・検証 test を追加する。migration / compatibility test は current task が明示した場合だけ追加する。
+- UI 変更時は、ユーザー価値のある状態遷移を headless test で確認する。CLEAN UI再編中は新規analog testを作らない。
+- 既存 UX を置き換える場合、代替 Operation Steps を UX/POLICY に書く。
 
 ### 4.4 Verification
 
@@ -186,10 +188,11 @@ Codex は実装後に self-review を行い、以下を確認する。
 - Roadmap acceptance を満たしているか。
 - `IMPLEMENTATION_PLAN.md` の番号項目が完了しているか。
 - Test path が docs/TEST.md に接続されているか。
-- schema migration / saved resource compatibility が落ちていないか。
+- current task が明示した schema migration / saved resource compatibility、または canonical schema の保存・読込・検証が落ちていないか。
 - Generate Dock / Edit Dock / HexTileMapLayer runtime helper の既存経路を壊していないか。
 - object / label / overlay の payload が曖昧な Array 増築として放置されていないか。
 - fallback / hack が仕様根拠になっていないか。
+- 既存 headless test や互換 fixture を守るために、clean UX / API を歪めていないか。
 
 不足があれば分類する。`repair-now` は必ず同じ loop で修正する。
 
@@ -229,7 +232,7 @@ Dependency sweep の手順:
 
 良い単位:
 
-- resource schema + adapter + migration test
+- resource schema + adapter + canonical save/load/validation test
 - catalog resource + sample resource + validation test
 - dashboard UI + error focus + headless UI test
 - object placement schema + object cleanup + validation test
@@ -240,7 +243,7 @@ Dependency sweep の手順:
 - button を1つ置くだけ
 - plan だけ作って人間承認待ち
 - test なしで UI だけ増やす
-- schema 変更だけして migration を後回しにする
+- schema 変更だけして保存・読込・validation test を後回しにする
 
 中断点は人間承認ではなく、以下に置く。
 
@@ -280,13 +283,13 @@ Autopilot が止まってよいのは以下だけである。
 Phase の `COMPLETE` 条件:
 
 - Phase 内の required task がすべて `COMPLETE` または `COMPLETE_WITH_BACKLOG`。
-- その phase の public UX path が headless test または analog test 候補で説明されている。
+- その phase の public UX path が headless test、または CLEAN UI再編後に再開する deferred observation で説明されている。
 - 次 phase の最初の task が `READY` になっている。
 
 Roadmap の `COMPLETE` 条件:
 
 - Phase 1〜7 の required task が完了。
-- package / examples / migration guide が通る。
+- package / examples / clean spec docs が通る。
 - public release check のみ人間確認へ渡す。
 
 ---

@@ -43,8 +43,8 @@ proof:
 
 | id | status | priority | dependencies | plan_dir | deliverable | target files | acceptance / test path | maturity |
 |---|---|---:|---|---|---|---|---|---|
-| `CLEAN-00` | `READY` | P0 | none | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-00_POLICY_RESET/` | Autopilot / policy reset | `AGENTS.md`, `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`, `docs/policy/IMPLEMENTATION_POLICY.md`, `docs/policy/TEST_DESIGN_POLICY.md`, this queue | Policy docs state `UX合理性 > headless test > compatibility`; compatibility is exception; new analog tests are deferred; self-review checks whether old tests distorted UX | `DOCS_COMPLETE` |
-| `CLEAN-30` | `BACKLOG` | P0 | `CLEAN-00` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-30_EDITOR_SCREEN_INVENTORY/` | Editor screen inventory by user task | `docs/review/roadmap/EDITOR_UX_COMPONENT_INVENTORY_2026-06-07.md`, editor source inventory notes | Inventory classifies UI as `keep-in-place` / `move-to-screen` / `merge-with-existing` / `advanced-only` / `delete`; path text and fallback UI deletion candidates are explicit | `DOCS_COMPLETE` |
+| `CLEAN-00` | `COMPLETE` | P0 | none | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-00_POLICY_RESET/` | Autopilot / policy reset | `AGENTS.md`, `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`, `docs/policy/IMPLEMENTATION_POLICY.md`, `docs/policy/TEST_DESIGN_POLICY.md`, this queue | Policy docs state `UX合理性 > headless test > compatibility`; compatibility is exception; new analog tests are deferred; self-review checks whether old tests distorted UX | `DOCS_COMPLETE` |
+| `CLEAN-30` | `READY` | P0 | `CLEAN-00` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-30_EDITOR_SCREEN_INVENTORY/` | Editor screen inventory by user task | `docs/review/roadmap/EDITOR_UX_COMPONENT_INVENTORY_2026-06-07.md`, editor source inventory notes | Inventory classifies UI as `keep-in-place` / `move-to-screen` / `merge-with-existing` / `advanced-only` / `delete`; path text and fallback UI deletion candidates are explicit | `DOCS_COMPLETE` |
 
 ---
 
@@ -99,7 +99,7 @@ proof:
 | id | status | priority | dependencies | plan_dir | deliverable | target files | acceptance / test path | maturity |
 |---|---|---:|---|---|---|---|---|---|
 | `CLEAN-51` | `BACKLOG` | P0 | `CLEAN-10`, `CLEAN-11`, `CLEAN-12`, `CLEAN-13`, `CLEAN-14` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-51_RESOURCE_API_CANONICAL_TESTS/` | Resource/API canonical tests | adapter/core/runtime tests, `docs/TEST.md` | Tests cover canonical document save/load, adapter roundtrip, catalog Resource references, PackedScene object definition, dependency Resource validation, no silent fallback apply, runtime query by Resource | `HEADLESS_TEST_COMPLETE` |
-| `CLEAN-52` | `BACKLOG` | P0 | `CLEAN-00` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-52_ANALOG_TEST_DEFERRAL_MARKER/` | Analog test deferral marker | `docs/TEST.md`, queue/process docs if needed | `docs/TEST.md` states new analog tests are deferred during UI rework; existing analog tests are history, not clean UX acceptance; NEXT-03-style analog pack is not scheduled | `DOCS_COMPLETE` |
+| `CLEAN-52` | `READY` | P0 | `CLEAN-00` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-52_ANALOG_TEST_DEFERRAL_MARKER/` | Analog test deferral marker | `docs/TEST.md`, queue/process docs if needed | `docs/TEST.md` states new analog tests are deferred during UI rework; existing analog tests are history, not clean UX acceptance; NEXT-03-style analog pack is not scheduled | `DOCS_COMPLETE` |
 
 ---
 
@@ -114,19 +114,52 @@ proof:
 
 ## 8. Current pointer
 
-Current recommended next task: `CLEAN-00`.
+Current recommended next task: `CLEAN-30`.
 
 Reason:
 
-- `CLEAN-00` sets the priority rule that this roadmap needs: clean UX/API/spec/tests over compatibility and old headless test preservation.
-- No other task should run before the policy reset because later tasks intentionally delete compatibility code and old UI/test contracts.
-- After `CLEAN-00` completes, dependency sweep should make `CLEAN-30` and `CLEAN-52` `READY`; table order selects `CLEAN-30` next.
+- Dependency sweep completed on 2026-06-07 after `CLEAN-00` completion.
+- `CLEAN-30` is the first `READY` task by table order.
+- `CLEAN-52` is also `READY`, but `CLEAN-30` runs first because the queue prioritizes editor screen inventory before the analog deferral marker.
 
 ---
 
 ## 9. Completed task proof log
 
-No tasks have been completed in this roadmap yet.
+### CLEAN-00
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot / `autopilot/roadmap-main`
+plan: `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-00_POLICY_RESET/`
+review: `docs/review/autopilot/CLEAN-00_SELF_REVIEW_2026-06-07.md`
+test result: `docs/review/autopilot/CLEAN-00_TEST_RESULT_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+- docs:
+  - `docs/TEST.md` unchanged; standard Test path used for completion proof
+  - `docs/review/autopilot/CLEAN-00_SELF_REVIEW_2026-06-07.md`
+  - `docs/review/autopilot/CLEAN-00_TEST_RESULT_2026-06-07.md`
+- major files:
+  - `AGENTS.md`
+  - `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
+  - `docs/policy/IMPLEMENTATION_POLICY.md`
+  - `docs/policy/TEST_DESIGN_POLICY.md`
+  - `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/IMPLEMENTATION_QUEUE.md`
+  - `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-00_POLICY_RESET/`
+- maturity:
+  - `DOCS_COMPLETE`
+
+Notes:
+
+- Policy now states `UX合理性 > headless test > compatibility`.
+- Compatibility is an exception only when the current CLEAN task explicitly requires it.
+- New analog tests are deferred during UI rework.
+- Self-review now checks whether old tests distorted UX.
+- Dependency sweep promoted `CLEAN-30` and `CLEAN-52` to `READY`.
+- `repair-now`: none.
 
 ---
 

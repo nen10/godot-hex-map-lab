@@ -19,6 +19,13 @@
 - ただし、計画外の大きな再設計や manual 作成は、ユーザー要望または完了承認の対象になった場合に行う。
 - fallback / hack は一時的な状態として扱い、仕様や UX 判断の根拠にしない。
 
+## CLEAN roadmap priority
+
+- CLEAN roadmap では `UX合理性` を優先し、headless test や compatibilityは優先度を検討しない。
+- addon は未公開であるため、互換性維持は current task が明示した場合だけ例外として扱う。
+- 古い headless editor test が clean UX / clean API を妨げる場合、test を削除または新UXの state contract へ書き換える。
+- UI再編中は新規analog testを作らない。必要な観察項目は deferred として記録し、UI改善後にユーザー指示で再開する。
+
 ## 着手順序
 
 - 順序を問わない着手可能な課題では、最も大きな課題から取り組む。
@@ -38,11 +45,13 @@
 - `docs/plan/` 以下で計画されている意味のある機能には、原則として自動テストまたは明示された interactive test を作成する。
 - 実装有無の主な根拠は `docs/TEST.md` に記録された Test path と `tools/test.sh` の実行結果とする。
 - 自動テストの追加・変更時は `docs/policy/TEST_DESIGN_POLICY.md` に従い、並列実行時に固定resourceや共有ログへ書き込まない。
+- CLEAN roadmap では、旧互換や旧UIを守るためだけの test は完了要件にしない。
 
 ## レビューと完了整理
 
 - 主タスク完了ごとに reviewer が計画、実装、テスト、残リスクを確認しDocumentationする。
 - review では 成果の確認のほか残リスクについては fix now / backlog and separate Design Flow / user validation / ignore and accepted risk に分類する。
+- CLEAN roadmap の review では、既存 test を守るために UX を歪めていないかを確認する。
 - TEST によって計画済み機能が確認された場合、該当計画文書は `docs/complete_on_test/` 以下へ移動し、`docs/plan/` には未実装項目として残さない。
 - レビューで課題が見つかった場合でも、後続の主タスクに支障がないものは計画候補または backlog として残し、実装済み内容は完了整理できる。
 
@@ -52,3 +61,4 @@
 
 - Editor Plugin 操作など、自動テストでは観察しにくい結合ユースケースは `tests/analog_test/` のアナログテストとして扱える。
 - アナログテストは実装完了要件の代替ではなく、要件抽出と改善計画の材料として扱う。
+- ただし CLEAN UI再編中は新規analog testを作らない。既存analog testはhistoryとして扱い、新UXのacceptanceにはしない。
