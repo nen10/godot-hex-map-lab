@@ -23,6 +23,14 @@ Editor Plugin 上の実操作で複数機能の結合性を確認できるユー
 - `tests/analog_test/` 以下の操作手順マニュアルは、製品 manual でも仕様書でもない。ユースケースに基づく検証手順と観察記録である。
 - `docs/manual/` への manual 追加は、ユーザーが要望するか、完了を承認した機能に対してのみ行う。
 
+## CLEAN UI再編中の扱い
+
+- CLEAN UI再編中は新規アナログテスト文書を作成しない。
+- 既存 `tests/analog_test/` 文書は history / reference として保持する。
+- 既存アナログテストは clean UX acceptance ではなく、現在の Test path の代替にしない。
+- NEXT-03-style analog test pack は現在の roadmap queue には scheduled しない。
+- UI改善後にユーザーが明示した場合だけ、アナログテスト作成を再開する。
+
 ## 適用条件
 
 アナログテストを作成する対象は、次の条件を満たすものに限定する。

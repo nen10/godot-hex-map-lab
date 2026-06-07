@@ -8,7 +8,14 @@
 自動テスト設計は `docs/policy/TEST_DESIGN_POLICY.md` に従う。
 interactiveなテスト作成時、実行方法を簡潔にdocumentationする
 Editor Plugin 操作で複数機能の結合性を確認する任意検証は、アナログテストとして `docs/policy/ANALOG_TEST_POLICY.md` に従い、操作手順マニュアルを `tests/analog_test/` 以下に作成する。アナログテスト文書は Test path の代替ではなく、ユーザー依頼時の追加検証記録として扱う。
-CLEAN UI再編中の manual-only task は `./tools/test.sh` と self-review で完了確認し、新規アナログテスト文書は作成しない。
+
+### CLEAN UI再編中のアナログテスト扱い
+
+- 新規アナログテスト文書は CLEAN UI再編中は作成しない。
+- 既存 `tests/analog_test/` 文書は history / reference であり、clean UX acceptance ではない。
+- NEXT-03-style analog test pack は現在の roadmap queue には scheduled されていない。
+- manual-only task は `./tools/test.sh` と self-review で完了確認する。
+- UI改善後にユーザーが明示した場合だけ、アナログテスト作成を再開する。
 
 ### Test path
 
