@@ -32,6 +32,7 @@ const HexMapEditorAssetSlotState = preload("res://addons/hex_map_kit/editor/hex_
 const HexMapEditorAssetSlotControl = preload("res://addons/hex_map_kit/editor/hex_map_editor_asset_slot_control.gd")
 const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
 const HexMapWorkspaceAssetResourceFactory = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_resource_factory.gd")
+const HexMapSampleAssetDuplicator = preload("res://addons/hex_map_kit/editor/hex_map_sample_asset_duplicator.gd")
 const HexMapSampleSettingsPanel = preload("res://addons/hex_map_kit/editor/hex_map_sample_settings_panel.gd")
 const HexMapWorkspace = preload("res://addons/hex_map_kit/editor/hex_map_workspace.gd")
 const HexDistEditor = preload("res://addons/hex_map_kit/editor/hex_dist_editor.gd")
@@ -40,6 +41,7 @@ const HexCellButtonLayout = preload("res://addons/hex_map_kit/editor/hex_cell_bu
 const HexCellButtonPanel = preload("res://addons/hex_map_kit/editor/hex_cell_button_panel.gd")
 const HexTileCatalogEntry = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd")
 const HexTileCatalogResource = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd")
+const HexTileCatalogValidator = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_validator.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 
 class FakeTileLayer:
@@ -110,6 +112,7 @@ func _run() -> void:
 	await _test_hex_map_workspace_exposes_tabs_and_routes_editing()
 	await _test_workspace_asset_context_is_shared_by_workspace_generate_and_paint()
 	await _test_workspace_sample_settings_panel_controls_sample_mode_sources()
+	_test_sample_asset_duplicator_copies_catalog_dependencies_to_project()
 	_test_asset_slot_state_model_reports_selection_validation_and_sample_source()
 	await _test_asset_slot_control_exposes_state_snapshot_contract()
 	_test_asset_resource_factory_creates_project_resources_and_assigns_context()
@@ -482,6 +485,71 @@ func _test_workspace_sample_settings_panel_controls_sample_mode_sources() -> voi
 
 	workspace.queue_free()
 	await process_frame
+
+
+func _test_sample_asset_duplicator_copies_catalog_dependencies_to_project() -> void:
+	var context = HexMapWorkspaceAssetContext.new()
+	_assert_eq(context.tile_catalog, null, "sample duplicate does not silently assign catalog before action")
+	var output_dir = _test_resource_dir("sample11_duplicate")
+	var catalog_path = "%s/project_sample_catalog.tres" % output_dir
+	var result = HexMapSampleAssetDuplicator.duplicate_sample_catalog_to_project(catalog_path, context)
+	_assert_true(bool(result["ok"]), "sample duplicate succeeds")
+	_assert_eq(int(result["error"]), OK, "sample duplicate reports OK")
+	_assert_true(FileAccess.file_exists(String(result["catalog_path"])), "sample duplicate writes catalog")
+	_assert_true(FileAccess.file_exists(String(result["texture_path"])), "sample duplicate copies sample tile texture")
+	_assert_true(FileAccess.file_exists(String(result["scene_path"])), "sample duplicate copies sample object scene")
+	_assert_true(not String(result["catalog_path"]).begins_with("res://addons/hex_map_kit/assets/"), "sample duplicate catalog path is project-owned")
+	_assert_true(not String(result["texture_path"]).begins_with("res://addons/hex_map_kit/assets/"), "sample duplicate texture path is project-owned")
+	_assert_true(not String(result["scene_path"]).begins_with("res://addons/hex_map_kit/assets/"), "sample duplicate scene path is project-owned")
+
+	var catalog = result["catalog"] as HexTileCatalogResource
+	_assert_true(catalog is HexTileCatalogResource, "sample duplicate returns catalog resource")
+	_assert_eq(context.tile_catalog, catalog, "sample duplicate assigns project catalog to context")
+	_assert_eq(catalog.resource_path, catalog_path, "sample duplicate catalog stores project path")
+	_assert_eq(
+		String(catalog.metadata.get("duplicated_from_sample", "")),
+		"res://addons/hex_map_kit/assets/sample_hex_tile_catalog.tres",
+		"sample duplicate records source sample path"
+	)
+	_assert_true(bool(catalog.metadata.get("project_copy", false)), "sample duplicate marks catalog as project copy")
+	_assert_true(catalog.tile_set != null, "sample duplicate preserves embedded TileSet")
+	var atlas_source = catalog.tile_set.get_source(0) as TileSetAtlasSource
+	_assert_true(atlas_source is TileSetAtlasSource, "sample duplicate TileSet has atlas source")
+	_assert_true(atlas_source.texture != null, "sample duplicate atlas source has texture")
+	_assert_eq(atlas_source.texture.resource_path, String(result["texture_path"]), "sample duplicate TileSet texture points to project copy")
+	var scene_source = catalog.tile_set.get_source(1) as TileSetScenesCollectionSource
+	_assert_true(scene_source is TileSetScenesCollectionSource, "sample duplicate TileSet has scene source")
+	_assert_true(scene_source.has_scene_tile_id(1), "sample duplicate scene source preserves scene tile id")
+	var scene = scene_source.get_scene_tile_scene(1)
+	_assert_true(scene is PackedScene, "sample duplicate scene source has PackedScene")
+	_assert_eq(scene.resource_path, String(result["scene_path"]), "sample duplicate scene source points to project scene")
+	var scene_entry = catalog.entry_for_key("object.spawn_marker")
+	_assert_true(scene_entry != null, "sample duplicate preserves scene catalog entry")
+	_assert_eq(scene_entry.get("scene").resource_path, String(result["scene_path"]), "sample duplicate scene entry points to project scene")
+	var validation = HexTileCatalogValidator.validate_catalog(catalog)
+	_assert_eq(validation.issue_count(), 0, "sample duplicate catalog validates cleanly")
+
+	var session = HexMapEditorSessionState.new()
+	var panel = HexMapSampleSettingsPanel.new()
+	panel.set_editor_session_state(session)
+	var panel_rows = panel.sample_asset_rows()
+	_assert_true(bool(panel_rows[0].get("duplicate_available", false)), "sample settings exposes duplicate availability")
+	_assert_true(not bool(panel_rows[1].get("duplicate_available", false)), "sample tile texture duplicates through catalog action")
+	_assert_true(not bool(panel_rows[2].get("duplicate_available", false)), "sample object scene duplicates through catalog action")
+	var panel_result = panel.duplicate_sample_catalog_to_project("%s/panel_sample_catalog.tres" % output_dir)
+	_assert_true(bool(panel_result["ok"]), "sample settings panel can duplicate sample catalog")
+	_assert_eq(
+		session.current_workspace_asset_context().tile_catalog,
+		panel_result["catalog"],
+		"sample settings panel duplicate assigns catalog to session context"
+	)
+	context.set_tile_catalog(null)
+	catalog.tile_set = null
+	session.current_workspace_asset_context().set_tile_catalog(null)
+	var panel_catalog = panel_result["catalog"] as HexTileCatalogResource
+	if panel_catalog != null:
+		panel_catalog.tile_set = null
+	panel.free()
 
 
 func _test_asset_slot_state_model_reports_selection_validation_and_sample_source() -> void:

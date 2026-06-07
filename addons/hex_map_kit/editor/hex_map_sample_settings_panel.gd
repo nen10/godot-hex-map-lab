@@ -3,6 +3,8 @@ class_name HexMapSampleSettingsPanel
 extends VBoxContainer
 
 const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
+const HexMapSampleAssetDuplicator = preload("res://addons/hex_map_kit/editor/hex_map_sample_asset_duplicator.gd")
+const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
 
 signal sample_settings_changed(snapshot: Dictionary)
 signal open_sample_requested(sample_id: String, path: String)
@@ -12,9 +14,9 @@ const SAMPLE_CATALOG_ID := "sample_catalog"
 const SAMPLE_TILE_SET_ID := "sample_tile_set"
 const SAMPLE_OBJECT_SCENE_ID := "sample_object_scene"
 
-const SAMPLE_CATALOG_PATH := "res://addons/hex_map_kit/assets/sample_hex_tile_catalog.tres"
-const SAMPLE_TILE_TEXTURE_PATH := "res://addons/hex_map_kit/assets/sample_hex_tiles.png"
-const SAMPLE_OBJECT_SCENE_PATH := "res://addons/hex_map_kit/assets/sample_spawn_marker.tscn"
+const SAMPLE_CATALOG_PATH := HexMapSampleAssetDuplicator.SAMPLE_CATALOG_PATH
+const SAMPLE_TILE_TEXTURE_PATH := HexMapSampleAssetDuplicator.SAMPLE_TILE_TEXTURE_PATH
+const SAMPLE_OBJECT_SCENE_PATH := HexMapSampleAssetDuplicator.SAMPLE_OBJECT_SCENE_PATH
 
 var _editor_session_state: HexMapEditorSessionState = null
 var _show_samples_check: CheckBox
@@ -61,10 +63,24 @@ func set_auto_create_project_copy_when_applying_sample(enabled: bool) -> void:
 
 func sample_asset_rows() -> Array[Dictionary]:
 	return [
-		_sample_row(SAMPLE_CATALOG_ID, "Bundled Sample Catalog", SAMPLE_CATALOG_PATH),
+		_sample_row(SAMPLE_CATALOG_ID, "Bundled Sample Catalog", SAMPLE_CATALOG_PATH, true),
 		_sample_row(SAMPLE_TILE_SET_ID, "Bundled Sample TileSet", SAMPLE_TILE_TEXTURE_PATH),
 		_sample_row(SAMPLE_OBJECT_SCENE_ID, "Bundled Sample Object Scene", SAMPLE_OBJECT_SCENE_PATH),
 	]
+
+
+func duplicate_dialog_config() -> Dictionary:
+	return HexMapSampleAssetDuplicator.duplicate_dialog_config()
+
+
+func duplicate_sample_catalog_to_project(
+	catalog_path: String,
+	context: HexMapWorkspaceAssetContext = null
+) -> Dictionary:
+	var target_context = context
+	if target_context == null and _editor_session_state != null:
+		target_context = _editor_session_state.current_workspace_asset_context()
+	return HexMapSampleAssetDuplicator.duplicate_sample_catalog_to_project(catalog_path, target_context)
 
 
 func snapshot() -> Dictionary:
@@ -113,8 +129,7 @@ func _build_ui() -> void:
 
 		var duplicate_button = Button.new()
 		duplicate_button.text = "Duplicate To Project"
-		duplicate_button.disabled = true
-		duplicate_button.tooltip_text = "Sample duplication is handled by SAMPLE-11."
+		duplicate_button.disabled = not bool(row.get("duplicate_available", false))
 		duplicate_button.pressed.connect(_on_duplicate_sample_pressed.bind(String(row["id"]), String(row["path"])))
 		row_control.add_child(duplicate_button)
 		add_child(row_control)
@@ -147,11 +162,12 @@ func _auto_create_project_copy_when_applying_sample() -> bool:
 	return _editor_session_state != null and _editor_session_state.auto_create_project_copy_when_applying_sample
 
 
-func _sample_row(sample_id: String, label: String, path: String) -> Dictionary:
+func _sample_row(sample_id: String, label: String, path: String, duplicate_available: bool = false) -> Dictionary:
 	return {
 		"id": sample_id,
 		"label": label,
 		"path": path,
+		"duplicate_available": duplicate_available,
 	}
 
 
