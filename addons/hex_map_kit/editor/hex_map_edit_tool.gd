@@ -218,9 +218,11 @@ var _object_catalog_option: OptionButton
 var _object_id_edit: LineEdit
 var _object_rotation_spin: SpinBox
 var _object_variant_edit: LineEdit
+var _object_variant_option: OptionButton
 var _object_properties_edit: LineEdit
 var _object_properties_table: Tree
 var _object_spawn_condition_edit: LineEdit
+var _object_spawn_condition_option: OptionButton
 var _label_id_edit: LineEdit
 var _label_text_edit: LineEdit
 var _status_label: Label
@@ -657,7 +659,13 @@ func paint_brush_snapshot() -> Dictionary:
 			"atlas_y": _control_row_is_visible(_tile_atlas_y_spin),
 			"default_floor_source_id": _control_row_is_visible(_default_floor_source_spin),
 			"default_wall_source_id": _control_row_is_visible(_default_wall_source_spin),
+			"raw_overlay_item_key": _control_row_is_visible(_overlay_item_key_edit),
+			"overlay_item_selector": _control_row_is_visible(_overlay_item_key_option),
 			"raw_object_id": _control_row_is_visible(_object_id_edit),
+			"raw_object_variant": _control_row_is_visible(_object_variant_edit),
+			"object_variant_selector": _control_row_is_visible(_object_variant_option),
+			"raw_spawn_condition": _control_row_is_visible(_object_spawn_condition_edit),
+			"spawn_condition_selector": _control_row_is_visible(_object_spawn_condition_option),
 			"raw_label_id": _control_row_is_visible(_label_id_edit),
 		},
 	}
@@ -1385,13 +1393,11 @@ func _build_ui() -> void:
 	_overlay_item_key_edit.placeholder_text = "overlay item key"
 	_overlay_item_key_edit.text = _overlay_item_key
 	_overlay_item_key_edit.text_changed.connect(_on_overlay_item_key_changed)
-	var overlay_item_row = HBoxContainer.new()
-	overlay_item_row.add_child(_wrap_labeled("Overlay Item", _overlay_item_key_edit))
+	root.add_child(_wrap_labeled("Overlay Item Raw", _overlay_item_key_edit))
 	_overlay_item_key_option = OptionButton.new()
 	_overlay_item_key_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_overlay_item_key_option.item_selected.connect(_on_overlay_item_key_option_selected)
-	overlay_item_row.add_child(_wrap_labeled("Known", _overlay_item_key_option))
-	root.add_child(overlay_item_row)
+	root.add_child(_wrap_labeled("Overlay Item", _overlay_item_key_option))
 
 	_object_id_edit = LineEdit.new()
 	_object_id_edit.placeholder_text = "object_id"
@@ -1405,9 +1411,13 @@ func _build_ui() -> void:
 	_object_variant_edit = LineEdit.new()
 	_object_variant_edit.placeholder_text = "variant"
 	_object_variant_edit.text_changed.connect(_on_object_payload_changed)
+	root.add_child(_wrap_labeled("Variant Raw", _object_variant_edit))
+	_object_variant_option = OptionButton.new()
+	_object_variant_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_object_variant_option.item_selected.connect(_on_object_variant_option_selected)
 	var object_variant_row = HBoxContainer.new()
 	object_variant_row.add_child(_wrap_labeled("Rotation", _object_rotation_spin))
-	object_variant_row.add_child(_wrap_labeled("Variant", _object_variant_edit))
+	object_variant_row.add_child(_wrap_labeled("Variant", _object_variant_option))
 	root.add_child(object_variant_row)
 	if _can_use_editor_resource_picker():
 		_object_database_picker = EditorResourcePicker.new()
@@ -1457,7 +1467,11 @@ func _build_ui() -> void:
 	_object_spawn_condition_edit = LineEdit.new()
 	_object_spawn_condition_edit.placeholder_text = "spawn condition"
 	_object_spawn_condition_edit.text_changed.connect(_on_object_payload_changed)
-	root.add_child(_wrap_labeled("Spawn", _object_spawn_condition_edit))
+	root.add_child(_wrap_labeled("Spawn Raw", _object_spawn_condition_edit))
+	_object_spawn_condition_option = OptionButton.new()
+	_object_spawn_condition_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_object_spawn_condition_option.item_selected.connect(_on_object_spawn_condition_option_selected)
+	root.add_child(_wrap_labeled("Spawn", _object_spawn_condition_option))
 
 	_label_id_edit = LineEdit.new()
 	_label_id_edit.placeholder_text = "label_id"
@@ -1676,9 +1690,44 @@ func object_property_control_types() -> Dictionary:
 	return result
 
 
+func authoring_field_source_snapshot() -> Dictionary:
+	return {
+		"overlay_item_key": {
+			"selector_visible": _control_row_is_visible(_overlay_item_key_option),
+			"raw_text_visible": _control_row_is_visible(_overlay_item_key_edit),
+			"options": _option_values(_overlay_item_key_option),
+		},
+		"label_id": {
+			"definition_selector_visible": _control_row_is_visible(_label_definition_tree),
+			"raw_text_visible": _control_row_is_visible(_label_id_edit),
+			"selected_definition_id": _selected_label_definition_id,
+		},
+		"object_variant": {
+			"selector_visible": _control_row_is_visible(_object_variant_option),
+			"raw_text_visible": _control_row_is_visible(_object_variant_edit),
+			"options": _option_values(_object_variant_option),
+			"value": String(_object_payload.get("variant", "")),
+		},
+		"spawn_condition": {
+			"selector_visible": _control_row_is_visible(_object_spawn_condition_option),
+			"raw_text_visible": _control_row_is_visible(_object_spawn_condition_edit),
+			"options": _option_values(_object_spawn_condition_option),
+			"value": String(_object_payload.get("spawn_condition", "")),
+		},
+		"object_properties": {
+			"property_editor_visible": _control_row_is_visible(_object_property_editor),
+			"raw_json_visible": _control_row_is_visible(_object_properties_edit),
+			"raw_table_visible": _control_row_is_visible(_object_properties_table),
+			"control_types": object_property_control_types(),
+		},
+	}
+
+
 func _refresh_object_palette() -> void:
 	_refresh_object_definition_tree()
 	_sync_selected_object_definition_scene_picker()
+	_refresh_object_variant_options()
+	_refresh_object_spawn_condition_options()
 	_refresh_object_palette_status()
 
 
@@ -1819,6 +1868,88 @@ func _packed_string_array_text(value) -> String:
 			parts.append(String(item))
 		return ",".join(parts)
 	return ""
+
+
+func _option_values(option: OptionButton) -> PackedStringArray:
+	var result := PackedStringArray()
+	if option == null:
+		return result
+	for index in range(option.item_count):
+		var metadata = option.get_item_metadata(index)
+		result.append(String(metadata) if metadata != null else option.get_item_text(index))
+	return result
+
+
+func _definition_meta_options(definition, key: String) -> Array:
+	if definition == null or not definition.has_meta(key):
+		return []
+	var value = definition.get_meta(key)
+	if value is PackedStringArray:
+		var result: Array = []
+		for item in value:
+			result.append(String(item))
+		return result
+	if value is Array:
+		return value.duplicate()
+	return []
+
+
+func _payload_option_rows(values: Array, current_value: String, include_empty: bool = true) -> Array[Dictionary]:
+	var rows: Array[Dictionary] = []
+	if include_empty:
+		rows.append({"label": "Default", "value": ""})
+	for value in values:
+		var text := String(value)
+		if text == "":
+			continue
+		var exists := false
+		for row in rows:
+			if String(row.get("value", "")) == text:
+				exists = true
+				break
+		if not exists:
+			rows.append({"label": text.capitalize(), "value": text})
+	if current_value != "":
+		var current_exists := false
+		for row in rows:
+			if String(row.get("value", "")) == current_value:
+				current_exists = true
+				break
+		if not current_exists:
+			rows.append({"label": current_value, "value": current_value})
+	return rows
+
+
+func _populate_payload_option(option: OptionButton, rows: Array[Dictionary], current_value: String) -> void:
+	if option == null:
+		return
+	option.clear()
+	var selected_index := 0
+	for index in range(rows.size()):
+		var row := rows[index]
+		var value := String(row.get("value", ""))
+		option.add_item(String(row.get("label", value)))
+		option.set_item_metadata(index, value)
+		if value == current_value:
+			selected_index = index
+	if option.item_count > 0:
+		option.select(selected_index)
+
+
+func _refresh_object_variant_options() -> void:
+	var definition = _selected_object_definition()
+	var values := _definition_meta_options(definition, "variant_options")
+	var current_value := String(_object_payload.get("variant", ""))
+	_populate_payload_option(_object_variant_option, _payload_option_rows(values, current_value), current_value)
+
+
+func _refresh_object_spawn_condition_options() -> void:
+	var definition = _selected_object_definition()
+	var values := _definition_meta_options(definition, "spawn_condition_options")
+	if values.is_empty():
+		values = ["always", "on_interact", "on_enter"]
+	var current_value := String(_object_payload.get("spawn_condition", ""))
+	_populate_payload_option(_object_spawn_condition_option, _payload_option_rows(values, current_value), current_value)
 
 
 func _refresh_object_properties_table() -> void:
@@ -1970,6 +2101,26 @@ func _on_object_property_enum_selected(index: int, key, option: OptionButton) ->
 
 func _on_object_property_resource_changed(resource: Resource, key) -> void:
 	_set_object_property_value(key, resource)
+
+
+func _on_object_variant_option_selected(index: int) -> void:
+	if _object_variant_option == null or index < 0 or index >= _object_variant_option.item_count:
+		return
+	var value := String(_object_variant_option.get_item_metadata(index))
+	_object_payload["variant"] = value
+	if _object_variant_edit != null:
+		_object_variant_edit.text = value
+	_refresh_target_status_detail()
+
+
+func _on_object_spawn_condition_option_selected(index: int) -> void:
+	if _object_spawn_condition_option == null or index < 0 or index >= _object_spawn_condition_option.item_count:
+		return
+	var value := String(_object_spawn_condition_option.get_item_metadata(index))
+	_object_payload["spawn_condition"] = value
+	if _object_spawn_condition_edit != null:
+		_object_spawn_condition_edit.text = value
+	_refresh_target_status_detail()
 
 
 func _set_object_property_value(key, value, refresh_table: bool = true) -> void:
@@ -2755,15 +2906,17 @@ func _on_object_payload_changed(_text: String) -> void:
 		_object_payload["object_id"] = _object_id_edit.text
 	if _object_rotation_spin != null:
 		_object_payload["rotation_degrees"] = float(_object_rotation_spin.value)
-	if _object_variant_edit != null:
+	if _object_variant_edit != null and _control_row_is_visible(_object_variant_edit):
 		_object_payload["variant"] = _object_variant_edit.text
 	if _object_properties_edit != null and _control_row_is_visible(_object_properties_edit):
 		var parsed = JSON.parse_string(_object_properties_edit.text)
 		_object_payload["properties"] = parsed if parsed is Dictionary else {}
-	if _object_spawn_condition_edit != null:
+	if _object_spawn_condition_edit != null and _control_row_is_visible(_object_spawn_condition_edit):
 		_object_payload["spawn_condition"] = _object_spawn_condition_edit.text
 	_refresh_object_properties_table()
 	_refresh_object_property_editor()
+	_refresh_object_variant_options()
+	_refresh_object_spawn_condition_options()
 	_select_catalog_option_by_key(_object_catalog_option, String(_object_payload.get("object_id", "")))
 
 
@@ -2836,6 +2989,8 @@ func _sync_payload_controls() -> void:
 		_populate_object_key_option(String(_object_payload.get("object_id", "")))
 		_refresh_object_palette()
 		_refresh_object_property_editor()
+		_refresh_object_variant_options()
+		_refresh_object_spawn_condition_options()
 	if _label_id_edit != null:
 		_label_id_edit.text = String(_label_payload.get("label_id", ""))
 		_label_text_edit.text = String(_label_payload.get("text", ""))
@@ -2861,7 +3016,7 @@ func _refresh_payload_controls_visibility() -> void:
 	_set_control_row_visible(_default_wall_atlas_x_spin, false)
 	_set_control_row_visible(_default_wall_atlas_y_spin, false)
 	_set_control_row_visible(_default_wall_alternative_spin, false)
-	_set_control_row_visible(_overlay_item_key_edit, show_overlay)
+	_set_control_row_visible(_overlay_item_key_edit, false)
 	_set_control_row_visible(_overlay_item_key_option, show_overlay)
 	_set_control_row_visible(_object_catalog_option, show_object)
 	_set_control_row_visible(_object_id_edit, false)
@@ -2870,11 +3025,13 @@ func _refresh_payload_controls_visibility() -> void:
 	_set_control_row_visible(_object_add_definition_button, show_object)
 	_set_control_row_visible(_object_palette_status_label, show_object)
 	_set_control_row_visible(_object_rotation_spin, show_object)
-	_set_control_row_visible(_object_variant_edit, show_object)
+	_set_control_row_visible(_object_variant_edit, false)
+	_set_control_row_visible(_object_variant_option, show_object)
 	_set_control_row_visible(_object_property_editor, show_object)
 	_set_control_row_visible(_object_properties_edit, false)
 	_set_control_row_visible(_object_properties_table, false)
-	_set_control_row_visible(_object_spawn_condition_edit, show_object)
+	_set_control_row_visible(_object_spawn_condition_edit, false)
+	_set_control_row_visible(_object_spawn_condition_option, show_object)
 	_set_control_row_visible(_object_database_picker, show_object)
 	_set_control_row_visible(_label_id_edit, false)
 	_set_control_row_visible(_label_definition_tree, show_label)

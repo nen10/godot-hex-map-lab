@@ -963,7 +963,10 @@ func _test_paint_brush_asset_screen_routes_missing_assets_without_raw_controls()
 	_assert_true(not bool(controls["source_id"]), "Paint brush hides source id control")
 	_assert_true(not bool(controls["atlas_x"]), "Paint brush hides atlas x control")
 	_assert_true(not bool(controls["atlas_y"]), "Paint brush hides atlas y control")
+	_assert_true(not bool(controls["raw_overlay_item_key"]), "Paint brush hides raw overlay item key control")
 	_assert_true(not bool(controls["raw_object_id"]), "Paint brush hides raw object id control")
+	_assert_true(not bool(controls["raw_object_variant"]), "Paint brush hides raw object variant control")
+	_assert_true(not bool(controls["raw_spawn_condition"]), "Paint brush hides raw spawn condition control")
 	_assert_true(not bool(controls["raw_label_id"]), "Paint brush hides raw label id control")
 
 	var output_dir = _test_resource_dir("screen24_paint_brush")
@@ -1909,7 +1912,9 @@ func _test_map_edit_tool_builds_dock_controls() -> void:
 	_assert_true(tool._object_property_editor != null, "map edit tool exposes typed object property editor")
 	_assert_true(tool._object_rotation_spin != null, "map edit tool exposes object rotation control")
 	_assert_true(tool._object_variant_edit != null, "map edit tool exposes object variant control")
+	_assert_true(tool._object_variant_option != null, "map edit tool exposes object variant selector")
 	_assert_true(tool._object_spawn_condition_edit != null, "map edit tool exposes object spawn condition control")
+	_assert_true(tool._object_spawn_condition_option != null, "map edit tool exposes object spawn condition selector")
 	_assert_true(tool._object_properties_table != null, "map edit tool exposes object property table")
 	_assert_true(tool._default_floor_catalog_option != null, "map edit tool exposes default floor catalog control")
 	_assert_true(tool._default_wall_catalog_option != null, "map edit tool exposes default wall catalog control")
@@ -2751,6 +2756,8 @@ func _test_map_edit_tool_object_palette_uses_definitions_and_typed_properties() 
 	door.id = "object.door"
 	door.display_name = "Door"
 	door.tags = PackedStringArray(["door", "interactive"])
+	door.set_meta("variant_options", ["closed", "open"])
+	door.set_meta("spawn_condition_options", ["always", "on_interact"])
 	door.default_properties = {
 		"health": 10,
 		"label": "North",
@@ -2775,6 +2782,19 @@ func _test_map_edit_tool_object_palette_uses_definitions_and_typed_properties() 
 	_assert_true(_control_row_visible(tool._object_property_editor), "object mode shows typed property editor")
 	_assert_true(not _control_row_visible(tool._object_properties_edit), "object mode hides raw JSON properties")
 	_assert_true(not _control_row_visible(tool._object_properties_table), "object mode hides raw property table")
+	var authoring_snapshot = tool.authoring_field_source_snapshot()
+	_assert_true(bool((authoring_snapshot["object_variant"] as Dictionary).get("selector_visible", false)), "object variant uses selector")
+	_assert_true(not bool((authoring_snapshot["object_variant"] as Dictionary).get("raw_text_visible", true)), "object variant raw text is hidden")
+	_assert_true(
+		PackedStringArray((authoring_snapshot["object_variant"] as Dictionary).get("options", PackedStringArray())).has("open"),
+		"object variant selector uses definition enum options"
+	)
+	_assert_true(bool((authoring_snapshot["spawn_condition"] as Dictionary).get("selector_visible", false)), "spawn condition uses selector")
+	_assert_true(not bool((authoring_snapshot["spawn_condition"] as Dictionary).get("raw_text_visible", true)), "spawn condition raw text is hidden")
+	_assert_true(
+		PackedStringArray((authoring_snapshot["spawn_condition"] as Dictionary).get("options", PackedStringArray())).has("on_interact"),
+		"spawn condition selector uses definition enum options"
+	)
 
 	var packed_scene = PackedScene.new()
 	var scene_root = Node2D.new()
@@ -2802,12 +2822,18 @@ func _test_map_edit_tool_object_palette_uses_definitions_and_typed_properties() 
 	var state_option = tool._object_property_controls["state"] as OptionButton
 	state_option.select(1)
 	tool._on_object_property_enum_selected(1, "state", state_option)
+	tool._object_variant_option.select(2)
+	tool._on_object_variant_option_selected(2)
+	tool._object_spawn_condition_option.select(2)
+	tool._on_object_spawn_condition_option_selected(2)
 	var properties = tool._object_payload["properties"]
 	_assert_eq(properties["locked"], false, "typed bool editor updates placement property")
 	_assert_eq(properties["health"], 12, "typed int editor updates placement property")
 	_assert_eq(properties["speed"], 2.25, "typed float editor updates placement property")
 	_assert_eq(properties["label"], "South", "typed string editor updates placement property")
 	_assert_eq(properties["state"], "open", "typed enum editor updates placement property")
+	_assert_eq(tool._object_payload["variant"], "open", "object variant selector updates payload")
+	_assert_eq(tool._object_payload["spawn_condition"], "on_interact", "spawn condition selector updates payload")
 
 	var count_before = database.definitions.size()
 	tool._on_add_object_definition_pressed()
@@ -3394,7 +3420,8 @@ func _test_map_edit_tool_mode_specific_payload_controls() -> void:
 
 	tool.set_edit_mode(HexMapEditTool.EditMode.OVERLAY_TILE)
 	_assert_true(_control_row_visible(tool._tile_catalog_option), "overlay tile mode shows tile catalog control")
-	_assert_true(_control_row_visible(tool._overlay_item_key_edit), "overlay tile mode shows item key control")
+	_assert_true(not _control_row_visible(tool._overlay_item_key_edit), "overlay tile mode hides raw item key control")
+	_assert_true(_control_row_visible(tool._overlay_item_key_option), "overlay tile mode shows item key selector")
 	_assert_true(not _control_row_visible(tool._object_id_edit), "overlay tile mode hides object payload controls")
 
 	tool.set_edit_mode(HexMapEditTool.EditMode.OBJECT)
@@ -3404,8 +3431,10 @@ func _test_map_edit_tool_mode_specific_payload_controls() -> void:
 	_assert_true(_control_row_visible(tool._object_property_editor), "object mode shows typed object property editor")
 	_assert_true(not _control_row_visible(tool._object_properties_edit), "object mode hides raw object properties text")
 	_assert_true(_control_row_visible(tool._object_rotation_spin), "object mode shows object rotation control")
-	_assert_true(_control_row_visible(tool._object_variant_edit), "object mode shows object variant control")
-	_assert_true(_control_row_visible(tool._object_spawn_condition_edit), "object mode shows object spawn condition control")
+	_assert_true(not _control_row_visible(tool._object_variant_edit), "object mode hides raw object variant control")
+	_assert_true(_control_row_visible(tool._object_variant_option), "object mode shows object variant selector")
+	_assert_true(not _control_row_visible(tool._object_spawn_condition_edit), "object mode hides raw spawn condition control")
+	_assert_true(_control_row_visible(tool._object_spawn_condition_option), "object mode shows spawn condition selector")
 	_assert_true(not _control_row_visible(tool._object_properties_table), "object mode hides raw object property table")
 	_assert_true(not _control_row_visible(tool._tile_catalog_option), "object mode hides tile catalog control")
 
