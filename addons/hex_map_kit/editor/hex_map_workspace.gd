@@ -143,6 +143,25 @@ func component_for_responsibility(responsibility: String) -> Dictionary:
 	return HexMapWorkspaceComponentRegistry.component_for_responsibility(responsibility)
 
 
+func components_for_tab(tab_name: String) -> Array[Dictionary]:
+	return HexMapWorkspaceComponentRegistry.components_for_tab(tab_name)
+
+
+func tab_component_ids(tab_name: String) -> PackedStringArray:
+	var result := PackedStringArray()
+	var registry_ids := HexMapWorkspaceComponentRegistry.component_ids_for_tab(tab_name)
+	var components = _tab_components.get(tab_name, {})
+	for component_id in registry_ids:
+		if components is Dictionary and components.has(component_id):
+			result.append(component_id)
+	if components is Dictionary:
+		for component_id in components.keys():
+			var text := String(component_id)
+			if text != "" and not result.has(text):
+				result.append(text)
+	return result
+
+
 func tab_has_component(tab_name: String, component_id: String = "") -> bool:
 	var components = _tab_components.get(tab_name, {})
 	if not components is Dictionary:
@@ -162,7 +181,7 @@ func asset_slot_count(tab_name: String) -> int:
 func tab_asset_slot_ids(tab_name: String) -> PackedStringArray:
 	var panel = _asset_panels.get(tab_name, null) as HexMapWorkspaceAssetPanel
 	if panel == null:
-		return PackedStringArray()
+		return HexMapWorkspaceComponentRegistry.asset_slot_ids_for_tab(tab_name)
 	return panel.asset_slot_ids()
 
 
@@ -186,6 +205,7 @@ func _build_ui() -> void:
 	for tab_name in HexMapWorkspaceComponentRegistry.tab_names():
 		_add_tab_page(String(tab_name))
 	_mount_workspace_asset_panels()
+	_mount_validation_issue_navigator()
 	_mount_generation_panel()
 	_mount_edit_panel()
 	_mount_sample_settings_panel()
@@ -305,6 +325,29 @@ func _mount_asset_panel(
 	(page as Control).add_child(panel)
 	_asset_panels[tab_name] = panel
 	_register_tab_component(tab_name, component_id, panel)
+
+
+func _mount_validation_issue_navigator() -> void:
+	var page = _tab_pages.get(HexMapWorkspaceComponentRegistry.TAB_VALIDATE, null)
+	if page == null:
+		return
+	var navigator := VBoxContainer.new()
+	navigator.name = "Validation Issue Navigator"
+	navigator.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	navigator.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var title := Label.new()
+	title.text = "Validation Issues"
+	navigator.add_child(title)
+	var status := Label.new()
+	status.text = "No validation run selected."
+	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	navigator.add_child(status)
+	(page as Control).add_child(navigator)
+	_register_tab_component(
+		HexMapWorkspaceComponentRegistry.TAB_VALIDATE,
+		"validation_issue_navigator",
+		navigator
+	)
 
 
 func _slot_row(slot_id: String, display_name: String, required: bool = true) -> Dictionary:

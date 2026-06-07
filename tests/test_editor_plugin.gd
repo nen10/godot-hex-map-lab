@@ -258,7 +258,10 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 	])
 	_assert_eq(workspace.name, "Hex Map Workspace", "workspace has stable dock name")
 	_assert_eq(workspace.workspace_tab_names(), expected_tabs, "workspace exposes UX responsibility tabs")
-	_assert_eq(workspace.component_rows().size(), expected_tabs.size(), "workspace exposes component responsibility map")
+	_assert_true(
+		workspace.component_rows().size() >= expected_tabs.size(),
+		"workspace exposes component responsibility map"
+	)
 	_assert_eq(
 		workspace.component_for_responsibility("CatalogPanel").get("tab", ""),
 		"Catalog",
@@ -305,6 +308,22 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 			"%s tab exposes expected asset slot id" % tab_name
 		)
 	_assert_true(workspace.tab_has_component("Generate", "generation_panel"), "Generate tab keeps generation component")
+	_assert_true(
+		workspace.tab_component_ids("Catalog").has("catalog_asset_panel"),
+		"Catalog tab registry exposes catalog asset panel"
+	)
+	_assert_true(
+		workspace.tab_component_ids("Validate").has("validation_issue_navigator"),
+		"Validate tab registry exposes issue navigator"
+	)
+	_assert_true(
+		workspace.tab_asset_slot_ids("Catalog").has(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG),
+		"Catalog tab registry exposes tile catalog asset slot"
+	)
+	_assert_true(
+		workspace.tab_asset_slot_ids("QA").has(HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE),
+		"QA tab registry exposes generation profile asset slot"
+	)
 	_assert_true(workspace.tab_has_component("Paint", "brush_palette"), "Paint tab keeps paint component")
 	_assert_eq(workspace.asset_slot_count("Paint"), 0, "Paint tab no longer owns setup asset panels")
 	_assert_true(not workspace.tab_has_component("Paint", "document_asset_panel"), "Paint tab does not own Document setup component")

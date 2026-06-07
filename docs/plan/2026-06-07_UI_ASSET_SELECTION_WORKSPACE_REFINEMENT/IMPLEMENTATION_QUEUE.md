@@ -54,7 +54,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
 | `WORKSPACE-10` | `COMPLETE` | `ASSET-11` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/WORKSPACE-10_REAL_TAB_CONTENT_MIGRATION/` | Real workspace tab content migration | `HexMapWorkspace`, editor tab components, Generate/Paint/Catalog/Layers/Validate/QA/Export UI code, editor tests | Document / Catalog / Layers / Validate / QA / Export / Settings tabs are non-empty and own relevant asset slots; Paint loses non-paint responsibilities; tests check `tab_has_component()` and `asset_slot_count()`. |
-| `WORKSPACE-11` | `READY` | `WORKSPACE-10` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/WORKSPACE-11_TAB_COMPONENT_REGISTRY_CONTRACT/` | Workspace component registry contract | `HexMapWorkspace`, tab registry/query helpers, editor tests | Public-ish query methods expose component ids and asset slot ids, e.g. Catalog includes `catalog_asset_panel` and `tile_catalog`; tests avoid private child node names. |
+| `WORKSPACE-11` | `COMPLETE` | `WORKSPACE-10` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/WORKSPACE-11_TAB_COMPONENT_REGISTRY_CONTRACT/` | Workspace component registry contract | `HexMapWorkspace`, tab registry/query helpers, editor tests | Public-ish query methods expose component ids and asset slot ids, e.g. Catalog includes `catalog_asset_panel` and `tile_catalog`; tests avoid private child node names. |
 
 ---
 
@@ -87,7 +87,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
 | `TEST-40` | `READY` | `ASSET-10` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/TEST-40_NO_SAMPLE_ONLY_COMPLETION_TESTS/` | No sample-only completion tests | editor tests, package/sample tests, `docs/TEST.md` | Feature screen tests run sample mode OFF and verify arbitrary project asset selection state; sample mode ON/OFF is tested separately; package integrity tests own sample asset validity. |
-| `TEST-41` | `BACKLOG` | `WORKSPACE-11` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/TEST-41_WORKSPACE_TAB_CONTENT_CONTRACT_TESTS/` | Workspace tab content contract tests | workspace query methods, editor tests, `docs/TEST.md` | Each tab exposes expected component ids and asset slot ids through query methods; tests avoid private child node names. |
+| `TEST-41` | `READY` | `WORKSPACE-11` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/TEST-41_WORKSPACE_TAB_CONTENT_CONTRACT_TESTS/` | Workspace tab content contract tests | workspace query methods, editor tests, `docs/TEST.md` | Each tab exposes expected component ids and asset slot ids through query methods; tests avoid private child node names. |
 | `TEST-42` | `READY` | `ASSET-10`, `SAMPLE-11` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/TEST-42_ASSET_SLOT_STATE_MODEL_TESTS/` | Asset slot state model tests | asset slot state/control tests, sample duplication tests, `docs/TEST.md` | Required asset missing, invalid type, selected project asset, sample mode OFF hiding samples, sample mode ON showing learning candidates, and duplicate sample project state are covered. |
 
 ---
@@ -135,7 +135,7 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `WORKSPACE-11`.
+Current recommended next task: `SCREEN-20`.
 
 Reason:
 
@@ -143,7 +143,8 @@ Reason:
 - `SAMPLE-11` is complete and makes bundled samples explicitly duplicable into project assets.
 - `SAMPLE-12` is complete and keeps first-run sample learning out of the production default path.
 - `WORKSPACE-10` is complete and mounts real content in workspace tabs.
-- `WORKSPACE-11` is the first dependency-satisfied READY task in queue order.
+- `WORKSPACE-11` is complete and exposes stable workspace tab/component ids.
+- `SCREEN-20` is the first dependency-satisfied READY task in queue order.
 
 ---
 
@@ -291,3 +292,18 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_workspace.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/WORKSPACE-10_TEST_RESULT_2026-06-08.md`
+
+### WORKSPACE-11 Workspace tab component registry contract
+
+proof:
+  plan: `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/WORKSPACE-11_TAB_COMPONENT_REGISTRY_CONTRACT/`
+  review: `docs/review/autopilot/WORKSPACE-11_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_workspace_component_registry.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/WORKSPACE-11_TEST_RESULT_2026-06-08.md`
