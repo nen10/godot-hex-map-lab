@@ -133,8 +133,8 @@ Commit は、次の順序で行う。
 autopilot(<TASK_ID>): <imperative summary>
 
 Status: COMPLETE | COMPLETE_WITH_BACKLOG
-Queue: docs/plan/autopilot/ROADMAP_IMPLEMENTATION_QUEUE_2026-06-06.md
-Plan: docs/plan/<date>_<TASK_ID>_<slug>/
+Queue: docs/plan/<date>_<roadmap_id>/IMPLEMENTATION_QUEUE.md
+Plan: docs/plan/<date>_<roadmap_id>/<TASK_ID>_<slug>/
 Review: docs/review/autopilot/<TASK_ID>_SELF_REVIEW_<date>.md
 Tests:
 - ./tools/test.sh
@@ -147,27 +147,6 @@ Follow-ups:
 - none
 ```
 
-Example:
-
-```text
-autopilot(LD2-01): add Level Document v2 resource schema
-
-Status: COMPLETE
-Queue: docs/plan/autopilot/ROADMAP_IMPLEMENTATION_QUEUE_2026-06-06.md
-Plan: docs/plan/2026-06-06_LD2-01_RESOURCE_SCHEMA/
-Review: docs/review/autopilot/LD2-01_SELF_REVIEW_2026-06-06.md
-Tests:
-- ./tools/test.sh
-
-Major changes:
-- addons/hex_map_kit/adapter/hex_map_document_resource.gd
-- tests/test_hex_adapter.gd
-- docs/TEST.md
-
-Follow-ups:
-- none
-```
-
 ### 5.2 State commit
 
 ```text
@@ -175,21 +154,9 @@ autopilot-state(<TASK_ID>): <state update summary>
 
 Status: BLOCKED_BY_TEST_ENV | SPLIT_REQUIRED | SUPERSEDED
 Reason: <short reason>
-Queue: docs/plan/autopilot/ROADMAP_IMPLEMENTATION_QUEUE_2026-06-06.md
+Queue: docs/plan/<date>_<roadmap_id>/IMPLEMENTATION_QUEUE.md
 Docs:
 - <state/review/test-env report>
-```
-
-Example:
-
-```text
-autopilot-state(P0-03): record missing Godot binary for test baseline
-
-Status: BLOCKED_BY_TEST_ENV
-Reason: ./tools/test.sh cannot locate Godot executable; set GODOT_BIN.
-Queue: docs/plan/autopilot/ROADMAP_IMPLEMENTATION_QUEUE_2026-06-06.md
-Docs:
-- docs/review/autopilot/P0-03_TEST_BASELINE_2026-06-06.md
 ```
 
 ---

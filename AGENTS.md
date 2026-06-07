@@ -17,7 +17,12 @@
 
 作業の一貫性ではなく目的の一貫性をとる。
 作業の効率化のために簡単にできることがあれば記録したりtoolを作成してよい。
-Godot開発におけるノウハウを随時 `docs/knowledge/DEV_GODOT.md` にdocumentationしてください。
+Godot開発におけるノウハウを随時 `docs/knowledge/DEV_GODOT.md` にdocumentationする。
+addonとしては未公開状態であり、互換性を維持する必要はない。清潔な仕様及び実装に随時更新する。
+本質的な機能はCoreとして安定しており、問題はその提示の仕方である。UI層は柔軟に機能変更することができる。
+ゲーム開発上のUXの合理性を基準にUIおよびAPIを設計する。
+headless test等のtest要件をUX改善よりも優先したUI設計について、testを削除しUIを変更する。
+UIの根拠はtest可能性ではなく。ゲーム開発上のUX合理性に基づく。
 
 ## 実行メモ
 
@@ -29,13 +34,13 @@ Godot開発におけるノウハウを随時 `docs/knowledge/DEV_GODOT.md` にdo
 ロードマップ実装を自走する依頼では、次を入口にする。
 
 - Orchestration: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
-- Queue: `docs/plan/autopilot/ROADMAP_IMPLEMENTATION_QUEUE_2026-06-06.md`
+- Queue: `docs/plan/<date>_<roadmap_id>/IMPLEMENTATION_QUEUE.md`
 - Commit policy: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
-- Roadmap source: `docs/review/roadmap/HEX_MAP_KIT_BRAINSTORM_UX_ROADMAP_2026-06-06.md`
+- Roadmap source: `docs/plan/<date>_<roadmap_id>/UX_ROADMAP.md`
 - Skill: `.agents/skills/hex-map-codex-autopilot/SKILL.md`
 
 Autopilot ロードマップ UX は人間により validate 済み。Plan 作成は承認ゲートではなく、同じ run で実装・テスト・self-review・repair・queue 更新まで進めるための作業単位である。
 
 実装不足や review 指摘は、`repair-now` / `follow-up-ready` / `known-env-failure` / `accepted-risk` / `manual-optional` に分類する。`repair-now` は同じ task 内で修正する。`follow-up-ready` は queue に追加する。`manual-optional` は自動実装 loop を止めない。
 
-Autopilot commit 方針: 1 queue task の `COMPLETE` / `COMPLETE_WITH_BACKLOG` ごとに 1 product completion commit を作る。`RUNNING` / `VERIFYING` / `REPAIR_NOW` の product code は completion commit にしない。`BLOCKED_BY_TEST_ENV` / `SPLIT_REQUIRED` / `SUPERSEDED` は docs-only state commit を作ってよい。由来不明の dirty tree を勝手に commit / stash / reset / overwrite してはいけない。
+Autopilot commit 方針: 1 queue task の `COMPLETE` / `COMPLETE_WITH_BACKLOG` ごとに 1 product completion commit を作る。`RUNNING` / `VERIFYING` / `REPAIR_NOW` の product code は completion commit にしない。`BLOCKED_BY_TEST_ENV` / `SPLIT_REQUIRED` / `SUPERSEDED` は docs-only state commit を作ってよい。由来不明の dirty tree はtaskに関係しない場合 commit / stash / reset / overwrite しない。

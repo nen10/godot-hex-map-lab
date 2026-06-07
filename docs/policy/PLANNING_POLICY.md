@@ -2,8 +2,7 @@
 
 ## 目的
 
-`docs/plan/<date>_<plan-name>/` 以下へ計画を追加・整理する作成単位を与える。計画は、UX、実装方針、詳細な実装計画、検証方針を接続し、実装時に判断を再利用できる状態にする。
-`docs/review/plan/` 以下に作成する計画評価の観点を定める。
+`docs/plan/<date>_<slug>/` または `docs/plan/<date>_<roadmap_id>/<TASK_ID>_<slug>/` 以下へ計画を追加・整理する作成単位を与える。計画は、UX、実装方針、詳細な実装計画、検証方針を接続し、実装時に判断を再利用できる状態にする。
 
 計画全体にわたる方針として `docs/policy/DOMAIN_POLICY.md` を参照する。実装へ進める際は `docs/policy/IMPLEMENTATION_POLICY.md` を参照する。
 
@@ -13,7 +12,7 @@
 
 1. UX の策定。
 2. 実装方針の作成。
-3. 詳細な実装計画の作成。
+3. 実装計画の作成。
 4. 計画のレビュー。
 
 ## 記述ルール
@@ -52,13 +51,12 @@ UX 文書はユースケースを実現するための複数の手続きから�
 
 明記する内容:
 
-- 目標の UX 文書。
 - 複数候補の提示、および `{ 採用, 不採用 }` の判断。
 - 必要性のある破壊的変更。
 - fallback 扱いとする挙動。ただし fallback は仕様根拠にしない。
 - より合理的な Operation Steps が判明した場合の UX 文書への escalation 内容。
 
-## 3. 詳細な実装計画の作成
+## 3. 実装計画の作成
 
 実装方針に従って詳細な実装計画を作成する。詳細な実装計画は、実装可能な計画として内容が閉じている文書である。
 
@@ -66,10 +64,9 @@ UX 文書はユースケースを実現するための複数の手続きから�
 
 明記する内容:
 
-- 入力、出力、resource schema、対象ファイル。
-- scene / resource / saved document など、永続化されるファイルの形式。
-- `docs/TEST.md` の Test path に接続するテスト方針。
-- Editor 操作が必要な場合の interactive test または `tests/analog_test/` のアナログテスト候補。
+- Scope
+- Steps
+
 
 ## 4. 計画のレビュー
 
@@ -77,4 +74,4 @@ UX 文書はユースケースを実現するための複数の手続きから�
 
 既存 UX との干渉は正常な開発プロセスであり、発見した干渉は目標 UX 文書に記載する。重大な機能が損なわれない限り、既存 UX との干渉は実装を妨げない。
 
-レビューで見つかった不足は fix now / backlog and separate Design Flow / user validation / ignore and accepted risk に分類し、修正には対応する。
+レビューで見つかった不足はリスクとしてacceptするか計画ドキュメントを修正し、分離するものは `review/backlog/` に記載する。

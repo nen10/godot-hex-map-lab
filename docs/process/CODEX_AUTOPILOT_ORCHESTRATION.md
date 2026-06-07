@@ -10,9 +10,9 @@
 
 このプロセスは、以下を前提にする。
 
-1. `docs/review/roadmap/HEX_MAP_KIT_BRAINSTORM_UX_ROADMAP_2026-06-06.md` は、人間が実現するべき UX として validate 済みである。
-2. `docs/plan/autopilot/ROADMAP_IMPLEMENTATION_QUEUE_2026-06-06.md` は、ロードマップを Codex が実装できる単位へ分割した実行キューである。
-3. 人間の毎回承認をゲートにしない。
+1. `UX_ROADMAP.md` は validate 済みである。
+2. `QUEUE.md` は、ロードマップを Codex が実装できる単位へ分割した実行キューである。
+3. ユーザーの毎回承認をゲートにしない。
 4. ゲートは、計画文書の閉じ方、Test path、`tools/test.sh`、self-review、fix loop によって置き換える。
 5. Codex は、計画文書作成・実装・テスト追加・レビュー・不足修正・キュー更新までを同一の自走ループとして扱う。
 
@@ -49,8 +49,8 @@ Roadmap
 
 | 種別 | path | 役割 |
 |---|---|---|
-| UX roadmap | `docs/review/roadmap/HEX_MAP_KIT_BRAINSTORM_UX_ROADMAP_2026-06-06.md` | validate 済みの UX / phase / priority source |
-| Autopilot queue | `docs/plan/autopilot/ROADMAP_IMPLEMENTATION_QUEUE_2026-06-06.md` | 実装単位と依存関係 |
+| UX roadmap | `docs/plan/<date>_<roadmap_id>/UX_ROADMAP.md` | validate 済みの UX / phase / priority source |
+| Autopilot queue | `docs/plan/<date>_<roadmap_id>/IMPLEMENTATION_QUEUE.md` | 実装単位と依存関係 |
 | Policy | `docs/policy/*.md` | 設計・実装・テスト方針 |
 | Test index | `docs/TEST.md` | 完了根拠になる Test path |
 | Root instruction | `AGENTS.md` | Codex の入口指示 |
@@ -58,10 +58,10 @@ Roadmap
 
 ### 2.2 task ごとの出力
 
-各 task は必要に応じて以下を作る。
+各 task は必要に応じて `docs/policy/PLANNING_POLICY.md` を参照し、以下を作る。
 
 ```text
-docs/plan/<date>_<TASK_ID>_<slug>/
+docs/plan/<date>_<roadmap_id>/<TASK_ID>_<slug>/
   UX.md
   POLICY.md
   IMPLEMENTATION_PLAN.md
@@ -250,174 +250,8 @@ Dependency sweep の手順:
 
 ---
 
-## 6. 並列実行ルール
 
-Codex cloud / app / CLI で複数 thread を動かす場合、以下の lane を分ける。
-
-| lane | 主対象 | 同時実行可否 |
-|---|---|---|
-| `schema` | Resource / migration / adapter | 最優先。UI lane と衝突するなら schema 優先。 |
-| `ui` | Generate Dock / Edit Dock / dashboard | 同じ巨大ファイルを触る task は並列禁止。 |
-| `test` | fixtures / docs/TEST / debug scenes | schema/ui と連携してよいが、期待値変更は review 必須。 |
-| `docs` | manuals / api / queue update | code task と並列可。 |
-| `refactor` | EditorSessionState / dock split | 対象 feature task と同時に同じファイルを触らない。 |
-
-衝突しやすいファイル:
-
-```text
-addons/hex_map_kit/editor/hex_map_gen_dock.gd
-addons/hex_map_kit/editor/hex_map_edit_tool.gd
-addons/hex_map_kit/adapter/hex_tile_map_layer.gd
-tests/test_editor_plugin.gd
-```
-
-これらを触る task は原則として 1 lane に限定する。
-
----
-
-## 7. 自動実行プロンプト
-
-### 7.1 次 task を実行するプロンプト
-
-Codex へ渡す標準プロンプト:
-
-```md
-You are running Hex Map Kit Codex Autopilot.
-
-Goal:
-Continue implementation from the roadmap queue without asking for human approval between tasks.
-
-Read first:
-- AGENTS.md
-- docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md
-- docs/plan/autopilot/ROADMAP_IMPLEMENTATION_QUEUE_2026-06-06.md
-- docs/review/roadmap/HEX_MAP_KIT_BRAINSTORM_UX_ROADMAP_2026-06-06.md
-- docs/policy/*.md
-- docs/TEST.md
-
-Process:
-1. Select the first READY task whose dependencies are complete.
-2. Mark it RUNNING in the queue.
-3. Create or update UX.md, POLICY.md, IMPLEMENTATION_PLAN.md under the task plan_dir if needed.
-4. Implement the plan in the same run. Do not stop for human approval after planning.
-5. Add or update tests and docs/TEST.md.
-6. Run ./tools/test.sh.
-7. If tests fail, diagnose and repair repair-now issues, then rerun.
-8. Write self-review under docs/review/autopilot/.
-9. Update the queue status to COMPLETE, COMPLETE_WITH_BACKLOG, REPAIR_NOW, BLOCKED_BY_TEST_ENV, SPLIT_REQUIRED, or SUPERSEDED.
-10. Run the dependency sweep: change every BACKLOG task whose dependencies are all COMPLETE or COMPLETE_WITH_BACKLOG to READY, and update Current pointer.
-11. If COMPLETE, select the next READY task and continue only if this invocation still has enough context; otherwise leave the queue ready for the next invocation.
-
-Decision policy:
-- The roadmap UX is already validated.
-- Do not ask for approval for schema details, UI wording, test structure, or refactor sequencing when the roadmap and policies imply a reasonable choice.
-- Prefer migration compatibility over breaking saved resources.
-- Prefer catalog key / typed resource schema over expanding untyped Array payloads.
-- Fallback and hack behavior are not specification.
-
-Done when:
-- The selected task has implementation, tests, docs update, test result, review, and queue update.
-```
-
-### 7.2 repair 専用プロンプト
-
-```md
-You are repairing the current Hex Map Kit Autopilot task.
-
-Read:
-- docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md
-- docs/plan/autopilot/ROADMAP_IMPLEMENTATION_QUEUE_2026-06-06.md
-- latest docs/review/autopilot/*_TEST_RESULT_*.md
-- latest docs/review/autopilot/*_SELF_REVIEW_*.md
-
-Goal:
-Fix all repair-now items for the current task without changing roadmap scope.
-
-Rules:
-- Do not ask for approval.
-- Do not move to the next task while repair-now remains.
-- Add or correct tests before marking complete.
-- If a test expectation was wrong, document why and update docs/TEST.md.
-- If the issue is unrelated pre-existing failure, prove it and mark it as known pre-existing, not complete proof.
-
-Done when:
-- ./tools/test.sh passes, or BLOCKED_BY_TEST_ENV is documented with exact missing environment.
-- The queue is updated.
-```
-
-### 7.3 queue maintenance prompt
-
-```md
-You are maintaining the Hex Map Kit Autopilot queue.
-
-Read:
-- docs/plan/autopilot/ROADMAP_IMPLEMENTATION_QUEUE_2026-06-06.md
-- docs/review/autopilot/*.md
-- docs/complete_on_test/**
-- docs/TEST.md
-
-Goal:
-Normalize task statuses and add follow-up-ready tasks produced by reviews.
-
-Rules:
-- Do not ask for approval.
-- Do not convert repair-now to backlog.
-- Do not mark complete without test proof.
-- After any task status change, run the dependency sweep and update Current pointer.
-- Preserve roadmap order unless dependency changes make a different order mechanically necessary.
-
-Done when:
-- Queue dependencies, statuses, and proof sections are consistent.
-```
-
----
-
-## 8. Codex 実行形態
-
-### 8.1 local CLI
-
-ローカルで Godot headless を実行できる環境なら、Codex CLI に標準プロンプトを渡す。
-
-```sh
-codex exec "$(cat docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md | sed -n '/### 7.1/,/### 7.2/p')"
-```
-
-より実用的には、7.1 のプロンプトだけをコピーして `codex exec` に渡す。
-
-### 8.2 Codex cloud
-
-Cloud 環境に Godot binary、import cache、test 実行権限を setup した上で、次の形で投げる。
-
-```sh
-codex cloud exec --env "$CODEX_ENV_ID" "<7.1 next task prompt>"
-```
-
-Cloud 側では internet access が制限される前提で、Godot / addon dependency / cache は setup phase で揃える。
-
-### 8.3 Codex app
-
-Codex app では project thread を分ける。
-
-- `autopilot-main`: queue 先頭から順次実行。
-- `autopilot-repair`: failing task の repair 専用。
-- `autopilot-review`: diff review と follow-up 抽出。
-- `autopilot-docs`: manual / api / package docs 更新。
-
-同じ巨大 editor file を触る thread は同時に走らせない。
-
-### 8.4 repository skill
-
-`.agents/skills/hex-map-codex-autopilot/SKILL.md` を入れている場合、Codex に以下のように頼める。
-
-```text
-Use the hex-map-codex-autopilot skill and continue the next READY roadmap task.
-```
-
-Skill は task ループの入口を短くするためのもの。queue と orchestration doc が source of truth である。
-
----
-
-## 9. 停止条件
+## 6. 停止条件
 
 Autopilot が止まってよいのは以下だけである。
 
@@ -431,7 +265,7 @@ Autopilot が止まってよいのは以下だけである。
 
 ---
 
-## 10. 完了条件
+## 7. 完了条件
 
 1 task の `COMPLETE` 条件:
 
@@ -457,50 +291,25 @@ Roadmap の `COMPLETE` 条件:
 
 ---
 
-## 11. 重要な判断規則
+## 8. 判断規則
 
-Codex は以下を自動判断してよい。
+Codex は UX 設計に基づき任意に自動判断して計画を立て実装する。
 
 - implementation plan の内部順序。
-- resource field 名の細部。ただし migration と test を伴う。
+- resource field の編集。
 - UI label の初期案。
 - adapter helper の分割。
 - test fixture の追加。
 - review で見つけた不足の repair。
 - follow-up task の queue 追加。
+- 公式ドキュメント等調査
 
 Codex が避ける判断:
 
 - roadmap priority の大幅変更。
 - public package release の実行。
 - external service / credential の利用。
-- saved resource compatibility を捨てる判断。
-- human validated UX と逆方向の仕様変更。
 
 ---
 
-## 12. 実務上の芯
-
-このプロセスの芯は、Codex に「許可を求める癖」をつけないことにある。
-
-良い動き:
-
-```text
-不足を見つけた
-  -> repair-now / follow-up / accepted-risk に分類
-  -> repair-now は直す
-  -> follow-up は queue に足す
-  -> accepted-risk は解除条件を書く
-  -> 次の READY task へ進む
-```
-
-悪い動き:
-
-```text
-不足を見つけた
-  -> 人間に聞く
-  -> 承認待ちで止まる
-  -> test gate が形骸化する
-```
-
-ロードマップの UX はすでに進む判断が済んでいる。Autopilot は、人間判断を代替するのではなく、判断済みの UX を testable な連続実装へ変換するための制御系である。
+Skill は task ループの入口を短くするためのもの。queue と orchestration doc が source of truth である。
