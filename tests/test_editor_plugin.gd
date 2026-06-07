@@ -122,6 +122,7 @@ func _run() -> void:
 	await _test_validate_asset_screen_reports_missing_project_assets_without_samples()
 	await _test_qa_asset_screen_manages_profiles_and_score_context_without_samples()
 	await _test_export_asset_screen_requires_user_destination_and_exports_project_document()
+	await _test_feature_screen_completion_contract_uses_project_assets_with_sample_mode_off()
 	await _test_workspace_sample_settings_panel_controls_sample_mode_sources()
 	await _test_debug_numeric_fallback_quarantine_requires_settings_opt_in()
 	_test_sample_asset_duplicator_copies_catalog_dependencies_to_project()
@@ -1325,6 +1326,182 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 
 	workspace.queue_free()
 	await process_frame
+
+
+func _test_feature_screen_completion_contract_uses_project_assets_with_sample_mode_off() -> void:
+	var session = HexMapEditorSessionState.new()
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	_assert_true(not session.show_bundled_samples_in_main_selectors, "TEST-40 starts with sample mode OFF")
+	_assert_true(not workspace.generation_dock().main_sample_controls_visible(), "TEST-40 Generate main UI hides sample controls")
+	_assert_true(not workspace.edit_tool().main_sample_controls_visible(), "TEST-40 Paint main UI hides sample controls")
+
+	var output_dir = _test_resource_dir("test40_project_asset_contract")
+	var document_path = "%s/level_document.tres" % output_dir
+	var document_result = workspace.create_level_document(document_path)
+	_assert_true(bool(document_result["ok"]), "TEST-40 creates project Level Document")
+	var document = document_result["resource"] as HexMapDocumentResource
+	_assert_true(document is HexMapDocumentResource, "TEST-40 Level Document uses document resource")
+
+	var catalog_path = "%s/tile_catalog.tres" % output_dir
+	var catalog_result = workspace.create_tile_catalog(catalog_path)
+	_assert_true(bool(catalog_result["ok"]), "TEST-40 creates project Tile Catalog")
+	var catalog = catalog_result["resource"] as HexTileCatalogResource
+	_assert_true(catalog is HexTileCatalogResource, "TEST-40 Tile Catalog uses catalog resource")
+	var tile_set := _test_catalog_tileset()
+	_assert_true(bool(workspace.set_catalog_tile_set(tile_set)["ok"]), "TEST-40 Catalog accepts arbitrary TileSet")
+	_assert_eq(catalog.tile_set, tile_set, "TEST-40 Catalog stores arbitrary TileSet selection")
+
+	var layer_stack_path = "%s/layer_stack.tres" % output_dir
+	var layer_stack_result = workspace.create_layer_stack(layer_stack_path)
+	_assert_true(bool(layer_stack_result["ok"]), "TEST-40 creates project Layer Stack")
+	var layer_stack = layer_stack_result["resource"] as HexLayerStackResource
+	_assert_true(layer_stack is HexLayerStackResource, "TEST-40 Layer Stack uses layer stack resource")
+
+	var object_db_path = "%s/object_database.tres" % output_dir
+	var object_db_result = workspace.create_object_database(object_db_path)
+	_assert_true(bool(object_db_result["ok"]), "TEST-40 creates project Object Database")
+	var object_database = object_db_result["resource"] as HexObjectDatabaseResource
+	_assert_true(object_database is HexObjectDatabaseResource, "TEST-40 Object Database uses object database resource")
+
+	var label_db_path = "%s/label_database.tres" % output_dir
+	var label_db_result = workspace.create_label_database(label_db_path)
+	_assert_true(bool(label_db_result["ok"]), "TEST-40 creates project Label Database")
+	var label_database = label_db_result["resource"] as HexLabelDatabaseResource
+	_assert_true(label_database is HexLabelDatabaseResource, "TEST-40 Label Database uses label database resource")
+
+	var validation_suite_path = "%s/validation_suite.tres" % output_dir
+	var validation_suite_result = workspace.create_validation_rule_suite(validation_suite_path)
+	_assert_true(bool(validation_suite_result["ok"]), "TEST-40 creates project Validation Rule Suite")
+	var validation_suite = validation_suite_result["resource"] as Resource
+	_assert_true(validation_suite is Resource, "TEST-40 Validation Rule Suite uses Resource")
+
+	var generation_profile_path = "%s/generation_profile.tres" % output_dir
+	var generation_profile_result = workspace.create_generation_profile(generation_profile_path)
+	_assert_true(bool(generation_profile_result["ok"]), "TEST-40 creates project Generation Profile")
+	var generation_profile = generation_profile_result["resource"] as Resource
+	_assert_true(generation_profile is Resource, "TEST-40 Generation Profile uses Resource")
+
+	var export_profile_path = "%s/export_profile.tres" % output_dir
+	var export_profile_result = workspace.create_export_profile(export_profile_path)
+	_assert_true(bool(export_profile_result["ok"]), "TEST-40 creates project Export Profile")
+	var export_profile = export_profile_result["resource"] as Resource
+	_assert_true(export_profile is Resource, "TEST-40 Export Profile uses Resource")
+
+	_assert_project_asset_slot(
+		workspace,
+		"Document",
+		HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT,
+		document,
+		document_path,
+		"TEST-40 Document screen Level Document"
+	)
+	_assert_project_asset_slot(
+		workspace,
+		"Catalog",
+		HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG,
+		catalog,
+		catalog_path,
+		"TEST-40 Catalog screen Tile Catalog"
+	)
+	_assert_project_asset_slot(
+		workspace,
+		"Layers",
+		HexMapWorkspaceAssetContext.SLOT_LAYER_STACK,
+		layer_stack,
+		layer_stack_path,
+		"TEST-40 Layers screen Layer Stack"
+	)
+	_assert_project_asset_slot(
+		workspace,
+		"Paint",
+		HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE,
+		object_database,
+		object_db_path,
+		"TEST-40 Paint screen Object Database"
+	)
+	_assert_project_asset_slot(
+		workspace,
+		"Paint",
+		HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE,
+		label_database,
+		label_db_path,
+		"TEST-40 Paint screen Label Database"
+	)
+	_assert_project_asset_slot(
+		workspace,
+		"Validate",
+		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE,
+		validation_suite,
+		validation_suite_path,
+		"TEST-40 Validate screen Validation Rule Suite"
+	)
+	_assert_project_asset_slot(
+		workspace,
+		"QA",
+		HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE,
+		generation_profile,
+		generation_profile_path,
+		"TEST-40 QA screen Generation Profile"
+	)
+	_assert_project_asset_slot(
+		workspace,
+		"Export",
+		HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT,
+		document,
+		document_path,
+		"TEST-40 Export screen Level Document"
+	)
+	_assert_project_asset_slot(
+		workspace,
+		"Export",
+		HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE,
+		export_profile,
+		export_profile_path,
+		"TEST-40 Export screen Export Profile"
+	)
+	_assert_eq(workspace.generation_dock().tile_catalog(), catalog, "TEST-40 Generate consumes project catalog, not sample fallback")
+	_assert_eq(workspace.edit_tool().tile_catalog(), catalog, "TEST-40 Paint consumes project catalog, not sample fallback")
+
+	var export_path = "%s/runtime_handoff.tres" % output_dir
+	var destination_result = workspace.select_export_destination(export_path)
+	_assert_true(bool(destination_result["ok"]), "TEST-40 selects user export destination")
+	var export_snapshot = workspace.export_screen_snapshot()
+	var destination = export_snapshot["destination"] as Dictionary
+	_assert_true(bool(destination.get("selected", false)), "TEST-40 Export destination is selected")
+	_assert_eq(String(destination.get("path", "")), export_path, "TEST-40 Export destination uses user project path")
+	_assert_true(not _is_bundled_sample_asset_path(String(destination.get("path", ""))), "TEST-40 Export destination is not a bundled sample path")
+
+	_assert_true(not session.show_bundled_samples_in_main_selectors, "TEST-40 project asset contract keeps sample mode OFF")
+	_assert_true(not workspace.generation_dock().main_sample_controls_visible(), "TEST-40 Generate sample controls remain hidden")
+	_assert_true(not workspace.edit_tool().main_sample_controls_visible(), "TEST-40 Paint sample controls remain hidden")
+
+	workspace.queue_free()
+	await process_frame
+
+
+func _assert_project_asset_slot(
+	workspace,
+	tab_name: String,
+	slot_id: String,
+	expected_resource: Resource,
+	expected_path: String,
+	label: String
+) -> void:
+	var snapshot = workspace.tab_asset_slot_snapshot(tab_name, slot_id)
+	var actual_path := String(snapshot.get("current_path", ""))
+	_assert_true(bool(snapshot.get("selected", false)), "%s is selected" % label)
+	_assert_eq(snapshot.get("current_source", ""), HexMapEditorAssetSlotState.SOURCE_PROJECT, "%s source is project" % label)
+	_assert_eq(snapshot.get("current_resource", null), expected_resource, "%s resource is selected" % label)
+	_assert_eq(actual_path, expected_path, "%s path is selected" % label)
+	_assert_true(not _is_bundled_sample_asset_path(actual_path), "%s path is not bundled sample asset" % label)
+
+
+func _is_bundled_sample_asset_path(path: String) -> bool:
+	return path.begins_with("res://addons/hex_map_kit/assets/")
 
 
 func _test_workspace_sample_settings_panel_controls_sample_mode_sources() -> void:

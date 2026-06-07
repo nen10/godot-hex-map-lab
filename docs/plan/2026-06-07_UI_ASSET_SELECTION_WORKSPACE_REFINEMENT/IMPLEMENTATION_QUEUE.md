@@ -86,7 +86,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `TEST-40` | `READY` | `ASSET-10` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/TEST-40_NO_SAMPLE_ONLY_COMPLETION_TESTS/` | No sample-only completion tests | editor tests, package/sample tests, `docs/TEST.md` | Feature screen tests run sample mode OFF and verify arbitrary project asset selection state; sample mode ON/OFF is tested separately; package integrity tests own sample asset validity. |
+| `TEST-40` | `COMPLETE` | `ASSET-10` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/TEST-40_NO_SAMPLE_ONLY_COMPLETION_TESTS/` | No sample-only completion tests | editor tests, package/sample tests, `docs/TEST.md` | Feature screen tests run sample mode OFF and verify arbitrary project asset selection state; sample mode ON/OFF is tested separately; package integrity tests own sample asset validity. |
 | `TEST-41` | `READY` | `WORKSPACE-11` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/TEST-41_WORKSPACE_TAB_CONTENT_CONTRACT_TESTS/` | Workspace tab content contract tests | workspace query methods, editor tests, `docs/TEST.md` | Each tab exposes expected component ids and asset slot ids through query methods; tests avoid private child node names. |
 | `TEST-42` | `READY` | `ASSET-10`, `SAMPLE-11` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/TEST-42_ASSET_SLOT_STATE_MODEL_TESTS/` | Asset slot state model tests | asset slot state/control tests, sample duplication tests, `docs/TEST.md` | Required asset missing, invalid type, selected project asset, sample mode OFF hiding samples, sample mode ON showing learning candidates, and duplicate sample project state are covered. |
 
@@ -135,7 +135,7 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `TEST-40`.
+Current recommended next task: `TEST-41`.
 
 Reason:
 
@@ -154,7 +154,8 @@ Reason:
 - `SCREEN-27` is complete and makes Export use project source/profile assets plus explicit destination state.
 - `CLEANUP-30` is complete and quarantines plain-target numeric fallback behind an explicit Settings debug opt-in.
 - `CLEANUP-31` is complete and replaces normal raw authoring fields with selector/schema sources.
-- `TEST-40` is the first dependency-satisfied READY task in queue order.
+- `TEST-40` is complete and makes the no-sample-only feature completion test contract explicit.
+- `TEST-41` is the first dependency-satisfied READY task in queue order.
 
 ---
 
@@ -466,3 +467,16 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_edit_tool.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/CLEANUP-31_TEST_RESULT_2026-06-08.md`
+
+### TEST-40 No sample-only completion tests
+
+proof:
+  plan: `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/TEST-40_NO_SAMPLE_ONLY_COMPLETION_TESTS/`
+  review: `docs/review/autopilot/TEST-40_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/TEST-40_TEST_RESULT_2026-06-08.md`
