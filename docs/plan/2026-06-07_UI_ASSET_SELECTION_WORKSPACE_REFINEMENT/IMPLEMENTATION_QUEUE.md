@@ -45,7 +45,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 |---|---|---|---|---|---|---|
 | `SAMPLE-10` | `COMPLETE` | `ASSET-10` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/SAMPLE-10_SAMPLE_MODE_SETTINGS_TAB/` | Settings / Samples tab | `HexMapWorkspace`, new `HexMapSampleSettingsPanel`, bundled sample asset references, editor tests | Sample controls move out of Generate/Paint main UI; sample mode OFF hides bundled samples from main selectors; sample mode ON still keeps user-selected project assets primary. |
 | `SAMPLE-11` | `COMPLETE` | `SAMPLE-10` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/SAMPLE-11_DUPLICATE_SAMPLE_TO_PROJECT/` | Duplicate sample to project workflow | sample settings panel, duplication helpers, sample resources, package tests | Sample catalog/scene/tile dependencies can be duplicated to a project path; duplicate enters asset context as a project asset; no sample is silently assigned as project default. |
-| `SAMPLE-12` | `READY` | `SAMPLE-10` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/SAMPLE-12_FIRST_RUN_LEARNING_CTA/` | First-run learning CTA | workspace/settings UI, editor setting state, tests | First-run `Learn with bundled samples` CTA opens Settings / Samples; dismissing it shows normal project asset selection; CTA does not replace the production flow. |
+| `SAMPLE-12` | `COMPLETE` | `SAMPLE-10` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/SAMPLE-12_FIRST_RUN_LEARNING_CTA/` | First-run learning CTA | workspace/settings UI, editor setting state, tests | First-run `Learn with bundled samples` CTA opens Settings / Samples; dismissing it shows normal project asset selection; CTA does not replace the production flow. |
 
 ---
 
@@ -135,13 +135,14 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `SAMPLE-12`.
+Current recommended next task: `WORKSPACE-10`.
 
 Reason:
 
 - `SAMPLE-10` is complete and isolates bundled sample visibility in Settings.
 - `SAMPLE-11` is complete and makes bundled samples explicitly duplicable into project assets.
-- `SAMPLE-12` is the first dependency-satisfied READY task in queue order.
+- `SAMPLE-12` is complete and keeps first-run sample learning out of the production default path.
+- `WORKSPACE-10` is the first dependency-satisfied READY task in queue order.
 
 ---
 
@@ -259,3 +260,18 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_sample_settings_panel.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/SAMPLE-11_TEST_RESULT_2026-06-08.md`
+
+### SAMPLE-12 First-run learning CTA
+
+proof:
+  plan: `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/SAMPLE-12_FIRST_RUN_LEARNING_CTA/`
+  review: `docs/review/autopilot/SAMPLE-12_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_editor_session_state.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/SAMPLE-12_TEST_RESULT_2026-06-08.md`

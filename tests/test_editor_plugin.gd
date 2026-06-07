@@ -110,6 +110,7 @@ func _init() -> void:
 func _run() -> void:
 	_test_plugin_registration_files()
 	await _test_hex_map_workspace_exposes_tabs_and_routes_editing()
+	await _test_workspace_first_run_learning_cta_routes_to_settings_without_sample_defaults()
 	await _test_workspace_asset_context_is_shared_by_workspace_generate_and_paint()
 	await _test_workspace_sample_settings_panel_controls_sample_mode_sources()
 	_test_sample_asset_duplicator_copies_catalog_dependencies_to_project()
@@ -291,6 +292,74 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 
 	layer.queue_free()
 	workspace.queue_free()
+	await process_frame
+
+
+func _test_workspace_first_run_learning_cta_routes_to_settings_without_sample_defaults() -> void:
+	var session = HexMapEditorSessionState.new()
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	_assert_true(session.sample_learning_cta_visible(), "sample learning CTA is visible for first workspace session")
+	var snapshot = workspace.sample_learning_cta_snapshot()
+	_assert_true(bool(snapshot["visible"]), "workspace exposes visible first-run sample CTA")
+	_assert_eq(String(snapshot["learn_label"]), "Learn with bundled samples", "sample CTA uses learning action label")
+	_assert_eq(workspace.current_workspace_tab_name(), "Document", "workspace starts on normal project document tab")
+	_assert_true(
+		not session.show_bundled_samples_in_main_selectors,
+		"sample CTA does not enable sample selector visibility by default"
+	)
+	_assert_eq(workspace.generation_dock().tile_catalog(), null, "sample CTA initial state does not assign generation sample catalog")
+	_assert_eq(workspace.edit_tool().tile_catalog(), null, "sample CTA initial state does not assign paint sample catalog")
+
+	workspace.open_sample_learning_cta()
+	await process_frame
+	snapshot = workspace.sample_learning_cta_snapshot()
+	_assert_true(not bool(snapshot["visible"]), "opening sample CTA hides it for this session")
+	_assert_true(bool(snapshot["dismissed"]), "opening sample CTA records dismissed first-run state")
+	_assert_eq(workspace.current_workspace_tab_name(), "Settings", "sample CTA routes to Settings tab")
+	_assert_true(
+		not session.show_bundled_samples_in_main_selectors,
+		"sample CTA routing does not enable sample mode"
+	)
+	_assert_true(
+		not session.use_bundled_sample_assets_for_scratch_documents,
+		"sample CTA routing does not enable scratch sample assets"
+	)
+	_assert_eq(workspace.generation_dock().tile_catalog(), null, "sample CTA routing does not assign generation sample catalog")
+	_assert_eq(workspace.edit_tool().tile_catalog(), null, "sample CTA routing does not assign paint sample catalog")
+
+	workspace.queue_free()
+	await process_frame
+
+	var reused_workspace = HexMapWorkspace.new()
+	reused_workspace.set_editor_session_state(session)
+	root.add_child(reused_workspace)
+	await process_frame
+	_assert_true(not reused_workspace.sample_learning_cta_visible(), "dismissed sample CTA does not reappear in same session")
+	reused_workspace.queue_free()
+	await process_frame
+
+	var dismiss_session = HexMapEditorSessionState.new()
+	var dismiss_workspace = HexMapWorkspace.new()
+	dismiss_workspace.set_editor_session_state(dismiss_session)
+	root.add_child(dismiss_workspace)
+	await process_frame
+	_assert_true(dismiss_workspace.sample_learning_cta_visible(), "fresh session starts with sample CTA")
+	dismiss_workspace.dismiss_sample_learning_cta()
+	await process_frame
+	_assert_true(not dismiss_workspace.sample_learning_cta_visible(), "sample CTA dismiss action hides CTA")
+	_assert_eq(dismiss_workspace.current_workspace_tab_name(), "Document", "dismissing sample CTA keeps normal project tab")
+	_assert_true(
+		not dismiss_session.show_bundled_samples_in_main_selectors,
+		"dismissing sample CTA does not enable sample mode"
+	)
+	_assert_eq(dismiss_workspace.generation_dock().tile_catalog(), null, "dismissed sample CTA leaves generation catalog unset")
+	_assert_eq(dismiss_workspace.edit_tool().tile_catalog(), null, "dismissed sample CTA leaves paint catalog unset")
+
+	dismiss_workspace.queue_free()
 	await process_frame
 
 

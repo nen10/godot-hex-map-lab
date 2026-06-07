@@ -17,6 +17,7 @@ var workspace_asset_context: HexMapWorkspaceAssetContext = HexMapWorkspaceAssetC
 var show_bundled_samples_in_main_selectors := false
 var use_bundled_sample_assets_for_scratch_documents := false
 var auto_create_project_copy_when_applying_sample := false
+var sample_learning_cta_dismissed := false
 var last_reason: String = ""
 
 
@@ -131,6 +132,22 @@ func set_auto_create_project_copy_when_applying_sample(enabled: bool, reason: St
 	changed.emit("sample_settings.auto_create_project_copy_when_applying_sample")
 
 
+func set_sample_learning_cta_dismissed(dismissed: bool, reason: String = "") -> void:
+	if sample_learning_cta_dismissed == dismissed:
+		return
+	sample_learning_cta_dismissed = dismissed
+	last_reason = reason
+	changed.emit("sample_settings.sample_learning_cta_dismissed")
+
+
+func dismiss_sample_learning_cta(reason: String = "") -> void:
+	set_sample_learning_cta_dismissed(true, reason)
+
+
+func sample_learning_cta_visible() -> bool:
+	return not sample_learning_cta_dismissed
+
+
 func snapshot() -> Dictionary:
 	var context := current_workspace_asset_context()
 	return {
@@ -146,6 +163,8 @@ func snapshot() -> Dictionary:
 		"show_bundled_samples_in_main_selectors": show_bundled_samples_in_main_selectors,
 		"use_bundled_sample_assets_for_scratch_documents": use_bundled_sample_assets_for_scratch_documents,
 		"auto_create_project_copy_when_applying_sample": auto_create_project_copy_when_applying_sample,
+		"sample_learning_cta_dismissed": sample_learning_cta_dismissed,
+		"sample_learning_cta_visible": sample_learning_cta_visible(),
 		"last_reason": last_reason,
 	}
 
