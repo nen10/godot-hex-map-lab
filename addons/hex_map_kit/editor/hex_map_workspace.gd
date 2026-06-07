@@ -7,6 +7,8 @@ const HexMapGenDock = preload("res://addons/hex_map_kit/editor/hex_map_gen_dock.
 const HexMapEditTool = preload("res://addons/hex_map_kit/editor/hex_map_edit_tool.gd")
 const HexMapSampleSettingsPanel = preload("res://addons/hex_map_kit/editor/hex_map_sample_settings_panel.gd")
 const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
+const HexMapWorkspaceAssetPanel = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_panel.gd")
+const HexMapWorkspaceAssetResourceFactory = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_resource_factory.gd")
 const HexMapWorkspaceComponentRegistry = preload("res://addons/hex_map_kit/editor/hex_map_workspace_component_registry.gd")
 
 var _editor_session_state: HexMapEditorSessionState = null
@@ -17,6 +19,8 @@ var _dismiss_samples_button: Button
 var _generation_dock: HexMapGenDock
 var _edit_tool: HexMapEditTool
 var _sample_settings_panel: HexMapSampleSettingsPanel
+var _asset_panels: Dictionary = {}
+var _tab_components: Dictionary = {}
 var _tab_pages: Dictionary = {}
 
 
@@ -139,6 +143,36 @@ func component_for_responsibility(responsibility: String) -> Dictionary:
 	return HexMapWorkspaceComponentRegistry.component_for_responsibility(responsibility)
 
 
+func tab_has_component(tab_name: String, component_id: String = "") -> bool:
+	var components = _tab_components.get(tab_name, {})
+	if not components is Dictionary:
+		return false
+	if component_id == "":
+		return not components.is_empty()
+	return components.has(component_id)
+
+
+func asset_slot_count(tab_name: String) -> int:
+	var panel = _asset_panels.get(tab_name, null) as HexMapWorkspaceAssetPanel
+	if panel == null:
+		return 0
+	return panel.asset_slot_count()
+
+
+func tab_asset_slot_ids(tab_name: String) -> PackedStringArray:
+	var panel = _asset_panels.get(tab_name, null) as HexMapWorkspaceAssetPanel
+	if panel == null:
+		return PackedStringArray()
+	return panel.asset_slot_ids()
+
+
+func tab_asset_slot_snapshot(tab_name: String, slot_id: String) -> Dictionary:
+	var panel = _asset_panels.get(tab_name, null) as HexMapWorkspaceAssetPanel
+	if panel == null:
+		return {}
+	return panel.asset_slot_snapshot(slot_id)
+
+
 func _build_ui() -> void:
 	if _tabs != null:
 		return
@@ -151,6 +185,7 @@ func _build_ui() -> void:
 	add_child(_tabs)
 	for tab_name in HexMapWorkspaceComponentRegistry.tab_names():
 		_add_tab_page(String(tab_name))
+	_mount_workspace_asset_panels()
 	_mount_generation_panel()
 	_mount_edit_panel()
 	_mount_sample_settings_panel()
@@ -187,6 +222,101 @@ func _add_tab_page(tab_name: String) -> VBoxContainer:
 	return page
 
 
+func _mount_workspace_asset_panels() -> void:
+	_mount_asset_panel(
+		HexMapWorkspaceComponentRegistry.TAB_DOCUMENT,
+		"document_asset_panel",
+		"Document Assets",
+		[
+			_slot_row(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "Level Document"),
+			_slot_row(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, "Tile Catalog"),
+			_slot_row(HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE, "Object Database", false),
+			_slot_row(HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE, "Label Database", false),
+			_slot_row(HexMapWorkspaceAssetContext.SLOT_LAYER_STACK, "Layer Stack", false),
+		]
+	)
+	_mount_asset_panel(
+		HexMapWorkspaceComponentRegistry.TAB_CATALOG,
+		"catalog_asset_panel",
+		"Catalog Assets",
+		[
+			_slot_row(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, "Tile Catalog"),
+		]
+	)
+	_mount_asset_panel(
+		HexMapWorkspaceComponentRegistry.TAB_LAYERS,
+		"layer_stack_asset_panel",
+		"Layer Assets",
+		[
+			_slot_row(HexMapWorkspaceAssetContext.SLOT_LAYER_STACK, "Layer Stack"),
+		]
+	)
+	_mount_asset_panel(
+		HexMapWorkspaceComponentRegistry.TAB_VALIDATE,
+		"validation_asset_panel",
+		"Validation Assets",
+		[
+			_slot_row(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "Level Document"),
+			_slot_row(HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE, "Validation Rule Suite"),
+		]
+	)
+	_mount_asset_panel(
+		HexMapWorkspaceComponentRegistry.TAB_QA,
+		"qa_asset_panel",
+		"QA Assets",
+		[
+			_slot_row(HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE, "Generation Profile"),
+			_slot_row(HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE, "Validation Rule Suite"),
+			_slot_row(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "Promotion Target Document", false),
+		]
+	)
+	_mount_asset_panel(
+		HexMapWorkspaceComponentRegistry.TAB_EXPORT,
+		"export_asset_panel",
+		"Export Assets",
+		[
+			_slot_row(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "Level Document"),
+		]
+	)
+	_mount_asset_panel(
+		HexMapWorkspaceComponentRegistry.TAB_SETTINGS,
+		"settings_project_defaults_panel",
+		"Project Defaults",
+		[
+			_slot_row(HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE, "Movement Profile", false),
+		]
+	)
+
+
+func _mount_asset_panel(
+	tab_name: String,
+	component_id: String,
+	title: String,
+	slot_rows: Array[Dictionary]
+) -> void:
+	var page = _tab_pages.get(tab_name, null)
+	if page == null:
+		return
+	var panel := HexMapWorkspaceAssetPanel.new()
+	panel.configure(tab_name, component_id, title, slot_rows)
+	panel.set_workspace_asset_context(workspace_asset_context())
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	(page as Control).add_child(panel)
+	_asset_panels[tab_name] = panel
+	_register_tab_component(tab_name, component_id, panel)
+
+
+func _slot_row(slot_id: String, display_name: String, required: bool = true) -> Dictionary:
+	return {
+		"slot_id": slot_id,
+		"display_name": display_name,
+		"required": required,
+		"required_type": HexMapWorkspaceAssetResourceFactory.resource_type_name(slot_id),
+		"allows_create_new": true,
+	}
+
+
 func _mount_generation_panel() -> void:
 	var page = _tab_pages.get(HexMapWorkspaceComponentRegistry.TAB_GENERATE, null)
 	if page == null:
@@ -197,6 +327,7 @@ func _mount_generation_panel() -> void:
 	_generation_dock.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_generation_dock.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	(page as Control).add_child(_generation_dock)
+	_register_tab_component(HexMapWorkspaceComponentRegistry.TAB_GENERATE, "generation_panel", _generation_dock)
 
 
 func _mount_edit_panel() -> void:
@@ -209,6 +340,7 @@ func _mount_edit_panel() -> void:
 	_edit_tool.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_edit_tool.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	(page as Control).add_child(_edit_tool)
+	_register_tab_component(HexMapWorkspaceComponentRegistry.TAB_PAINT, "brush_palette", _edit_tool)
 
 
 func _mount_sample_settings_panel() -> void:
@@ -220,6 +352,7 @@ func _mount_sample_settings_panel() -> void:
 	_sample_settings_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_sample_settings_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	(page as Control).add_child(_sample_settings_panel)
+	_register_tab_component(HexMapWorkspaceComponentRegistry.TAB_SETTINGS, "sample_settings_panel", _sample_settings_panel)
 
 
 func _ensure_session_state() -> HexMapEditorSessionState:
@@ -236,10 +369,19 @@ func _connect_session_state() -> void:
 
 func _sync_workspace_asset_context() -> void:
 	var context := workspace_asset_context()
+	for panel in _asset_panels.values():
+		if panel is HexMapWorkspaceAssetPanel:
+			(panel as HexMapWorkspaceAssetPanel).set_workspace_asset_context(context)
 	if _generation_dock != null:
 		_generation_dock.set_workspace_asset_context(context)
 	if _edit_tool != null:
 		_edit_tool.set_workspace_asset_context(context)
+
+
+func _register_tab_component(tab_name: String, component_id: String, control: Control) -> void:
+	if not _tab_components.has(tab_name):
+		_tab_components[tab_name] = {}
+	_tab_components[tab_name][component_id] = control
 
 
 func _refresh_sample_learning_cta() -> void:

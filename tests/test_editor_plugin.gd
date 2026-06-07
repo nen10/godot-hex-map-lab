@@ -280,6 +280,35 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 	_assert_eq(workspace.generation_dock().editor_session_state(), session, "workspace forwards session to generation component")
 	_assert_eq(workspace.edit_tool().editor_session_state(), session, "workspace forwards session to paint/edit component")
 	_assert_eq(workspace.sample_settings_panel().editor_session_state(), session, "workspace forwards session to sample settings component")
+	var asset_tab_expectations := [
+		{"tab": "Document", "component": "document_asset_panel", "count": 5, "slot": "level_document"},
+		{"tab": "Catalog", "component": "catalog_asset_panel", "count": 1, "slot": "tile_catalog"},
+		{"tab": "Layers", "component": "layer_stack_asset_panel", "count": 1, "slot": "layer_stack"},
+		{"tab": "Validate", "component": "validation_asset_panel", "count": 2, "slot": "validation_rule_suite"},
+		{"tab": "QA", "component": "qa_asset_panel", "count": 3, "slot": "generation_profile"},
+		{"tab": "Export", "component": "export_asset_panel", "count": 1, "slot": "level_document"},
+		{"tab": "Settings", "component": "settings_project_defaults_panel", "count": 1, "slot": "movement_profile"},
+	]
+	for expectation in asset_tab_expectations:
+		var tab_name := String(expectation["tab"])
+		_assert_true(
+			workspace.tab_has_component(tab_name, String(expectation["component"])),
+			"%s tab has real asset component" % tab_name
+		)
+		_assert_eq(
+			workspace.asset_slot_count(tab_name),
+			int(expectation["count"]),
+			"%s tab owns expected asset slot count" % tab_name
+		)
+		_assert_true(
+			workspace.tab_asset_slot_ids(tab_name).has(String(expectation["slot"])),
+			"%s tab exposes expected asset slot id" % tab_name
+		)
+	_assert_true(workspace.tab_has_component("Generate", "generation_panel"), "Generate tab keeps generation component")
+	_assert_true(workspace.tab_has_component("Paint", "brush_palette"), "Paint tab keeps paint component")
+	_assert_eq(workspace.asset_slot_count("Paint"), 0, "Paint tab no longer owns setup asset panels")
+	_assert_true(not workspace.tab_has_component("Paint", "document_asset_panel"), "Paint tab does not own Document setup component")
+	_assert_true(workspace.tab_has_component("Settings", "sample_settings_panel"), "Settings tab keeps sample settings component")
 
 	var layer = TileMapLayer.new()
 	root.add_child(layer)
@@ -461,6 +490,11 @@ func _test_workspace_asset_context_is_shared_by_workspace_generate_and_paint() -
 		"generation dock consumes context tile catalog"
 	)
 	_assert_eq(
+		workspace.tab_asset_slot_snapshot("Catalog", HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG).get("current_resource", null),
+		session_catalog,
+		"Catalog tab asset slot consumes context tile catalog"
+	)
+	_assert_eq(
 		workspace.edit_tool().tile_catalog(),
 		session_catalog,
 		"paint tool consumes context tile catalog"
@@ -482,6 +516,11 @@ func _test_workspace_asset_context_is_shared_by_workspace_generate_and_paint() -
 		workspace.generation_dock().tile_catalog(),
 		paint_catalog,
 		"generation dock consumes paint-selected project catalog through context"
+	)
+	_assert_eq(
+		workspace.tab_asset_slot_snapshot("Catalog", HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG).get("current_resource", null),
+		paint_catalog,
+		"Catalog tab asset slot tracks paint-selected project catalog through context"
 	)
 
 	workspace.queue_free()
