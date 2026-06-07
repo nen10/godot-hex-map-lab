@@ -29,6 +29,7 @@ const HexDistEditor = preload("res://addons/hex_map_kit/editor/hex_dist_editor.g
 const HexAdjacencyRuleEditor = preload("res://addons/hex_map_kit/editor/hex_adjacency_rule_editor.gd")
 const HexCellButtonLayout = preload("res://addons/hex_map_kit/editor/hex_cell_button_layout.gd")
 const HexCellButtonPanel = preload("res://addons/hex_map_kit/editor/hex_cell_button_panel.gd")
+const HexTileCatalogEntry = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 
 class FakeTileLayer:
@@ -1143,6 +1144,37 @@ func _test_map_edit_tool_target_atlas_settings_use_target_tileset() -> void:
 func _test_map_edit_tool_catalog_selectors_drive_defaults_and_payloads() -> void:
 	var tool = await _new_ready_edit_tool()
 	_assert_true(tool.tile_catalog() != null, "map edit tool loads sample tile catalog")
+	_assert_true(tool._catalog_entries_tree != null, "map edit tool exposes catalog entry list")
+	_assert_true(tool._catalog_add_atlas_button != null, "map edit tool exposes Add Atlas Entry action")
+	_assert_true(tool._catalog_add_scene_button != null, "map edit tool exposes Add Scene Entry action")
+	_assert_true(tool._catalog_validate_button != null, "map edit tool exposes Validate Catalog action")
+	var catalog_rows = tool.catalog_entry_rows()
+	_assert_true(catalog_rows.size() >= 3, "catalog screen lists sample catalog entries")
+	var floor_row = _catalog_row_for_key(catalog_rows, "terrain.floor")
+	_assert_eq(floor_row["type"], HexTileCatalogEntry.TYPE_ATLAS, "catalog row shows atlas entry type")
+	_assert_true(String(floor_row["preview"]).begins_with("tile "), "catalog row shows atlas preview")
+	_assert_eq(floor_row["status"], "ok", "catalog row shows clean entry status")
+	var summary = tool.catalog_validation_summary()
+	_assert_eq(summary["errors"], 0, "catalog validation summary starts clean")
+	_assert_eq(summary["warnings"], 0, "catalog validation summary starts without warnings")
+
+	var packed_scene = PackedScene.new()
+	var scene_root = Node2D.new()
+	_assert_eq(packed_scene.pack(scene_root), OK, "test PackedScene packs for catalog scene entry")
+	tool._on_catalog_scene_changed(packed_scene)
+	var catalog_entry_count = tool.tile_catalog().entries.size()
+	tool._on_add_catalog_scene_entry_pressed()
+	var scene_entry = tool.tile_catalog().entries[catalog_entry_count]
+	_assert_eq(scene_entry.entry_type, HexTileCatalogEntry.TYPE_SCENE, "Add Scene Entry creates scene catalog entry")
+	_assert_eq(scene_entry.scene, packed_scene, "scene catalog entry stores PackedScene resource")
+	scene_root.free()
+
+	tool._on_add_catalog_atlas_entry_pressed()
+	_assert_eq(tool.tile_catalog().entries.size(), catalog_entry_count + 2, "Add Atlas Entry appends catalog entry")
+	tool._on_validate_catalog_pressed()
+	var updated_rows = tool.catalog_entry_rows()
+	var added_scene_row = _catalog_row_for_key(updated_rows, scene_entry.key)
+	_assert_eq(added_scene_row["type"], HexTileCatalogEntry.TYPE_SCENE, "catalog rows include newly added scene entry")
 	_assert_true(tool._default_floor_catalog_option.item_count >= 2, "map edit tool default floor catalog lists sample entries")
 	_assert_true(tool._default_wall_catalog_option.item_count >= 2, "map edit tool default wall catalog lists sample entries")
 
@@ -1161,6 +1193,8 @@ func _test_map_edit_tool_catalog_selectors_drive_defaults_and_payloads() -> void
 	tool._on_tile_catalog_selected(tool._tile_catalog_option.selected)
 	_assert_eq(tool._floor_tile_payload["catalog_key"], "terrain.floor", "floor tile payload stores catalog key")
 	_assert_eq(tool._floor_tile_payload["atlas_coords"], Vector2i(0, 0), "floor tile payload resolves catalog atlas")
+	_assert_true(not _control_row_visible(tool._tile_source_spin), "floor tile mode hides source id paint control")
+	_assert_true(not _control_row_visible(tool._tile_atlas_x_spin), "floor tile mode hides atlas coordinate paint controls")
 
 	tool.set_edit_mode(HexMapEditTool.EditMode.WALL_TILE)
 	tool._select_catalog_option_by_key(tool._tile_catalog_option, "terrain.wall")
@@ -1178,6 +1212,7 @@ func _test_map_edit_tool_catalog_selectors_drive_defaults_and_payloads() -> void
 	tool._on_object_catalog_selected(tool._object_catalog_option.selected)
 	_assert_eq(tool._object_payload["object_id"], "object.spawn_marker", "object selector stores catalog key as object default")
 	_assert_eq(tool._object_id_edit.text, "object.spawn_marker", "object selector updates object id text")
+	_assert_true(not _control_row_visible(tool._object_id_edit), "object mode hides raw object id paint control")
 
 	tool.queue_free()
 	await process_frame
@@ -1713,7 +1748,8 @@ func _test_map_edit_tool_mode_specific_payload_controls() -> void:
 	_assert_true(not _control_row_visible(tool._object_id_edit), "overlay tile mode hides object payload controls")
 
 	tool.set_edit_mode(HexMapEditTool.EditMode.OBJECT)
-	_assert_true(_control_row_visible(tool._object_id_edit), "object mode shows object payload controls")
+	_assert_true(_control_row_visible(tool._object_catalog_option), "object mode shows object catalog key control")
+	_assert_true(not _control_row_visible(tool._object_id_edit), "object mode hides raw object id control")
 	_assert_true(_control_row_visible(tool._object_properties_edit), "object mode shows object properties control")
 	_assert_true(_control_row_visible(tool._object_rotation_spin), "object mode shows object rotation control")
 	_assert_true(_control_row_visible(tool._object_variant_edit), "object mode shows object variant control")
@@ -4307,6 +4343,13 @@ func _control_row_visible(control: Control) -> bool:
 	if parent is Control:
 		return (parent as Control).visible
 	return control.visible
+
+
+func _catalog_row_for_key(rows: Array, key: String) -> Dictionary:
+	for row in rows:
+		if String(row.get("key", "")) == key:
+			return row
+	return {}
 
 
 func _assert_true(value: bool, message: String) -> void:

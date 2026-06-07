@@ -13,7 +13,9 @@ const HexMapEditViewportInputAdapter = preload("res://addons/hex_map_kit/editor/
 const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
 const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
 const HexMapValidationDashboard = preload("res://addons/hex_map_kit/editor/hex_map_validation_dashboard.gd")
+const HexTileCatalogEntry = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd")
 const HexTileCatalogResource = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd")
+const HexTileCatalogValidator = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_validator.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 
@@ -28,7 +30,7 @@ const DOCUMENT_SOURCE_TARGET := "target"
 const DOCUMENT_SOURCE_SAVE := "save"
 const DOCUMENT_SOURCE_NEW := "new"
 const SAMPLE_TILE_CATALOG_PATH := "res://addons/hex_map_kit/assets/sample_hex_tile_catalog.tres"
-const CATALOG_FALLBACK_LABEL := "Advanced numeric fallback"
+const CATALOG_FALLBACK_LABEL := "Choose catalog key"
 
 enum EditMode {
 	SHAPE,
@@ -109,6 +111,7 @@ var _last_edit_status: Dictionary = {}
 var _target_status_detail: Dictionary = {}
 var _last_persistence_status: Dictionary = {}
 var _last_validation_result = null
+var _last_catalog_validation_result = null
 var _selected_validation_issue: Dictionary = {}
 var _validation_focus_status: Dictionary = {}
 var _pending_viewport_trace: Dictionary = {}
@@ -148,6 +151,15 @@ var _target_label: Label
 var _target_option: OptionButton
 var _target_refresh_button: Button
 var _mode_option: OptionButton
+var _catalog_resource_picker
+var _catalog_tile_set_picker
+var _catalog_scene_picker
+var _catalog_entries_tree: Tree
+var _catalog_status_label: Label
+var _catalog_add_atlas_button: Button
+var _catalog_add_scene_button: Button
+var _catalog_validate_button: Button
+var _catalog_scene_resource: PackedScene
 var _object_database_picker
 var _label_database_picker
 var _tile_source_spin: SpinBox
@@ -459,7 +471,11 @@ func label_database() -> Resource:
 
 func set_tile_catalog(catalog: HexTileCatalogResource) -> void:
 	_tile_catalog = catalog
+	_last_catalog_validation_result = null
+	_sync_resource_pickers()
 	_refresh_catalog_options()
+	_refresh_catalog_entries()
+	_refresh_action_button_states()
 
 
 func tile_catalog() -> HexTileCatalogResource:
@@ -913,6 +929,54 @@ func _build_ui() -> void:
 	_mode_option.item_selected.connect(_on_mode_selected)
 	root.add_child(_wrap_labeled("Edit Mode", _mode_option))
 
+	var catalog_title = Label.new()
+	catalog_title.text = "Catalog"
+	root.add_child(catalog_title)
+	if _can_use_editor_resource_picker():
+		_catalog_resource_picker = EditorResourcePicker.new()
+		_catalog_resource_picker.base_type = "HexTileCatalogResource"
+		_catalog_resource_picker.resource_changed.connect(_on_catalog_resource_changed)
+		root.add_child(_wrap_labeled("Catalog Resource", _catalog_resource_picker))
+
+		_catalog_tile_set_picker = EditorResourcePicker.new()
+		_catalog_tile_set_picker.base_type = "TileSet"
+		_catalog_tile_set_picker.resource_changed.connect(_on_catalog_tile_set_changed)
+		root.add_child(_wrap_labeled("TileSet", _catalog_tile_set_picker))
+
+		_catalog_scene_picker = EditorResourcePicker.new()
+		_catalog_scene_picker.base_type = "PackedScene"
+		_catalog_scene_picker.resource_changed.connect(_on_catalog_scene_changed)
+		root.add_child(_wrap_labeled("Scene Entry Resource", _catalog_scene_picker))
+
+	_catalog_entries_tree = Tree.new()
+	_catalog_entries_tree.hide_root = true
+	_catalog_entries_tree.columns = 5
+	_catalog_entries_tree.set_column_titles_visible(true)
+	_catalog_entries_tree.set_column_title(0, "key")
+	_catalog_entries_tree.set_column_title(1, "type")
+	_catalog_entries_tree.set_column_title(2, "preview")
+	_catalog_entries_tree.set_column_title(3, "tags")
+	_catalog_entries_tree.set_column_title(4, "status")
+	_catalog_entries_tree.custom_minimum_size = Vector2(0, 132)
+	_catalog_entries_tree.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.add_child(_catalog_entries_tree)
+	_catalog_status_label = _new_detail_label()
+	root.add_child(_wrap_labeled("Catalog Status", _catalog_status_label))
+	var catalog_actions_row = HBoxContainer.new()
+	_catalog_add_atlas_button = Button.new()
+	_catalog_add_atlas_button.text = "Add Atlas Entry"
+	_catalog_add_atlas_button.pressed.connect(_on_add_catalog_atlas_entry_pressed)
+	catalog_actions_row.add_child(_catalog_add_atlas_button)
+	_catalog_add_scene_button = Button.new()
+	_catalog_add_scene_button.text = "Add Scene Entry"
+	_catalog_add_scene_button.pressed.connect(_on_add_catalog_scene_entry_pressed)
+	catalog_actions_row.add_child(_catalog_add_scene_button)
+	_catalog_validate_button = Button.new()
+	_catalog_validate_button.text = "Validate Catalog"
+	_catalog_validate_button.pressed.connect(_on_validate_catalog_pressed)
+	catalog_actions_row.add_child(_catalog_validate_button)
+	root.add_child(catalog_actions_row)
+
 	var default_tiles_title = Label.new()
 	default_tiles_title.text = "Default Target Tiles"
 	root.add_child(default_tiles_title)
@@ -1104,6 +1168,8 @@ func _build_ui() -> void:
 	_copy_debug_report_button.text = "Copy Debug Report"
 	_copy_debug_report_button.pressed.connect(_on_copy_debug_report_pressed)
 	root.add_child(_copy_debug_report_button)
+	_sync_resource_pickers()
+	_refresh_catalog_entries()
 	_refresh_target_status_detail()
 	_refresh_last_edit_detail()
 	_refresh_persistence_detail()
@@ -1612,6 +1678,101 @@ func _on_tile_catalog_selected(index: int) -> void:
 	_refresh_target_status_detail()
 
 
+func _on_catalog_resource_changed(resource: Resource) -> void:
+	if resource == null:
+		set_tile_catalog(null)
+		_set_status("Catalog cleared.")
+		return
+	if resource is HexTileCatalogResource:
+		set_tile_catalog(resource as HexTileCatalogResource)
+		_set_status("Catalog selected.")
+	else:
+		_set_status("Selected resource is not a tile catalog.")
+
+
+func _on_catalog_tile_set_changed(resource: Resource) -> void:
+	var catalog = _ensure_tile_catalog()
+	if catalog == null:
+		_set_status("No catalog selected.")
+		return
+	if resource == null:
+		catalog.tile_set = null
+		_last_catalog_validation_result = null
+		_refresh_catalog_entries()
+		_set_status("Catalog TileSet cleared.")
+		return
+	if not (resource is TileSet):
+		_set_status("Selected resource is not a TileSet.")
+		return
+	catalog.tile_set = resource as TileSet
+	_last_catalog_validation_result = null
+	_refresh_catalog_entries()
+	_set_status("Catalog TileSet selected.")
+
+
+func _on_catalog_scene_changed(resource: Resource) -> void:
+	if resource == null:
+		_catalog_scene_resource = null
+		_set_status("Scene resource cleared.")
+		return
+	if resource is PackedScene:
+		_catalog_scene_resource = resource as PackedScene
+		_set_status("Scene resource selected for catalog entry.")
+	else:
+		_catalog_scene_resource = null
+		_set_status("Selected resource is not a PackedScene.")
+
+
+func _on_add_catalog_atlas_entry_pressed() -> void:
+	var catalog = _ensure_tile_catalog()
+	if catalog == null:
+		_set_status("No catalog selected.")
+		return
+	var entry = HexTileCatalogEntry.new()
+	entry.key = _unique_catalog_key("atlas.entry")
+	entry.display_name = entry.key
+	entry.entry_type = HexTileCatalogEntry.TYPE_ATLAS
+	entry.tags = PackedStringArray(["terrain"])
+	catalog.add_entry(entry)
+	_last_catalog_validation_result = null
+	_refresh_catalog_options()
+	_refresh_catalog_entries()
+	_set_status("Added atlas catalog entry.")
+
+
+func _on_add_catalog_scene_entry_pressed() -> void:
+	var catalog = _ensure_tile_catalog()
+	if catalog == null:
+		_set_status("No catalog selected.")
+		return
+	var entry = HexTileCatalogEntry.new()
+	entry.key = _unique_catalog_key("scene.entry")
+	entry.display_name = entry.key
+	entry.entry_type = HexTileCatalogEntry.TYPE_SCENE
+	entry.scene = _catalog_scene_resource
+	entry.tags = PackedStringArray(["object"])
+	catalog.add_entry(entry)
+	_last_catalog_validation_result = null
+	_refresh_catalog_options()
+	_refresh_catalog_entries()
+	_set_status("Added scene catalog entry.")
+
+
+func _on_validate_catalog_pressed() -> void:
+	var catalog = _ensure_tile_catalog()
+	_last_catalog_validation_result = HexTileCatalogValidator.validate_catalog(catalog)
+	_refresh_catalog_entries()
+	if _last_catalog_validation_result == null:
+		_set_status("No catalog selected.")
+	else:
+		_set_status(
+			"Catalog validation complete: %d error(s), %d warning(s)." % [
+				_last_catalog_validation_result.error_count(),
+				_last_catalog_validation_result.warning_count(),
+			]
+		)
+
+
 func _on_overlay_item_key_changed(text: String) -> void:
 	_overlay_item_key = text.strip_edges()
 	_refresh_target_status_detail()
@@ -1910,14 +2071,22 @@ func _refresh_payload_controls_visibility() -> void:
 	var show_object = _edit_mode == EditMode.OBJECT
 	var show_label = _edit_mode == EditMode.LABEL
 	_set_control_row_visible(_tile_catalog_option, show_tile)
-	_set_control_row_visible(_tile_source_spin, show_tile)
-	_set_control_row_visible(_tile_atlas_x_spin, show_tile)
-	_set_control_row_visible(_tile_atlas_y_spin, show_tile)
-	_set_control_row_visible(_tile_alternative_spin, show_tile)
+	_set_control_row_visible(_tile_source_spin, false)
+	_set_control_row_visible(_tile_atlas_x_spin, false)
+	_set_control_row_visible(_tile_atlas_y_spin, false)
+	_set_control_row_visible(_tile_alternative_spin, false)
+	_set_control_row_visible(_default_floor_source_spin, false)
+	_set_control_row_visible(_default_floor_atlas_x_spin, false)
+	_set_control_row_visible(_default_floor_atlas_y_spin, false)
+	_set_control_row_visible(_default_floor_alternative_spin, false)
+	_set_control_row_visible(_default_wall_source_spin, false)
+	_set_control_row_visible(_default_wall_atlas_x_spin, false)
+	_set_control_row_visible(_default_wall_atlas_y_spin, false)
+	_set_control_row_visible(_default_wall_alternative_spin, false)
 	_set_control_row_visible(_overlay_item_key_edit, show_overlay)
 	_set_control_row_visible(_overlay_item_key_option, show_overlay)
 	_set_control_row_visible(_object_catalog_option, show_object)
-	_set_control_row_visible(_object_id_edit, show_object)
+	_set_control_row_visible(_object_id_edit, false)
 	_set_control_row_visible(_object_rotation_spin, show_object)
 	_set_control_row_visible(_object_variant_edit, show_object)
 	_set_control_row_visible(_object_properties_edit, show_object)
@@ -1945,6 +2114,13 @@ func _sync_resource_pickers() -> void:
 		_document_resource_picker.edited_resource = _document
 	if _import_map_resource_picker != null:
 		_import_map_resource_picker.edited_resource = _import_map_resource
+	if _catalog_resource_picker != null:
+		_catalog_resource_picker.edited_resource = _ensure_tile_catalog()
+	if _catalog_tile_set_picker != null:
+		var catalog = _ensure_tile_catalog()
+		_catalog_tile_set_picker.edited_resource = catalog.tile_set if catalog != null else null
+	if _catalog_scene_picker != null:
+		_catalog_scene_picker.edited_resource = _catalog_scene_resource
 	if _target_tile_set_picker != null:
 		_target_tile_set_picker.edited_resource = _target_tile_set_for_current_target()
 	if _object_database_picker != null:
@@ -3129,6 +3305,7 @@ func _refresh_action_button_states() -> void:
 	var target_valid = _target_layer != null and is_instance_valid(_target_layer)
 	var hex_target = target_valid and _target_layer is HexTileMapLayer
 	var document_present = _document != null
+	var catalog_present = _ensure_tile_catalog() != null
 	_set_button_enabled(_document_browse_button, true, "")
 	_set_button_enabled(
 		_document_load_button,
@@ -3156,6 +3333,9 @@ func _refresh_action_button_states() -> void:
 	_set_button_enabled(_select_display_layer_button, hex_target, "No HexTileMapLayer target.")
 	_set_button_enabled(_default_tile_read_button, target_valid, "No editable target layer.")
 	_set_button_enabled(_default_tile_apply_button, target_valid, "No editable target layer.")
+	_set_button_enabled(_catalog_add_atlas_button, catalog_present, "No catalog selected.")
+	_set_button_enabled(_catalog_add_scene_button, catalog_present, "No catalog selected.")
+	_set_button_enabled(_catalog_validate_button, catalog_present, "No catalog selected.")
 	if _validation_dashboard != null:
 		_validation_dashboard.set_validate_enabled(document_present, "No document selected.")
 
@@ -3228,6 +3408,7 @@ func _refresh_catalog_options() -> void:
 	_populate_catalog_option(_default_wall_catalog_option, "wall", _catalog_key_from_option(_default_wall_catalog_option))
 	_populate_catalog_option(_tile_catalog_option, _tile_catalog_tag_for_mode(), String(_tile_payload.get("catalog_key", "")))
 	_populate_catalog_option(_object_catalog_option, "object", String(_object_payload.get("object_id", "")))
+	_refresh_catalog_entries()
 
 
 func _populate_catalog_option(option: OptionButton, tag: String, selected_key: String = "") -> void:
@@ -3285,6 +3466,139 @@ func _select_catalog_option_by_key(option: OptionButton, key: String) -> void:
 			option.select(index)
 			return
 	option.select(0)
+
+
+func catalog_entry_rows() -> Array[Dictionary]:
+	var catalog = _ensure_tile_catalog()
+	if catalog == null:
+		return []
+	var validation = _catalog_validation_result()
+	var status_by_index = _catalog_status_by_entry_index(validation)
+	var rows: Array[Dictionary] = []
+	for index in range(catalog.entries.size()):
+		var entry = catalog.entries[index]
+		if entry == null:
+			rows.append({
+				"key": "<missing>",
+				"type": "",
+				"preview": "",
+				"tags": "",
+				"status": String(status_by_index.get(index, "warning")),
+			})
+			continue
+		rows.append({
+			"key": String(entry.get("key")),
+			"type": String(entry.get("entry_type")),
+			"preview": _catalog_entry_preview_text(entry),
+			"tags": _catalog_entry_tags_text(entry),
+			"status": String(status_by_index.get(index, "ok")),
+		})
+	return rows
+
+
+func catalog_validation_summary() -> Dictionary:
+	var validation = _catalog_validation_result()
+	if validation == null:
+		return {}
+	return {
+		"errors": validation.error_count(),
+		"warnings": validation.warning_count(),
+		"issues": validation.issue_count(),
+		"entries": int(validation.summary.get("entries", 0)),
+		"tile_set_present": bool(validation.summary.get("tile_set_present", false)),
+	}
+
+
+func _refresh_catalog_entries() -> void:
+	if _catalog_entries_tree != null:
+		_catalog_entries_tree.clear()
+		var root = _catalog_entries_tree.create_item()
+		for row in catalog_entry_rows():
+			var item = _catalog_entries_tree.create_item(root)
+			item.set_text(0, String(row.get("key", "")))
+			item.set_text(1, String(row.get("type", "")))
+			item.set_text(2, String(row.get("preview", "")))
+			item.set_text(3, String(row.get("tags", "")))
+			item.set_text(4, String(row.get("status", "")))
+	if _catalog_status_label != null:
+		_catalog_status_label.text = _catalog_status_text()
+
+
+func _catalog_validation_result():
+	if _last_catalog_validation_result == null:
+		_last_catalog_validation_result = HexTileCatalogValidator.validate_catalog(_ensure_tile_catalog())
+	return _last_catalog_validation_result
+
+
+func _catalog_status_by_entry_index(validation) -> Dictionary:
+	var statuses := {}
+	if validation == null:
+		return statuses
+	for issue in validation.issues:
+		if not issue is Dictionary:
+			continue
+		var metadata = issue.get("metadata", {})
+		if not metadata is Dictionary or not metadata.has("entry_index"):
+			continue
+		var entry_index = int(metadata.get("entry_index", -1))
+		if entry_index < 0:
+			continue
+		var severity = String(issue.get("severity", ""))
+		if severity == HexMapValidationResult.SEVERITY_ERROR:
+			statuses[entry_index] = "error"
+		elif not statuses.has(entry_index):
+			statuses[entry_index] = "warning"
+	return statuses
+
+
+func _catalog_entry_preview_text(entry) -> String:
+	var entry_type = String(entry.get("entry_type"))
+	if entry_type == HexTileCatalogEntry.TYPE_ATLAS:
+		return "tile %d %s alt %d" % [
+			int(entry.get("source_id")),
+			_atlas_text(entry.get("atlas_coords")),
+			int(entry.get("alternative_tile")),
+		]
+	if entry_type == HexTileCatalogEntry.TYPE_SCENE:
+		var scene = entry.get("scene")
+		return "scene" if scene is PackedScene else "missing scene"
+	if entry_type == HexTileCatalogEntry.TYPE_PLACEHOLDER:
+		return "placeholder"
+	return "invalid"
+
+
+func _catalog_entry_tags_text(entry) -> String:
+	var tags: PackedStringArray = entry.get("tags")
+	return ",".join(tags)
+
+
+func _catalog_status_text() -> String:
+	var catalog = _ensure_tile_catalog()
+	if catalog == null:
+		return "No catalog selected."
+	var validation = _catalog_validation_result()
+	var label = String(catalog.display_name if catalog.display_name != "" else catalog.catalog_id)
+	if label == "":
+		label = "unnamed catalog"
+	return "%s entries=%d TileSet=%s errors=%d warnings=%d" % [
+		label,
+		catalog.entries.size(),
+		"yes" if catalog.tile_set != null else "no",
+		validation.error_count() if validation != null else 0,
+		validation.warning_count() if validation != null else 0,
+	]
+
+
+func _unique_catalog_key(prefix: String) -> String:
+	var catalog = _ensure_tile_catalog()
+	if catalog == null:
+		return prefix
+	var index: int = catalog.entries.size() + 1
+	var key = "%s_%d" % [prefix, index]
+	while catalog.has_key(key):
+		index += 1
+		key = "%s_%d" % [prefix, index]
+	return key
 
 
 func _catalog_tile_config(key: String, fallback: Dictionary = {}) -> Dictionary:
