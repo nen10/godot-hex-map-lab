@@ -1111,6 +1111,7 @@ func _build_ui() -> void:
 	var target_atlas_row = HBoxContainer.new()
 	_target_atlas_path_edit = LineEdit.new()
 	_target_atlas_path_edit.placeholder_text = "res://path/to/tiles.png"
+	_target_atlas_path_edit.editable = false
 	_target_atlas_path_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_target_atlas_path_edit.text_changed.connect(_on_target_atlas_path_changed)
 	target_atlas_row.add_child(_wrap_labeled("Atlas Image", _target_atlas_path_edit))

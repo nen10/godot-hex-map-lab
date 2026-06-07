@@ -93,7 +93,7 @@ const QUERY_KIND_MASK := "mask"
 const QUERY_KIND_REFERENCE := "reference"
 const QUERY_KIND_DEDUCTOR_FLOOR := "deductor_floor"
 const SAMPLE_TILE_CATALOG_PATH := "res://addons/hex_map_kit/assets/sample_hex_tile_catalog.tres"
-const CATALOG_FALLBACK_LABEL := "Advanced numeric fallback"
+const CATALOG_FALLBACK_LABEL := "Choose catalog key"
 
 var _generator_row: HBoxContainer
 var _generate_option: OptionButton
@@ -468,7 +468,8 @@ func _build_ui() -> void:
 	var button_row = HBoxContainer.new()
 
 	_apply_layer_button = Button.new()
-	_apply_layer_button.text = "Apply Layer"
+	_apply_layer_button.text = "Advanced Apply"
+	_apply_layer_button.visible = false
 	_apply_layer_button.pressed.connect(_on_apply_layer_pressed)
 	button_row.add_child(_apply_layer_button)
 
@@ -893,6 +894,7 @@ func _build_tile_layer_controls() -> Control:
 	box.add_child(catalog_row)
 
 	var floor_row = HBoxContainer.new()
+	floor_row.visible = false
 	floor_row.add_child(_build_small_label("Floor"))
 	_floor_source_spin = _new_int_spin(0, 0, 1024)
 	_floor_source_spin.value_changed.connect(_on_tile_setting_changed)
@@ -906,6 +908,7 @@ func _build_tile_layer_controls() -> Control:
 	box.add_child(floor_row)
 
 	var wall_row = HBoxContainer.new()
+	wall_row.visible = false
 	wall_row.add_child(_build_small_label("Wall"))
 	_wall_source_spin = _new_int_spin(0, 0, 1024)
 	_wall_source_spin.value_changed.connect(_on_tile_setting_changed)
@@ -1755,27 +1758,33 @@ func _add_overlay_item_pool_row(item_name: String = "", amount: float = 1.0) -> 
 
 	var tile_label = Label.new()
 	tile_label.text = "Tile"
+	tile_label.visible = false
 	row.add_child(tile_label)
 	var catalog_option = _new_catalog_option("overlay")
 	row.add_child(catalog_option)
 	var tile_source_spin = _new_int_spin(0, 0, 1024)
+	tile_source_spin.visible = false
 	tile_source_spin.value_changed.connect(_on_option_changed)
 	row.add_child(tile_source_spin)
 	var tile_atlas_x_spin = _new_int_spin(1, 0, 4096)
+	tile_atlas_x_spin.visible = false
 	tile_atlas_x_spin.value_changed.connect(_on_option_changed)
 	row.add_child(tile_atlas_x_spin)
 	var tile_atlas_y_spin = _new_int_spin(0, 0, 4096)
+	tile_atlas_y_spin.visible = false
 	tile_atlas_y_spin.value_changed.connect(_on_option_changed)
 	row.add_child(tile_atlas_y_spin)
 
 	var copy_floor_button = Button.new()
 	copy_floor_button.text = "Floor Tile"
 	copy_floor_button.tooltip_text = "Copy current Floor tile settings"
+	copy_floor_button.visible = false
 	row.add_child(copy_floor_button)
 
 	var copy_wall_button = Button.new()
 	copy_wall_button.text = "Wall Tile"
 	copy_wall_button.tooltip_text = "Copy current Wall tile settings"
+	copy_wall_button.visible = false
 	row.add_child(copy_wall_button)
 
 	var remove_button = Button.new()
