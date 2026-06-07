@@ -38,6 +38,8 @@ Hex 座標系・ランダム壁生成・通路生成(連結性回復)処理を G
 
 Editor authoring starts in **Hex Map Workspace**. The production workflow is project asset selection: create or select a Level Document, Tile Catalog, TileSet, Object Database, Label Database, Generation Profile, Validation Rule Suite, Export Profile, and export destination through Resource pickers and FileDialogs. Normal tile and object workflows use catalog keys and object keys rather than raw tile source numbers or editable path text. Bundled samples live in Settings / Samples for learning and can be duplicated into project assets when you want to adapt them.
 
+For onboarding, use **Learn with bundled samples** to open Settings / Samples. Sample mode is OFF by default; turning it ON exposes bundled learning candidates while keeping selected project assets primary. `Duplicate sample catalog to project` copies the sample catalog, tile texture, and object scene into project-owned files.
+
 Examples:
 
 - `examples/basic_runtime/`

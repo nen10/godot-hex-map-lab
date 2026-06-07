@@ -37,6 +37,14 @@ res://addons/hex_map_kit/assets/sample_hex_tile_catalog.tres
 
 The sample catalog owns its `TileSet` resource and its scene-tile entry references a package-contained `PackedScene`. Duplicate the sample catalog to a project path before adapting it for production.
 
+Sample onboarding path:
+
+1. In a new workspace, `Learn with bundled samples` opens Settings / Samples.
+2. Sample mode starts OFF, so main screens stay focused on project asset selection.
+3. `Show bundled samples in asset selectors` reveals learning candidates without replacing selected project assets.
+4. `Duplicate sample catalog to project` creates project-owned copies of the catalog, tile texture, and object scene dependencies.
+5. After duplication, use the project copy in Catalog/Paint/Generate like any other project asset.
+
 More setup details: `docs/manual/MANUAL_SETUP.md`.
 
 ## 2. Use The Editor By Goal
@@ -62,6 +70,8 @@ Project asset first pass:
 3. Create or select Object and Label databases in `Paint`.
 4. Create or select Validation Rule Suite and Generation Profile resources in `Validate` and `QA`.
 5. Choose an Export Profile and destination in `Export`.
+
+Sample onboarding is optional and separate from this first pass. Use it to inspect or duplicate bundled assets, then return to project asset slots for production work.
 
 ## 3. Author A Level Document
 

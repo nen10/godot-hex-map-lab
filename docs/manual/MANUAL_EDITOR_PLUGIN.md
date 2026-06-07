@@ -191,10 +191,26 @@ Normal authoring should use concise status and validation rows. The debug report
 
 Bundled samples are learning assets. Open `Settings` / Samples to inspect them or duplicate the sample catalog into project-owned files before adapting it.
 
+First-run onboarding:
+
+1. Press `Learn with bundled samples` to open `Settings`.
+2. Keep sample mode OFF when starting a production project from empty project assets.
+3. Enable `Show bundled samples in asset selectors` when you want learning candidates visible in main selectors.
+4. Use `Duplicate sample catalog to project` before editing the sample catalog, TileSet texture, or object scene for production.
+
+Sample mode ON does not override selected project assets. If a project Tile Catalog is selected, Generate and Paint continue to use that project catalog before any bundled sample fallback.
+
 The included sample atlas is:
 
 ```text
 res://addons/hex_map_kit/assets/sample_hex_tiles.png
+```
+
+The sample catalog and object scene are:
+
+```text
+res://addons/hex_map_kit/assets/sample_hex_tile_catalog.tres
+res://addons/hex_map_kit/assets/sample_spawn_marker.tscn
 ```
 
 The sample setup uses:
