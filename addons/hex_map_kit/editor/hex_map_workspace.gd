@@ -5,6 +5,7 @@ extends VBoxContainer
 const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
 const HexMapGenDock = preload("res://addons/hex_map_kit/editor/hex_map_gen_dock.gd")
 const HexMapEditTool = preload("res://addons/hex_map_kit/editor/hex_map_edit_tool.gd")
+const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
 const HexMapWorkspaceComponentRegistry = preload("res://addons/hex_map_kit/editor/hex_map_workspace_component_registry.gd")
 
 var _editor_session_state: HexMapEditorSessionState = null
@@ -25,10 +26,26 @@ func set_editor_session_state(session: HexMapEditorSessionState) -> void:
 		_generation_dock.set_editor_session_state(_ensure_session_state())
 	if _edit_tool != null:
 		_edit_tool.set_editor_session_state(_ensure_session_state())
+	_sync_workspace_asset_context()
 
 
 func editor_session_state() -> HexMapEditorSessionState:
 	return _ensure_session_state()
+
+
+func set_workspace_asset_context(context: HexMapWorkspaceAssetContext) -> void:
+	_ensure_session_state().set_workspace_asset_context(context, "workspace.set_asset_context")
+	_sync_workspace_asset_context()
+
+
+func workspace_asset_context() -> HexMapWorkspaceAssetContext:
+	return _ensure_session_state().current_workspace_asset_context()
+
+
+func workspace_asset_context_for_tab(tab_name: String) -> HexMapWorkspaceAssetContext:
+	if not HexMapWorkspaceComponentRegistry.tab_names().has(tab_name):
+		return null
+	return workspace_asset_context()
 
 
 func generation_dock() -> HexMapGenDock:
@@ -97,6 +114,7 @@ func _mount_generation_panel() -> void:
 		return
 	_generation_dock = HexMapGenDock.new()
 	_generation_dock.set_editor_session_state(_ensure_session_state())
+	_generation_dock.set_workspace_asset_context(workspace_asset_context())
 	_generation_dock.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_generation_dock.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	(page as Control).add_child(_generation_dock)
@@ -108,6 +126,7 @@ func _mount_edit_panel() -> void:
 		return
 	_edit_tool = HexMapEditTool.new()
 	_edit_tool.set_editor_session_state(_ensure_session_state())
+	_edit_tool.set_workspace_asset_context(workspace_asset_context())
 	_edit_tool.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_edit_tool.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	(page as Control).add_child(_edit_tool)
@@ -117,3 +136,11 @@ func _ensure_session_state() -> HexMapEditorSessionState:
 	if _editor_session_state == null:
 		_editor_session_state = HexMapEditorSessionState.new()
 	return _editor_session_state
+
+
+func _sync_workspace_asset_context() -> void:
+	var context := workspace_asset_context()
+	if _generation_dock != null:
+		_generation_dock.set_workspace_asset_context(context)
+	if _edit_tool != null:
+		_edit_tool.set_workspace_asset_context(context)

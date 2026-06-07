@@ -12,8 +12,10 @@ const HexMapEditMutationBuilder = preload("res://addons/hex_map_kit/editor/hex_m
 const HexMapEditViewportInputAdapter = preload("res://addons/hex_map_kit/editor/hex_map_edit_viewport_input_adapter.gd")
 const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
 const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
+const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
 const HexMapValidationDashboard = preload("res://addons/hex_map_kit/editor/hex_map_validation_dashboard.gd")
 const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
+const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
 const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
 const HexObjectDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_object_definition_resource.gd")
 const HexTileCatalogEntry = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd")
@@ -224,6 +226,7 @@ var _validation_dashboard: HexMapValidationDashboard
 var _copy_debug_report_button: Button
 var _last_copied_debug_report := ""
 var _editor_session_state: HexMapEditorSessionState = null
+var _workspace_asset_context: HexMapWorkspaceAssetContext = null
 
 
 func _ready() -> void:
@@ -234,9 +237,14 @@ func _ready() -> void:
 
 
 func set_editor_session_state(session: HexMapEditorSessionState) -> void:
+	if _editor_session_state != null and _editor_session_state.changed.is_connected(_on_editor_session_changed):
+		_editor_session_state.changed.disconnect(_on_editor_session_changed)
 	_editor_session_state = session
 	if _editor_session_state == null:
 		return
+	if not _editor_session_state.changed.is_connected(_on_editor_session_changed):
+		_editor_session_state.changed.connect(_on_editor_session_changed)
+	set_workspace_asset_context(_editor_session_state.current_workspace_asset_context())
 	var session_document_saved_path := _editor_session_state.document_saved_path
 	var session_import_map_saved_path := _editor_session_state.import_map_saved_path
 	var session_export_saved_path := _editor_session_state.export_saved_path
@@ -261,6 +269,27 @@ func editor_session_state() -> HexMapEditorSessionState:
 	return _editor_session_state
 
 
+func set_workspace_asset_context(context: HexMapWorkspaceAssetContext) -> void:
+	_workspace_asset_context = context
+	set_tile_catalog(_workspace_asset_context.tile_catalog if _workspace_asset_context != null else null, false)
+	set_object_database(_workspace_asset_context.object_database if _workspace_asset_context != null else null, false)
+	set_label_database(_workspace_asset_context.label_database if _workspace_asset_context != null else null, false)
+	set_layer_stack_resource(_workspace_asset_context.layer_stack if _workspace_asset_context != null else null, false)
+
+
+func workspace_asset_context() -> HexMapWorkspaceAssetContext:
+	if _workspace_asset_context != null:
+		return _workspace_asset_context
+	if _editor_session_state != null:
+		return _editor_session_state.current_workspace_asset_context()
+	return null
+
+
+func _on_editor_session_changed(key: String) -> void:
+	if key == "workspace_asset_context" or key.begins_with("workspace_asset_context."):
+		set_workspace_asset_context(_editor_session_state.current_workspace_asset_context())
+
+
 func set_document(document: HexMapDocumentResource) -> void:
 	_document = document
 	_document_source = DOCUMENT_SOURCE_PROVIDED if document != null else DOCUMENT_SOURCE_NONE
@@ -275,6 +304,7 @@ func set_document(document: HexMapDocumentResource) -> void:
 	_refresh_state_labels()
 	_publish_session_document("edit.set_document")
 	_publish_session_paths("edit.set_document")
+	_publish_workspace_asset(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, document, "edit.set_document")
 
 
 func document() -> HexMapDocumentResource:
@@ -471,7 +501,7 @@ func validate_document_now() -> bool:
 	return true
 
 
-func set_object_database(database: Resource) -> void:
+func set_object_database(database: Resource, publish_context: bool = true) -> void:
 	_object_database = database
 	if _selected_object_definition_id == "" and _object_database != null and _object_database.has_method("definition_ids"):
 		var ids: PackedStringArray = _object_database.definition_ids()
@@ -483,28 +513,47 @@ func set_object_database(database: Resource) -> void:
 	_refresh_object_palette()
 	_sync_payload_controls()
 	_sync_resource_pickers()
+	if publish_context:
+		_publish_workspace_asset(HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE, database as HexObjectDatabaseResource, "edit.set_object_database")
 
 
 func object_database() -> Resource:
 	return _object_database
 
 
-func set_label_database(database: Resource) -> void:
+func set_label_database(database: Resource, publish_context: bool = true) -> void:
 	_label_database = database
 	_sync_resource_pickers()
+	if publish_context:
+		_publish_workspace_asset(HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE, database as HexLabelDatabaseResource, "edit.set_label_database")
 
 
 func label_database() -> Resource:
 	return _label_database
 
 
-func set_tile_catalog(catalog: HexTileCatalogResource) -> void:
+func set_layer_stack_resource(stack: HexLayerStackResource, publish_context: bool = true) -> void:
+	_layer_stack_resource = stack
+	_selected_layer_stack_role = ""
+	_refresh_layer_stack_screen()
+	_refresh_action_button_states()
+	if publish_context:
+		_publish_workspace_asset(HexMapWorkspaceAssetContext.SLOT_LAYER_STACK, stack, "edit.set_layer_stack")
+
+
+func layer_stack_resource() -> HexLayerStackResource:
+	return _ensure_layer_stack_resource()
+
+
+func set_tile_catalog(catalog: HexTileCatalogResource, publish_context: bool = true) -> void:
 	_tile_catalog = catalog
 	_last_catalog_validation_result = null
 	_sync_resource_pickers()
 	_refresh_catalog_options()
 	_refresh_catalog_entries()
 	_refresh_action_button_states()
+	if publish_context:
+		_publish_workspace_asset(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, catalog, "edit.set_tile_catalog")
 
 
 func tile_catalog() -> HexTileCatalogResource:
@@ -1854,9 +1903,9 @@ func _on_layer_stack_template_selected(index: int) -> void:
 	if _layer_stack_template_option == null:
 		return
 	var template_id = String(_layer_stack_template_option.get_item_metadata(index))
-	_layer_stack_resource = HexLayerStackResource.minimal_runtime_template() if template_id == "minimal" else HexLayerStackResource.standard_template()
-	_selected_layer_stack_role = ""
-	_refresh_layer_stack_screen()
+	set_layer_stack_resource(
+		HexLayerStackResource.minimal_runtime_template() if template_id == "minimal" else HexLayerStackResource.standard_template()
+	)
 	_set_status("Layer stack template selected.")
 
 
@@ -1994,7 +2043,7 @@ func _on_add_object_definition_pressed() -> void:
 
 
 func _on_label_database_changed(resource: Resource) -> void:
-	_label_database = resource
+	set_label_database(resource)
 
 
 func _on_export_path_changed(text: String) -> void:
@@ -2684,6 +2733,16 @@ func _publish_session_paths(reason: String) -> void:
 	_editor_session_state.set_export_saved_path(_export_path, reason)
 
 
+func _publish_workspace_asset(slot_id: String, resource: Resource, reason: String) -> void:
+	var context := workspace_asset_context()
+	if context == null:
+		return
+	if _editor_session_state != null:
+		_editor_session_state.set_workspace_asset(slot_id, resource, reason)
+	else:
+		context.set_asset(slot_id, resource)
+
+
 func _refresh_overlay_item_key_options() -> void:
 	if _overlay_item_key_option == null:
 		return
@@ -2921,6 +2980,10 @@ func _refresh_layer_stack_screen() -> void:
 
 
 func _ensure_layer_stack_resource() -> HexLayerStackResource:
+	var context := workspace_asset_context()
+	if context != null and context.layer_stack != null:
+		_layer_stack_resource = context.layer_stack
+		return _layer_stack_resource
 	if _layer_stack_resource == null:
 		_layer_stack_resource = HexLayerStackResource.standard_template()
 	return _layer_stack_resource
@@ -4085,6 +4148,10 @@ func _new_catalog_option(tag: String, selected_key: String = "") -> OptionButton
 
 
 func _ensure_tile_catalog() -> HexTileCatalogResource:
+	var context := workspace_asset_context()
+	if context != null and context.tile_catalog != null:
+		_tile_catalog = context.tile_catalog
+		return _tile_catalog
 	if _tile_catalog == null:
 		_tile_catalog = load(SAMPLE_TILE_CATALOG_PATH) as HexTileCatalogResource
 	return _tile_catalog

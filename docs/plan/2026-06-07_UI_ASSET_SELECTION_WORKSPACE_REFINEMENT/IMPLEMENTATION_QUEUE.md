@@ -34,7 +34,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
 | `ASSET-10` | `COMPLETE` | `ASSET-01` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/ASSET-10_ASSET_SLOT_STATE_MODEL/` | Unified asset slot state/control model | new `addons/hex_map_kit/editor/hex_map_editor_asset_slot_state.gd`, new `hex_map_editor_asset_slot_control.gd`, existing resource selector component, editor tests | Slot state represents Not selected / Selected / Invalid / Warning, type mismatch, and optional sample source without making sample the default; tests inspect state model, not private widget names. |
-| `ASSET-11` | `READY` | `ASSET-10` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/ASSET-11_WORKSPACE_ASSET_CONTEXT_RESOURCE/` | Workspace asset context | new `HexMapWorkspaceAssetContext`, `HexMapEditorSessionState`, `HexMapWorkspace`, editor tests | Catalog, Object DB, Label DB, Layer Stack, Movement Profile, Validation Suite, Generation Profile are held in shared context; Generate/Paint/Validate/QA use the same context and do not search sample assets independently. |
+| `ASSET-11` | `COMPLETE` | `ASSET-10` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/ASSET-11_WORKSPACE_ASSET_CONTEXT_RESOURCE/` | Workspace asset context | new `HexMapWorkspaceAssetContext`, `HexMapEditorSessionState`, `HexMapWorkspace`, editor tests | Catalog, Object DB, Label DB, Layer Stack, Movement Profile, Validation Suite, Generation Profile are held in shared context; Generate/Paint/Validate/QA use the same context and do not search sample assets independently. |
 | `ASSET-12` | `READY` | `ASSET-10` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/ASSET-12_CREATE_NEW_RESOURCE_ACTIONS/` | Create-new actions for asset slots | asset slot control/model, resource creation helpers, editor tests | Asset slots can create required resources through FileDialog / Save As; created resource enters asset context; sample assets are not silently mixed into new project asset creation. |
 
 ---
@@ -53,7 +53,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `WORKSPACE-10` | `BACKLOG` | `ASSET-11` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/WORKSPACE-10_REAL_TAB_CONTENT_MIGRATION/` | Real workspace tab content migration | `HexMapWorkspace`, editor tab components, Generate/Paint/Catalog/Layers/Validate/QA/Export UI code, editor tests | Document / Catalog / Layers / Validate / QA / Export / Settings tabs are non-empty and own relevant asset slots; Paint loses non-paint responsibilities; tests check `tab_has_component()` and `asset_slot_count()`. |
+| `WORKSPACE-10` | `READY` | `ASSET-11` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/WORKSPACE-10_REAL_TAB_CONTENT_MIGRATION/` | Real workspace tab content migration | `HexMapWorkspace`, editor tab components, Generate/Paint/Catalog/Layers/Validate/QA/Export UI code, editor tests | Document / Catalog / Layers / Validate / QA / Export / Settings tabs are non-empty and own relevant asset slots; Paint loses non-paint responsibilities; tests check `tab_has_component()` and `asset_slot_count()`. |
 | `WORKSPACE-11` | `BACKLOG` | `WORKSPACE-10` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/WORKSPACE-11_TAB_COMPONENT_REGISTRY_CONTRACT/` | Workspace component registry contract | `HexMapWorkspace`, tab registry/query helpers, editor tests | Public-ish query methods expose component ids and asset slot ids, e.g. Catalog includes `catalog_asset_panel` and `tile_catalog`; tests avoid private child node names. |
 
 ---
@@ -135,12 +135,12 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `ASSET-11`.
+Current recommended next task: `ASSET-12`.
 
 Reason:
 
-- `ASSET-10` is complete and provides the shared slot state/control contract.
-- `ASSET-11` is the first dependency-satisfied READY task in queue order.
+- `ASSET-11` is complete and provides the shared workspace asset context.
+- `ASSET-12` is the first dependency-satisfied READY task in queue order.
 
 ---
 
@@ -191,3 +191,21 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_editor_asset_slot_control.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/ASSET-10_TEST_RESULT_2026-06-08.md`
+
+### ASSET-11 Workspace asset context
+
+proof:
+  plan: `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/ASSET-11_WORKSPACE_ASSET_CONTEXT_RESOURCE/`
+  review: `docs/review/autopilot/ASSET-11_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd`
+    - `addons/hex_map_kit/editor/hex_map_editor_session_state.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `addons/hex_map_kit/editor/hex_map_gen_dock.gd`
+    - `addons/hex_map_kit/editor/hex_map_edit_tool.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/ASSET-11_TEST_RESULT_2026-06-08.md`

@@ -22,6 +22,7 @@ const HexAdjacencyRuleEditor = preload("res://addons/hex_map_kit/editor/hex_adja
 const HexCellButtonPanel = preload("res://addons/hex_map_kit/editor/hex_cell_button_panel.gd")
 const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
 const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
+const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
 const HexMapGenStateEvaluator = preload("res://addons/hex_map_kit/editor/hex_map_gen_state_evaluator.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const HexToricCoordinate = preload("res://addons/hex_map_kit/core/hex_toric_coordinate.gd")
@@ -244,6 +245,7 @@ var _generation_progress_hide_after_msec := 0
 var _suppress_tile_settings_apply := false
 var _current_overlay_data = null
 var _editor_session_state: HexMapEditorSessionState = null
+var _workspace_asset_context: HexMapWorkspaceAssetContext = null
 var _last_generation_validation_result = null
 var _last_generation_validation_summary: Dictionary = {}
 var _generation_event_order := 0
@@ -263,9 +265,14 @@ func _ready() -> void:
 
 
 func set_editor_session_state(session: HexMapEditorSessionState) -> void:
+	if _editor_session_state != null and _editor_session_state.changed.is_connected(_on_editor_session_changed):
+		_editor_session_state.changed.disconnect(_on_editor_session_changed)
 	_editor_session_state = session
 	if _editor_session_state == null:
 		return
+	if not _editor_session_state.changed.is_connected(_on_editor_session_changed):
+		_editor_session_state.changed.connect(_on_editor_session_changed)
+	set_workspace_asset_context(_editor_session_state.current_workspace_asset_context())
 	var session_target = _editor_session_state.current_target_layer()
 	if session_target != null and _tile_layer_option != null:
 		_select_tile_layer_target(session_target)
@@ -273,6 +280,25 @@ func set_editor_session_state(session: HexMapEditorSessionState) -> void:
 
 func editor_session_state() -> HexMapEditorSessionState:
 	return _editor_session_state
+
+
+func set_workspace_asset_context(context: HexMapWorkspaceAssetContext) -> void:
+	_workspace_asset_context = context
+	_tile_catalog = _workspace_asset_context.tile_catalog if _workspace_asset_context != null else null
+	_refresh_catalog_options()
+
+
+func workspace_asset_context() -> HexMapWorkspaceAssetContext:
+	if _workspace_asset_context != null:
+		return _workspace_asset_context
+	if _editor_session_state != null:
+		return _editor_session_state.current_workspace_asset_context()
+	return null
+
+
+func _on_editor_session_changed(key: String) -> void:
+	if key == "workspace_asset_context" or key.begins_with("workspace_asset_context."):
+		set_workspace_asset_context(_editor_session_state.current_workspace_asset_context())
 
 
 func _process(_delta: float) -> void:
@@ -1024,6 +1050,10 @@ func tile_catalog() -> HexTileCatalogResource:
 
 
 func _ensure_tile_catalog() -> HexTileCatalogResource:
+	var context := workspace_asset_context()
+	if context != null and context.tile_catalog != null:
+		_tile_catalog = context.tile_catalog
+		return _tile_catalog
 	if _tile_catalog == null:
 		_tile_catalog = load(SAMPLE_TILE_CATALOG_PATH) as HexTileCatalogResource
 	return _tile_catalog

@@ -20,6 +20,7 @@ const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_laye
 const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
 const HexObjectDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_object_definition_resource.gd")
 const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
+const HexMovementProfileResource = preload("res://addons/hex_map_kit/adapter/hex_movement_profile_resource.gd")
 const HexMapGenDock = preload("res://addons/hex_map_kit/editor/hex_map_gen_dock.gd")
 const HexMapGenStateEvaluator = preload("res://addons/hex_map_kit/editor/hex_map_gen_state_evaluator.gd")
 const HexMapEditTool = preload("res://addons/hex_map_kit/editor/hex_map_edit_tool.gd")
@@ -29,6 +30,7 @@ const HexMapDocumentInspector = preload("res://addons/hex_map_kit/editor/hex_map
 const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
 const HexMapEditorAssetSlotState = preload("res://addons/hex_map_kit/editor/hex_map_editor_asset_slot_state.gd")
 const HexMapEditorAssetSlotControl = preload("res://addons/hex_map_kit/editor/hex_map_editor_asset_slot_control.gd")
+const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
 const HexMapWorkspace = preload("res://addons/hex_map_kit/editor/hex_map_workspace.gd")
 const HexDistEditor = preload("res://addons/hex_map_kit/editor/hex_dist_editor.gd")
 const HexAdjacencyRuleEditor = preload("res://addons/hex_map_kit/editor/hex_adjacency_rule_editor.gd")
@@ -76,6 +78,13 @@ class CellPressRecorder:
 		entries.append(entry)
 
 
+class SessionChangeRecorder:
+	var keys: PackedStringArray = PackedStringArray()
+
+	func record(key: String) -> void:
+		keys.append(key)
+
+
 var _failures: Array[String] = []
 var _test_output_root := ""
 
@@ -87,6 +96,7 @@ func _init() -> void:
 func _run() -> void:
 	_test_plugin_registration_files()
 	await _test_hex_map_workspace_exposes_tabs_and_routes_editing()
+	await _test_workspace_asset_context_is_shared_by_workspace_generate_and_paint()
 	_test_asset_slot_state_model_reports_selection_validation_and_sample_source()
 	await _test_asset_slot_control_exposes_state_snapshot_contract()
 	await _test_map_edit_tool_builds_dock_controls()
@@ -255,6 +265,131 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 	_assert_true(workspace.viewport_input_enabled(), "workspace gates viewport input through paint/edit component")
 
 	layer.queue_free()
+	workspace.queue_free()
+	await process_frame
+
+
+func _test_workspace_asset_context_is_shared_by_workspace_generate_and_paint() -> void:
+	var context = HexMapWorkspaceAssetContext.new()
+	var document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	var catalog = HexTileCatalogResource.new()
+	var object_database = HexObjectDatabaseResource.new()
+	var label_database = HexLabelDatabaseResource.new()
+	var layer_stack = HexLayerStackResource.minimal_runtime_template()
+	var movement_profile = HexMovementProfileResource.new()
+	var validation_suite = Resource.new()
+	var generation_profile = Resource.new()
+
+	context.set_level_document(document)
+	context.set_tile_catalog(catalog)
+	context.set_object_database(object_database)
+	context.set_label_database(label_database)
+	context.set_layer_stack(layer_stack)
+	context.set_movement_profile(movement_profile)
+	context.set_validation_rule_suite(validation_suite)
+	context.set_generation_profile(generation_profile)
+
+	var slot_ids = HexMapWorkspaceAssetContext.asset_slot_ids()
+	_assert_true(slot_ids.has("tile_catalog"), "workspace asset context exposes tile catalog slot id")
+	_assert_true(slot_ids.has("object_database"), "workspace asset context exposes object database slot id")
+	_assert_true(slot_ids.has("label_database"), "workspace asset context exposes label database slot id")
+	_assert_true(slot_ids.has("layer_stack"), "workspace asset context exposes layer stack slot id")
+	_assert_true(slot_ids.has("movement_profile"), "workspace asset context exposes movement profile slot id")
+	_assert_true(slot_ids.has("validation_rule_suite"), "workspace asset context exposes validation suite slot id")
+	_assert_true(slot_ids.has("generation_profile"), "workspace asset context exposes generation profile slot id")
+
+	var snapshot = context.snapshot()
+	_assert_eq(snapshot["level_document"], document, "workspace asset context holds level document")
+	_assert_eq(snapshot["tile_catalog"], catalog, "workspace asset context holds tile catalog")
+	_assert_eq(snapshot["object_database"], object_database, "workspace asset context holds object database")
+	_assert_eq(snapshot["label_database"], label_database, "workspace asset context holds label database")
+	_assert_eq(snapshot["layer_stack"], layer_stack, "workspace asset context holds layer stack")
+	_assert_eq(snapshot["movement_profile"], movement_profile, "workspace asset context holds movement profile")
+	_assert_eq(snapshot["validation_rule_suite"], validation_suite, "workspace asset context holds validation suite")
+	_assert_eq(snapshot["generation_profile"], generation_profile, "workspace asset context holds generation profile")
+
+	var session = HexMapEditorSessionState.new()
+	var recorder = SessionChangeRecorder.new()
+	session.changed.connect(Callable(recorder, "record"))
+	session.set_workspace_asset_context(context, "test.asset_context")
+	_assert_eq(session.current_workspace_asset_context(), context, "session owns workspace asset context")
+	_assert_true(recorder.keys.has("workspace_asset_context"), "session emits context replacement key")
+
+	var session_catalog = HexTileCatalogResource.new()
+	session.set_workspace_asset(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, session_catalog, "test.tile_catalog")
+	_assert_eq(context.tile_catalog, session_catalog, "session publishes asset changes into context")
+	_assert_true(
+		recorder.keys.has("workspace_asset_context.tile_catalog"),
+		"session republishes context slot change key"
+	)
+
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	_assert_eq(workspace.workspace_asset_context(), context, "workspace exposes session asset context")
+	_assert_eq(
+		workspace.workspace_asset_context_for_tab("Generate"),
+		context,
+		"Generate tab receives workspace asset context"
+	)
+	_assert_eq(
+		workspace.workspace_asset_context_for_tab("Paint"),
+		context,
+		"Paint tab receives workspace asset context"
+	)
+	_assert_eq(
+		workspace.workspace_asset_context_for_tab("Validate"),
+		context,
+		"Validate tab resolves the shared workspace asset context"
+	)
+	_assert_eq(
+		workspace.workspace_asset_context_for_tab("QA"),
+		context,
+		"QA tab resolves the shared workspace asset context"
+	)
+	_assert_eq(
+		workspace.generation_dock().workspace_asset_context(),
+		context,
+		"generation dock references workspace asset context"
+	)
+	_assert_eq(
+		workspace.edit_tool().workspace_asset_context(),
+		context,
+		"paint tool references workspace asset context"
+	)
+	_assert_eq(
+		workspace.generation_dock().tile_catalog(),
+		session_catalog,
+		"generation dock consumes context tile catalog"
+	)
+	_assert_eq(
+		workspace.edit_tool().tile_catalog(),
+		session_catalog,
+		"paint tool consumes context tile catalog"
+	)
+
+	var paint_catalog = HexTileCatalogResource.new()
+	var paint_object_database = HexObjectDatabaseResource.new()
+	var paint_label_database = HexLabelDatabaseResource.new()
+	var paint_layer_stack = HexLayerStackResource.standard_template()
+	workspace.edit_tool().set_tile_catalog(paint_catalog)
+	workspace.edit_tool().set_object_database(paint_object_database)
+	workspace.edit_tool().set_label_database(paint_label_database)
+	workspace.edit_tool().set_layer_stack_resource(paint_layer_stack)
+	_assert_eq(context.tile_catalog, paint_catalog, "paint tool publishes selected catalog to context")
+	_assert_eq(context.object_database, paint_object_database, "paint tool publishes selected object database to context")
+	_assert_eq(context.label_database, paint_label_database, "paint tool publishes selected label database to context")
+	_assert_eq(context.layer_stack, paint_layer_stack, "paint tool publishes selected layer stack to context")
+	_assert_eq(
+		workspace.generation_dock().tile_catalog(),
+		paint_catalog,
+		"generation dock consumes paint-selected project catalog through context"
+	)
+
 	workspace.queue_free()
 	await process_frame
 
