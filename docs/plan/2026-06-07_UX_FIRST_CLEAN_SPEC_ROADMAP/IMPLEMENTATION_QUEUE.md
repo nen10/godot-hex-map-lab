@@ -79,8 +79,8 @@ proof:
 
 | id | status | priority | dependencies | plan_dir | deliverable | target files | acceptance / test path | maturity |
 |---|---|---:|---|---|---|---|---|---|
-| `CLEAN-31` | `READY` | P1 | `CLEAN-30` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-31_WORKSPACE_TAB_MODEL_DECISION/` | Workspace / tab model decision | `docs/review/roadmap/EDITOR_WORKSPACE_MODEL_DECISION_2026-06-07.md`, editor architecture notes | Decision records 2-dock / workspace dock / main screen choice using UX criteria, not file size; chosen model gives Catalog/Layer/Validate/QA a clear home | `DOCS_COMPLETE` |
-| `CLEAN-32` | `BACKLOG` | P1 | `CLEAN-31` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-32_UX_RESPONSIBILITY_COMPONENT_EXTRACTION/` | Component extraction by UX responsibility | new editor component scripts, `hex_map_gen_dock.gd`, `hex_map_edit_tool.gd`, editor tests | Components map to UX responsibilities such as DocumentHeader, CatalogPanel, LayerStackPanel, BrushPalette, ObjectPalette, SeedLabPanel, ValidationPanel; extraction is not justified by line count alone | `HEADLESS_TEST_COMPLETE` |
+| `CLEAN-31` | `COMPLETE` | P1 | `CLEAN-30` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-31_WORKSPACE_TAB_MODEL_DECISION/` | Workspace / tab model decision | `docs/review/roadmap/EDITOR_WORKSPACE_MODEL_DECISION_2026-06-07.md`, editor architecture notes | Decision records 2-dock / workspace dock / main screen choice using UX criteria, not file size; chosen model gives Catalog/Layer/Validate/QA a clear home | `DOCS_COMPLETE` |
+| `CLEAN-32` | `READY` | P1 | `CLEAN-31` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-32_UX_RESPONSIBILITY_COMPONENT_EXTRACTION/` | Component extraction by UX responsibility | new editor component scripts, `hex_map_gen_dock.gd`, `hex_map_edit_tool.gd`, editor tests | Components map to UX responsibilities such as DocumentHeader, CatalogPanel, LayerStackPanel, BrushPalette, ObjectPalette, SeedLabPanel, ValidationPanel; extraction is not justified by line count alone | `HEADLESS_TEST_COMPLETE` |
 | `CLEAN-33` | `READY` | P0 | `CLEAN-20`, `CLEAN-30` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-33_DELETE_HARMFUL_UI_PATHS/` | Delete redundant / harmful UI paths | editor UI code, editor tests, manual/API cleanup | Normal UI has no editable path text, numeric fallback tile controls, plain TileMapLayer primary action, or v2/migration wording; advanced/debug remnants have documented reason | `HEADLESS_TEST_COMPLETE` |
 
 ---
@@ -114,18 +114,39 @@ proof:
 
 ## 8. Current pointer
 
-Current recommended next task: `CLEAN-31`.
+Current recommended next task: `CLEAN-32`.
 
 Reason:
 
-- Dependency sweep completed on 2026-06-07 after `CLEAN-26` completion.
-- `CLEAN-40` was promoted to `READY` because `CLEAN-21` through `CLEAN-26` are complete.
-- `CLEAN-31` is the first `READY` task by table order.
+- Dependency sweep completed on 2026-06-07 after `CLEAN-31` completion.
+- `CLEAN-32` was promoted to `READY` because `CLEAN-31` is complete.
+- `CLEAN-32` is the first `READY` task by table order.
 - `CLEAN-33`, `CLEAN-40`, `CLEAN-41`, `CLEAN-51`, `CLEAN-52`, and `CLEAN-60` remain `READY`.
 
 ---
 
 ## 9. Completed task proof log
+
+### CLEAN-31
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot / `autopilot/roadmap-main`
+plan: `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-31_WORKSPACE_TAB_MODEL_DECISION/`
+review: `docs/review/autopilot/CLEAN-31_SELF_REVIEW_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+  - `git diff --check` PASS
+- docs:
+  - `docs/review/roadmap/EDITOR_WORKSPACE_MODEL_DECISION_2026-06-07.md`
+  - `docs/review/autopilot/CLEAN-31_SELF_REVIEW_2026-06-07.md`
+  - `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-31_WORKSPACE_TAB_MODEL_DECISION/`
+- major files:
+  - `docs/review/roadmap/EDITOR_WORKSPACE_MODEL_DECISION_2026-06-07.md`
+- maturity:
+  - `DOCS_COMPLETE`
 
 ### CLEAN-26
 
