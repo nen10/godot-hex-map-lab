@@ -15,6 +15,7 @@ const HexObjectDefinitionResource = preload("res://addons/hex_map_kit/adapter/he
 const HexTileCatalogEntry = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd")
 const HexTileCatalogResource = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd")
 const HexTileCatalogValidator = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_validator.gd")
+const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
 const HexMapGenDock = preload("res://addons/hex_map_kit/editor/hex_map_gen_dock.gd")
 const HexMapEditTool = preload("res://addons/hex_map_kit/editor/hex_map_edit_tool.gd")
 const HexMapSampleSettingsPanel = preload("res://addons/hex_map_kit/editor/hex_map_sample_settings_panel.gd")
@@ -31,6 +32,12 @@ var _dismiss_samples_button: Button
 var _generation_dock: HexMapGenDock
 var _edit_tool: HexMapEditTool
 var _sample_settings_panel: HexMapSampleSettingsPanel
+var _export_destination_panel: VBoxContainer
+var _export_destination_label: Label
+var _export_recent_destinations_label: Label
+var _export_choose_destination_button: Button
+var _export_use_recent_button: Button
+var _export_run_button: Button
 var _asset_panels: Dictionary = {}
 var _tab_components: Dictionary = {}
 var _tab_pages: Dictionary = {}
@@ -1033,6 +1040,135 @@ func duplicate_validation_rule_suite_preset_to_project(preset_id: String, path: 
 	)
 
 
+func export_screen_snapshot() -> Dictionary:
+	var context := workspace_asset_context()
+	return {
+		"tab": HexMapWorkspaceComponentRegistry.TAB_EXPORT,
+		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_EXPORT),
+		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_EXPORT),
+		"level_document": context.level_document,
+		"export_profile": context.export_profile,
+		"level_document_slot": tab_asset_slot_snapshot(
+			HexMapWorkspaceComponentRegistry.TAB_EXPORT,
+			HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT
+		),
+		"export_profile_slot": tab_asset_slot_snapshot(
+			HexMapWorkspaceComponentRegistry.TAB_EXPORT,
+			HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE
+		),
+		"destination": _export_destination_context(),
+		"destination_dialog_config": export_destination_dialog_config(),
+		"can_export": context.level_document != null and _ensure_session_state().export_saved_path != "",
+		"package_handoff": _export_handoff_context(_ensure_session_state().export_saved_path, null),
+		"runtime_handoff": _export_handoff_context(_ensure_session_state().export_saved_path, null),
+		"sample_candidates_visible": _ensure_session_state().show_bundled_samples_in_main_selectors,
+		"sample_destination_available": false,
+		"editable_destination_path_visible": false,
+	}
+
+
+func export_destination_dialog_config() -> Dictionary:
+	return {
+		"uses_file_dialog": true,
+		"file_mode": EditorFileDialog.FILE_MODE_SAVE_FILE,
+		"filters": HexMapEditorPathSelector.TRES_FILTERS.duplicate(),
+		"current_file": "hex_map_export.tres",
+		"editable_path_text_visible": false,
+	}
+
+
+func create_export_profile(path: String) -> Dictionary:
+	var panel := _export_asset_panel()
+	if panel == null:
+		return _export_profile_action_result(false, ERR_UNAVAILABLE, path)
+	var result := panel.create_asset_for_slot(HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE, path)
+	_sync_export_profile_from_result(result)
+	return result
+
+
+func save_export_profile_as(path: String) -> Dictionary:
+	var panel := _export_asset_panel()
+	if panel == null:
+		return _export_profile_action_result(false, ERR_UNAVAILABLE, path)
+	var result := panel.save_asset_slot_as(HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE, path)
+	_sync_export_profile_from_result(result)
+	return result
+
+
+func open_export_profile() -> Dictionary:
+	var panel := _export_asset_panel()
+	if panel == null:
+		return _export_profile_action_result(false, ERR_UNAVAILABLE, "")
+	var result := panel.open_asset_slot(HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE)
+	_sync_export_profile_from_result(result)
+	return result
+
+
+func clear_export_profile() -> Dictionary:
+	var panel := _export_asset_panel()
+	if panel == null:
+		return _export_profile_action_result(false, ERR_UNAVAILABLE, "")
+	return panel.clear_asset_slot(HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE)
+
+
+func select_export_destination(path: String) -> Dictionary:
+	var actual_path := HexMapWorkspaceAssetResourceFactory.normalized_resource_path(path)
+	if actual_path == "":
+		return _export_action_result(false, ERR_INVALID_PARAMETER, actual_path)
+	_ensure_session_state().record_export_destination(actual_path, "workspace.export.destination")
+	if _edit_tool != null:
+		_edit_tool.set_export_path(actual_path)
+	_refresh_export_destination_panel()
+	return _export_action_result(true, OK, actual_path)
+
+
+func select_recent_export_destination(path: String) -> Dictionary:
+	var actual_path := HexMapWorkspaceAssetResourceFactory.normalized_resource_path(path)
+	if not _ensure_session_state().recent_export_destinations.has(actual_path):
+		return _export_action_result(false, ERR_DOES_NOT_EXIST, actual_path)
+	return select_export_destination(actual_path)
+
+
+func clear_export_destination() -> Dictionary:
+	_ensure_session_state().set_export_saved_path("", "workspace.export.destination.clear")
+	if _edit_tool != null:
+		_edit_tool.set_export_path("")
+	_refresh_export_destination_panel()
+	return _export_action_result(true, OK, "")
+
+
+func export_selected_document_to_destination(path: String = "") -> Dictionary:
+	if path.strip_edges() != "":
+		var select_result := select_export_destination(path)
+		if not bool(select_result.get("ok", false)):
+			return select_result
+	var actual_path := HexMapWorkspaceAssetResourceFactory.normalized_resource_path(_ensure_session_state().export_saved_path)
+	if actual_path == "":
+		return _export_action_result(false, ERR_INVALID_PARAMETER, actual_path)
+	var document := workspace_asset_context().level_document
+	if document == null:
+		return _export_action_result(false, ERR_DOES_NOT_EXIST, actual_path)
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(actual_path.get_base_dir()))
+	var map_resource = HexMapDocumentAdapter.to_map_resource(document)
+	var error := ResourceSaver.save(map_resource, actual_path)
+	var result := _export_action_result(error == OK, error, actual_path)
+	if error == OK:
+		map_resource.resource_path = actual_path
+		_ensure_session_state().record_export_destination(actual_path, "workspace.export.run")
+		if _edit_tool != null:
+			_edit_tool.set_export_path(actual_path)
+	var data = map_resource.to_map_data() if map_resource != null else null
+	result["resource"] = map_resource
+	result["resource_class"] = "HexMapResource"
+	result["cell_count"] = data.cells.size() if data != null else 0
+	result["wall_count"] = data.walls.size() if data != null else 0
+	result["export_profile"] = workspace_asset_context().export_profile
+	result["package_handoff"] = _export_handoff_context(actual_path, map_resource)
+	result["runtime_handoff"] = _export_handoff_context(actual_path, map_resource)
+	_refresh_export_destination_panel()
+	return result
+
+
 func _build_ui() -> void:
 	if _tabs != null:
 		return
@@ -1047,6 +1183,7 @@ func _build_ui() -> void:
 		_add_tab_page(String(tab_name))
 	_mount_workspace_asset_panels()
 	_mount_validation_issue_navigator()
+	_mount_export_destination_panel()
 	_mount_generation_panel()
 	_mount_edit_panel()
 	_mount_sample_settings_panel()
@@ -1146,6 +1283,7 @@ func _mount_workspace_asset_panels() -> void:
 		"Export Assets",
 		[
 			_slot_row(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "Level Document"),
+			_slot_row(HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE, "Export Profile", false),
 		]
 	)
 	_mount_asset_panel(
@@ -1200,6 +1338,52 @@ func _mount_validation_issue_navigator() -> void:
 	)
 
 
+func _mount_export_destination_panel() -> void:
+	var page = _tab_pages.get(HexMapWorkspaceComponentRegistry.TAB_EXPORT, null)
+	if page == null:
+		return
+	_export_destination_panel = VBoxContainer.new()
+	_export_destination_panel.name = "Export Destination Panel"
+	_export_destination_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var title := Label.new()
+	title.text = "Export Destination"
+	_export_destination_panel.add_child(title)
+
+	_export_destination_label = Label.new()
+	_export_destination_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_export_destination_panel.add_child(_export_destination_label)
+
+	_export_recent_destinations_label = Label.new()
+	_export_recent_destinations_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_export_destination_panel.add_child(_export_recent_destinations_label)
+
+	var actions := HBoxContainer.new()
+	_export_choose_destination_button = Button.new()
+	_export_choose_destination_button.text = "Choose Destination..."
+	_export_choose_destination_button.pressed.connect(_on_export_choose_destination_pressed)
+	actions.add_child(_export_choose_destination_button)
+
+	_export_use_recent_button = Button.new()
+	_export_use_recent_button.text = "Use Recent"
+	_export_use_recent_button.pressed.connect(_on_export_use_recent_pressed)
+	actions.add_child(_export_use_recent_button)
+
+	_export_run_button = Button.new()
+	_export_run_button.text = "Export"
+	_export_run_button.pressed.connect(_on_export_run_workspace_pressed)
+	actions.add_child(_export_run_button)
+	_export_destination_panel.add_child(actions)
+
+	(page as Control).add_child(_export_destination_panel)
+	_register_tab_component(
+		HexMapWorkspaceComponentRegistry.TAB_EXPORT,
+		"export_destination_panel",
+		_export_destination_panel
+	)
+	_refresh_export_destination_panel()
+
+
 func _slot_row(slot_id: String, display_name: String, required: bool = true) -> Dictionary:
 	return {
 		"slot_id": slot_id,
@@ -1228,6 +1412,10 @@ func _object_label_asset_panel() -> HexMapWorkspaceAssetPanel:
 
 func _qa_asset_panel() -> HexMapWorkspaceAssetPanel:
 	return _asset_panels.get(HexMapWorkspaceComponentRegistry.TAB_QA, null) as HexMapWorkspaceAssetPanel
+
+
+func _export_asset_panel() -> HexMapWorkspaceAssetPanel:
+	return _asset_panels.get(HexMapWorkspaceComponentRegistry.TAB_EXPORT, null) as HexMapWorkspaceAssetPanel
 
 
 func _sync_session_document_from_result(result: Dictionary, reason: String) -> void:
@@ -1294,6 +1482,16 @@ func _sync_validation_suite_from_result(result: Dictionary) -> void:
 	if resource == null:
 		return
 	workspace_asset_context().set_validation_rule_suite(resource)
+	_sync_workspace_asset_context()
+
+
+func _sync_export_profile_from_result(result: Dictionary) -> void:
+	if not bool(result.get("ok", false)):
+		return
+	var resource = result.get("resource", null) as Resource
+	if resource == null:
+		return
+	workspace_asset_context().set_export_profile(resource)
 	_sync_workspace_asset_context()
 
 
@@ -1444,6 +1642,25 @@ func _validation_suite_action_result(ok: bool, error: int, path: String) -> Dict
 	}
 
 
+func _export_profile_action_result(ok: bool, error: int, path: String) -> Dictionary:
+	return {
+		"ok": ok,
+		"error": error,
+		"slot_id": HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE,
+		"path": path,
+		"resource": null,
+	}
+
+
+func _export_action_result(ok: bool, error: int, path: String) -> Dictionary:
+	return {
+		"ok": ok,
+		"error": error,
+		"path": path,
+		"destination": _export_destination_context(),
+	}
+
+
 func _qa_resource_context(resource: Resource) -> Dictionary:
 	if resource == null:
 		return {
@@ -1457,6 +1674,31 @@ func _qa_resource_context(resource: Resource) -> Dictionary:
 		"resource_name": resource.resource_name,
 		"resource_path": resource.resource_path,
 		"preset_source": String(resource.get_meta("preset_source", "")),
+	}
+
+
+func _export_destination_context() -> Dictionary:
+	var session := _ensure_session_state()
+	var recent: Array[String] = []
+	for destination in session.recent_export_destinations:
+		recent.append(String(destination))
+	return {
+		"selected": session.export_saved_path != "",
+		"path": session.export_saved_path,
+		"recent_destinations": recent,
+		"uses_file_dialog": true,
+		"editable_path_text_visible": false,
+	}
+
+
+func _export_handoff_context(path: String, resource) -> Dictionary:
+	var map_data = resource.to_map_data() if resource != null else null
+	return {
+		"selected": path != "",
+		"path": path,
+		"resource_class": "HexMapResource" if path != "" or resource != null else "",
+		"cell_count": map_data.cells.size() if map_data != null else 0,
+		"wall_count": map_data.walls.size() if map_data != null else 0,
 	}
 
 
@@ -1556,6 +1798,53 @@ func _mount_sample_settings_panel() -> void:
 	_register_tab_component(HexMapWorkspaceComponentRegistry.TAB_SETTINGS, "sample_settings_panel", _sample_settings_panel)
 
 
+func _refresh_export_destination_panel() -> void:
+	if _export_destination_panel == null:
+		return
+	var session := _ensure_session_state()
+	var destination := session.export_saved_path
+	if _export_destination_label != null:
+		_export_destination_label.text = "Destination: %s" % ("Not selected" if destination == "" else destination)
+	if _export_recent_destinations_label != null:
+		_export_recent_destinations_label.text = "Recent destinations: %d" % session.recent_export_destinations.size()
+	if _export_use_recent_button != null:
+		_export_use_recent_button.disabled = session.recent_export_destinations.is_empty()
+	if _export_run_button != null:
+		_export_run_button.disabled = workspace_asset_context().level_document == null or destination == ""
+
+
+func _popup_export_destination_dialog() -> bool:
+	if not Engine.is_editor_hint():
+		return false
+	var dialog := HexMapEditorPathSelector.new_dialog(
+		EditorFileDialog.FILE_MODE_SAVE_FILE,
+		HexMapEditorPathSelector.TRES_FILTERS
+	)
+	dialog.current_file = "hex_map_export.tres"
+	dialog.file_selected.connect(_on_export_destination_file_selected)
+	add_child(dialog)
+	return HexMapEditorPathSelector.popup_dialog(dialog)
+
+
+func _on_export_choose_destination_pressed() -> void:
+	_popup_export_destination_dialog()
+
+
+func _on_export_destination_file_selected(path: String) -> void:
+	select_export_destination(path)
+
+
+func _on_export_use_recent_pressed() -> void:
+	var session := _ensure_session_state()
+	if session.recent_export_destinations.is_empty():
+		return
+	select_recent_export_destination(String(session.recent_export_destinations[0]))
+
+
+func _on_export_run_workspace_pressed() -> void:
+	export_selected_document_to_destination()
+
+
 func _ensure_session_state() -> HexMapEditorSessionState:
 	if _editor_session_state == null:
 		_editor_session_state = HexMapEditorSessionState.new()
@@ -1601,3 +1890,4 @@ func _on_sample_learning_cta_dismissed() -> void:
 
 func _on_session_state_changed(_key: String) -> void:
 	_refresh_sample_learning_cta()
+	_refresh_export_destination_panel()

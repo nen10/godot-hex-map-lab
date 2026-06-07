@@ -4,6 +4,8 @@ extends RefCounted
 
 const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
 
+const MAX_RECENT_EXPORT_DESTINATIONS := 8
+
 signal changed(key: String)
 
 var target_layer: Node = null
@@ -13,6 +15,7 @@ var document_saved_path: String = ""
 var import_map: Resource = null
 var import_map_saved_path: String = ""
 var export_saved_path: String = ""
+var recent_export_destinations: PackedStringArray = PackedStringArray()
 var workspace_asset_context: HexMapWorkspaceAssetContext = HexMapWorkspaceAssetContext.new()
 var show_bundled_samples_in_main_selectors := false
 var use_bundled_sample_assets_for_scratch_documents := false
@@ -78,6 +81,21 @@ func set_export_saved_path(path: String, reason: String = "") -> void:
 	export_saved_path = path
 	last_reason = reason
 	changed.emit("export_saved_path")
+
+
+func record_export_destination(path: String, reason: String = "") -> void:
+	var actual_path := path.strip_edges()
+	if actual_path == "":
+		return
+	set_export_saved_path(actual_path, reason)
+	var next_recent := PackedStringArray([actual_path])
+	for existing in recent_export_destinations:
+		var text := String(existing)
+		if text != "" and text != actual_path and next_recent.size() < MAX_RECENT_EXPORT_DESTINATIONS:
+			next_recent.append(text)
+	recent_export_destinations = next_recent
+	last_reason = reason
+	changed.emit("recent_export_destinations")
 
 
 func set_workspace_asset_context(context: HexMapWorkspaceAssetContext, reason: String = "") -> void:
@@ -158,6 +176,7 @@ func snapshot() -> Dictionary:
 		"import_map": import_map,
 		"import_map_saved_path": import_map_saved_path,
 		"export_saved_path": export_saved_path,
+		"recent_export_destinations": recent_export_destinations.duplicate(),
 		"workspace_asset_context": context,
 		"workspace_asset_context_snapshot": context.snapshot(),
 		"show_bundled_samples_in_main_selectors": show_bundled_samples_in_main_selectors,

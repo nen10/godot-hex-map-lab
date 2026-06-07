@@ -69,7 +69,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 | `SCREEN-24` | `COMPLETE` | `SCREEN-21`, `SCREEN-23` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/SCREEN-24_PAINT_BRUSH_ASSET_SCREEN/` | Paint brush asset screen | Paint tab/component, brush palette, catalog/object/label selection state, editor tests | Paint focuses on Terrain/Overlay/Object/Label/Zone mode and current brush asset; source id, atlas coords, raw object id, and raw label id are absent from normal Paint UI; missing asset state points to owning tab. |
 | `SCREEN-25` | `COMPLETE` | `WORKSPACE-10` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/SCREEN-25_VALIDATE_ASSET_SCREEN/` | Validate asset screen | Validate tab/component, validation rule suite selection, issue navigator, editor tests | Missing user assets are validation issues, not sample fallback; issues point to the Document/Catalog/Object/Layer/QA place the user should fix. |
 | `SCREEN-26` | `COMPLETE` | `WORKSPACE-10`, `ASSET-12` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/SCREEN-26_QA_ASSET_SCREEN/` | QA / Seed Lab asset screen | QA tab/component, generation profile resources, validation suite, score table, promotion target, editor/generation tests | Custom Generation Profile and Validation Suite can be selected or created; built-in presets can be duplicated; score table displays selected profile and validation suite. |
-| `SCREEN-27` | `READY` | `WORKSPACE-10`, `ASSET-12` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/SCREEN-27_EXPORT_ASSET_SCREEN/` | Export asset screen | Export tab/component, export profile, destination FileDialog/recent destinations, package/runtime handoff, package tests | Export destination uses FileDialog/recent destination, not text input; user-selected destination is required; no sample export destination exists. |
+| `SCREEN-27` | `COMPLETE` | `WORKSPACE-10`, `ASSET-12` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/SCREEN-27_EXPORT_ASSET_SCREEN/` | Export asset screen | Export tab/component, export profile, destination FileDialog/recent destinations, package/runtime handoff, package tests | Export destination uses FileDialog/recent destination, not text input; user-selected destination is required; no sample export destination exists. |
 
 ---
 
@@ -135,7 +135,7 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `SCREEN-27`.
+Current recommended next task: `CLEANUP-30`.
 
 Reason:
 
@@ -151,9 +151,10 @@ Reason:
 - `SCREEN-24` is complete and makes Paint report current brush asset state with owning-tab CTAs.
 - `SCREEN-25` is complete and reports missing workspace assets as routed validation issues.
 - `SCREEN-26` is complete and gives QA / Seed Lab project Generation Profile and Validation Rule Suite asset actions.
-- `DOC-50` is now dependency-satisfied and READY.
-- `CLEANUP-30` and `CLEANUP-31` remain dependency-satisfied and READY.
-- `SCREEN-27` is the first dependency-satisfied READY task in queue order.
+- `SCREEN-27` is complete and makes Export use project source/profile assets plus explicit destination state.
+- `DOC-50` remains dependency-satisfied and READY.
+- `CLEANUP-31` remains dependency-satisfied and READY.
+- `CLEANUP-30` is the first dependency-satisfied READY task in queue order.
 
 ---
 
@@ -419,3 +420,19 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_workspace.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/SCREEN-26_TEST_RESULT_2026-06-08.md`
+
+### SCREEN-27 Export asset screen
+
+proof:
+  plan: `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/SCREEN-27_EXPORT_ASSET_SCREEN/`
+  review: `docs/review/autopilot/SCREEN-27_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd`
+    - `addons/hex_map_kit/editor/hex_map_editor_session_state.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/SCREEN-27_TEST_RESULT_2026-06-08.md`

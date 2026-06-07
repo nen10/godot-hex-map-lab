@@ -19,6 +19,7 @@ const SLOT_LABEL_DATABASE := "label_database"
 const SLOT_MOVEMENT_PROFILE := "movement_profile"
 const SLOT_VALIDATION_RULE_SUITE := "validation_rule_suite"
 const SLOT_GENERATION_PROFILE := "generation_profile"
+const SLOT_EXPORT_PROFILE := "export_profile"
 
 @export var level_document: HexMapDocumentResource
 @export var tile_catalog: HexTileCatalogResource
@@ -28,6 +29,7 @@ const SLOT_GENERATION_PROFILE := "generation_profile"
 @export var movement_profile: HexMovementProfileResource
 @export var validation_rule_suite: Resource
 @export var generation_profile: Resource
+@export var export_profile: Resource
 
 
 static func asset_slot_ids() -> PackedStringArray:
@@ -40,6 +42,7 @@ static func asset_slot_ids() -> PackedStringArray:
 		SLOT_MOVEMENT_PROFILE,
 		SLOT_VALIDATION_RULE_SUITE,
 		SLOT_GENERATION_PROFILE,
+		SLOT_EXPORT_PROFILE,
 	])
 
 
@@ -75,6 +78,10 @@ func set_generation_profile(resource: Resource) -> void:
 	_assign_asset(SLOT_GENERATION_PROFILE, resource)
 
 
+func set_export_profile(resource: Resource) -> void:
+	_assign_asset(SLOT_EXPORT_PROFILE, resource)
+
+
 func set_asset(slot_id: String, resource: Resource) -> void:
 	match slot_id:
 		SLOT_LEVEL_DOCUMENT:
@@ -93,6 +100,8 @@ func set_asset(slot_id: String, resource: Resource) -> void:
 			set_validation_rule_suite(resource)
 		SLOT_GENERATION_PROFILE:
 			set_generation_profile(resource)
+		SLOT_EXPORT_PROFILE:
+			set_export_profile(resource)
 
 
 func asset_for_slot(slot_id: String) -> Resource:
@@ -113,6 +122,8 @@ func asset_for_slot(slot_id: String) -> Resource:
 			return validation_rule_suite
 		SLOT_GENERATION_PROFILE:
 			return generation_profile
+		SLOT_EXPORT_PROFILE:
+			return export_profile
 	return null
 
 
@@ -147,4 +158,6 @@ func _assign_asset(slot_id: String, resource: Resource) -> void:
 			validation_rule_suite = resource
 		SLOT_GENERATION_PROFILE:
 			generation_profile = resource
+		SLOT_EXPORT_PROFILE:
+			export_profile = resource
 	asset_changed.emit(slot_id)

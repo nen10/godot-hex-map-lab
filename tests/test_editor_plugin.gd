@@ -120,6 +120,7 @@ func _run() -> void:
 	await _test_paint_brush_asset_screen_routes_missing_assets_without_raw_controls()
 	await _test_validate_asset_screen_reports_missing_project_assets_without_samples()
 	await _test_qa_asset_screen_manages_profiles_and_score_context_without_samples()
+	await _test_export_asset_screen_requires_user_destination_and_exports_project_document()
 	await _test_workspace_sample_settings_panel_controls_sample_mode_sources()
 	_test_sample_asset_duplicator_copies_catalog_dependencies_to_project()
 	_test_asset_slot_state_model_reports_selection_validation_and_sample_source()
@@ -298,7 +299,7 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 		{"tab": "Layers", "component": "layer_stack_asset_panel", "count": 1, "slot": "layer_stack"},
 		{"tab": "Validate", "component": "validation_asset_panel", "count": 2, "slot": "validation_rule_suite"},
 		{"tab": "QA", "component": "qa_asset_panel", "count": 3, "slot": "generation_profile"},
-		{"tab": "Export", "component": "export_asset_panel", "count": 1, "slot": "level_document"},
+		{"tab": "Export", "component": "export_asset_panel", "count": 2, "slot": "export_profile"},
 		{"tab": "Settings", "component": "settings_project_defaults_panel", "count": 1, "slot": "movement_profile"},
 	]
 	for expectation in asset_tab_expectations:
@@ -436,6 +437,7 @@ func _test_workspace_asset_context_is_shared_by_workspace_generate_and_paint() -
 	var movement_profile = HexMovementProfileResource.new()
 	var validation_suite = Resource.new()
 	var generation_profile = Resource.new()
+	var export_profile = Resource.new()
 
 	context.set_level_document(document)
 	context.set_tile_catalog(catalog)
@@ -445,6 +447,7 @@ func _test_workspace_asset_context_is_shared_by_workspace_generate_and_paint() -
 	context.set_movement_profile(movement_profile)
 	context.set_validation_rule_suite(validation_suite)
 	context.set_generation_profile(generation_profile)
+	context.set_export_profile(export_profile)
 
 	var slot_ids = HexMapWorkspaceAssetContext.asset_slot_ids()
 	_assert_true(slot_ids.has("tile_catalog"), "workspace asset context exposes tile catalog slot id")
@@ -454,6 +457,7 @@ func _test_workspace_asset_context_is_shared_by_workspace_generate_and_paint() -
 	_assert_true(slot_ids.has("movement_profile"), "workspace asset context exposes movement profile slot id")
 	_assert_true(slot_ids.has("validation_rule_suite"), "workspace asset context exposes validation suite slot id")
 	_assert_true(slot_ids.has("generation_profile"), "workspace asset context exposes generation profile slot id")
+	_assert_true(slot_ids.has("export_profile"), "workspace asset context exposes export profile slot id")
 
 	var snapshot = context.snapshot()
 	_assert_eq(snapshot["level_document"], document, "workspace asset context holds level document")
@@ -464,6 +468,7 @@ func _test_workspace_asset_context_is_shared_by_workspace_generate_and_paint() -
 	_assert_eq(snapshot["movement_profile"], movement_profile, "workspace asset context holds movement profile")
 	_assert_eq(snapshot["validation_rule_suite"], validation_suite, "workspace asset context holds validation suite")
 	_assert_eq(snapshot["generation_profile"], generation_profile, "workspace asset context holds generation profile")
+	_assert_eq(snapshot["export_profile"], export_profile, "workspace asset context holds export profile")
 
 	var session = HexMapEditorSessionState.new()
 	var recorder = SessionChangeRecorder.new()
@@ -1216,6 +1221,107 @@ func _test_qa_asset_screen_manages_profiles_and_score_context_without_samples() 
 	await process_frame
 
 
+func _test_export_asset_screen_requires_user_destination_and_exports_project_document() -> void:
+	var session = HexMapEditorSessionState.new()
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	var snapshot = workspace.export_screen_snapshot()
+	_assert_true(
+		PackedStringArray(snapshot["component_ids"]).has("export_asset_panel"),
+		"Export screen exposes export asset panel"
+	)
+	_assert_true(
+		PackedStringArray(snapshot["component_ids"]).has("export_destination_panel"),
+		"Export screen exposes destination panel"
+	)
+	_assert_true(
+		PackedStringArray(snapshot["asset_slot_ids"]).has(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT),
+		"Export screen exposes level document slot"
+	)
+	_assert_true(
+		PackedStringArray(snapshot["asset_slot_ids"]).has(HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE),
+		"Export screen exposes export profile slot"
+	)
+	_assert_true(not bool((snapshot["destination"] as Dictionary).get("selected", true)), "Export screen starts without destination")
+	_assert_true(not bool(snapshot["can_export"]), "Export screen cannot export until configured")
+	_assert_true(not bool(snapshot["sample_destination_available"]), "Export screen has no sample destination")
+	_assert_true(not bool(snapshot["editable_destination_path_visible"]), "Export screen does not expose editable destination path text")
+	_assert_true(not bool(snapshot["sample_candidates_visible"]), "Export screen starts with sample mode OFF")
+	var dialog_config = snapshot["destination_dialog_config"] as Dictionary
+	_assert_true(bool(dialog_config.get("uses_file_dialog", false)), "Export destination uses FileDialog contract")
+	_assert_eq(int(dialog_config.get("file_mode", -1)), EditorFileDialog.FILE_MODE_SAVE_FILE, "Export destination uses Save As dialog mode")
+	_assert_true(String(dialog_config.get("current_file", "")).ends_with(".tres"), "Export destination dialog defaults to .tres")
+	_assert_true(not bool(dialog_config.get("editable_path_text_visible", true)), "Export destination dialog does not require editable path text")
+
+	var output_dir = _test_resource_dir("screen27_export")
+	var profile_path = "%s/export_profile.tres" % output_dir
+	var profile_result = workspace.create_export_profile(profile_path)
+	_assert_true(bool(profile_result["ok"]), "Export screen creates project Export Profile")
+	_assert_true(FileAccess.file_exists(profile_path), "Export screen writes project Export Profile")
+	var export_profile = profile_result["resource"] as Resource
+	_assert_true(export_profile is Resource, "Export screen create returns export profile resource")
+	_assert_eq(workspace.workspace_asset_context().export_profile, export_profile, "created export profile enters workspace context")
+	_assert_eq(
+		workspace.tab_asset_slot_snapshot("Export", HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE).get("current_source", ""),
+		HexMapEditorAssetSlotState.SOURCE_PROJECT,
+		"Export screen marks export profile as project asset"
+	)
+
+	var profile_open = workspace.open_export_profile()
+	_assert_true(bool(profile_open["ok"]), "Export screen opens selected Export Profile")
+	var profile_save_as_path = "%s/export_profile_saved_as.tres" % output_dir
+	var profile_save = workspace.save_export_profile_as(profile_save_as_path)
+	_assert_true(bool(profile_save["ok"]), "Export screen saves Export Profile as project resource")
+	_assert_true(FileAccess.file_exists(profile_save_as_path), "Export screen Save As writes export profile")
+
+	var missing_destination = workspace.export_selected_document_to_destination()
+	_assert_true(not bool(missing_destination["ok"]), "Export screen refuses export without selected destination")
+	_assert_eq(int(missing_destination["error"]), ERR_INVALID_PARAMETER, "Export without destination reports invalid parameter")
+
+	var document := _sample_editor_document()
+	workspace.workspace_asset_context().set_level_document(document)
+	var export_path = "%s/runtime_handoff_map.tres" % output_dir
+	var destination_result = workspace.select_export_destination(export_path)
+	_assert_true(bool(destination_result["ok"]), "Export screen accepts user-selected destination")
+	_assert_eq(session.export_saved_path, export_path, "Export destination updates session handoff path")
+	_assert_eq(session.recent_export_destinations[0], export_path, "Export destination enters recent list")
+	_assert_eq(workspace.edit_tool().export_path(), export_path, "Export destination syncs paint tool handoff path")
+
+	snapshot = workspace.export_screen_snapshot()
+	_assert_true(bool(snapshot["can_export"]), "Export screen can export after document and destination are selected")
+	_assert_true(bool((snapshot["destination"] as Dictionary).get("selected", false)), "Export snapshot reports selected destination")
+
+	var export_result = workspace.export_selected_document_to_destination()
+	_assert_true(bool(export_result["ok"]), "Export screen writes selected document handoff")
+	_assert_true(FileAccess.file_exists(export_path), "Export screen writes selected destination file")
+	var loaded = ResourceLoader.load(export_path, "", ResourceLoader.CACHE_MODE_IGNORE)
+	_assert_true(loaded is HexMapResource, "Export screen handoff loads as HexMapResource")
+	_assert_eq(export_result["resource_class"], "HexMapResource", "Export result reports HexMapResource")
+	var document_summary := HexMapDocumentAdapter.document_summary(document)
+	_assert_eq(int(export_result["cell_count"]), int(document_summary["cells"]), "Export result reports document cell count")
+	_assert_eq(String((export_result["package_handoff"] as Dictionary).get("path", "")), export_path, "Export result reports package handoff path")
+	_assert_eq(String((export_result["runtime_handoff"] as Dictionary).get("resource_class", "")), "HexMapResource", "Export result reports runtime handoff type")
+
+	var next_export_path = "%s/runtime_handoff_next.tres" % output_dir
+	var next_destination = workspace.select_export_destination(next_export_path)
+	_assert_true(bool(next_destination["ok"]), "Export screen accepts another user-selected destination")
+	var recent_result = workspace.select_recent_export_destination(export_path)
+	_assert_true(bool(recent_result["ok"]), "Export screen selects previous recent destination")
+	_assert_eq(session.export_saved_path, export_path, "Recent destination updates active export path")
+	_assert_eq(session.recent_export_destinations[0], export_path, "Recent destination moves to front")
+
+	var clear_profile = workspace.clear_export_profile()
+	_assert_true(bool(clear_profile["ok"]), "Export screen clears Export Profile")
+	_assert_eq(workspace.workspace_asset_context().export_profile, null, "cleared export profile leaves workspace context")
+	_assert_true(not session.show_bundled_samples_in_main_selectors, "Export screen actions do not enable sample mode")
+
+	workspace.queue_free()
+	await process_frame
+
+
 func _test_workspace_sample_settings_panel_controls_sample_mode_sources() -> void:
 	var session = HexMapEditorSessionState.new()
 	var workspace = HexMapWorkspace.new()
@@ -1468,6 +1574,7 @@ func _test_asset_resource_factory_creates_project_resources_and_assigns_context(
 		HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE: "HexMovementProfileResource",
 		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE: "Resource",
 		HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE: "Resource",
+		HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE: "Resource",
 	}
 
 	for slot_id in HexMapWorkspaceAssetContext.asset_slot_ids():
@@ -5894,7 +6001,7 @@ func _assert_created_asset_resource_type(slot_id: String, resource: Resource) ->
 			_assert_true(resource is HexLayerStackResource, "create-new layer stack has layer stack type")
 		HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE:
 			_assert_true(resource is HexMovementProfileResource, "create-new movement profile has movement profile type")
-		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE, HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE:
+		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE, HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE, HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE:
 			_assert_true(resource is Resource, "create-new generic profile has resource type")
 
 
@@ -5920,7 +6027,7 @@ func _assert_created_asset_has_no_sample_payload(slot_id: String, resource: Reso
 		HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE:
 			var movement_profile := resource as HexMovementProfileResource
 			_assert_true(not movement_profile.profile_id.contains("sample"), "create-new movement profile is not sample-named")
-		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE, HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE:
+		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE, HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE, HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE:
 			_assert_true(not resource.resource_name.to_lower().contains("sample"), "create-new generic profile is not sample-named")
 
 

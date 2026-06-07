@@ -48,6 +48,10 @@ static func create_resource_for_slot(slot_id: String) -> Resource:
 			var generation_profile = Resource.new()
 			generation_profile.resource_name = "Project Generation Profile"
 			return generation_profile
+		HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE:
+			var export_profile = Resource.new()
+			export_profile.resource_name = "Project Export Profile"
+			return export_profile
 	return null
 
 
@@ -69,6 +73,8 @@ static func default_file_name(slot_id: String) -> String:
 			return "validation_suite.tres"
 		HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE:
 			return "generation_profile.tres"
+		HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE:
+			return "export_profile.tres"
 	return "project_asset.tres"
 
 
@@ -89,6 +95,8 @@ static func resource_type_name(slot_id: String) -> String:
 		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE:
 			return "Resource"
 		HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE:
+			return "Resource"
+		HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE:
 			return "Resource"
 	return ""
 
