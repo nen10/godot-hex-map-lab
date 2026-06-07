@@ -6,6 +6,7 @@ const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_ma
 const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
 const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
 const HexMapDocumentValidator = preload("res://addons/hex_map_kit/adapter/hex_map_document_validator.gd")
+const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
 const HexTileCatalogEntry = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd")
 const HexTileCatalogResource = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd")
 const HexTileCatalogValidator = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_validator.gd")
@@ -404,6 +405,168 @@ func validate_tile_catalog():
 	return HexTileCatalogValidator.validate_catalog(workspace_asset_context().tile_catalog)
 
 
+func layer_stack_screen_snapshot() -> Dictionary:
+	var context := workspace_asset_context()
+	var stack := context.layer_stack
+	var stack_slot := tab_asset_slot_snapshot(
+		HexMapWorkspaceComponentRegistry.TAB_LAYERS,
+		HexMapWorkspaceAssetContext.SLOT_LAYER_STACK
+	)
+	var target_status := _edit_tool.target_readiness_status() if _edit_tool != null else {}
+	var role_rows := _edit_tool.layer_stack_rows() if _edit_tool != null else []
+	return {
+		"tab": HexMapWorkspaceComponentRegistry.TAB_LAYERS,
+		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_LAYERS),
+		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_LAYERS),
+		"layer_stack": stack,
+		"layer_stack_slot": stack_slot,
+		"stack_id": stack.stack_id if stack != null else "",
+		"display_name": stack.display_name if stack != null else "",
+		"role_count": stack.layers.size() if stack != null else 0,
+		"role_names": stack.role_names() if stack != null else PackedStringArray(),
+		"role_rows": role_rows,
+		"target_status": target_status,
+		"target_layer": _edit_tool.target_layer() if _edit_tool != null else null,
+		"template_candidates": PackedStringArray(["standard", "minimal"]),
+		"sample_template_present": false,
+	}
+
+
+func create_layer_stack(path: String) -> Dictionary:
+	var panel := _layer_stack_asset_panel()
+	if panel == null:
+		return _layer_stack_action_result(false, ERR_UNAVAILABLE, path)
+	var result := panel.create_asset_for_slot(HexMapWorkspaceAssetContext.SLOT_LAYER_STACK, path)
+	_sync_layer_stack_from_result(result)
+	return result
+
+
+func save_layer_stack_as(path: String) -> Dictionary:
+	var panel := _layer_stack_asset_panel()
+	if panel == null:
+		return _layer_stack_action_result(false, ERR_UNAVAILABLE, path)
+	var result := panel.save_asset_slot_as(HexMapWorkspaceAssetContext.SLOT_LAYER_STACK, path)
+	_sync_layer_stack_from_result(result)
+	return result
+
+
+func open_layer_stack() -> Dictionary:
+	var panel := _layer_stack_asset_panel()
+	if panel == null:
+		return _layer_stack_action_result(false, ERR_UNAVAILABLE, "")
+	var result := panel.open_asset_slot(HexMapWorkspaceAssetContext.SLOT_LAYER_STACK)
+	_sync_layer_stack_from_result(result)
+	return result
+
+
+func clear_layer_stack() -> Dictionary:
+	var panel := _layer_stack_asset_panel()
+	if panel == null:
+		return _layer_stack_action_result(false, ERR_UNAVAILABLE, "")
+	var result := panel.clear_asset_slot(HexMapWorkspaceAssetContext.SLOT_LAYER_STACK)
+	if _edit_tool != null:
+		_edit_tool.set_layer_stack_resource(null, false)
+	return result
+
+
+func duplicate_layer_stack_template_to_project(template_id: String, path: String) -> Dictionary:
+	var stack := _layer_stack_template(template_id)
+	var actual_path := HexMapWorkspaceAssetResourceFactory.normalized_resource_path(path)
+	if stack == null or actual_path == "":
+		return _layer_stack_action_result(false, ERR_INVALID_PARAMETER, actual_path)
+	stack.resource_name = "Project %s" % stack.display_name
+	stack.metadata["template_source"] = template_id
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(actual_path.get_base_dir()))
+	var error := ResourceSaver.save(stack, actual_path)
+	if error == OK:
+		stack.resource_path = actual_path
+		workspace_asset_context().set_layer_stack(stack)
+		_sync_workspace_asset_context()
+	return {
+		"ok": error == OK,
+		"error": error,
+		"slot_id": HexMapWorkspaceAssetContext.SLOT_LAYER_STACK,
+		"path": actual_path,
+		"resource": stack,
+		"template_id": template_id,
+	}
+
+
+func pick_layer_stack_target_root(scene_root: Node) -> Dictionary:
+	if _edit_tool == null or scene_root == null:
+		return _layer_stack_action_result(false, ERR_INVALID_PARAMETER, "")
+	_edit_tool.refresh_target_layer_options(scene_root)
+	return {
+		"ok": _edit_tool.target_layer() != null,
+		"error": OK if _edit_tool.target_layer() != null else ERR_DOES_NOT_EXIST,
+		"target_layer": _edit_tool.target_layer(),
+		"target_status": _edit_tool.target_readiness_status(),
+		"role_rows": _edit_tool.layer_stack_rows(),
+	}
+
+
+func set_layer_stack_target_layer(layer: Node) -> Dictionary:
+	if _edit_tool == null:
+		return _layer_stack_action_result(false, ERR_UNAVAILABLE, "")
+	_edit_tool.set_target_layer(layer)
+	return {
+		"ok": _edit_tool.target_layer() != null,
+		"error": OK if _edit_tool.target_layer() != null else ERR_DOES_NOT_EXIST,
+		"target_layer": _edit_tool.target_layer(),
+		"target_status": _edit_tool.target_readiness_status(),
+		"role_rows": _edit_tool.layer_stack_rows(),
+	}
+
+
+func set_layer_stack_document(document: HexMapDocumentResource) -> Dictionary:
+	if _edit_tool == null or document == null:
+		return _layer_stack_action_result(false, ERR_INVALID_PARAMETER, "")
+	_edit_tool.set_document(document)
+	return {
+		"ok": true,
+		"error": OK,
+		"document": document,
+		"target_status": _edit_tool.target_readiness_status(),
+	}
+
+
+func create_missing_layer_stack_layers() -> Dictionary:
+	if _edit_tool == null:
+		return _layer_stack_action_result(false, ERR_UNAVAILABLE, "")
+	var ok := _edit_tool.create_missing_layer_stack_layers()
+	return {
+		"ok": ok,
+		"error": OK if ok else ERR_UNAVAILABLE,
+		"role_rows": _edit_tool.layer_stack_rows(),
+		"target_status": _edit_tool.target_readiness_status(),
+	}
+
+
+func apply_layer_stack_document_to_target() -> Dictionary:
+	if _edit_tool == null:
+		return _layer_stack_action_result(false, ERR_UNAVAILABLE, "")
+	var ok := _edit_tool.apply_layer_stack_document_to_target()
+	return {
+		"ok": ok,
+		"error": OK if ok else ERR_UNAVAILABLE,
+		"role_rows": _edit_tool.layer_stack_rows(),
+		"target_status": _edit_tool.target_readiness_status(),
+	}
+
+
+func clear_layer_stack_role(role: String) -> Dictionary:
+	if _edit_tool == null:
+		return _layer_stack_action_result(false, ERR_UNAVAILABLE, "")
+	var ok := _edit_tool.clear_layer_stack_role(role)
+	return {
+		"ok": ok,
+		"error": OK if ok else ERR_UNAVAILABLE,
+		"role": role,
+		"role_rows": _edit_tool.layer_stack_rows(),
+		"target_status": _edit_tool.target_readiness_status(),
+	}
+
+
 func _build_ui() -> void:
 	if _tabs != null:
 		return
@@ -580,6 +743,10 @@ func _catalog_asset_panel() -> HexMapWorkspaceAssetPanel:
 	return _asset_panels.get(HexMapWorkspaceComponentRegistry.TAB_CATALOG, null) as HexMapWorkspaceAssetPanel
 
 
+func _layer_stack_asset_panel() -> HexMapWorkspaceAssetPanel:
+	return _asset_panels.get(HexMapWorkspaceComponentRegistry.TAB_LAYERS, null) as HexMapWorkspaceAssetPanel
+
+
 func _sync_session_document_from_result(result: Dictionary, reason: String) -> void:
 	if not bool(result.get("ok", false)):
 		return
@@ -589,6 +756,18 @@ func _sync_session_document_from_result(result: Dictionary, reason: String) -> v
 	var path := String(result.get("path", document.resource_path))
 	_ensure_session_state().set_document(document, "workspace.document_asset_screen", path, reason)
 	_ensure_session_state().set_document_saved_path(path, reason)
+
+
+func _sync_layer_stack_from_result(result: Dictionary) -> void:
+	if not bool(result.get("ok", false)):
+		return
+	var stack = result.get("resource", null) as HexLayerStackResource
+	if stack == null:
+		return
+	workspace_asset_context().set_layer_stack(stack)
+	if _edit_tool != null:
+		_edit_tool.set_layer_stack_resource(stack, false)
+	_sync_workspace_asset_context()
 
 
 func _document_validation_options() -> Dictionary:
@@ -623,6 +802,25 @@ func _catalog_action_result(ok: bool, error: int, path: String) -> Dictionary:
 		"path": path,
 		"resource": null,
 	}
+
+
+func _layer_stack_action_result(ok: bool, error: int, path: String) -> Dictionary:
+	return {
+		"ok": ok,
+		"error": error,
+		"slot_id": HexMapWorkspaceAssetContext.SLOT_LAYER_STACK,
+		"path": path,
+		"resource": null,
+	}
+
+
+func _layer_stack_template(template_id: String) -> HexLayerStackResource:
+	match template_id.strip_edges().to_lower():
+		"standard", "standard_authoring":
+			return HexLayerStackResource.standard_template()
+		"minimal", "minimal_runtime":
+			return HexLayerStackResource.minimal_runtime_template()
+	return null
 
 
 func _mount_generation_panel() -> void:

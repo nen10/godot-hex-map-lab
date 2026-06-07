@@ -557,6 +557,48 @@ func layer_stack_resource() -> HexLayerStackResource:
 	return _ensure_layer_stack_resource()
 
 
+func create_missing_layer_stack_layers() -> bool:
+	var ok := _apply_layer_stack_to_target(false)
+	if ok:
+		_set_status("Created missing layer stack roles.")
+	else:
+		_set_status("Layer stack requires a HexTileMapLayer target and document.")
+	return ok
+
+
+func apply_layer_stack_document_to_target() -> bool:
+	var ok := _apply_layer_stack_to_target(true)
+	if ok:
+		_document_dirty = true
+		_refresh_state_labels()
+		_set_status("Applied document to layer stack.")
+	else:
+		_set_status("Layer stack apply requires a HexTileMapLayer target and document.")
+	return ok
+
+
+func clear_layer_stack_role(role: String) -> bool:
+	var selected_role := role.strip_edges()
+	if selected_role == "":
+		_set_status("No layer stack role selected.")
+		return false
+	_selected_layer_stack_role = selected_role
+	var target = _target_layer as HexTileMapLayer
+	if target == null:
+		_set_status("Clear Role requires a HexTileMapLayer target.")
+		_refresh_layer_stack_screen()
+		return false
+	var layer = target.layer_for_stack_role(selected_role)
+	if layer is TileMapLayer:
+		(layer as TileMapLayer).clear()
+		_set_status("Cleared layer stack role: %s." % selected_role)
+		_refresh_layer_stack_screen()
+		return true
+	_set_status("Layer stack role has no TileMapLayer: %s." % selected_role)
+	_refresh_layer_stack_screen()
+	return false
+
+
 func set_tile_catalog(catalog: HexTileCatalogResource, publish_context: bool = true) -> void:
 	_tile_catalog = catalog
 	_last_catalog_validation_result = null
@@ -1933,37 +1975,15 @@ func _on_layer_stack_role_selected() -> void:
 
 
 func _on_create_missing_layers_pressed() -> void:
-	if _apply_layer_stack_to_target(false):
-		_set_status("Created missing layer stack roles.")
-	else:
-		_set_status("Layer stack requires a HexTileMapLayer target and document.")
+	create_missing_layer_stack_layers()
 
 
 func _on_apply_layer_stack_document_pressed() -> void:
-	if _apply_layer_stack_to_target(true):
-		_document_dirty = true
-		_refresh_state_labels()
-		_set_status("Applied document to layer stack.")
-	else:
-		_set_status("Layer stack apply requires a HexTileMapLayer target and document.")
+	apply_layer_stack_document_to_target()
 
 
 func _on_clear_layer_stack_role_pressed() -> void:
-	var role = _selected_layer_stack_role
-	if role == "":
-		_set_status("No layer stack role selected.")
-		return
-	var target = _target_layer as HexTileMapLayer
-	if target == null:
-		_set_status("Clear Role requires a HexTileMapLayer target.")
-		return
-	var layer = target.layer_for_stack_role(role)
-	if layer is TileMapLayer:
-		(layer as TileMapLayer).clear()
-		_set_status("Cleared layer stack role: %s." % role)
-	else:
-		_set_status("Layer stack role has no TileMapLayer: %s." % role)
-	_refresh_layer_stack_screen()
+	clear_layer_stack_role(_selected_layer_stack_role)
 
 
 func _on_document_path_changed(text: String) -> void:

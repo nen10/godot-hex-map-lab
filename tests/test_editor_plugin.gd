@@ -114,6 +114,7 @@ func _run() -> void:
 	await _test_workspace_asset_context_is_shared_by_workspace_generate_and_paint()
 	await _test_document_asset_screen_manages_project_document_without_samples()
 	await _test_catalog_asset_screen_manages_project_catalog_without_samples()
+	await _test_layer_stack_asset_screen_manages_project_stack_without_samples()
 	await _test_workspace_sample_settings_panel_controls_sample_mode_sources()
 	_test_sample_asset_duplicator_copies_catalog_dependencies_to_project()
 	_test_asset_slot_state_model_reports_selection_validation_and_sample_source()
@@ -702,6 +703,113 @@ func _test_catalog_asset_screen_manages_project_catalog_without_samples() -> voi
 	_assert_eq(workspace.workspace_asset_context().tile_catalog, null, "cleared catalog leaves workspace context")
 	_assert_true(not session.show_bundled_samples_in_main_selectors, "Catalog screen actions do not enable sample mode")
 
+	workspace.queue_free()
+	await process_frame
+
+
+func _test_layer_stack_asset_screen_manages_project_stack_without_samples() -> void:
+	var session = HexMapEditorSessionState.new()
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	var snapshot = workspace.layer_stack_screen_snapshot()
+	_assert_true(
+		PackedStringArray(snapshot["component_ids"]).has("layer_stack_asset_panel"),
+		"Layers screen exposes layer stack asset component"
+	)
+	_assert_true(
+		PackedStringArray(snapshot["asset_slot_ids"]).has(HexMapWorkspaceAssetContext.SLOT_LAYER_STACK),
+		"Layers screen exposes layer stack slot"
+	)
+	_assert_true(PackedStringArray(snapshot["template_candidates"]).has("standard"), "Layers screen exposes standard template candidate")
+	_assert_true(PackedStringArray(snapshot["template_candidates"]).has("minimal"), "Layers screen exposes minimal template candidate")
+	_assert_true(not bool(snapshot["sample_template_present"]), "Layers screen has no sample template default")
+	_assert_eq(workspace.workspace_asset_context().layer_stack, null, "Layers screen starts without selected sample layer stack")
+	_assert_true(not session.show_bundled_samples_in_main_selectors, "Layers screen starts with sample mode OFF")
+
+	var output_dir = _test_resource_dir("screen22_layer_stack")
+	var stack_path = "%s/layer_stack.tres" % output_dir
+	var create_result = workspace.create_layer_stack(stack_path)
+	_assert_true(bool(create_result["ok"]), "Layers screen creates project Layer Stack")
+	_assert_true(FileAccess.file_exists(stack_path), "Layers screen writes project Layer Stack")
+	var stack = create_result["resource"] as HexLayerStackResource
+	_assert_true(stack is HexLayerStackResource, "Layers screen create returns layer stack resource")
+	_assert_eq(workspace.workspace_asset_context().layer_stack, stack, "created layer stack enters workspace context")
+	_assert_eq(workspace.edit_tool().layer_stack_resource(), stack, "created layer stack enters edit tool")
+	_assert_eq(
+		workspace.tab_asset_slot_snapshot("Layers", HexMapWorkspaceAssetContext.SLOT_LAYER_STACK).get("current_source", ""),
+		HexMapEditorAssetSlotState.SOURCE_PROJECT,
+		"Layers screen marks created layer stack as project asset"
+	)
+	_assert_true(not String(stack.display_name).to_lower().contains("sample"), "created layer stack is not sample-named")
+
+	var open_result = workspace.open_layer_stack()
+	_assert_true(bool(open_result["ok"]), "Layers screen opens selected Layer Stack")
+	_assert_eq(open_result["resource"], stack, "Layers screen open returns selected layer stack")
+
+	var save_as_path = "%s/layer_stack_saved_as.tres" % output_dir
+	var save_result = workspace.save_layer_stack_as(save_as_path)
+	_assert_true(bool(save_result["ok"]), "Layers screen saves Layer Stack as project resource")
+	_assert_true(FileAccess.file_exists(save_as_path), "Layers screen Save As writes project layer stack")
+	_assert_eq(stack.resource_path, save_as_path, "Layers screen Save As updates stack resource path")
+
+	var template_path = "%s/layer_stack_standard_template_copy.tres" % output_dir
+	var duplicate_result = workspace.duplicate_layer_stack_template_to_project("standard", template_path)
+	_assert_true(bool(duplicate_result["ok"]), "Layers screen duplicates standard template to project asset")
+	_assert_true(FileAccess.file_exists(template_path), "Layers screen writes duplicated project template")
+	var duplicated_stack = duplicate_result["resource"] as HexLayerStackResource
+	_assert_true(duplicated_stack is HexLayerStackResource, "duplicated template is a layer stack resource")
+	_assert_eq(duplicated_stack.metadata.get("template_source", ""), "standard", "duplicated stack records template source")
+	_assert_eq(workspace.workspace_asset_context().layer_stack, duplicated_stack, "duplicated template enters workspace context")
+	_assert_eq(duplicated_stack.role_names().size(), 7, "duplicated standard template keeps authoring roles")
+
+	var scene_root := Node2D.new()
+	scene_root.name = "Screen22SceneRoot"
+	var layer := HexTileMapLayer.new()
+	layer.name = "AuthoringHexLayer"
+	scene_root.add_child(layer)
+	root.add_child(scene_root)
+	await process_frame
+
+	var pick_result = workspace.pick_layer_stack_target_root(scene_root)
+	_assert_true(bool(pick_result["ok"]), "Layers screen picks target from scene root")
+	_assert_eq(pick_result["target_layer"], layer, "Layers screen resolves scene HexTileMapLayer target")
+
+	var document := _sample_editor_document()
+	var document_result = workspace.set_layer_stack_document(document)
+	_assert_true(bool(document_result["ok"]), "Layers screen accepts document for layer stack actions")
+	snapshot = workspace.layer_stack_screen_snapshot()
+	var terrain_row = _layer_stack_row_for_role(snapshot["role_rows"], HexLayerStackResource.ROLE_TERRAIN)
+	_assert_eq(terrain_row["status"], "missing", "Layers screen reports missing terrain role before create")
+	_assert_eq(
+		String((snapshot["target_status"] as Dictionary).get("target_class", "")),
+		"HexTileMapLayer",
+		"Layers screen target status names HexTileMapLayer"
+	)
+
+	var create_layers_result = workspace.create_missing_layer_stack_layers()
+	_assert_true(bool(create_layers_result["ok"]), "Layers screen creates missing target layers")
+	terrain_row = _layer_stack_row_for_role(create_layers_result["role_rows"], HexLayerStackResource.ROLE_TERRAIN)
+	_assert_eq(terrain_row["status"], "ok", "Layers screen reports created terrain role")
+	var terrain_node = layer.layer_for_stack_role(HexLayerStackResource.ROLE_TERRAIN) as TileMapLayer
+	_assert_true(terrain_node != null, "Layers screen creates terrain target node")
+
+	var apply_result = workspace.apply_layer_stack_document_to_target()
+	_assert_true(bool(apply_result["ok"]), "Layers screen applies document to target stack")
+	_assert_true(terrain_node.get_used_cells().size() > 0, "Layers screen populates terrain role from document")
+
+	var clear_role_result = workspace.clear_layer_stack_role(HexLayerStackResource.ROLE_TERRAIN)
+	_assert_true(bool(clear_role_result["ok"]), "Layers screen clears selected role")
+	_assert_eq(terrain_node.get_used_cells().size(), 0, "Layers screen clear role removes terrain cells")
+
+	var clear_stack_result = workspace.clear_layer_stack()
+	_assert_true(bool(clear_stack_result["ok"]), "Layers screen clears Layer Stack selection")
+	_assert_eq(workspace.workspace_asset_context().layer_stack, null, "cleared layer stack leaves workspace context")
+	_assert_true(not session.show_bundled_samples_in_main_selectors, "Layers screen actions do not enable sample mode")
+
+	scene_root.queue_free()
 	workspace.queue_free()
 	await process_frame
 
