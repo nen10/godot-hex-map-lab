@@ -7,6 +7,10 @@ const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_
 const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
 const HexMapDocumentValidator = preload("res://addons/hex_map_kit/adapter/hex_map_document_validator.gd")
 const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
+const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
+const HexLabelDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_label_definition_resource.gd")
+const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
+const HexObjectDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_object_definition_resource.gd")
 const HexTileCatalogEntry = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd")
 const HexTileCatalogResource = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd")
 const HexTileCatalogValidator = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_validator.gd")
@@ -567,6 +571,184 @@ func clear_layer_stack_role(role: String) -> Dictionary:
 	}
 
 
+func object_label_screen_snapshot() -> Dictionary:
+	var context := workspace_asset_context()
+	var object_database := context.object_database
+	var label_database := context.label_database
+	var object_slot := tab_asset_slot_snapshot(
+		HexMapWorkspaceComponentRegistry.TAB_PAINT,
+		HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE
+	)
+	var label_slot := tab_asset_slot_snapshot(
+		HexMapWorkspaceComponentRegistry.TAB_PAINT,
+		HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE
+	)
+	return {
+		"tab": HexMapWorkspaceComponentRegistry.TAB_PAINT,
+		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_PAINT),
+		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_PAINT),
+		"object_database": object_database,
+		"label_database": label_database,
+		"object_database_slot": object_slot,
+		"label_database_slot": label_slot,
+		"object_definition_count": object_database.definitions.size() if object_database != null else 0,
+		"object_definition_ids": object_database.definition_ids() if object_database != null else PackedStringArray(),
+		"object_definition_rows": _edit_tool.object_definition_rows() if _edit_tool != null else [],
+		"selected_object_definition_id": _edit_tool.selected_object_definition_id() if _edit_tool != null else "",
+		"object_payload": _edit_tool.object_placement_payload_snapshot() if _edit_tool != null else {},
+		"label_definition_count": label_database.definitions.size() if label_database != null else 0,
+		"label_definition_ids": label_database.definition_ids() if label_database != null else PackedStringArray(),
+		"label_definition_rows": _edit_tool.label_definition_rows() if _edit_tool != null else [],
+		"selected_label_definition_id": _edit_tool.selected_label_definition_id() if _edit_tool != null else "",
+		"label_payload": _edit_tool.label_placement_payload_snapshot() if _edit_tool != null else {},
+		"sample_object_scene_assigned": false,
+	}
+
+
+func create_object_database(path: String) -> Dictionary:
+	var panel := _object_label_asset_panel()
+	if panel == null:
+		return _object_database_action_result(false, ERR_UNAVAILABLE, path)
+	var result := panel.create_asset_for_slot(HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE, path)
+	_sync_object_database_from_result(result)
+	return result
+
+
+func save_object_database_as(path: String) -> Dictionary:
+	var panel := _object_label_asset_panel()
+	if panel == null:
+		return _object_database_action_result(false, ERR_UNAVAILABLE, path)
+	var result := panel.save_asset_slot_as(HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE, path)
+	_sync_object_database_from_result(result)
+	return result
+
+
+func open_object_database() -> Dictionary:
+	var panel := _object_label_asset_panel()
+	if panel == null:
+		return _object_database_action_result(false, ERR_UNAVAILABLE, "")
+	var result := panel.open_asset_slot(HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE)
+	_sync_object_database_from_result(result)
+	return result
+
+
+func clear_object_database() -> Dictionary:
+	var panel := _object_label_asset_panel()
+	if panel == null:
+		return _object_database_action_result(false, ERR_UNAVAILABLE, "")
+	var result := panel.clear_asset_slot(HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE)
+	if _edit_tool != null:
+		_edit_tool.set_object_database(null, false)
+	return result
+
+
+func create_label_database(path: String) -> Dictionary:
+	var panel := _object_label_asset_panel()
+	if panel == null:
+		return _label_database_action_result(false, ERR_UNAVAILABLE, path)
+	var result := panel.create_asset_for_slot(HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE, path)
+	_sync_label_database_from_result(result)
+	return result
+
+
+func save_label_database_as(path: String) -> Dictionary:
+	var panel := _object_label_asset_panel()
+	if panel == null:
+		return _label_database_action_result(false, ERR_UNAVAILABLE, path)
+	var result := panel.save_asset_slot_as(HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE, path)
+	_sync_label_database_from_result(result)
+	return result
+
+
+func open_label_database() -> Dictionary:
+	var panel := _object_label_asset_panel()
+	if panel == null:
+		return _label_database_action_result(false, ERR_UNAVAILABLE, "")
+	var result := panel.open_asset_slot(HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE)
+	_sync_label_database_from_result(result)
+	return result
+
+
+func clear_label_database() -> Dictionary:
+	var panel := _object_label_asset_panel()
+	if panel == null:
+		return _label_database_action_result(false, ERR_UNAVAILABLE, "")
+	var result := panel.clear_asset_slot(HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE)
+	if _edit_tool != null:
+		_edit_tool.set_label_database(null, false)
+	return result
+
+
+func create_object_definition_from_packed_scene(
+	definition_id: String,
+	scene: PackedScene,
+	display_name: String = "",
+	preview_texture: Texture2D = null
+) -> Dictionary:
+	var database := workspace_asset_context().object_database
+	var object_id := definition_id.strip_edges()
+	if database == null or scene == null or object_id == "":
+		return _object_definition_action_result(false, ERR_INVALID_PARAMETER, object_id, null)
+	var definition := HexObjectDefinitionResource.new()
+	definition.id = object_id
+	definition.display_name = display_name if display_name != "" else object_id
+	definition.scene = scene
+	definition.preview_texture = preview_texture
+	definition.tags = PackedStringArray(["object"])
+	database.add_definition(definition)
+	if _edit_tool != null:
+		_edit_tool.set_object_database(database, false)
+		_edit_tool.select_object_definition_id(object_id)
+	return _object_definition_action_result(true, OK, object_id, definition)
+
+
+func select_object_definition(definition_id: String) -> Dictionary:
+	if _edit_tool == null:
+		return _object_definition_action_result(false, ERR_UNAVAILABLE, definition_id, null)
+	var ok := _edit_tool.select_object_definition_id(definition_id)
+	return {
+		"ok": ok,
+		"error": OK if ok else ERR_DOES_NOT_EXIST,
+		"definition_id": definition_id,
+		"payload": _edit_tool.object_placement_payload_snapshot(),
+	}
+
+
+func create_label_definition(
+	label_id: String,
+	display_name: String = "",
+	default_text: String = "",
+	style_key: String = ""
+) -> Dictionary:
+	var database := workspace_asset_context().label_database
+	var definition_id := label_id.strip_edges()
+	if database == null or definition_id == "":
+		return _label_definition_action_result(false, ERR_INVALID_PARAMETER, definition_id, null)
+	var definition := HexLabelDefinitionResource.new()
+	definition.label_id = definition_id
+	definition.display_name = display_name if display_name != "" else definition_id
+	definition.default_text = default_text
+	definition.style_key = style_key
+	definition.tags = PackedStringArray(["label"])
+	database.add_definition(definition)
+	if _edit_tool != null:
+		_edit_tool.set_label_database(database, false)
+		_edit_tool.select_label_definition_id(definition_id)
+	return _label_definition_action_result(true, OK, definition_id, definition)
+
+
+func select_label_definition(label_id: String) -> Dictionary:
+	if _edit_tool == null:
+		return _label_definition_action_result(false, ERR_UNAVAILABLE, label_id, null)
+	var ok := _edit_tool.select_label_definition_id(label_id)
+	return {
+		"ok": ok,
+		"error": OK if ok else ERR_DOES_NOT_EXIST,
+		"label_id": label_id,
+		"payload": _edit_tool.label_placement_payload_snapshot(),
+	}
+
+
 func _build_ui() -> void:
 	if _tabs != null:
 		return
@@ -644,6 +826,15 @@ func _mount_workspace_asset_panels() -> void:
 		"Layer Assets",
 		[
 			_slot_row(HexMapWorkspaceAssetContext.SLOT_LAYER_STACK, "Layer Stack"),
+		]
+	)
+	_mount_asset_panel(
+		HexMapWorkspaceComponentRegistry.TAB_PAINT,
+		"object_label_asset_panel",
+		"Object / Label Assets",
+		[
+			_slot_row(HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE, "Object Database"),
+			_slot_row(HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE, "Label Database"),
 		]
 	)
 	_mount_asset_panel(
@@ -747,6 +938,10 @@ func _layer_stack_asset_panel() -> HexMapWorkspaceAssetPanel:
 	return _asset_panels.get(HexMapWorkspaceComponentRegistry.TAB_LAYERS, null) as HexMapWorkspaceAssetPanel
 
 
+func _object_label_asset_panel() -> HexMapWorkspaceAssetPanel:
+	return _asset_panels.get(HexMapWorkspaceComponentRegistry.TAB_PAINT, null) as HexMapWorkspaceAssetPanel
+
+
 func _sync_session_document_from_result(result: Dictionary, reason: String) -> void:
 	if not bool(result.get("ok", false)):
 		return
@@ -767,6 +962,30 @@ func _sync_layer_stack_from_result(result: Dictionary) -> void:
 	workspace_asset_context().set_layer_stack(stack)
 	if _edit_tool != null:
 		_edit_tool.set_layer_stack_resource(stack, false)
+	_sync_workspace_asset_context()
+
+
+func _sync_object_database_from_result(result: Dictionary) -> void:
+	if not bool(result.get("ok", false)):
+		return
+	var database = result.get("resource", null) as HexObjectDatabaseResource
+	if database == null:
+		return
+	workspace_asset_context().set_object_database(database)
+	if _edit_tool != null:
+		_edit_tool.set_object_database(database, false)
+	_sync_workspace_asset_context()
+
+
+func _sync_label_database_from_result(result: Dictionary) -> void:
+	if not bool(result.get("ok", false)):
+		return
+	var database = result.get("resource", null) as HexLabelDatabaseResource
+	if database == null:
+		return
+	workspace_asset_context().set_label_database(database)
+	if _edit_tool != null:
+		_edit_tool.set_label_database(database, false)
 	_sync_workspace_asset_context()
 
 
@@ -811,6 +1030,46 @@ func _layer_stack_action_result(ok: bool, error: int, path: String) -> Dictionar
 		"slot_id": HexMapWorkspaceAssetContext.SLOT_LAYER_STACK,
 		"path": path,
 		"resource": null,
+	}
+
+
+func _object_database_action_result(ok: bool, error: int, path: String) -> Dictionary:
+	return {
+		"ok": ok,
+		"error": error,
+		"slot_id": HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE,
+		"path": path,
+		"resource": null,
+	}
+
+
+func _label_database_action_result(ok: bool, error: int, path: String) -> Dictionary:
+	return {
+		"ok": ok,
+		"error": error,
+		"slot_id": HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE,
+		"path": path,
+		"resource": null,
+	}
+
+
+func _object_definition_action_result(ok: bool, error: int, definition_id: String, definition) -> Dictionary:
+	return {
+		"ok": ok,
+		"error": error,
+		"definition_id": definition_id,
+		"definition": definition,
+		"payload": _edit_tool.object_placement_payload_snapshot() if _edit_tool != null else {},
+	}
+
+
+func _label_definition_action_result(ok: bool, error: int, label_id: String, definition) -> Dictionary:
+	return {
+		"ok": ok,
+		"error": error,
+		"label_id": label_id,
+		"definition": definition,
+		"payload": _edit_tool.label_placement_payload_snapshot() if _edit_tool != null else {},
 	}
 
 

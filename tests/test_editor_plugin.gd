@@ -20,6 +20,7 @@ const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_laye
 const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
 const HexObjectDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_object_definition_resource.gd")
 const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
+const HexLabelDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_label_definition_resource.gd")
 const HexMovementProfileResource = preload("res://addons/hex_map_kit/adapter/hex_movement_profile_resource.gd")
 const HexMapGenDock = preload("res://addons/hex_map_kit/editor/hex_map_gen_dock.gd")
 const HexMapGenStateEvaluator = preload("res://addons/hex_map_kit/editor/hex_map_gen_state_evaluator.gd")
@@ -115,6 +116,7 @@ func _run() -> void:
 	await _test_document_asset_screen_manages_project_document_without_samples()
 	await _test_catalog_asset_screen_manages_project_catalog_without_samples()
 	await _test_layer_stack_asset_screen_manages_project_stack_without_samples()
+	await _test_object_label_asset_screen_manages_project_definitions_without_samples()
 	await _test_workspace_sample_settings_panel_controls_sample_mode_sources()
 	_test_sample_asset_duplicator_copies_catalog_dependencies_to_project()
 	_test_asset_slot_state_model_reports_selection_validation_and_sample_source()
@@ -288,6 +290,7 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 	_assert_eq(workspace.sample_settings_panel().editor_session_state(), session, "workspace forwards session to sample settings component")
 	var asset_tab_expectations := [
 		{"tab": "Document", "component": "document_asset_panel", "count": 5, "slot": "level_document"},
+		{"tab": "Paint", "component": "object_label_asset_panel", "count": 2, "slot": "object_database"},
 		{"tab": "Catalog", "component": "catalog_asset_panel", "count": 1, "slot": "tile_catalog"},
 		{"tab": "Layers", "component": "layer_stack_asset_panel", "count": 1, "slot": "layer_stack"},
 		{"tab": "Validate", "component": "validation_asset_panel", "count": 2, "slot": "validation_rule_suite"},
@@ -328,7 +331,11 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 		"QA tab registry exposes generation profile asset slot"
 	)
 	_assert_true(workspace.tab_has_component("Paint", "brush_palette"), "Paint tab keeps paint component")
-	_assert_eq(workspace.asset_slot_count("Paint"), 0, "Paint tab no longer owns setup asset panels")
+	_assert_eq(workspace.asset_slot_count("Paint"), 2, "Paint tab owns object and label asset slots")
+	_assert_true(
+		workspace.tab_asset_slot_ids("Paint").has(HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE),
+		"Paint tab registry exposes label database asset slot"
+	)
 	_assert_true(not workspace.tab_has_component("Paint", "document_asset_panel"), "Paint tab does not own Document setup component")
 	_assert_true(workspace.tab_has_component("Settings", "sample_settings_panel"), "Settings tab keeps sample settings component")
 
@@ -810,6 +817,117 @@ func _test_layer_stack_asset_screen_manages_project_stack_without_samples() -> v
 	_assert_true(not session.show_bundled_samples_in_main_selectors, "Layers screen actions do not enable sample mode")
 
 	scene_root.queue_free()
+	workspace.queue_free()
+	await process_frame
+
+
+func _test_object_label_asset_screen_manages_project_definitions_without_samples() -> void:
+	var session = HexMapEditorSessionState.new()
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	var snapshot = workspace.object_label_screen_snapshot()
+	_assert_true(
+		PackedStringArray(snapshot["component_ids"]).has("object_label_asset_panel"),
+		"Object/Label screen exposes asset component"
+	)
+	_assert_true(
+		PackedStringArray(snapshot["asset_slot_ids"]).has(HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE),
+		"Object/Label screen exposes object database slot"
+	)
+	_assert_true(
+		PackedStringArray(snapshot["asset_slot_ids"]).has(HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE),
+		"Object/Label screen exposes label database slot"
+	)
+	_assert_eq(workspace.workspace_asset_context().object_database, null, "Object/Label screen starts without sample object database")
+	_assert_eq(workspace.workspace_asset_context().label_database, null, "Object/Label screen starts without sample label database")
+	_assert_true(not bool(snapshot["sample_object_scene_assigned"]), "Object/Label screen does not assign sample object scene")
+	_assert_true(not session.show_bundled_samples_in_main_selectors, "Object/Label screen starts with sample mode OFF")
+
+	var output_dir = _test_resource_dir("screen23_object_label")
+	var object_db_path = "%s/object_database.tres" % output_dir
+	var object_create_result = workspace.create_object_database(object_db_path)
+	_assert_true(bool(object_create_result["ok"]), "Object/Label screen creates project Object Database")
+	_assert_true(FileAccess.file_exists(object_db_path), "Object/Label screen writes project Object Database")
+	var object_database = object_create_result["resource"] as HexObjectDatabaseResource
+	_assert_true(object_database is HexObjectDatabaseResource, "Object/Label screen create returns object database resource")
+	_assert_eq(workspace.workspace_asset_context().object_database, object_database, "created object database enters workspace context")
+	_assert_eq(workspace.edit_tool().object_database(), object_database, "created object database enters edit tool")
+	_assert_eq(
+		workspace.tab_asset_slot_snapshot("Paint", HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE).get("current_source", ""),
+		HexMapEditorAssetSlotState.SOURCE_PROJECT,
+		"Object/Label screen marks created object database as project asset"
+	)
+
+	var label_db_path = "%s/label_database.tres" % output_dir
+	var label_create_result = workspace.create_label_database(label_db_path)
+	_assert_true(bool(label_create_result["ok"]), "Object/Label screen creates project Label Database")
+	_assert_true(FileAccess.file_exists(label_db_path), "Object/Label screen writes project Label Database")
+	var label_database = label_create_result["resource"] as HexLabelDatabaseResource
+	_assert_true(label_database is HexLabelDatabaseResource, "Object/Label screen create returns label database resource")
+	_assert_eq(workspace.workspace_asset_context().label_database, label_database, "created label database enters workspace context")
+	_assert_eq(workspace.edit_tool().label_database(), label_database, "created label database enters edit tool")
+
+	var marker := Node2D.new()
+	var scene := PackedScene.new()
+	_assert_eq(scene.pack(marker), OK, "test PackedScene packs for object definition")
+	marker.free()
+	var object_definition_result = workspace.create_object_definition_from_packed_scene("object.door", scene, "Door")
+	_assert_true(bool(object_definition_result["ok"]), "Object/Label screen creates Object Definition from PackedScene")
+	var object_definition = object_definition_result["definition"] as HexObjectDefinitionResource
+	_assert_true(object_definition is HexObjectDefinitionResource, "Object/Label screen returns object definition")
+	_assert_eq(object_definition.scene, scene, "Object Definition stores selected PackedScene")
+	_assert_true(object_database.definition_ids().has("object.door"), "Object Database lists created object definition")
+
+	var object_select_result = workspace.select_object_definition("object.door")
+	_assert_true(bool(object_select_result["ok"]), "Object/Label screen selects Object Definition for placement")
+	_assert_eq(String(object_select_result["payload"].get("object_id", "")), "object.door", "Object placement payload uses selected definition id")
+	snapshot = workspace.object_label_screen_snapshot()
+	_assert_eq(snapshot["selected_object_definition_id"], "object.door", "Object/Label snapshot reports selected object definition")
+	var door_row = _object_definition_row_for_id(snapshot["object_definition_rows"], "object.door")
+	_assert_eq(door_row["scene"], "PackedScene", "Object Definition row reports PackedScene status")
+
+	var label_definition_result = workspace.create_label_definition("label.zone", "Zone Label", "North Gate", "map")
+	_assert_true(bool(label_definition_result["ok"]), "Object/Label screen creates Label Definition")
+	var label_definition = label_definition_result["definition"] as HexLabelDefinitionResource
+	_assert_true(label_definition is HexLabelDefinitionResource, "Object/Label screen returns label definition")
+	_assert_eq(label_definition.default_text, "North Gate", "Label Definition stores default text")
+	_assert_true(label_database.definition_ids().has("label.zone"), "Label Database lists created label definition")
+
+	var label_select_result = workspace.select_label_definition("label.zone")
+	_assert_true(bool(label_select_result["ok"]), "Object/Label screen selects Label Definition for placement")
+	_assert_eq(String(label_select_result["payload"].get("label_id", "")), "label.zone", "Label placement payload uses selected definition id")
+	_assert_eq(String(label_select_result["payload"].get("text", "")), "North Gate", "Label placement payload uses definition default text")
+	snapshot = workspace.object_label_screen_snapshot()
+	_assert_eq(snapshot["selected_label_definition_id"], "label.zone", "Object/Label snapshot reports selected label definition")
+	_assert_true(PackedStringArray(snapshot["label_definition_ids"]).has("label.zone"), "Object/Label snapshot lists label definition")
+
+	var object_open_result = workspace.open_object_database()
+	_assert_true(bool(object_open_result["ok"]), "Object/Label screen opens selected Object Database")
+	_assert_eq(object_open_result["resource"], object_database, "Object/Label open returns selected Object Database")
+	var object_save_as_path = "%s/object_database_saved_as.tres" % output_dir
+	var object_save_result = workspace.save_object_database_as(object_save_as_path)
+	_assert_true(bool(object_save_result["ok"]), "Object/Label screen saves Object Database as project resource")
+	_assert_true(FileAccess.file_exists(object_save_as_path), "Object/Label screen Save As writes object database")
+
+	var label_open_result = workspace.open_label_database()
+	_assert_true(bool(label_open_result["ok"]), "Object/Label screen opens selected Label Database")
+	_assert_eq(label_open_result["resource"], label_database, "Object/Label open returns selected Label Database")
+	var label_save_as_path = "%s/label_database_saved_as.tres" % output_dir
+	var label_save_result = workspace.save_label_database_as(label_save_as_path)
+	_assert_true(bool(label_save_result["ok"]), "Object/Label screen saves Label Database as project resource")
+	_assert_true(FileAccess.file_exists(label_save_as_path), "Object/Label screen Save As writes label database")
+
+	var object_clear_result = workspace.clear_object_database()
+	_assert_true(bool(object_clear_result["ok"]), "Object/Label screen clears Object Database")
+	_assert_eq(workspace.workspace_asset_context().object_database, null, "cleared object database leaves workspace context")
+	var label_clear_result = workspace.clear_label_database()
+	_assert_true(bool(label_clear_result["ok"]), "Object/Label screen clears Label Database")
+	_assert_eq(workspace.workspace_asset_context().label_database, null, "cleared label database leaves workspace context")
+	_assert_true(not session.show_bundled_samples_in_main_selectors, "Object/Label screen actions do not enable sample mode")
+
 	workspace.queue_free()
 	await process_frame
 
@@ -2820,7 +2938,8 @@ func _test_map_edit_tool_mode_specific_payload_controls() -> void:
 	_assert_true(not _control_row_visible(tool._tile_catalog_option), "object mode hides tile catalog control")
 
 	tool.set_edit_mode(HexMapEditTool.EditMode.LABEL)
-	_assert_true(_control_row_visible(tool._label_id_edit), "label mode shows label id control")
+	_assert_true(not _control_row_visible(tool._label_id_edit), "label mode hides raw label id control")
+	_assert_true(_control_row_visible(tool._label_definition_tree), "label mode shows label definition list")
 	_assert_true(_control_row_visible(tool._label_text_edit), "label mode shows label text control")
 	_assert_true(not _control_row_visible(tool._object_id_edit), "label mode hides object payload controls")
 

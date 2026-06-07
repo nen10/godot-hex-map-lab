@@ -16,6 +16,7 @@ const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex
 const HexMapValidationDashboard = preload("res://addons/hex_map_kit/editor/hex_map_validation_dashboard.gd")
 const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
 const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
+const HexLabelDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_label_definition_resource.gd")
 const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
 const HexObjectDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_object_definition_resource.gd")
 const HexTileCatalogEntry = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd")
@@ -183,6 +184,9 @@ var _object_property_controls: Dictionary = {}
 var _selected_object_definition_id := ""
 var _refreshing_object_definition_tree := false
 var _label_database_picker
+var _label_definition_tree: Tree
+var _selected_label_definition_id := ""
+var _refreshing_label_definition_tree := false
 var _tile_source_spin: SpinBox
 var _tile_atlas_x_spin: SpinBox
 var _tile_atlas_y_spin: SpinBox
@@ -535,6 +539,13 @@ func object_database() -> Resource:
 
 func set_label_database(database: Resource, publish_context: bool = true) -> void:
 	_label_database = database
+	if _selected_label_definition_id == "" and _label_database != null and _label_database.has_method("definition_ids"):
+		var ids: PackedStringArray = _label_database.definition_ids()
+		if ids.size() > 0:
+			_selected_label_definition_id = ids[0]
+	if _selected_label_definition_id != "" and String(_label_payload.get("label_id", "")) == "":
+		_select_label_definition(_selected_label_definition_id)
+	_refresh_label_definition_tree()
 	_sync_resource_pickers()
 	if publish_context:
 		_publish_workspace_asset(HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE, database as HexLabelDatabaseResource, "edit.set_label_database")
@@ -542,6 +553,60 @@ func set_label_database(database: Resource, publish_context: bool = true) -> voi
 
 func label_database() -> Resource:
 	return _label_database
+
+
+func label_definition_rows() -> Array[Dictionary]:
+	var database = _label_database as HexLabelDatabaseResource
+	if database == null:
+		return []
+	var rows: Array[Dictionary] = []
+	for definition in database.definitions:
+		if definition == null:
+			continue
+		rows.append({
+			"id": String(definition.get("label_id")),
+			"display_name": String(definition.get("display_name")),
+			"default_text": String(definition.get("default_text")),
+			"style_key": String(definition.get("style_key")),
+			"tags": _packed_string_array_text(definition.get("tags")),
+		})
+	return rows
+
+
+func selected_object_definition_id() -> String:
+	return _selected_object_definition_id
+
+
+func selected_label_definition_id() -> String:
+	return _selected_label_definition_id
+
+
+func object_placement_payload_snapshot() -> Dictionary:
+	return _object_payload.duplicate(true)
+
+
+func label_placement_payload_snapshot() -> Dictionary:
+	return _label_payload.duplicate(true)
+
+
+func select_object_definition_id(definition_id: String) -> bool:
+	if _object_database == null or not _object_database.has_method("has_definition"):
+		return false
+	if not _object_database.has_definition(definition_id):
+		return false
+	set_edit_mode(EditMode.OBJECT)
+	_select_object_definition(definition_id)
+	return true
+
+
+func select_label_definition_id(definition_id: String) -> bool:
+	if _label_database == null or not _label_database.has_method("has_definition"):
+		return false
+	if not _label_database.has_definition(definition_id):
+		return false
+	set_edit_mode(EditMode.LABEL)
+	_select_label_definition(definition_id)
+	return true
 
 
 func set_layer_stack_resource(stack: HexLayerStackResource, publish_context: bool = true) -> void:
@@ -1349,6 +1414,17 @@ func _build_ui() -> void:
 		_label_database_picker.base_type = "HexLabelDatabaseResource"
 		_label_database_picker.resource_changed.connect(_on_label_database_changed)
 		root.add_child(_wrap_labeled("Label DB", _label_database_picker))
+	_label_definition_tree = Tree.new()
+	_label_definition_tree.columns = 4
+	_label_definition_tree.hide_root = true
+	_label_definition_tree.custom_minimum_size = Vector2(0.0, 96.0)
+	_label_definition_tree.set_column_title(0, "id")
+	_label_definition_tree.set_column_title(1, "text")
+	_label_definition_tree.set_column_title(2, "style")
+	_label_definition_tree.set_column_title(3, "tags")
+	_label_definition_tree.set_column_titles_visible(true)
+	_label_definition_tree.item_selected.connect(_on_label_definition_tree_selected)
+	root.add_child(_wrap_labeled("Label Definitions", _label_definition_tree))
 
 	_label_text_edit = LineEdit.new()
 	_label_text_edit.placeholder_text = "label text"
@@ -1611,6 +1687,40 @@ func _select_object_definition(definition_id: String) -> void:
 	_apply_selected_definition_defaults()
 	_refresh_object_palette()
 	_refresh_object_property_editor()
+	_refresh_target_status_detail()
+
+
+func _refresh_label_definition_tree() -> void:
+	if _label_definition_tree == null:
+		return
+	_refreshing_label_definition_tree = true
+	_label_definition_tree.clear()
+	var root_item = _label_definition_tree.create_item()
+	for row in label_definition_rows():
+		var item = _label_definition_tree.create_item(root_item)
+		item.set_text(0, String(row.get("id", "")))
+		item.set_text(1, String(row.get("default_text", "")))
+		item.set_text(2, String(row.get("style_key", "")))
+		item.set_text(3, String(row.get("tags", "")))
+		if String(row.get("id", "")) == _selected_label_definition_id:
+			item.select(0)
+	_refreshing_label_definition_tree = false
+
+
+func _select_label_definition(definition_id: String) -> void:
+	_selected_label_definition_id = definition_id
+	if _label_database == null or not _label_database.has_method("definition_for_id"):
+		return
+	var definition = _label_database.definition_for_id(definition_id)
+	if definition == null:
+		return
+	_label_payload["label_id"] = definition_id
+	_label_payload["text"] = String(definition.get("default_text"))
+	if _label_id_edit != null:
+		_label_id_edit.text = definition_id
+	if _label_text_edit != null:
+		_label_text_edit.text = String(definition.get("default_text"))
+	_refresh_label_definition_tree()
 	_refresh_target_status_detail()
 
 
@@ -2077,6 +2187,20 @@ func _on_add_object_definition_pressed() -> void:
 
 func _on_label_database_changed(resource: Resource) -> void:
 	set_label_database(resource)
+
+
+func _on_label_definition_tree_selected() -> void:
+	if _refreshing_label_definition_tree:
+		return
+	if _label_definition_tree == null:
+		return
+	var selected = _label_definition_tree.get_selected()
+	if selected == null:
+		return
+	var definition_id = selected.get_text(0)
+	if definition_id == "":
+		return
+	_select_label_definition(definition_id)
 
 
 func _on_export_path_changed(text: String) -> void:
@@ -2596,6 +2720,11 @@ func _on_object_rotation_changed(_value: float) -> void:
 func _on_label_payload_changed(_text: String) -> void:
 	_label_payload["label_id"] = _label_id_edit.text
 	_label_payload["text"] = _label_text_edit.text
+	if _label_database != null \
+		and _label_database.has_method("has_definition") \
+		and _label_database.has_definition(String(_label_payload.get("label_id", ""))):
+		_selected_label_definition_id = String(_label_payload.get("label_id", ""))
+		_refresh_label_definition_tree()
 
 
 func _on_object_catalog_selected(index: int) -> void:
@@ -2693,7 +2822,8 @@ func _refresh_payload_controls_visibility() -> void:
 	_set_control_row_visible(_object_properties_table, false)
 	_set_control_row_visible(_object_spawn_condition_edit, show_object)
 	_set_control_row_visible(_object_database_picker, show_object)
-	_set_control_row_visible(_label_id_edit, show_label)
+	_set_control_row_visible(_label_id_edit, false)
+	_set_control_row_visible(_label_definition_tree, show_label)
 	_set_control_row_visible(_label_text_edit, show_label)
 	_set_control_row_visible(_label_database_picker, show_label)
 
@@ -2736,6 +2866,7 @@ func _sync_resource_pickers() -> void:
 		_object_database_picker.edited_resource = _object_database
 	if _label_database_picker != null:
 		_label_database_picker.edited_resource = _label_database
+	_refresh_label_definition_tree()
 
 
 func _publish_session_target(reason: String) -> void:
