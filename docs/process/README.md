@@ -15,7 +15,7 @@ Roadmap の決定や queue 設計は `docs/policy/` に置く。ここでは、�
 ## Flow
 
 ```text
-UX_ROADMAP.md
+ROADMAP.md
   -> IMPLEMENTATION_QUEUE.md
     -> Autopilot loop
       -> queue update

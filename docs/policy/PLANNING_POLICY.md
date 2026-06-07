@@ -21,6 +21,7 @@ docs/plan/<YYYY-MM-DD>_<ROADMAP_ID>/<TASK_ID>_<slug>/
 ## 1. UX.md
 
 目標を operation steps として具体化するため、複数の UX を提案し、各候補を評価する。
+implementation queue の task packet は最小限の説明であり、目標の具体化のため `ROADMAP.md` の該当 task を参照して検討する。
 
 以下を含む:
 

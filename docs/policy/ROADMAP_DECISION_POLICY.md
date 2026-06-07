@@ -19,7 +19,7 @@ Roadmap 作成時は、必要に応じて以下を読む。
 ## Output
 
 ```text
-docs/plan/<YYYY-MM-DD>_<ROADMAP_ID>/UX_ROADMAP.md
+docs/plan/<YYYY-MM-DD>_<ROADMAP_ID>/ROADMAP.md
 ```
 
 Roadmap は目標となる複数のUX,API方針に対して、説明可能な実施順序を設計する。

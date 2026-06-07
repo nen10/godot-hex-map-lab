@@ -8,7 +8,7 @@ Roadmap 作成は `docs/policy/ROADMAP_DECISION_POLICY.md`、queue 作成は `do
 
 ## Inputs
 
-- `docs/plan/<YYYY-MM-DD>_<ROADMAP_ID>/UX_ROADMAP.md`
+- `docs/plan/<YYYY-MM-DD>_<ROADMAP_ID>/ROADMAP.md`
 - `docs/plan/<YYYY-MM-DD>_<ROADMAP_ID>/IMPLEMENTATION_QUEUE.md`
 - `docs/policy/`
 - `docs/TEST.md`
@@ -17,13 +17,13 @@ Roadmap 作成は `docs/policy/ROADMAP_DECISION_POLICY.md`、queue 作成は `do
 
 1. Queue から先頭の `READY` task を選ぶ。
 2. task を `RUNNING` にする。
-3. task plan dir に `UX.md` / `POLICY.md` / `IMPLEMENTATION_PLAN.md` がなければ作る。cf.`docs/policy/PLANNING_POLICY.md`
+3. task plan dir に `UX.md` / `POLICY.md` / `IMPLEMENTATION_PLAN.md` がなければ作る。cf.`docs/policy/PLANNING_POLICY.md`, `ROADMAP.md` 内の該当 task
 4. plan 後に承認待ちで止まらず、同じ run で実装する。
 5. code / tests / docs を更新する。cf.`docs/policy/IMPLEMENTATION_POLICY.md`
 6. `./tools/test.sh` を実行する。
 7. 失敗や不足を分類し、`repair-now` は同じ task で修正する。
 8. `docs/review/autopilot/<TASK_ID>_SELF_REVIEW_<date>.md` を作る。
-9. `QUEUE_OPERATION_RULES.md` に従って queue を更新する。
+9.  `QUEUE_OPERATION_RULES.md` に従って queue を更新する。
 10. 完了状態なら `CODEX_AUTOPILOT_COMMIT_POLICY.md` に従って commit する。
 11. 次の `READY` task へ進む。
 

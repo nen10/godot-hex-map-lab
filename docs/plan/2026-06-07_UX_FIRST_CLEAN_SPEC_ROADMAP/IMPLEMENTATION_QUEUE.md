@@ -1,7 +1,7 @@
 # UX First Clean Spec Implementation Queue 2026-06-07
 
 作成日: 2026-06-07  
-Roadmap: `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/UX_ROADMAP.md`  
+Roadmap: `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/ROADMAP.md`  
 Operation rules: `docs/process/QUEUE_OPERATION_RULES.md`  
 Commit policy: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 
@@ -13,7 +13,7 @@ Commit policy: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 
 - status は `docs/process/QUEUE_OPERATION_RULES.md` に従う。
 - `READY` task を進める。Roadmap 記載の UX に関して Design Flow に従い、`UX.md` / `POLICY.md` / `IMPLEMENTATION_PLAN.md` を必要に応じて作る。
-- 本ファイル記載の要件は圧縮された概要にすぎない。設計に際しては必ず `UX_ROADMAP.md` 全体から該当箇所及び関連する目標を理解し、UXの機能分解を進めること。
+- 本ファイル記載の要件は圧縮された概要にすぎない。設計に際しては必ず `ROADMAP.md` 全体から該当箇所及び関連する目標を理解し、UXの機能分解を進めること。
 - この roadmap では、未公開addonであることを前提に、互換性維持より clean UX / clean API / clean tests を優先する。
 - Headless editor test が clean UX を妨げる場合、test を削除または新UXの state contract へ書き換える。
 - 新規 analog test は作らない。analog test は UI再編後にユーザー指示で再開する。

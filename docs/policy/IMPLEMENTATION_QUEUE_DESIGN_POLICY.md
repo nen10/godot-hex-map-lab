@@ -8,7 +8,7 @@
 
 ## Inputs
 
-- `docs/plan/<YYYY-MM-DD>_<ROADMAP_ID>/UX_ROADMAP.md`
+- `docs/plan/<YYYY-MM-DD>_<ROADMAP_ID>/ROADMAP.md`
 - 関連する評価・review・risk register
 - `docs/policy/DOMAIN_POLICY.md`
 - `docs/policy/TEST_DESIGN_POLICY.md`

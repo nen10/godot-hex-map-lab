@@ -9,7 +9,7 @@ description: Continue a Hex Map Kit implementation queue without human approval 
 
 1. `AGENTS.md`
 2. `docs/process/README.md`
-3. Target `UX_ROADMAP.md`
+3. Target `ROADMAP.md`
 4. Target `IMPLEMENTATION_QUEUE.md`
 5. `docs/policy/README.md`
 6. `docs/TEST.md`

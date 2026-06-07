@@ -62,7 +62,7 @@
 ## Intended usage
 
 1. User gives feedback or approved brainstorm.
-2. Use `ROADMAP_DECISION_POLICY.md` to write `UX_ROADMAP.md`.
+2. Use `ROADMAP_DECISION_POLICY.md` to write `ROADMAP.md`.
 3. Use `IMPLEMENTATION_QUEUE_DESIGN_POLICY.md` to write `IMPLEMENTATION_QUEUE.md`.
 4. Use `CODEX_AUTOPILOT_ORCHESTRATION.md` to execute the queue.
 5. Use `QUEUE_OPERATION_RULES.md` and `CODEX_AUTOPILOT_COMMIT_POLICY.md` only during execution.
