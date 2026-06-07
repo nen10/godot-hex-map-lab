@@ -17,6 +17,7 @@ const HexMapDocumentOverlayLayerResource = preload("res://addons/hex_map_kit/ada
 const HexMapDocumentTerrainLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_terrain_layer_resource.gd")
 const HexMapValidationResult = preload("res://addons/hex_map_kit/adapter/hex_map_validation_result.gd")
 const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
+const HexObjectDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_object_definition_resource.gd")
 const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
 const HexMapGenDock = preload("res://addons/hex_map_kit/editor/hex_map_gen_dock.gd")
 const HexMapGenStateEvaluator = preload("res://addons/hex_map_kit/editor/hex_map_gen_state_evaluator.gd")
@@ -101,6 +102,7 @@ func _run() -> void:
 	await _test_map_edit_tool_preserves_plain_target_tile_settings_when_redrawing()
 	await _test_map_edit_tool_target_atlas_settings_use_target_tileset()
 	await _test_map_edit_tool_catalog_selectors_drive_defaults_and_payloads()
+	await _test_map_edit_tool_object_palette_uses_definitions_and_typed_properties()
 	await _test_map_edit_tool_reports_missing_catalog_assignment_validation()
 	await _test_map_edit_tool_validation_dashboard_groups_and_focuses_cell_issue()
 	await _test_map_edit_tool_debug_report_includes_validation_summary_without_status_bloat()
@@ -425,6 +427,10 @@ func _test_map_edit_tool_builds_dock_controls() -> void:
 	_assert_true(tool._copy_debug_report_button != null, "map edit tool exposes debug report copy button")
 	_assert_eq(tool._mode_option.item_count, HexMapEditTool.EDIT_MODE_NAMES.size(), "map edit tool lists edit modes")
 	_assert_true(tool._object_properties_edit != null, "map edit tool exposes object properties payload control")
+	_assert_true(tool._object_definition_tree != null, "map edit tool exposes object definition list")
+	_assert_true(tool._object_add_definition_button != null, "map edit tool exposes add object definition action")
+	_assert_true(tool._object_palette_status_label != null, "map edit tool exposes object palette status")
+	_assert_true(tool._object_property_editor != null, "map edit tool exposes typed object property editor")
 	_assert_true(tool._object_rotation_spin != null, "map edit tool exposes object rotation control")
 	_assert_true(tool._object_variant_edit != null, "map edit tool exposes object variant control")
 	_assert_true(tool._object_spawn_condition_edit != null, "map edit tool exposes object spawn condition control")
@@ -1218,6 +1224,80 @@ func _test_map_edit_tool_catalog_selectors_drive_defaults_and_payloads() -> void
 	await process_frame
 
 
+func _test_map_edit_tool_object_palette_uses_definitions_and_typed_properties() -> void:
+	var tool = await _new_ready_edit_tool()
+	var database = HexObjectDatabaseResource.new()
+	var door = HexObjectDefinitionResource.new()
+	door.id = "object.door"
+	door.display_name = "Door"
+	door.tags = PackedStringArray(["door", "interactive"])
+	door.default_properties = {
+		"health": 10,
+		"label": "North",
+		"locked": true,
+		"speed": 1.5,
+		"state": {
+			"type": "enum",
+			"options": ["closed", "open"],
+			"value": "closed",
+		},
+	}
+	database.add_definition(door)
+	tool.set_object_database(database)
+	tool.set_edit_mode(HexMapEditTool.EditMode.OBJECT)
+
+	var rows = tool.object_definition_rows()
+	var door_row = _object_definition_row_for_id(rows, "object.door")
+	_assert_eq(door_row["display_name"], "Door", "object palette lists definition display name")
+	_assert_eq(door_row["scene"], "missing scene", "object palette reports missing scene before resource selection")
+	_assert_eq(tool._object_payload["object_id"], "object.door", "object database selection chooses first object key")
+	_assert_true(_control_row_visible(tool._object_definition_tree), "object mode shows definition list")
+	_assert_true(_control_row_visible(tool._object_property_editor), "object mode shows typed property editor")
+	_assert_true(not _control_row_visible(tool._object_properties_edit), "object mode hides raw JSON properties")
+	_assert_true(not _control_row_visible(tool._object_properties_table), "object mode hides raw property table")
+
+	var packed_scene = PackedScene.new()
+	var scene_root = Node2D.new()
+	_assert_eq(packed_scene.pack(scene_root), OK, "test PackedScene packs for object definition")
+	tool._select_object_definition("object.door")
+	tool._on_object_definition_scene_changed(packed_scene)
+	_assert_eq(door.scene, packed_scene, "object definition scene picker stores PackedScene")
+	door_row = _object_definition_row_for_id(tool.object_definition_rows(), "object.door")
+	_assert_eq(door_row["scene"], "PackedScene", "object definition row shows PackedScene status")
+
+	tool._select_object_key_option_by_key("object.door")
+	tool._on_object_catalog_selected(tool._object_catalog_option.selected)
+	_assert_eq(tool._object_payload["object_id"], "object.door", "object key selector stores definition id")
+	var control_types = tool.object_property_control_types()
+	_assert_eq(control_types["locked"], "bool", "bool property uses CheckBox")
+	_assert_eq(control_types["health"], "number", "int property uses SpinBox")
+	_assert_eq(control_types["speed"], "number", "float property uses SpinBox")
+	_assert_eq(control_types["label"], "string", "string property uses LineEdit")
+	_assert_eq(control_types["state"], "enum", "enum property uses OptionButton")
+
+	tool._on_object_property_bool_toggled(false, "locked")
+	tool._on_object_property_number_changed(12.0, "health", false)
+	tool._on_object_property_number_changed(2.25, "speed", true)
+	tool._on_object_property_text_changed("South", "label")
+	var state_option = tool._object_property_controls["state"] as OptionButton
+	state_option.select(1)
+	tool._on_object_property_enum_selected(1, "state", state_option)
+	var properties = tool._object_payload["properties"]
+	_assert_eq(properties["locked"], false, "typed bool editor updates placement property")
+	_assert_eq(properties["health"], 12, "typed int editor updates placement property")
+	_assert_eq(properties["speed"], 2.25, "typed float editor updates placement property")
+	_assert_eq(properties["label"], "South", "typed string editor updates placement property")
+	_assert_eq(properties["state"], "open", "typed enum editor updates placement property")
+
+	var count_before = database.definitions.size()
+	tool._on_add_object_definition_pressed()
+	_assert_eq(database.definitions.size(), count_before + 1, "Add Object Definition appends definition")
+
+	scene_root.free()
+	tool.queue_free()
+	await process_frame
+
+
 func _test_map_edit_tool_reports_missing_catalog_assignment_validation() -> void:
 	var data = HexMapData.rectangle(1, 1)
 	var document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(data))
@@ -1750,11 +1830,13 @@ func _test_map_edit_tool_mode_specific_payload_controls() -> void:
 	tool.set_edit_mode(HexMapEditTool.EditMode.OBJECT)
 	_assert_true(_control_row_visible(tool._object_catalog_option), "object mode shows object catalog key control")
 	_assert_true(not _control_row_visible(tool._object_id_edit), "object mode hides raw object id control")
-	_assert_true(_control_row_visible(tool._object_properties_edit), "object mode shows object properties control")
+	_assert_true(_control_row_visible(tool._object_definition_tree), "object mode shows object definition list")
+	_assert_true(_control_row_visible(tool._object_property_editor), "object mode shows typed object property editor")
+	_assert_true(not _control_row_visible(tool._object_properties_edit), "object mode hides raw object properties text")
 	_assert_true(_control_row_visible(tool._object_rotation_spin), "object mode shows object rotation control")
 	_assert_true(_control_row_visible(tool._object_variant_edit), "object mode shows object variant control")
 	_assert_true(_control_row_visible(tool._object_spawn_condition_edit), "object mode shows object spawn condition control")
-	_assert_true(_control_row_visible(tool._object_properties_table), "object mode shows object property table")
+	_assert_true(not _control_row_visible(tool._object_properties_table), "object mode hides raw object property table")
 	_assert_true(not _control_row_visible(tool._tile_catalog_option), "object mode hides tile catalog control")
 
 	tool.set_edit_mode(HexMapEditTool.EditMode.LABEL)
@@ -4348,6 +4430,13 @@ func _control_row_visible(control: Control) -> bool:
 func _catalog_row_for_key(rows: Array, key: String) -> Dictionary:
 	for row in rows:
 		if String(row.get("key", "")) == key:
+			return row
+	return {}
+
+
+func _object_definition_row_for_id(rows: Array, object_id: String) -> Dictionary:
+	for row in rows:
+		if String(row.get("id", "")) == object_id:
 			return row
 	return {}
 

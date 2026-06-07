@@ -88,11 +88,13 @@ Hex Map Edit Dock の手動確認:
 16. `Target TileSet / Atlas` の `Browse` またはsample presetでTarget TileSetを設定し、Target StatusにTileSet path / source count / tile size / overlay payload / overlay visibilityが表示されることを確認する。
 17. `Catalog` で Catalog Resource / TileSet / Scene Entry Resource を選択し、entry list に key / type / preview / tags / status が表示されることを確認する。
 18. `Add Atlas Entry` / `Add Scene Entry` / `Validate Catalog` を実行し、scene entry が PackedScene resource を保持し、missing entry がstatus issueとして表示されることを確認する。
-19. Floor Tile / Wall Tile / Overlay Tile / Object の通常操作では catalog key を選び、source id / atlas coords を通常paint UIで直接編集しないことを確認する。
-20. `Select Internal TileMapLayer` を押し、内部表示layerが選択されてもAuto targetが親 `HexTileMapLayer` に戻ることを確認する。
-21. Floor Tile / Wall Tile / Overlay Tileを切り替え、各modeのpayloadが混ざらないことを確認する。
-22. Sceneを保存して開き直し、Target TileSet / atlas sourceが維持されることを確認する。
-23. Godot Output Dockに `EditorUndoRedoManager.add_do_method` errorが出ないことを確認する。
+19. Floor Tile / Wall Tile / Overlay Tile / Object の通常操作では catalog key / object key を選び、source id / atlas coords / object_id を通常paint UIで直接編集しないことを確認する。
+20. Object modeで Object Database を選び、definition list、Definition Scene、Object Key、typed Placement Properties が表示され、raw JSON properties textを通常操作で使わないことを確認する。
+21. bool / number / string / enum のPlacement Propertiesを変更し、配置後のdocument object placement propertiesに反映されることを確認する。
+22. `Select Internal TileMapLayer` を押し、内部表示layerが選択されてもAuto targetが親 `HexTileMapLayer` に戻ることを確認する。
+23. Floor Tile / Wall Tile / Overlay Tileを切り替え、各modeのpayloadが混ざらないことを確認する。
+24. Sceneを保存して開き直し、Target TileSet / atlas sourceが維持されることを確認する。
+25. Godot Output Dockに `EditorUndoRedoManager.add_do_method` errorが出ないことを確認する。
 
 flat-top/pointy-top の視覚的な近傍配置確認:
 

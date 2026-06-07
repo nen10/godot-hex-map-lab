@@ -13,6 +13,8 @@ const HexMapEditViewportInputAdapter = preload("res://addons/hex_map_kit/editor/
 const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
 const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
 const HexMapValidationDashboard = preload("res://addons/hex_map_kit/editor/hex_map_validation_dashboard.gd")
+const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
+const HexObjectDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_object_definition_resource.gd")
 const HexTileCatalogEntry = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd")
 const HexTileCatalogResource = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd")
 const HexTileCatalogValidator = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_validator.gd")
@@ -161,6 +163,14 @@ var _catalog_add_scene_button: Button
 var _catalog_validate_button: Button
 var _catalog_scene_resource: PackedScene
 var _object_database_picker
+var _object_definition_tree: Tree
+var _object_definition_scene_picker
+var _object_add_definition_button: Button
+var _object_palette_status_label: Label
+var _object_property_editor: VBoxContainer
+var _object_property_controls: Dictionary = {}
+var _selected_object_definition_id := ""
+var _refreshing_object_definition_tree := false
 var _label_database_picker
 var _tile_source_spin: SpinBox
 var _tile_atlas_x_spin: SpinBox
@@ -453,6 +463,15 @@ func validate_document_now() -> bool:
 
 func set_object_database(database: Resource) -> void:
 	_object_database = database
+	if _selected_object_definition_id == "" and _object_database != null and _object_database.has_method("definition_ids"):
+		var ids: PackedStringArray = _object_database.definition_ids()
+		if ids.size() > 0:
+			_selected_object_definition_id = ids[0]
+	if _selected_object_definition_id != "" and String(_object_payload.get("object_id", "")) == "":
+		_object_payload["object_id"] = _selected_object_definition_id
+		_apply_selected_definition_defaults()
+	_refresh_object_palette()
+	_sync_payload_controls()
 	_sync_resource_pickers()
 
 
@@ -1103,7 +1122,7 @@ func _build_ui() -> void:
 	_object_id_edit.text_changed.connect(_on_object_payload_changed)
 	_object_catalog_option = _new_catalog_option("object")
 	_object_catalog_option.item_selected.connect(_on_object_catalog_selected)
-	root.add_child(_wrap_labeled("Object Catalog", _object_catalog_option))
+	root.add_child(_wrap_labeled("Object Key", _object_catalog_option))
 	root.add_child(_wrap_labeled("Object", _object_id_edit))
 	_object_rotation_spin = _new_int_spin(0, -360, 360)
 	_object_rotation_spin.value_changed.connect(_on_object_rotation_changed)
@@ -1119,10 +1138,38 @@ func _build_ui() -> void:
 		_object_database_picker.base_type = "HexObjectDatabaseResource"
 		_object_database_picker.resource_changed.connect(_on_object_database_changed)
 		root.add_child(_wrap_labeled("Object DB", _object_database_picker))
+	_object_definition_tree = Tree.new()
+	_object_definition_tree.hide_root = true
+	_object_definition_tree.columns = 4
+	_object_definition_tree.set_column_titles_visible(true)
+	_object_definition_tree.set_column_title(0, "id")
+	_object_definition_tree.set_column_title(1, "scene")
+	_object_definition_tree.set_column_title(2, "tags")
+	_object_definition_tree.set_column_title(3, "defaults")
+	_object_definition_tree.custom_minimum_size = Vector2(0, 120)
+	_object_definition_tree.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_object_definition_tree.item_selected.connect(_on_object_definition_tree_selected)
+	root.add_child(_object_definition_tree)
+	if _can_use_editor_resource_picker():
+		_object_definition_scene_picker = EditorResourcePicker.new()
+		_object_definition_scene_picker.base_type = "PackedScene"
+		_object_definition_scene_picker.resource_changed.connect(_on_object_definition_scene_changed)
+		root.add_child(_wrap_labeled("Definition Scene", _object_definition_scene_picker))
+	var object_definition_actions = HBoxContainer.new()
+	_object_add_definition_button = Button.new()
+	_object_add_definition_button.text = "Add Object Definition"
+	_object_add_definition_button.pressed.connect(_on_add_object_definition_pressed)
+	object_definition_actions.add_child(_object_add_definition_button)
+	root.add_child(object_definition_actions)
+	_object_palette_status_label = _new_detail_label()
+	root.add_child(_wrap_labeled("Object Palette", _object_palette_status_label))
 	_object_properties_edit = LineEdit.new()
 	_object_properties_edit.placeholder_text = "{\"key\":\"value\"}"
 	_object_properties_edit.text_changed.connect(_on_object_payload_changed)
 	root.add_child(_wrap_labeled("Properties", _object_properties_edit))
+	_object_property_editor = VBoxContainer.new()
+	_object_property_editor.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.add_child(_wrap_labeled("Placement Properties", _object_property_editor))
 	_object_properties_table = Tree.new()
 	_object_properties_table.columns = 2
 	_object_properties_table.hide_root = true
@@ -1170,6 +1217,8 @@ func _build_ui() -> void:
 	root.add_child(_copy_debug_report_button)
 	_sync_resource_pickers()
 	_refresh_catalog_entries()
+	_refresh_object_palette()
+	_refresh_object_property_editor()
 	_refresh_target_status_detail()
 	_refresh_last_edit_detail()
 	_refresh_persistence_detail()
@@ -1304,6 +1353,152 @@ func _object_properties_from_payload(payload: Dictionary) -> Dictionary:
 	return {}
 
 
+func object_definition_rows() -> Array[Dictionary]:
+	var database = _object_database as HexObjectDatabaseResource
+	if database == null:
+		return []
+	var rows: Array[Dictionary] = []
+	for definition in database.definitions:
+		if definition == null:
+			continue
+		rows.append({
+			"id": String(definition.get("id")),
+			"display_name": String(definition.get("display_name")),
+			"scene": "PackedScene" if definition.get("scene") is PackedScene else "missing scene",
+			"tags": _packed_string_array_text(definition.get("tags")),
+			"defaults": _object_default_properties_text(definition.get("default_properties")),
+		})
+	return rows
+
+
+func object_property_control_types() -> Dictionary:
+	var result := {}
+	for key in _object_property_controls.keys():
+		var control = _object_property_controls[key]
+		if control is CheckBox:
+			result[key] = "bool"
+		elif control is SpinBox:
+			result[key] = "number"
+		elif control is LineEdit:
+			result[key] = "string"
+		elif control is OptionButton:
+			result[key] = "enum"
+		else:
+			result[key] = "resource"
+	return result
+
+
+func _refresh_object_palette() -> void:
+	_refresh_object_definition_tree()
+	_sync_selected_object_definition_scene_picker()
+	_refresh_object_palette_status()
+
+
+func _refresh_object_definition_tree() -> void:
+	if _object_definition_tree == null:
+		return
+	_refreshing_object_definition_tree = true
+	_object_definition_tree.clear()
+	var root_item = _object_definition_tree.create_item()
+	for row in object_definition_rows():
+		var item = _object_definition_tree.create_item(root_item)
+		item.set_text(0, String(row.get("id", "")))
+		item.set_text(1, String(row.get("scene", "")))
+		item.set_text(2, String(row.get("tags", "")))
+		item.set_text(3, String(row.get("defaults", "")))
+		if String(row.get("id", "")) == _selected_object_definition_id:
+			item.select(0)
+	_refreshing_object_definition_tree = false
+
+
+func _refresh_object_palette_status() -> void:
+	if _object_palette_status_label == null:
+		return
+	var database = _object_database as HexObjectDatabaseResource
+	if database == null:
+		_object_palette_status_label.text = "No object database selected."
+		return
+	_object_palette_status_label.text = "definitions=%d selected=%s" % [
+		database.definitions.size(),
+		_selected_object_definition_id if _selected_object_definition_id != "" else "none",
+	]
+
+
+func _sync_selected_object_definition_scene_picker() -> void:
+	if _object_definition_scene_picker == null:
+		return
+	var definition = _selected_object_definition()
+	_object_definition_scene_picker.edited_resource = definition.scene if definition != null else null
+
+
+func _ensure_object_database() -> HexObjectDatabaseResource:
+	if _object_database == null:
+		_object_database = HexObjectDatabaseResource.new()
+	return _object_database as HexObjectDatabaseResource
+
+
+func _selected_object_definition():
+	if _object_database == null or not _object_database.has_method("definition_for_id"):
+		return null
+	return _object_database.definition_for_id(_selected_object_definition_id)
+
+
+func _select_object_definition(definition_id: String) -> void:
+	_selected_object_definition_id = definition_id
+	if definition_id != "":
+		_object_payload["object_id"] = definition_id
+		if _object_id_edit != null:
+			_object_id_edit.text = definition_id
+		_select_object_key_option_by_key(definition_id)
+	_apply_selected_definition_defaults()
+	_refresh_object_palette()
+	_refresh_object_property_editor()
+	_refresh_target_status_detail()
+
+
+func _apply_selected_definition_defaults() -> void:
+	var definition = _selected_object_definition()
+	if definition == null:
+		return
+	var defaults = definition.get("default_properties")
+	if not defaults is Dictionary:
+		return
+	var properties = _object_properties_from_payload(_object_payload)
+	for key in defaults.keys():
+		if not properties.has(key):
+			properties[key] = _object_default_property_value(defaults[key])
+	_object_payload["properties"] = properties
+
+
+func _unique_object_definition_id(prefix: String) -> String:
+	var database = _ensure_object_database()
+	var index: int = database.definitions.size() + 1
+	var key = "%s_%d" % [prefix, index]
+	while database.has_definition(key):
+		index += 1
+		key = "%s_%d" % [prefix, index]
+	return key
+
+
+func _object_default_properties_text(defaults) -> String:
+	if not defaults is Dictionary:
+		return "none"
+	var keys = (defaults as Dictionary).keys()
+	keys.sort()
+	return ",".join(PackedStringArray(keys))
+
+
+func _packed_string_array_text(value) -> String:
+	if value is PackedStringArray:
+		return ",".join(value)
+	if value is Array:
+		var parts := PackedStringArray()
+		for item in value:
+			parts.append(String(item))
+		return ",".join(parts)
+	return ""
+
+
 func _refresh_object_properties_table() -> void:
 	if _object_properties_table == null:
 		return
@@ -1316,6 +1511,154 @@ func _refresh_object_properties_table() -> void:
 		var row = _object_properties_table.create_item(root_item)
 		row.set_text(0, String(key))
 		row.set_text(1, str(properties[key]))
+
+
+func _refresh_object_property_editor() -> void:
+	if _object_property_editor == null:
+		return
+	for child in _object_property_editor.get_children():
+		child.queue_free()
+	_object_property_controls.clear()
+	var property_keys = _object_property_keys_for_editor()
+	var properties = _object_properties_from_payload(_object_payload)
+	for key in property_keys:
+		var schema = _object_property_schema_for_key(key)
+		var value = properties.get(key, _object_default_property_value(schema))
+		var control = _object_property_control_for_value(key, value, schema)
+		_object_property_controls[key] = control
+		_object_property_editor.add_child(_wrap_labeled(String(key), control))
+
+
+func _object_property_keys_for_editor() -> Array:
+	var keys := []
+	var definition = _selected_object_definition()
+	if definition != null:
+		var defaults = definition.get("default_properties")
+		if defaults is Dictionary:
+			for key in (defaults as Dictionary).keys():
+				if not keys.has(key):
+					keys.append(key)
+	var properties = _object_properties_from_payload(_object_payload)
+	for key in properties.keys():
+		if not keys.has(key):
+			keys.append(key)
+	keys.sort()
+	return keys
+
+
+func _object_property_schema_for_key(key) -> Variant:
+	var definition = _selected_object_definition()
+	if definition == null:
+		return _object_properties_from_payload(_object_payload).get(key, "")
+	var defaults = definition.get("default_properties")
+	if defaults is Dictionary and (defaults as Dictionary).has(key):
+		return (defaults as Dictionary)[key]
+	return _object_properties_from_payload(_object_payload).get(key, "")
+
+
+func _object_property_control_for_value(key, value, schema) -> Control:
+	if _object_property_is_enum_schema(schema):
+		return _new_object_property_enum_control(key, value, schema)
+	if value is bool:
+		var check = CheckBox.new()
+		check.button_pressed = bool(value)
+		check.toggled.connect(_on_object_property_bool_toggled.bind(key))
+		return check
+	if value is int or value is float:
+		var spin = SpinBox.new()
+		spin.min_value = -1000000
+		spin.max_value = 1000000
+		spin.allow_greater = true
+		spin.allow_lesser = true
+		spin.step = 1 if value is int else 0.01
+		spin.value = float(value)
+		spin.value_changed.connect(_on_object_property_number_changed.bind(key, value is float))
+		return spin
+	if value is Resource and _can_use_editor_resource_picker():
+		var picker = EditorResourcePicker.new()
+		picker.base_type = "Resource"
+		picker.edited_resource = value
+		picker.resource_changed.connect(_on_object_property_resource_changed.bind(key))
+		return picker
+	var edit = LineEdit.new()
+	edit.text = String(value)
+	edit.text_changed.connect(_on_object_property_text_changed.bind(key))
+	return edit
+
+
+func _new_object_property_enum_control(key, value, schema) -> OptionButton:
+	var option = OptionButton.new()
+	var options = _object_property_enum_options(schema)
+	var selected_value = String(value)
+	if selected_value == "" and _object_property_is_enum_schema(schema):
+		selected_value = String((schema as Dictionary).get("value", ""))
+	var selected_index := 0
+	for index in range(options.size()):
+		var option_value = String(options[index])
+		option.add_item(option_value)
+		option.set_item_metadata(index, option_value)
+		if option_value == selected_value:
+			selected_index = index
+	option.select(selected_index)
+	option.item_selected.connect(_on_object_property_enum_selected.bind(key, option))
+	if options.size() > 0:
+		_set_object_property_value(key, String(option.get_item_metadata(selected_index)), false)
+	return option
+
+
+func _object_property_is_enum_schema(schema) -> bool:
+	return schema is Dictionary \
+		and String((schema as Dictionary).get("type", "")) == "enum" \
+		and (schema as Dictionary).get("options", []) is Array
+
+
+func _object_property_enum_options(schema) -> Array:
+	if not _object_property_is_enum_schema(schema):
+		return []
+	return (schema as Dictionary).get("options", [])
+
+
+func _object_default_property_value(schema):
+	if _object_property_is_enum_schema(schema):
+		var schema_dict := schema as Dictionary
+		var options = _object_property_enum_options(schema)
+		if schema_dict.has("value"):
+			return String(schema_dict.get("value", ""))
+		return String(options[0]) if options.size() > 0 else ""
+	return schema
+
+
+func _on_object_property_bool_toggled(pressed: bool, key) -> void:
+	_set_object_property_value(key, pressed)
+
+
+func _on_object_property_number_changed(value: float, key, keep_float: bool) -> void:
+	_set_object_property_value(key, value if keep_float else int(value))
+
+
+func _on_object_property_text_changed(text: String, key) -> void:
+	_set_object_property_value(key, text)
+
+
+func _on_object_property_enum_selected(index: int, key, option: OptionButton) -> void:
+	if option == null or index < 0 or index >= option.item_count:
+		return
+	_set_object_property_value(key, String(option.get_item_metadata(index)))
+
+
+func _on_object_property_resource_changed(resource: Resource, key) -> void:
+	_set_object_property_value(key, resource)
+
+
+func _set_object_property_value(key, value, refresh_table: bool = true) -> void:
+	var properties = _object_properties_from_payload(_object_payload)
+	properties[key] = value
+	_object_payload["properties"] = properties
+	if _object_properties_edit != null:
+		_object_properties_edit.text = JSON.stringify(properties)
+	if refresh_table:
+		_refresh_object_properties_table()
+	_refresh_target_status_detail()
 
 
 func _state_entries_with_cell(entries_value, hex) -> Array:
@@ -1491,7 +1834,55 @@ func _on_import_map_resource_changed(resource: Resource) -> void:
 
 
 func _on_object_database_changed(resource: Resource) -> void:
-	_object_database = resource
+	set_object_database(resource)
+
+
+func _on_object_definition_tree_selected() -> void:
+	if _refreshing_object_definition_tree:
+		return
+	if _object_definition_tree == null:
+		return
+	var selected = _object_definition_tree.get_selected()
+	if selected == null:
+		return
+	var definition_id = selected.get_text(0)
+	if definition_id == "":
+		return
+	_select_object_definition(definition_id)
+
+
+func _on_object_definition_scene_changed(resource: Resource) -> void:
+	var definition = _selected_object_definition()
+	if definition == null:
+		_set_status("No object definition selected.")
+		return
+	if resource == null:
+		definition.scene = null
+		_refresh_object_palette()
+		_set_status("Object definition scene cleared.")
+		return
+	if not (resource is PackedScene):
+		_set_status("Selected resource is not a PackedScene.")
+		return
+	definition.scene = resource as PackedScene
+	_refresh_object_palette()
+	_set_status("Object definition scene selected.")
+
+
+func _on_add_object_definition_pressed() -> void:
+	var database = _ensure_object_database()
+	if database == null:
+		_set_status("No object database selected.")
+		return
+	var definition = HexObjectDefinitionResource.new()
+	definition.id = _unique_object_definition_id("object.definition")
+	definition.display_name = definition.id
+	definition.tags = PackedStringArray(["object"])
+	database.add_definition(definition)
+	_select_object_definition(definition.id)
+	_refresh_object_palette()
+	_sync_payload_controls()
+	_set_status("Added object definition.")
 
 
 func _on_label_database_changed(resource: Resource) -> void:
@@ -1993,11 +2384,13 @@ func _on_object_payload_changed(_text: String) -> void:
 		_object_payload["rotation_degrees"] = float(_object_rotation_spin.value)
 	if _object_variant_edit != null:
 		_object_payload["variant"] = _object_variant_edit.text
-	var parsed = JSON.parse_string(_object_properties_edit.text) if _object_properties_edit != null else {}
-	_object_payload["properties"] = parsed if parsed is Dictionary else {}
+	if _object_properties_edit != null and _control_row_is_visible(_object_properties_edit):
+		var parsed = JSON.parse_string(_object_properties_edit.text)
+		_object_payload["properties"] = parsed if parsed is Dictionary else {}
 	if _object_spawn_condition_edit != null:
 		_object_payload["spawn_condition"] = _object_spawn_condition_edit.text
 	_refresh_object_properties_table()
+	_refresh_object_property_editor()
 	_select_catalog_option_by_key(_object_catalog_option, String(_object_payload.get("object_id", "")))
 
 
@@ -2015,8 +2408,13 @@ func _on_object_catalog_selected(index: int) -> void:
 	if key == "":
 		return
 	_object_payload["object_id"] = key
+	if _object_database != null and _object_database.has_method("has_definition") and _object_database.has_definition(key):
+		_selected_object_definition_id = key
+		_apply_selected_definition_defaults()
 	if _object_id_edit != null:
 		_object_id_edit.text = key
+	_refresh_object_palette()
+	_refresh_object_property_editor()
 	_refresh_target_status_detail()
 
 
@@ -2057,7 +2455,9 @@ func _sync_payload_controls() -> void:
 		_object_properties_edit.text = JSON.stringify(_object_payload.get("properties", {}))
 		_object_spawn_condition_edit.text = String(_object_payload.get("spawn_condition", ""))
 		_refresh_object_properties_table()
-		_populate_catalog_option(_object_catalog_option, "object", String(_object_payload.get("object_id", "")))
+		_populate_object_key_option(String(_object_payload.get("object_id", "")))
+		_refresh_object_palette()
+		_refresh_object_property_editor()
 	if _label_id_edit != null:
 		_label_id_edit.text = String(_label_payload.get("label_id", ""))
 		_label_text_edit.text = String(_label_payload.get("text", ""))
@@ -2087,10 +2487,15 @@ func _refresh_payload_controls_visibility() -> void:
 	_set_control_row_visible(_overlay_item_key_option, show_overlay)
 	_set_control_row_visible(_object_catalog_option, show_object)
 	_set_control_row_visible(_object_id_edit, false)
+	_set_control_row_visible(_object_definition_tree, show_object)
+	_set_control_row_visible(_object_definition_scene_picker, show_object)
+	_set_control_row_visible(_object_add_definition_button, show_object)
+	_set_control_row_visible(_object_palette_status_label, show_object)
 	_set_control_row_visible(_object_rotation_spin, show_object)
 	_set_control_row_visible(_object_variant_edit, show_object)
-	_set_control_row_visible(_object_properties_edit, show_object)
-	_set_control_row_visible(_object_properties_table, show_object)
+	_set_control_row_visible(_object_property_editor, show_object)
+	_set_control_row_visible(_object_properties_edit, false)
+	_set_control_row_visible(_object_properties_table, false)
 	_set_control_row_visible(_object_spawn_condition_edit, show_object)
 	_set_control_row_visible(_object_database_picker, show_object)
 	_set_control_row_visible(_label_id_edit, show_label)
@@ -2107,6 +2512,15 @@ func _set_control_row_visible(control, visible: bool) -> void:
 			(parent as Control).visible = visible
 		else:
 			(control as Control).visible = visible
+
+
+func _control_row_is_visible(control) -> bool:
+	if control == null or not (control is Control):
+		return false
+	var parent = (control as Control).get_parent()
+	if parent is Control:
+		return (parent as Control).visible
+	return (control as Control).visible
 
 
 func _sync_resource_pickers() -> void:
@@ -3407,7 +3821,7 @@ func _refresh_catalog_options() -> void:
 	_populate_catalog_option(_default_floor_catalog_option, "floor", _catalog_key_from_option(_default_floor_catalog_option))
 	_populate_catalog_option(_default_wall_catalog_option, "wall", _catalog_key_from_option(_default_wall_catalog_option))
 	_populate_catalog_option(_tile_catalog_option, _tile_catalog_tag_for_mode(), String(_tile_payload.get("catalog_key", "")))
-	_populate_catalog_option(_object_catalog_option, "object", String(_object_payload.get("object_id", "")))
+	_populate_object_key_option(String(_object_payload.get("object_id", "")))
 	_refresh_catalog_entries()
 
 
@@ -3439,6 +3853,36 @@ func _populate_catalog_option(option: OptionButton, tag: String, selected_key: S
 	option.select(selected_index)
 
 
+func _populate_object_key_option(selected_key: String = "") -> void:
+	if _object_catalog_option == null:
+		return
+	var database = _object_database as HexObjectDatabaseResource
+	if database == null:
+		_populate_catalog_option(_object_catalog_option, "object", selected_key)
+		return
+	_object_catalog_option.clear()
+	_object_catalog_option.add_item(CATALOG_FALLBACK_LABEL)
+	_object_catalog_option.set_item_metadata(0, "")
+	var selected_index := 0
+	for definition in database.definitions:
+		if definition == null:
+			continue
+		var key = String(definition.get("id"))
+		if key == "":
+			continue
+		var label = String(definition.get("display_name"))
+		if label == "":
+			label = key
+		else:
+			label = "%s (%s)" % [label, key]
+		_object_catalog_option.add_item(label)
+		var index = _object_catalog_option.item_count - 1
+		_object_catalog_option.set_item_metadata(index, key)
+		if key == selected_key:
+			selected_index = index
+	_object_catalog_option.select(selected_index)
+
+
 func _tile_catalog_tag_for_mode() -> String:
 	match _edit_mode:
 		EditMode.WALL_TILE:
@@ -3466,6 +3910,10 @@ func _select_catalog_option_by_key(option: OptionButton, key: String) -> void:
 			option.select(index)
 			return
 	option.select(0)
+
+
+func _select_object_key_option_by_key(key: String) -> void:
+	_select_catalog_option_by_key(_object_catalog_option, key)
 
 
 func catalog_entry_rows() -> Array[Dictionary]:

@@ -174,6 +174,12 @@ Godot 側の対応 API は公式ドキュメントの `TileMapLayer`、`TileSet`
 
 `Add Atlas Entry` は atlas entryをcatalogに追加します。`Add Scene Entry` は `Scene Entry Resource` の `PackedScene` を参照するscene entryを追加します。通常の Floor Tile / Wall Tile / Overlay Tile / Object paint UI は catalog key を選ぶだけで、`source_id` や `atlas_coords` の直接編集はcatalog entry詳細側の責務です。
 
+### Hex Map Edit Object Palette
+
+Object modeでは `Object DB` に `HexObjectDatabaseResource` を選び、definition listから配置するobject keyを選びます。選択中definitionのsceneは `Definition Scene` の `PackedScene` ResourcePickerで設定します。
+
+`Placement Properties` はdefinitionの `default_properties` と現在のplacement payloadから型を推定し、boolはCheckBox、int/floatはSpinBox、stringはLineEdit、enum schemaはOptionButtonで編集します。通常UXでは `object_id` 手入力や raw JSON properties text を使いません。
+
 ### Atlas Image
 
 `Browse Atlas Image` は resource path の画像を読み込み、Scene Tree で選択中の `TileMapLayer.tile_set` または `HexTileMapLayer` の表示用 TileSet に `TileSetAtlasSource` を作成します。source id は Dock の `Floor` source を使い、floor / wall の atlas coords と `Tile Size` を TileSetAtlasSource に反映します。設定後は `Wall` source も同じ source id に同期されます。
