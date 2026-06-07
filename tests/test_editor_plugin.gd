@@ -128,6 +128,7 @@ func _run() -> void:
 	await _test_debug_numeric_fallback_quarantine_requires_settings_opt_in()
 	_test_sample_asset_duplicator_copies_catalog_dependencies_to_project()
 	_test_asset_slot_state_model_reports_selection_validation_and_sample_source()
+	await _test_asset_slot_state_model_contract_covers_sample_visibility_and_project_duplicates()
 	await _test_asset_slot_control_exposes_state_snapshot_contract()
 	_test_asset_resource_factory_creates_project_resources_and_assigns_context()
 	await _test_map_edit_tool_builds_dock_controls()
@@ -1874,6 +1875,94 @@ func _test_asset_slot_state_model_reports_selection_validation_and_sample_source
 	_assert_eq(snapshot["current_source"], HexMapEditorAssetSlotState.SOURCE_SAMPLE, "explicit sample application marks sample source")
 	_assert_eq(snapshot["current_resource"], sample_catalog, "explicit sample application selects sample resource")
 	_assert_eq(snapshot["status"], HexMapEditorAssetSlotState.STATUS_SELECTED, "explicit sample application can produce selected state")
+
+
+func _test_asset_slot_state_model_contract_covers_sample_visibility_and_project_duplicates() -> void:
+	var slot = HexMapEditorAssetSlotState.new()
+	slot.configure("tile_catalog", "Tile Catalog", &"HexTileCatalogResource", true)
+	var snapshot = slot.snapshot()
+	_assert_eq(snapshot["status"], HexMapEditorAssetSlotState.STATUS_NOT_SELECTED, "TEST-42 required asset missing is not selected")
+	_assert_true(String(snapshot["validation_messages"][0]).contains("required"), "TEST-42 required asset missing reports validation message")
+
+	var sample_catalog = HexTileCatalogResource.new()
+	slot.set_sample_source(
+		sample_catalog,
+		"res://addons/hex_map_kit/assets/sample_hex_tile_catalog.tres",
+		"Bundled Sample Catalog"
+	)
+	snapshot = slot.snapshot()
+	_assert_true(bool(snapshot["allows_sample"]), "TEST-42 slot allows explicit sample source")
+	_assert_true(bool(snapshot["sample_available"]), "TEST-42 slot reports sample candidate availability")
+	_assert_true(not bool(snapshot["selected"]), "TEST-42 sample candidate is not selected by default")
+	_assert_eq(snapshot["current_source"], HexMapEditorAssetSlotState.SOURCE_NONE, "TEST-42 sample candidate does not become current source")
+
+	slot.set_selected_resource(HexMapDocumentResource.new(), "res://project/level_document.tres")
+	snapshot = slot.snapshot()
+	_assert_eq(snapshot["status"], HexMapEditorAssetSlotState.STATUS_INVALID, "TEST-42 invalid type reports invalid state")
+	_assert_true(not bool(snapshot["type_matches"]), "TEST-42 invalid type exposes failed type match")
+	_assert_eq(snapshot["current_source"], HexMapEditorAssetSlotState.SOURCE_PROJECT, "TEST-42 invalid project selection still records project source")
+
+	var project_catalog = HexTileCatalogResource.new()
+	slot.set_selected_resource(project_catalog, "res://project/tile_catalog.tres")
+	snapshot = slot.snapshot()
+	_assert_eq(snapshot["status"], HexMapEditorAssetSlotState.STATUS_SELECTED, "TEST-42 selected project asset reports selected state")
+	_assert_eq(snapshot["current_source"], HexMapEditorAssetSlotState.SOURCE_PROJECT, "TEST-42 selected project asset records project source")
+	_assert_eq(snapshot["current_resource"], project_catalog, "TEST-42 selected project asset records resource")
+
+	_assert_true(slot.apply_sample_source(), "TEST-42 explicit sample action can select sample")
+	snapshot = slot.snapshot()
+	_assert_eq(snapshot["current_source"], HexMapEditorAssetSlotState.SOURCE_SAMPLE, "TEST-42 explicit sample action records sample source")
+	_assert_eq(snapshot["current_resource"], sample_catalog, "TEST-42 explicit sample action records sample resource")
+
+	var session = HexMapEditorSessionState.new()
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	_assert_true(not bool(workspace.catalog_screen_snapshot()["sample_candidates_visible"]), "TEST-42 sample mode OFF hides Catalog sample candidates")
+	_assert_true(not bool(workspace.validate_screen_snapshot()["sample_candidates_visible"]), "TEST-42 sample mode OFF hides Validate sample candidates")
+	_assert_true(not bool(workspace.qa_screen_snapshot()["sample_candidates_visible"]), "TEST-42 sample mode OFF hides QA sample candidates")
+	_assert_true(not bool(workspace.export_screen_snapshot()["sample_candidates_visible"]), "TEST-42 sample mode OFF hides Export sample candidates")
+	_assert_eq(workspace.generation_dock().tile_catalog(), null, "TEST-42 sample mode OFF hides Generate sample fallback")
+	_assert_eq(workspace.edit_tool().tile_catalog(), null, "TEST-42 sample mode OFF hides Paint sample fallback")
+
+	var panel = workspace.sample_settings_panel()
+	panel.set_show_bundled_samples_in_main_selectors(true)
+	_assert_true(bool(panel.snapshot()["show_bundled_samples_in_main_selectors"]), "TEST-42 sample mode ON records Settings flag")
+	_assert_true(bool(workspace.catalog_screen_snapshot()["sample_candidates_visible"]), "TEST-42 sample mode ON shows Catalog learning candidates")
+	_assert_true(bool(workspace.validate_screen_snapshot()["sample_candidates_visible"]), "TEST-42 sample mode ON shows Validate learning candidates")
+	_assert_true(bool(workspace.qa_screen_snapshot()["sample_candidates_visible"]), "TEST-42 sample mode ON shows QA learning candidates")
+	_assert_true(bool(workspace.export_screen_snapshot()["sample_candidates_visible"]), "TEST-42 sample mode ON shows Export learning candidates")
+	_assert_true(workspace.generation_dock().tile_catalog() is HexTileCatalogResource, "TEST-42 sample mode ON shows Generate sample fallback")
+	_assert_true(workspace.edit_tool().tile_catalog() is HexTileCatalogResource, "TEST-42 sample mode ON shows Paint sample fallback")
+
+	var output_dir = _test_resource_dir("test42_asset_slot_state")
+	var catalog_path = "%s/duplicated_sample_catalog.tres" % output_dir
+	var duplicate_result = panel.duplicate_sample_catalog_to_project(catalog_path)
+	_assert_true(bool(duplicate_result["ok"]), "TEST-42 duplicate sample to project succeeds")
+	var duplicated_catalog = duplicate_result["catalog"] as HexTileCatalogResource
+	_assert_true(duplicated_catalog is HexTileCatalogResource, "TEST-42 duplicate returns catalog resource")
+	_assert_true(bool(duplicated_catalog.metadata.get("project_copy", false)), "TEST-42 duplicate marks project copy metadata")
+	_assert_eq(
+		String(duplicated_catalog.metadata.get("duplicated_from_sample", "")),
+		"res://addons/hex_map_kit/assets/sample_hex_tile_catalog.tres",
+		"TEST-42 duplicate records source sample metadata"
+	)
+	_assert_eq(session.current_workspace_asset_context().tile_catalog, duplicated_catalog, "TEST-42 duplicate enters workspace context")
+	_assert_project_asset_slot(
+		workspace,
+		"Catalog",
+		HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG,
+		duplicated_catalog,
+		catalog_path,
+		"TEST-42 duplicated sample Catalog slot"
+	)
+	_assert_eq(workspace.generation_dock().tile_catalog(), duplicated_catalog, "TEST-42 duplicated project catalog is primary for Generate")
+	_assert_eq(workspace.edit_tool().tile_catalog(), duplicated_catalog, "TEST-42 duplicated project catalog is primary for Paint")
+
+	workspace.queue_free()
+	await process_frame
 
 
 func _test_asset_slot_control_exposes_state_snapshot_contract() -> void:
