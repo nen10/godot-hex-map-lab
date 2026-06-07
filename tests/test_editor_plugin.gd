@@ -112,6 +112,7 @@ func _init() -> void:
 func _run() -> void:
 	_test_plugin_registration_files()
 	await _test_hex_map_workspace_exposes_tabs_and_routes_editing()
+	await _test_workspace_tab_content_query_contract_lists_expected_components_and_slots()
 	await _test_workspace_first_run_learning_cta_routes_to_settings_without_sample_defaults()
 	await _test_workspace_asset_context_is_shared_by_workspace_generate_and_paint()
 	await _test_document_asset_screen_manages_project_document_without_samples()
@@ -356,6 +357,127 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 	_assert_true(workspace.viewport_input_enabled(), "workspace gates viewport input through paint/edit component")
 
 	layer.queue_free()
+	workspace.queue_free()
+	await process_frame
+
+
+func _test_workspace_tab_content_query_contract_lists_expected_components_and_slots() -> void:
+	var session = HexMapEditorSessionState.new()
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	var expected_tabs = PackedStringArray([
+		"Document",
+		"Generate",
+		"Paint",
+		"Catalog",
+		"Layers",
+		"Validate",
+		"QA",
+		"Export",
+		"Settings",
+	])
+	var expected_contract := {
+		"Document": {
+			"components": PackedStringArray(["document_asset_panel"]),
+			"slots": PackedStringArray([
+				HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT,
+				HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG,
+				HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE,
+				HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE,
+				HexMapWorkspaceAssetContext.SLOT_LAYER_STACK,
+			]),
+		},
+		"Generate": {
+			"components": PackedStringArray(["generation_panel"]),
+			"slots": PackedStringArray(),
+		},
+		"Paint": {
+			"components": PackedStringArray(["brush_palette", "object_label_asset_panel"]),
+			"slots": PackedStringArray([
+				HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE,
+				HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE,
+			]),
+		},
+		"Catalog": {
+			"components": PackedStringArray(["catalog_asset_panel"]),
+			"slots": PackedStringArray([HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG]),
+		},
+		"Layers": {
+			"components": PackedStringArray(["layer_stack_asset_panel"]),
+			"slots": PackedStringArray([HexMapWorkspaceAssetContext.SLOT_LAYER_STACK]),
+		},
+		"Validate": {
+			"components": PackedStringArray(["validation_asset_panel", "validation_issue_navigator"]),
+			"slots": PackedStringArray([
+				HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT,
+				HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE,
+			]),
+		},
+		"QA": {
+			"components": PackedStringArray(["qa_asset_panel"]),
+			"slots": PackedStringArray([
+				HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE,
+				HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE,
+				HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT,
+			]),
+		},
+		"Export": {
+			"components": PackedStringArray(["export_asset_panel", "export_destination_panel"]),
+			"slots": PackedStringArray([
+				HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT,
+				HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE,
+			]),
+		},
+		"Settings": {
+			"components": PackedStringArray(["settings_project_defaults_panel", "sample_settings_panel"]),
+			"slots": PackedStringArray([HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE]),
+		},
+	}
+
+	_assert_eq(workspace.workspace_tab_names(), expected_tabs, "TEST-41 workspace tab query exposes expected UX tabs")
+	var expected_component_row_count := 0
+	for tab_name in expected_tabs:
+		var contract = expected_contract[tab_name] as Dictionary
+		var expected_components = contract["components"] as PackedStringArray
+		var expected_slots = contract["slots"] as PackedStringArray
+		expected_component_row_count += expected_components.size()
+		_assert_eq(workspace.tab_component_ids(tab_name), expected_components, "TEST-41 %s component ids match contract" % tab_name)
+		_assert_eq(workspace.components_for_tab(tab_name).size(), expected_components.size(), "TEST-41 %s component row count matches contract" % tab_name)
+		_assert_eq(workspace.tab_asset_slot_ids(tab_name), expected_slots, "TEST-41 %s asset slot ids match contract" % tab_name)
+		_assert_eq(workspace.asset_slot_count(tab_name), expected_slots.size(), "TEST-41 %s asset slot count matches contract" % tab_name)
+		for component_id in expected_components:
+			_assert_true(workspace.tab_has_component(tab_name, String(component_id)), "TEST-41 %s has component %s" % [tab_name, component_id])
+		for slot_id in expected_slots:
+			_assert_true(workspace.tab_asset_slot_ids(tab_name).has(String(slot_id)), "TEST-41 %s has asset slot %s" % [tab_name, slot_id])
+
+	_assert_eq(workspace.component_rows().size(), expected_component_row_count, "TEST-41 component registry row count matches tab contract")
+	for row in workspace.component_rows():
+		var tab_name := String(row.get("tab", ""))
+		var component_id := String(row.get("component_id", ""))
+		var component_class := String(row.get("component_class", ""))
+		var responsibility := String(row.get("responsibility", ""))
+		var source_owner := String(row.get("source_owner", ""))
+		var row_slot_ids := PackedStringArray(row.get("asset_slot_ids", PackedStringArray()))
+		_assert_true(expected_tabs.has(tab_name), "TEST-41 component row tab is registered")
+		_assert_true(component_id != "", "TEST-41 component row has stable component id")
+		_assert_true(component_class != "", "TEST-41 component row has component class")
+		_assert_true(responsibility != "", "TEST-41 component row has responsibility")
+		_assert_true(source_owner != "", "TEST-41 component row has source owner")
+		_assert_true(workspace.tab_component_ids(tab_name).has(component_id), "TEST-41 component row is mounted in tab query")
+		for slot_id in row_slot_ids:
+			_assert_true(
+				HexMapWorkspaceAssetContext.asset_slot_ids().has(String(slot_id)),
+				"TEST-41 component row asset slot id is known: %s" % slot_id
+			)
+
+	_assert_true(not workspace.tab_has_component("Paint", "document_asset_panel"), "TEST-41 Paint tab excludes Document setup panel")
+	_assert_eq(workspace.tab_component_ids("MissingTab"), PackedStringArray(), "TEST-41 missing tab has no component ids")
+	_assert_eq(workspace.tab_asset_slot_ids("MissingTab"), PackedStringArray(), "TEST-41 missing tab has no asset slot ids")
+	_assert_eq(workspace.asset_slot_count("MissingTab"), 0, "TEST-41 missing tab has zero asset slots")
+
 	workspace.queue_free()
 	await process_frame
 
