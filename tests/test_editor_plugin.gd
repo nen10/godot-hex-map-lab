@@ -31,6 +31,7 @@ const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_ma
 const HexMapEditorAssetSlotState = preload("res://addons/hex_map_kit/editor/hex_map_editor_asset_slot_state.gd")
 const HexMapEditorAssetSlotControl = preload("res://addons/hex_map_kit/editor/hex_map_editor_asset_slot_control.gd")
 const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
+const HexMapWorkspaceAssetResourceFactory = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_resource_factory.gd")
 const HexMapWorkspace = preload("res://addons/hex_map_kit/editor/hex_map_workspace.gd")
 const HexDistEditor = preload("res://addons/hex_map_kit/editor/hex_dist_editor.gd")
 const HexAdjacencyRuleEditor = preload("res://addons/hex_map_kit/editor/hex_adjacency_rule_editor.gd")
@@ -85,6 +86,16 @@ class SessionChangeRecorder:
 		keys.append(key)
 
 
+class AssetCreatePathRecorder:
+	var entries: Array[Dictionary] = []
+
+	func record(slot_id: String, path: String) -> void:
+		entries.append({
+			"slot_id": slot_id,
+			"path": path,
+		})
+
+
 var _failures: Array[String] = []
 var _test_output_root := ""
 
@@ -99,6 +110,7 @@ func _run() -> void:
 	await _test_workspace_asset_context_is_shared_by_workspace_generate_and_paint()
 	_test_asset_slot_state_model_reports_selection_validation_and_sample_source()
 	await _test_asset_slot_control_exposes_state_snapshot_contract()
+	_test_asset_resource_factory_creates_project_resources_and_assigns_context()
 	await _test_map_edit_tool_builds_dock_controls()
 	await _test_plugin_handles_canvas_item_when_map_edit_ready()
 	await _test_editor_session_state_shares_generate_target_and_edit_document()
@@ -486,8 +498,62 @@ func _test_asset_slot_control_exposes_state_snapshot_contract() -> void:
 	_assert_eq(snapshot["current_source"], HexMapEditorAssetSlotState.SOURCE_SAMPLE, "asset slot control records explicit sample source")
 	_assert_eq(snapshot["current_path"], "res://addons/hex_map_kit/assets/sample_object_db.tres", "asset slot control records sample path after explicit action")
 
+	var create_recorder = AssetCreatePathRecorder.new()
+	control.create_path_selected.connect(Callable(create_recorder, "record"))
+	_assert_eq(control.default_create_file_name(), "object_database.tres", "asset slot control exposes default create file name")
+	var dialog_config = control.create_dialog_config()
+	_assert_eq(String(dialog_config["current_file"]), "object_database.tres", "asset slot create dialog uses slot-specific file name")
+	_assert_eq(int(dialog_config["file_mode"]), EditorFileDialog.FILE_MODE_SAVE_FILE, "asset slot create dialog uses Save As mode")
+	control.select_create_path("res://project/new_object_database.tres")
+	_assert_eq(create_recorder.entries.size(), 1, "asset slot create dialog emits selected path")
+	_assert_eq(create_recorder.entries[0]["slot_id"], "object_database", "asset slot create path includes slot id")
+	_assert_eq(create_recorder.entries[0]["path"], "res://project/new_object_database.tres", "asset slot create path includes selected path")
+
 	control.queue_free()
 	await process_frame
+
+
+func _test_asset_resource_factory_creates_project_resources_and_assigns_context() -> void:
+	var context = HexMapWorkspaceAssetContext.new()
+	var output_dir = _test_resource_dir("asset12_create_new")
+	var expectations := {
+		HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT: "HexMapDocumentResource",
+		HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG: "HexTileCatalogResource",
+		HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE: "HexObjectDatabaseResource",
+		HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE: "HexLabelDatabaseResource",
+		HexMapWorkspaceAssetContext.SLOT_LAYER_STACK: "HexLayerStackResource",
+		HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE: "HexMovementProfileResource",
+		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE: "Resource",
+		HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE: "Resource",
+	}
+
+	for slot_id in HexMapWorkspaceAssetContext.asset_slot_ids():
+		var default_file = HexMapWorkspaceAssetResourceFactory.default_file_name(slot_id)
+		_assert_true(default_file.ends_with(".tres"), "create-new default file uses .tres for %s" % slot_id)
+		var path = "%s/%s" % [output_dir, default_file]
+		var result = HexMapWorkspaceAssetResourceFactory.create_and_save_for_slot(slot_id, path, context)
+		_assert_true(bool(result["ok"]), "create-new saves resource for %s" % slot_id)
+		_assert_eq(int(result["error"]), OK, "create-new reports OK for %s" % slot_id)
+		_assert_true(FileAccess.file_exists(String(result["path"])), "create-new writes resource file for %s" % slot_id)
+		_assert_eq(context.asset_for_slot(slot_id), result["resource"], "create-new assigns resource to context for %s" % slot_id)
+		_assert_eq(
+			HexMapWorkspaceAssetResourceFactory.resource_type_name(slot_id),
+			expectations[slot_id],
+			"create-new reports expected resource type for %s" % slot_id
+		)
+		_assert_created_asset_resource_type(slot_id, result["resource"])
+		_assert_created_asset_has_no_sample_payload(slot_id, result["resource"])
+
+	var extension_result = HexMapWorkspaceAssetResourceFactory.create_and_save_for_slot(
+		HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE,
+		"%s/profile_without_extension" % output_dir,
+		context
+	)
+	_assert_true(String(extension_result["path"]).ends_with(".tres"), "create-new normalizes missing .tres extension")
+	_assert_true(
+		not String(extension_result["path"]).contains("sample"),
+		"create-new normalized path does not introduce sample naming"
+	)
 
 
 func _test_map_edit_tool_mutation_builder_and_viewport_adapter() -> void:
@@ -4845,6 +4911,50 @@ func _layer_stack_row_for_role(rows: Array, role: String) -> Dictionary:
 		if String(row.get("role", "")) == role:
 			return row
 	return {}
+
+
+func _assert_created_asset_resource_type(slot_id: String, resource: Resource) -> void:
+	match slot_id:
+		HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT:
+			_assert_true(resource is HexMapDocumentResource, "create-new level document has document resource type")
+		HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG:
+			_assert_true(resource is HexTileCatalogResource, "create-new tile catalog has catalog resource type")
+		HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE:
+			_assert_true(resource is HexObjectDatabaseResource, "create-new object database has object database type")
+		HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE:
+			_assert_true(resource is HexLabelDatabaseResource, "create-new label database has label database type")
+		HexMapWorkspaceAssetContext.SLOT_LAYER_STACK:
+			_assert_true(resource is HexLayerStackResource, "create-new layer stack has layer stack type")
+		HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE:
+			_assert_true(resource is HexMovementProfileResource, "create-new movement profile has movement profile type")
+		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE, HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE:
+			_assert_true(resource is Resource, "create-new generic profile has resource type")
+
+
+func _assert_created_asset_has_no_sample_payload(slot_id: String, resource: Resource) -> void:
+	match slot_id:
+		HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT:
+			var document := resource as HexMapDocumentResource
+			_assert_eq(document.dependencies.size(), 0, "create-new document has no sample dependencies")
+			_assert_eq(document.terrain_layers.size(), 0, "create-new document has no sample terrain layers")
+		HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG:
+			var catalog := resource as HexTileCatalogResource
+			_assert_eq(catalog.tile_set, null, "create-new catalog has no sample TileSet")
+			_assert_eq(catalog.entries.size(), 0, "create-new catalog has no sample entries")
+		HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE:
+			var object_database := resource as HexObjectDatabaseResource
+			_assert_eq(object_database.definitions.size(), 0, "create-new object database has no sample definitions")
+		HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE:
+			var label_database := resource as HexLabelDatabaseResource
+			_assert_eq(label_database.definitions.size(), 0, "create-new label database has no sample definitions")
+		HexMapWorkspaceAssetContext.SLOT_LAYER_STACK:
+			var stack := resource as HexLayerStackResource
+			_assert_true(stack.layers.size() > 0, "create-new layer stack uses project template roles")
+		HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE:
+			var movement_profile := resource as HexMovementProfileResource
+			_assert_true(not movement_profile.profile_id.contains("sample"), "create-new movement profile is not sample-named")
+		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE, HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE:
+			_assert_true(not resource.resource_name.to_lower().contains("sample"), "create-new generic profile is not sample-named")
 
 
 func _assert_true(value: bool, message: String) -> void:

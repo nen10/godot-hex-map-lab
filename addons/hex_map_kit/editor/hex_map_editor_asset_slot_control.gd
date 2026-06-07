@@ -3,9 +3,12 @@ class_name HexMapEditorAssetSlotControl
 extends VBoxContainer
 
 const HexMapEditorAssetSlotState = preload("res://addons/hex_map_kit/editor/hex_map_editor_asset_slot_state.gd")
+const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
+const HexMapWorkspaceAssetResourceFactory = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_resource_factory.gd")
 
 signal select_requested(slot_id: String)
 signal create_requested(slot_id: String)
+signal create_path_selected(slot_id: String, path: String)
 signal open_requested(slot_id: String, resource: Resource, path: String)
 signal validate_requested(slot_id: String)
 signal clear_requested(slot_id: String)
@@ -91,6 +94,33 @@ func apply_sample_source() -> bool:
 
 func slot_state_snapshot() -> Dictionary:
 	return _state.snapshot()
+
+
+func default_create_file_name() -> String:
+	return HexMapWorkspaceAssetResourceFactory.default_file_name(_state.slot_id)
+
+
+func create_dialog_config() -> Dictionary:
+	return HexMapWorkspaceAssetResourceFactory.save_dialog_config(_state.slot_id)
+
+
+func create_new_dialog() -> EditorFileDialog:
+	var dialog = HexMapWorkspaceAssetResourceFactory.new_save_dialog(_state.slot_id)
+	if dialog == null:
+		return null
+	dialog.file_selected.connect(_on_create_file_selected)
+	return dialog
+
+
+func popup_create_new_dialog() -> bool:
+	var dialog := create_new_dialog()
+	if dialog == null:
+		return false
+	return HexMapEditorPathSelector.popup_dialog(dialog)
+
+
+func select_create_path(path: String) -> void:
+	_on_create_file_selected(path)
 
 
 func _build_ui() -> void:
@@ -198,10 +228,15 @@ func _on_select_pressed() -> void:
 
 func _on_create_pressed() -> void:
 	create_requested.emit(_state.slot_id)
+	popup_create_new_dialog()
 
 
 func _on_open_pressed() -> void:
 	open_requested.emit(_state.slot_id, _state.current_resource, _state.current_path)
+
+
+func _on_create_file_selected(path: String) -> void:
+	create_path_selected.emit(_state.slot_id, path)
 
 
 func _on_clear_pressed() -> void:
