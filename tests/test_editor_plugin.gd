@@ -119,6 +119,7 @@ func _run() -> void:
 	await _test_object_label_asset_screen_manages_project_definitions_without_samples()
 	await _test_paint_brush_asset_screen_routes_missing_assets_without_raw_controls()
 	await _test_validate_asset_screen_reports_missing_project_assets_without_samples()
+	await _test_qa_asset_screen_manages_profiles_and_score_context_without_samples()
 	await _test_workspace_sample_settings_panel_controls_sample_mode_sources()
 	_test_sample_asset_duplicator_copies_catalog_dependencies_to_project()
 	_test_asset_slot_state_model_reports_selection_validation_and_sample_source()
@@ -1098,6 +1099,118 @@ func _test_validate_asset_screen_reports_missing_project_assets_without_samples(
 	_assert_eq(workspace.workspace_asset_context().tile_catalog, null, "Validate screen does not inject sample catalog")
 	_assert_eq(workspace.generation_dock().tile_catalog(), null, "Validate screen does not inject generation sample catalog")
 	_assert_true(not session.show_bundled_samples_in_main_selectors, "Validate screen actions do not enable sample mode")
+
+	workspace.queue_free()
+	await process_frame
+
+
+func _test_qa_asset_screen_manages_profiles_and_score_context_without_samples() -> void:
+	var session = HexMapEditorSessionState.new()
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	var snapshot = workspace.qa_screen_snapshot()
+	_assert_true(
+		PackedStringArray(snapshot["component_ids"]).has("qa_asset_panel"),
+		"QA screen exposes QA asset panel"
+	)
+	_assert_true(
+		PackedStringArray(snapshot["asset_slot_ids"]).has(HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE),
+		"QA screen exposes generation profile slot"
+	)
+	_assert_true(
+		PackedStringArray(snapshot["asset_slot_ids"]).has(HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE),
+		"QA screen exposes validation suite slot"
+	)
+	_assert_true(not bool(snapshot["sample_candidates_visible"]), "QA screen starts with sample mode OFF")
+
+	var output_dir = _test_resource_dir("screen26_qa")
+	var profile_path = "%s/generation_profile.tres" % output_dir
+	var profile_result = workspace.create_generation_profile(profile_path)
+	_assert_true(bool(profile_result["ok"]), "QA screen creates project Generation Profile")
+	_assert_true(FileAccess.file_exists(profile_path), "QA screen writes project Generation Profile")
+	var profile = profile_result["resource"] as Resource
+	_assert_true(profile is Resource, "QA screen create returns generation profile resource")
+	_assert_eq(workspace.workspace_asset_context().generation_profile, profile, "created generation profile enters workspace context")
+	_assert_eq(
+		workspace.tab_asset_slot_snapshot("QA", HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE).get("current_source", ""),
+		HexMapEditorAssetSlotState.SOURCE_PROJECT,
+		"QA screen marks generation profile as project asset"
+	)
+
+	var suite_path = "%s/validation_suite.tres" % output_dir
+	var suite_result = workspace.create_validation_rule_suite(suite_path)
+	_assert_true(bool(suite_result["ok"]), "QA screen creates project Validation Rule Suite")
+	_assert_true(FileAccess.file_exists(suite_path), "QA screen writes project Validation Rule Suite")
+	var suite = suite_result["resource"] as Resource
+	_assert_true(suite is Resource, "QA screen create returns validation suite resource")
+	_assert_eq(workspace.workspace_asset_context().validation_rule_suite, suite, "created validation suite enters workspace context")
+
+	var score_context = workspace.qa_score_table_context()
+	_assert_true(bool((score_context["generation_profile"] as Dictionary).get("selected", false)), "QA score context reports selected generation profile")
+	_assert_true(bool((score_context["validation_rule_suite"] as Dictionary).get("selected", false)), "QA score context reports selected validation suite")
+	_assert_eq(
+		String((score_context["generation_profile"] as Dictionary).get("resource_path", "")),
+		profile_path,
+		"QA score context reports generation profile path"
+	)
+	_assert_eq(
+		String((score_context["validation_rule_suite"] as Dictionary).get("resource_path", "")),
+		suite_path,
+		"QA score context reports validation suite path"
+	)
+
+	var profile_open = workspace.open_generation_profile()
+	_assert_true(bool(profile_open["ok"]), "QA screen opens selected Generation Profile")
+	var profile_save_as_path = "%s/generation_profile_saved_as.tres" % output_dir
+	var profile_save = workspace.save_generation_profile_as(profile_save_as_path)
+	_assert_true(bool(profile_save["ok"]), "QA screen saves Generation Profile as project resource")
+	_assert_true(FileAccess.file_exists(profile_save_as_path), "QA screen Save As writes generation profile")
+
+	var suite_open = workspace.open_validation_rule_suite()
+	_assert_true(bool(suite_open["ok"]), "QA screen opens selected Validation Rule Suite")
+	var suite_save_as_path = "%s/validation_suite_saved_as.tres" % output_dir
+	var suite_save = workspace.save_validation_rule_suite_as(suite_save_as_path)
+	_assert_true(bool(suite_save["ok"]), "QA screen saves Validation Rule Suite as project resource")
+	_assert_true(FileAccess.file_exists(suite_save_as_path), "QA screen Save As writes validation suite")
+
+	var preset_profile_path = "%s/balanced_generation_profile.tres" % output_dir
+	var preset_profile = workspace.duplicate_generation_profile_preset_to_project("balanced", preset_profile_path)
+	_assert_true(bool(preset_profile["ok"]), "QA screen duplicates generation preset to project")
+	_assert_true(FileAccess.file_exists(preset_profile_path), "QA screen writes duplicated generation preset")
+	var duplicated_profile = preset_profile["resource"] as Resource
+	_assert_eq(String(duplicated_profile.get_meta("preset_source", "")), "balanced", "duplicated generation profile records preset source")
+	_assert_eq(workspace.workspace_asset_context().generation_profile, duplicated_profile, "duplicated generation profile enters workspace context")
+
+	var preset_suite_path = "%s/standard_validation_suite.tres" % output_dir
+	var preset_suite = workspace.duplicate_validation_rule_suite_preset_to_project("standard", preset_suite_path)
+	_assert_true(bool(preset_suite["ok"]), "QA screen duplicates validation suite preset to project")
+	_assert_true(FileAccess.file_exists(preset_suite_path), "QA screen writes duplicated validation suite preset")
+	var duplicated_suite = preset_suite["resource"] as Resource
+	_assert_eq(String(duplicated_suite.get_meta("preset_source", "")), "standard", "duplicated validation suite records preset source")
+	_assert_eq(workspace.workspace_asset_context().validation_rule_suite, duplicated_suite, "duplicated validation suite enters workspace context")
+
+	score_context = workspace.qa_score_table_context()
+	_assert_eq(
+		String((score_context["generation_profile"] as Dictionary).get("preset_source", "")),
+		"balanced",
+		"QA score context reports duplicated generation preset"
+	)
+	_assert_eq(
+		String((score_context["validation_rule_suite"] as Dictionary).get("preset_source", "")),
+		"standard",
+		"QA score context reports duplicated validation preset"
+	)
+
+	var clear_profile = workspace.clear_generation_profile()
+	_assert_true(bool(clear_profile["ok"]), "QA screen clears Generation Profile")
+	_assert_eq(workspace.workspace_asset_context().generation_profile, null, "cleared generation profile leaves workspace context")
+	var clear_suite = workspace.clear_validation_rule_suite()
+	_assert_true(bool(clear_suite["ok"]), "QA screen clears Validation Rule Suite")
+	_assert_eq(workspace.workspace_asset_context().validation_rule_suite, null, "cleared validation suite leaves workspace context")
+	_assert_true(not session.show_bundled_samples_in_main_selectors, "QA screen actions do not enable sample mode")
 
 	workspace.queue_free()
 	await process_frame

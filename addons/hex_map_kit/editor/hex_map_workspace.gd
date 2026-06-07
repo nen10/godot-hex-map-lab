@@ -914,6 +914,125 @@ func select_paint_catalog_brush_key(key: String, mode_id: String = "terrain") ->
 	}
 
 
+func qa_screen_snapshot() -> Dictionary:
+	var context := workspace_asset_context()
+	return {
+		"tab": HexMapWorkspaceComponentRegistry.TAB_QA,
+		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_QA),
+		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_QA),
+		"generation_profile": context.generation_profile,
+		"validation_rule_suite": context.validation_rule_suite,
+		"promotion_target_document": context.level_document,
+		"generation_profile_slot": tab_asset_slot_snapshot(
+			HexMapWorkspaceComponentRegistry.TAB_QA,
+			HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE
+		),
+		"validation_rule_suite_slot": tab_asset_slot_snapshot(
+			HexMapWorkspaceComponentRegistry.TAB_QA,
+			HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE
+		),
+		"score_table_context": qa_score_table_context(),
+		"sample_candidates_visible": _ensure_session_state().show_bundled_samples_in_main_selectors,
+	}
+
+
+func qa_score_table_context() -> Dictionary:
+	var context := workspace_asset_context()
+	return {
+		"generation_profile": _qa_resource_context(context.generation_profile),
+		"validation_rule_suite": _qa_resource_context(context.validation_rule_suite),
+		"score_rows": _generation_dock.generation_batch_score_table("score", true) if _generation_dock != null else [],
+	}
+
+
+func create_generation_profile(path: String) -> Dictionary:
+	var panel := _qa_asset_panel()
+	if panel == null:
+		return _generation_profile_action_result(false, ERR_UNAVAILABLE, path)
+	var result := panel.create_asset_for_slot(HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE, path)
+	_sync_generation_profile_from_result(result)
+	return result
+
+
+func save_generation_profile_as(path: String) -> Dictionary:
+	var panel := _qa_asset_panel()
+	if panel == null:
+		return _generation_profile_action_result(false, ERR_UNAVAILABLE, path)
+	var result := panel.save_asset_slot_as(HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE, path)
+	_sync_generation_profile_from_result(result)
+	return result
+
+
+func open_generation_profile() -> Dictionary:
+	var panel := _qa_asset_panel()
+	if panel == null:
+		return _generation_profile_action_result(false, ERR_UNAVAILABLE, "")
+	var result := panel.open_asset_slot(HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE)
+	_sync_generation_profile_from_result(result)
+	return result
+
+
+func clear_generation_profile() -> Dictionary:
+	var panel := _qa_asset_panel()
+	if panel == null:
+		return _generation_profile_action_result(false, ERR_UNAVAILABLE, "")
+	return panel.clear_asset_slot(HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE)
+
+
+func create_validation_rule_suite(path: String) -> Dictionary:
+	var panel := _qa_asset_panel()
+	if panel == null:
+		return _validation_suite_action_result(false, ERR_UNAVAILABLE, path)
+	var result := panel.create_asset_for_slot(HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE, path)
+	_sync_validation_suite_from_result(result)
+	return result
+
+
+func save_validation_rule_suite_as(path: String) -> Dictionary:
+	var panel := _qa_asset_panel()
+	if panel == null:
+		return _validation_suite_action_result(false, ERR_UNAVAILABLE, path)
+	var result := panel.save_asset_slot_as(HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE, path)
+	_sync_validation_suite_from_result(result)
+	return result
+
+
+func open_validation_rule_suite() -> Dictionary:
+	var panel := _qa_asset_panel()
+	if panel == null:
+		return _validation_suite_action_result(false, ERR_UNAVAILABLE, "")
+	var result := panel.open_asset_slot(HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE)
+	_sync_validation_suite_from_result(result)
+	return result
+
+
+func clear_validation_rule_suite() -> Dictionary:
+	var panel := _qa_asset_panel()
+	if panel == null:
+		return _validation_suite_action_result(false, ERR_UNAVAILABLE, "")
+	return panel.clear_asset_slot(HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE)
+
+
+func duplicate_generation_profile_preset_to_project(preset_id: String, path: String) -> Dictionary:
+	var profile := _generation_profile_preset(preset_id)
+	return _save_qa_preset_resource(
+		profile,
+		HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE,
+		preset_id,
+		path
+	)
+
+
+func duplicate_validation_rule_suite_preset_to_project(preset_id: String, path: String) -> Dictionary:
+	var suite := _validation_rule_suite_preset(preset_id)
+	return _save_qa_preset_resource(
+		suite,
+		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE,
+		preset_id,
+		path
+	)
+
+
 func _build_ui() -> void:
 	if _tabs != null:
 		return
@@ -1107,6 +1226,10 @@ func _object_label_asset_panel() -> HexMapWorkspaceAssetPanel:
 	return _asset_panels.get(HexMapWorkspaceComponentRegistry.TAB_PAINT, null) as HexMapWorkspaceAssetPanel
 
 
+func _qa_asset_panel() -> HexMapWorkspaceAssetPanel:
+	return _asset_panels.get(HexMapWorkspaceComponentRegistry.TAB_QA, null) as HexMapWorkspaceAssetPanel
+
+
 func _sync_session_document_from_result(result: Dictionary, reason: String) -> void:
 	if not bool(result.get("ok", false)):
 		return
@@ -1151,6 +1274,26 @@ func _sync_label_database_from_result(result: Dictionary) -> void:
 	workspace_asset_context().set_label_database(database)
 	if _edit_tool != null:
 		_edit_tool.set_label_database(database, false)
+	_sync_workspace_asset_context()
+
+
+func _sync_generation_profile_from_result(result: Dictionary) -> void:
+	if not bool(result.get("ok", false)):
+		return
+	var resource = result.get("resource", null) as Resource
+	if resource == null:
+		return
+	workspace_asset_context().set_generation_profile(resource)
+	_sync_workspace_asset_context()
+
+
+func _sync_validation_suite_from_result(result: Dictionary) -> void:
+	if not bool(result.get("ok", false)):
+		return
+	var resource = result.get("resource", null) as Resource
+	if resource == null:
+		return
+	workspace_asset_context().set_validation_rule_suite(resource)
 	_sync_workspace_asset_context()
 
 
@@ -1278,6 +1421,91 @@ func _paint_brush_action_result(ok: bool, error: int, mode_id: String) -> Dictio
 		"error": error,
 		"mode": mode_id,
 		"brush": _edit_tool.paint_brush_snapshot() if _edit_tool != null else {},
+	}
+
+
+func _generation_profile_action_result(ok: bool, error: int, path: String) -> Dictionary:
+	return {
+		"ok": ok,
+		"error": error,
+		"slot_id": HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE,
+		"path": path,
+		"resource": null,
+	}
+
+
+func _validation_suite_action_result(ok: bool, error: int, path: String) -> Dictionary:
+	return {
+		"ok": ok,
+		"error": error,
+		"slot_id": HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE,
+		"path": path,
+		"resource": null,
+	}
+
+
+func _qa_resource_context(resource: Resource) -> Dictionary:
+	if resource == null:
+		return {
+			"selected": false,
+			"resource_name": "",
+			"resource_path": "",
+			"preset_source": "",
+		}
+	return {
+		"selected": true,
+		"resource_name": resource.resource_name,
+		"resource_path": resource.resource_path,
+		"preset_source": String(resource.get_meta("preset_source", "")),
+	}
+
+
+func _generation_profile_preset(preset_id: String) -> Resource:
+	var id := preset_id.strip_edges().to_lower()
+	if not ["balanced", "sparse", "dense"].has(id):
+		return null
+	var profile := Resource.new()
+	profile.resource_name = "%s Generation Profile" % id.capitalize()
+	profile.set_meta("preset_source", id)
+	profile.set_meta("profile_kind", "generation")
+	return profile
+
+
+func _validation_rule_suite_preset(preset_id: String) -> Resource:
+	var id := preset_id.strip_edges().to_lower()
+	if id != "standard":
+		return null
+	var suite := Resource.new()
+	suite.resource_name = "Standard Validation Rule Suite"
+	suite.set_meta("preset_source", id)
+	suite.set_meta("profile_kind", "validation")
+	return suite
+
+
+func _save_qa_preset_resource(resource: Resource, slot_id: String, preset_id: String, path: String) -> Dictionary:
+	var actual_path := HexMapWorkspaceAssetResourceFactory.normalized_resource_path(path)
+	if resource == null or actual_path == "":
+		return {
+			"ok": false,
+			"error": ERR_INVALID_PARAMETER,
+			"slot_id": slot_id,
+			"path": actual_path,
+			"resource": resource,
+			"preset_id": preset_id,
+		}
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(actual_path.get_base_dir()))
+	var error := ResourceSaver.save(resource, actual_path)
+	if error == OK:
+		resource.resource_path = actual_path
+		workspace_asset_context().set_asset(slot_id, resource)
+		_sync_workspace_asset_context()
+	return {
+		"ok": error == OK,
+		"error": error,
+		"slot_id": slot_id,
+		"path": actual_path,
+		"resource": resource,
+		"preset_id": preset_id,
 	}
 
 
