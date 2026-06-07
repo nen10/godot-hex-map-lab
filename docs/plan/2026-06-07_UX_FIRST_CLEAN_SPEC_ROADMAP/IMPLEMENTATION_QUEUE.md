@@ -90,7 +90,7 @@ proof:
 | id | status | priority | dependencies | plan_dir | deliverable | target files | acceptance / test path | maturity |
 |---|---|---:|---|---|---|---|---|---|
 | `CLEAN-40` | `COMPLETE` | P1 | `CLEAN-21`, `CLEAN-22`, `CLEAN-23`, `CLEAN-24`, `CLEAN-25`, `CLEAN-26` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-40_MANUAL_CATALOG_VALIDATION_QA_UPDATE/` | Catalog / Validation / QA manual update | `docs/manual/MANUAL_EDITOR_PLUGIN.md`, `docs/manual/MANUAL_WORKFLOW.md`, `docs/manual/MANUAL_SCRIPTING.md`, `README.md` | Manual is organized by user goal; explains Resource picker workflows for Catalog, Layer Stack, Validation, Object Placement, Generation QA, Debug Report; no new analog test files are added | `DOCS_COMPLETE` |
-| `CLEAN-41` | `READY` | P1 | `CLEAN-10`, `CLEAN-11`, `CLEAN-12`, `CLEAN-13`, `CLEAN-14` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-41_API_DOCS_CLEAN_VOCABULARY/` | API docs clean vocabulary pass | `docs/api/API_REFERENCE.md`, scripting manual, runtime examples | Public API docs remove `v2`, migration, legacy, path-string primary APIs; Resource object APIs are the first path; path helpers are documented only as supplemental load helpers | `DOCS_COMPLETE` |
+| `CLEAN-41` | `COMPLETE` | P1 | `CLEAN-10`, `CLEAN-11`, `CLEAN-12`, `CLEAN-13`, `CLEAN-14` | `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-41_API_DOCS_CLEAN_VOCABULARY/` | API docs clean vocabulary pass | `docs/api/API_REFERENCE.md`, scripting manual, runtime examples | Public API docs remove `v2`, migration, legacy, path-string primary APIs; Resource object APIs are the first path; path helpers are documented only as supplemental load helpers | `DOCS_COMPLETE` |
 
 ---
 
@@ -114,18 +114,49 @@ proof:
 
 ## 8. Current pointer
 
-Current recommended next task: `CLEAN-41`.
+Current recommended next task: `CLEAN-51`.
 
 Reason:
 
-- Dependency sweep completed on 2026-06-07 after `CLEAN-40` completion.
+- Dependency sweep completed on 2026-06-07 after `CLEAN-41` completion.
 - No additional tasks were promoted.
-- `CLEAN-41` is the first `READY` task by table order.
-- `CLEAN-51`, `CLEAN-52`, and `CLEAN-60` remain `READY`.
+- `CLEAN-51` is the first `READY` task by table order.
+- `CLEAN-52` and `CLEAN-60` remain `READY`.
 
 ---
 
 ## 9. Completed task proof log
+
+### CLEAN-41
+
+status: COMPLETE
+completed_by: 2026-06-07 / Codex Autopilot / `autopilot/roadmap-main`
+plan: `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-41_API_DOCS_CLEAN_VOCABULARY/`
+review: `docs/review/autopilot/CLEAN-41_SELF_REVIEW_2026-06-07.md`
+
+proof:
+
+- tests:
+  - `./tools/test.sh` PASS on Godot `v4.6.2.stable.official.71f334935`
+  - `git diff --check` PASS
+- docs:
+  - `docs/TEST.md`
+  - `docs/api/API_REFERENCE.md`
+  - `docs/manual/MANUAL_SCRIPTING.md`
+  - `docs/manual/MANUAL_WORKFLOW.md`
+  - `examples/basic_runtime/README.md`
+  - `examples/editor_workflow/README.md`
+  - `docs/review/autopilot/CLEAN-41_SELF_REVIEW_2026-06-07.md`
+  - `docs/plan/2026-06-07_UX_FIRST_CLEAN_SPEC_ROADMAP/CLEAN-41_API_DOCS_CLEAN_VOCABULARY/`
+- major files:
+  - `docs/api/API_REFERENCE.md`
+  - `docs/manual/MANUAL_SCRIPTING.md`
+  - `docs/manual/MANUAL_WORKFLOW.md`
+  - `examples/basic_runtime/runtime_query_sample.gd`
+  - `examples/basic_runtime/runtime_query_example.gd`
+  - `tests/test_debug_scenes.gd`
+- maturity:
+  - `DOCS_COMPLETE`
 
 ### CLEAN-40
 

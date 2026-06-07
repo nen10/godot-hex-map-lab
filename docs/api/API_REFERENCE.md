@@ -2,6 +2,8 @@
 
 This page lists the public scripts and resources used by the current manuals and examples. It is intentionally concise; workflow steps live in `docs/manual/`.
 
+The public vocabulary is Resource-backed: `HexMapDocumentResource` is the level document, catalog keys are the tile/object authoring vocabulary, and saved paths are supplemental load/save inputs.
+
 ## Core
 
 ### `HexVector`
@@ -100,14 +102,14 @@ Use it as the boundary between saved documents and display/runtime helpers.
 
 Path: `res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd`
 
-- `load_document_path(path) -> bool`
 - `load_document_resource(document) -> bool`
+- `load_document_path(path) -> bool`
 - `apply_document(document)`
 - `apply_document_to_layer_stack(document, layer_stack, options = {})`
 - `find_weighted_path(start, goal, movement_profile = null)`
 - `movement_range(start, movement_budget, movement_profile = null)`
 
-Use `HexTileMapLayer` for runtime loading, display, loop-aware helpers, movement queries, and layer-stack application.
+Use `HexTileMapLayer` for runtime loading, display, loop-aware helpers, movement queries, and layer-stack application. Prefer `load_document_resource()` when the caller already has a `HexMapDocumentResource`; `load_document_path()` is a saved-resource convenience.
 
 ### `HexLayerStackResource`
 
@@ -130,7 +132,7 @@ Path: `res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd`
 - `keys()`
 - `entries_with_tag(tag)`
 
-Entries are `HexTileCatalogEntry` resources with `key`, `entry_type`, `source_id`, `atlas_coords`, `alternative_tile`, `scene`, `tags`, and `metadata`. Catalogs own a `TileSet` resource through `tile_set`; scene entries own a `PackedScene` resource through `scene`.
+Entries are `HexTileCatalogEntry` resources with `key`, `entry_type`, `scene`, `tags`, and `metadata`. Catalogs own a `TileSet` resource through `tile_set`; scene entries own a `PackedScene` resource through `scene`. Atlas entries also expose `source_id`, `atlas_coords`, and `alternative_tile` as TileSet entry details behind the catalog key.
 
 ### `HexObjectDatabaseResource`
 
@@ -208,11 +210,11 @@ It converts authoring data into passability/cost data for runtime path and range
 
 Path: `res://examples/basic_runtime/runtime_query_sample.gd`
 
-- `query_document_path(document_path, start = null, goal = null, movement_budget = 4.0, movement_profile = null, tile_catalog = null)`
 - `query_document(document, start = null, goal = null, movement_budget = 4.0, movement_profile = null, tile_catalog = null)`
+- `query_document_path(document_path, start = null, goal = null, movement_budget = 4.0, movement_profile = null, tile_catalog = null)`
 - `export_runtime_objects(document, object_database = null)`
 
-The sample returns dictionaries so it can be used in gameplay code, tests, or a minimal scene wrapper.
+The sample returns dictionaries so it can be used in gameplay code, tests, or a minimal scene wrapper. Prefer `query_document()` when code already holds a `HexMapDocumentResource`; `query_document_path()` is a supplemental helper for loading a saved resource path.
 
 ## Examples
 

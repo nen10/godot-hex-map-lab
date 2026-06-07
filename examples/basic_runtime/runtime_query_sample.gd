@@ -8,22 +8,6 @@ const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_
 const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
 
 
-static func query_document_path(
-	document_path: String,
-	start = null,
-	goal = null,
-	movement_budget: float = 4.0,
-	movement_profile = null,
-	tile_catalog = null
-) -> Dictionary:
-	if document_path == "" or not ResourceLoader.exists(document_path):
-		return _error_result("Document path does not exist: %s" % document_path)
-	var resource = ResourceLoader.load(document_path, "", ResourceLoader.CACHE_MODE_IGNORE)
-	if not resource is HexMapDocumentResource:
-		return _error_result("Resource is not a HexMapDocumentResource: %s" % document_path)
-	return query_document(resource, start, goal, movement_budget, movement_profile, tile_catalog)
-
-
 static func query_document(
 	document: HexMapDocumentResource,
 	start = null,
@@ -69,6 +53,22 @@ static func query_document(
 		"range": range_result,
 		"range_count": range_result.size(),
 	}
+
+
+static func query_document_path(
+	document_path: String,
+	start = null,
+	goal = null,
+	movement_budget: float = 4.0,
+	movement_profile = null,
+	tile_catalog = null
+) -> Dictionary:
+	if document_path == "" or not ResourceLoader.exists(document_path):
+		return _error_result("Document path does not exist: %s" % document_path)
+	var resource = ResourceLoader.load(document_path, "", ResourceLoader.CACHE_MODE_IGNORE)
+	if not resource is HexMapDocumentResource:
+		return _error_result("Resource is not a HexMapDocumentResource: %s" % document_path)
+	return query_document(resource, start, goal, movement_budget, movement_profile, tile_catalog)
 
 
 static func export_runtime_objects(document: HexMapDocumentResource, object_database = null) -> Dictionary:

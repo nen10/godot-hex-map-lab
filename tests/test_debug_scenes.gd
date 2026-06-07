@@ -356,9 +356,10 @@ func _run() -> void:
 	)
 	runtime_layer.queue_free()
 
+	var runtime_document = _runtime_document()
 	var document_path = _test_resource_path("runtime_document.tres")
 	_assert_eq(
-		ResourceSaver.save(_runtime_document(), document_path),
+		ResourceSaver.save(runtime_document, document_path),
 		OK,
 		"debug test saves runtime canonical document fixture"
 	)
@@ -389,14 +390,14 @@ func _run() -> void:
 	movement_profile.profile_id = "runtime-sample"
 	movement_profile.wall_passable = true
 	movement_profile.wall_cost = 1.0
-	var query_result = HexRuntimeQuerySample.query_document_path(
-		document_path,
+	var query_result = HexRuntimeQuerySample.query_document(
+		runtime_document,
 		HexVector.zero(),
 		HexVector.q_axis(),
 		1.0,
 		movement_profile
 	)
-	_assert_true(query_result["loaded"], "runtime query sample loads canonical document path")
+	_assert_true(query_result["loaded"], "runtime query sample queries canonical document resource")
 	_assert_eq(query_result["profile_id"], "runtime-sample", "runtime query sample reports movement profile id")
 	_assert_eq(query_result["path_count"], 2, "runtime query sample returns weighted path")
 	_assert_eq(query_result["range_count"], 2, "runtime query sample returns movement range")
@@ -404,6 +405,15 @@ func _run() -> void:
 		(query_result["range"] as Dictionary).has(HexVector.q_axis().key()),
 		"runtime query sample range includes passable wall cell"
 	)
+	var path_query = HexRuntimeQuerySample.query_document_path(
+		document_path,
+		HexVector.zero(),
+		HexVector.q_axis(),
+		1.0,
+		movement_profile
+	)
+	_assert_true(path_query["loaded"], "runtime query sample path helper loads saved canonical document")
+	_assert_eq(path_query["path_count"], 2, "runtime query sample path helper returns weighted path")
 	var missing_query = HexRuntimeQuerySample.query_document_path(_test_resource_path("missing_runtime_query_document.tres"))
 	_assert_true(not bool(missing_query["loaded"]), "runtime query sample reports missing document path")
 
@@ -448,10 +458,15 @@ func _run() -> void:
 	var runtime_example = HexRuntimeQueryExampleScene.instantiate()
 	root.add_child(runtime_example)
 	await process_frame
-	var runtime_example_result = runtime_example.run_example(document_path)
-	_assert_true(runtime_example_result["loaded"], "PKG-01 runtime example scene loads saved canonical document")
+	runtime_example.document = runtime_document
+	var runtime_example_result = runtime_example.run_example()
+	_assert_true(runtime_example_result["loaded"], "PKG-01 runtime example scene queries canonical document resource")
 	_assert_eq(runtime_example_result["profile_id"], "runtime-example", "PKG-01 runtime example scene uses runtime profile")
 	_assert_eq(runtime_example_result["path_count"], 2, "PKG-01 runtime example scene returns weighted path")
+	runtime_example.document = null
+	var runtime_example_path_result = runtime_example.run_path_example(document_path)
+	_assert_true(runtime_example_path_result["loaded"], "PKG-01 runtime example scene path helper loads saved document")
+	_assert_eq(runtime_example_path_result["path_count"], 2, "PKG-01 runtime example scene path helper returns weighted path")
 	runtime_example.queue_free()
 
 	var workflow_document = HexEditorWorkflowExample.build_authoring_document()

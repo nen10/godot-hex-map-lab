@@ -173,17 +173,19 @@ var path = HexGrid.shortest_path(
 
 toric map では `cyclic_size` を渡すことで、端を越える近傍が wrap されます。
 
-Weighted path と movement range は `HexGrid.weighted_path()` / `HexGrid.movement_range()`、または `HexTileMapLayer.find_weighted_path()` / `HexTileMapLayer.movement_range()` を使います。Canonical Level Document を runtime で読み込む最小例は `examples/basic_runtime/runtime_query_sample.gd` です。API の短い一覧は `docs/api/API_REFERENCE.md`、authoring から runtime までの流れは `docs/manual/MANUAL_WORKFLOW.md` を参照してください。
+Weighted path と movement range は `HexGrid.weighted_path()` / `HexGrid.movement_range()`、または `HexTileMapLayer.find_weighted_path()` / `HexTileMapLayer.movement_range()` を使います。`HexMapDocumentResource` を runtime query へ渡す最小例は `examples/basic_runtime/runtime_query_sample.gd` です。API の短い一覧は `docs/api/API_REFERENCE.md`、authoring から runtime までの流れは `docs/manual/MANUAL_WORKFLOW.md` を参照してください。
 
 ```gdscript
 const HexRuntimeQuerySample = preload("res://examples/basic_runtime/runtime_query_sample.gd")
 const HexMovementProfileResource = preload("res://addons/hex_map_kit/adapter/hex_movement_profile_resource.gd")
+const HexEditorWorkflowExample = preload("res://examples/editor_workflow/editor_workflow_example.gd")
 
 var profile = HexMovementProfileResource.new()
 profile.wall_passable = true
+var document = HexEditorWorkflowExample.build_authoring_document()
 
-var result = HexRuntimeQuerySample.query_document_path(
-	"res://maps/level_document.tres",
+var result = HexRuntimeQuerySample.query_document(
+	document,
 	HexVector.zero(),
 	HexVector.q_axis(),
 	4.0,
@@ -193,6 +195,8 @@ var result = HexRuntimeQuerySample.query_document_path(
 print(result["path_count"])
 print(result["range_count"])
 ```
+
+Use `HexRuntimeQuerySample.query_document_path()` only when runtime code needs to load a saved document path first.
 
 ## 6. Resource-backed authoring
 

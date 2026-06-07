@@ -89,7 +89,7 @@ terrain_layer.default_floor_key = "terrain.floor"
 terrain_layer.default_wall_key = "terrain.wall"
 ```
 
-Individual payloads can also carry `catalog_key`. Missing catalog assignments are validation issues; document apply does not silently replace them with numeric fallback tiles.
+Individual payloads can also carry `catalog_key`. Missing catalog assignments are validation issues; document apply does not silently substitute numeric tiles.
 
 In the editor, use `Catalog Resource`, `TileSet`, `Scene Entry Resource`, `Add Atlas Entry`, `Add Scene Entry`, and `Validate Catalog`. Paint and Generate controls then choose catalog keys rather than tile coordinates.
 
@@ -146,19 +146,21 @@ In the editor, use the validation dashboard for domain/severity rows, focus targ
 
 ## 8. Runtime Query
 
-Load a saved canonical document path and ask movement/path queries with the basic runtime example:
+Pass a canonical document Resource to runtime query helpers:
 
 ```gdscript
 const HexRuntimeQuerySample = preload("res://examples/basic_runtime/runtime_query_sample.gd")
 const HexMovementProfileResource = preload("res://addons/hex_map_kit/adapter/hex_movement_profile_resource.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
+const HexEditorWorkflowExample = preload("res://examples/editor_workflow/editor_workflow_example.gd")
 
 var profile = HexMovementProfileResource.new()
 profile.profile_id = "player"
 profile.wall_passable = false
+var document = HexEditorWorkflowExample.build_authoring_document()
 
-var result = HexRuntimeQuerySample.query_document_path(
-	"res://maps/level_document.tres",
+var result = HexRuntimeQuerySample.query_document(
+	document,
 	HexVector.zero(),
 	HexVector.q_axis(),
 	4.0,
@@ -177,6 +179,8 @@ var result = HexRuntimeQuerySample.query_document_path(
 - `path_count`
 - `range`
 - `range_count`
+
+When runtime code needs to load a saved resource first, use `HexRuntimeQuerySample.query_document_path()` or the path helper on the scene wrapper.
 
 For a scene wrapper, open:
 
