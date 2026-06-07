@@ -34,7 +34,7 @@ Run:
 `--check` writes temporary artifacts under `.godot_user/package-check/` and validates:
 
 - required addon files are present,
-- sample atlas and sample catalog are present,
+- bundled learning sample atlas, catalog, and scene are present,
 - development-only roots are absent.
 
 The standard test script runs this check before Godot headless tests:
@@ -77,6 +77,12 @@ dist/
 ```
 
 Docs and examples are source-repository material. The addon zip is intentionally small and installable into another Godot project under `res://addons/hex_map_kit/`.
+
+## Production Assets And Samples
+
+The zip includes bundled samples so new users can learn the editor after installation. They are not the production default workflow. In a project, create or select project-owned documents, catalogs, TileSets, object databases, label databases, generation profiles, validation suites, export profiles, and export destinations through Hex Map Workspace.
+
+When a sample is useful as a starting point, duplicate it from Settings / Samples into a project path, then edit the project copy. Package checks verify that bundled sample files are present; feature completion tests verify that normal editor screens work with project assets and sample mode OFF.
 
 ## Release Check
 

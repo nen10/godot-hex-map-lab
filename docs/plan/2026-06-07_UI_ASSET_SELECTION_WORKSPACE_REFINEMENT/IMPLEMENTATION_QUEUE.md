@@ -96,7 +96,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `DOC-50` | `READY` | `SCREEN-20`, `SCREEN-21`, `SCREEN-23`, `SCREEN-26` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/DOC-50_ASSET_SELECTION_WORKFLOW_MANUAL/` | Project asset selection workflow manual | `docs/manual/MANUAL_EDITOR_PLUGIN.md`, `docs/manual/MANUAL_WORKFLOW.md`, `docs/manual/MANUAL_PACKAGE.md`, `README.md` | Manual uses project asset selection as main workflow; sample is isolated to learning/onboarding; `Use Sample Tiles` is not normal setup; no analog test files are added. |
+| `DOC-50` | `COMPLETE` | `SCREEN-20`, `SCREEN-21`, `SCREEN-23`, `SCREEN-26` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/DOC-50_ASSET_SELECTION_WORKFLOW_MANUAL/` | Project asset selection workflow manual | `docs/manual/MANUAL_EDITOR_PLUGIN.md`, `docs/manual/MANUAL_WORKFLOW.md`, `docs/manual/MANUAL_PACKAGE.md`, `README.md` | Manual uses project asset selection as main workflow; sample is isolated to learning/onboarding; `Use Sample Tiles` is not normal setup; no analog test files are added. |
 | `DOC-51` | `READY` | `SAMPLE-10`, `SAMPLE-11` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/DOC-51_SAMPLE_MODE_ONBOARDING_DOCS/` | Sample mode onboarding docs | manual docs, README, sample settings references | Sample mode is learning/onboarding; production workflow is project asset selection; duplicate sample to project is explained. |
 
 ---
@@ -106,7 +106,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
 | `PKG-70` | `READY` | `SAMPLE-10`, `SAMPLE-11` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/PKG-70_SAMPLE_AS_LEARNING_PACKAGE_CHECK/` | Sample-as-learning package check | sample assets, package script/tests, `docs/TEST.md` | Sample catalog, sample tiles, and sample scene are packaged and accessible with sample mode ON; sample mode OFF does not silently inject them into main selectors. |
-| `PKG-71` | `BACKLOG` | `DOC-50`, `TEST-40` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/PKG-71_PROJECT_ASSET_CLEAN_PACKAGE_CHECK/` | Project asset clean package check | package checks, editor/package tests, manual/package docs | Clean project flow covers plugin load, new document, new catalog, user TileSet, user object scene, missing asset validation before selection, and package check PASS. |
+| `PKG-71` | `READY` | `DOC-50`, `TEST-40` | `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/PKG-71_PROJECT_ASSET_CLEAN_PACKAGE_CHECK/` | Project asset clean package check | package checks, editor/package tests, manual/package docs | Clean project flow covers plugin load, new document, new catalog, user TileSet, user object scene, missing asset validation before selection, and package check PASS. |
 
 ---
 
@@ -135,7 +135,7 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `DOC-50`.
+Current recommended next task: `DOC-51`.
 
 Reason:
 
@@ -157,7 +157,9 @@ Reason:
 - `TEST-40` is complete and makes the no-sample-only feature completion test contract explicit.
 - `TEST-41` is complete and asserts the full workspace tab component/slot query contract.
 - `TEST-42` is complete and covers the asset slot state/sample duplication matrix.
-- `DOC-50` is the first dependency-satisfied READY task in queue order.
+- `DOC-50` is complete and documents project asset selection as the main workflow.
+- `PKG-71` is promoted to READY because `DOC-50` and `TEST-40` are complete.
+- `DOC-51` is the first dependency-satisfied READY task in queue order.
 
 ---
 
@@ -508,3 +510,18 @@ proof:
   major files:
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/TEST-42_TEST_RESULT_2026-06-08.md`
+
+### DOC-50 Project asset selection workflow manual
+
+proof:
+  plan: `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/DOC-50_ASSET_SELECTION_WORKFLOW_MANUAL/`
+  review: `docs/review/autopilot/DOC-50_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `README.md`
+    - `docs/manual/MANUAL_EDITOR_PLUGIN.md`
+    - `docs/manual/MANUAL_WORKFLOW.md`
+    - `docs/manual/MANUAL_PACKAGE.md`
+  major files:
+    - `docs/review/autopilot/DOC-50_TEST_RESULT_2026-06-08.md`

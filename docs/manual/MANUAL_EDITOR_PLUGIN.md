@@ -23,8 +23,17 @@ After Godot starts, the editor shows the **Hex Map Workspace** dock. The workspa
 - `Validate`
 - `QA`
 - `Export`
+- `Settings`
 
-During the staged workspace extraction, the active Generate controls are mounted in `Generate`, and the active document, paint, catalog, layer, validation, object, label, and export controls are mounted in `Paint`. The tab names are the stable task map for the editor UI.
+The tab names are the stable task map for the editor UI. Production work starts with project asset slots, not bundled samples:
+
+1. In `Document`, create or select a project `HexMapDocumentResource`.
+2. In `Catalog`, create or select a project `HexTileCatalogResource`, then select its `TileSet` and optional scene-entry `PackedScene` resources.
+3. In `Paint`, select project Object and Label databases before placing definitions.
+4. In `Layers`, select a project Layer Stack and a scene target.
+5. In `Validate` and `QA`, select project Validation Rule Suite and Generation Profile resources.
+6. In `Export`, select a project Export Profile and choose an explicit destination with the FileDialog.
+7. In `Settings`, use Samples only for learning or duplicating bundled assets into project-owned resources.
 
 ## 2. Start Or Open A Level Document
 
@@ -33,6 +42,7 @@ Use `HexMapDocumentResource` when a map needs terrain, overlays, objects, labels
 Normal document actions:
 
 - `New Document`: create a canonical document in memory.
+- `Create New...`: save a new project document resource through a FileDialog.
 - `Document Resource`: select an existing `HexMapDocumentResource` with a Resource picker.
 - `Open...`: choose a document through a FileDialog.
 - `Save`: write the current document to its saved location.
@@ -94,9 +104,9 @@ Use catalog keys instead of raw tile source numbers in normal authoring.
 
 Catalog setup:
 
-- `Catalog Resource`: select a `HexTileCatalogResource`.
-- `TileSet`: select the catalog TileSet resource.
-- `Scene Entry Resource`: select a `PackedScene` for scene-tile entries.
+- `Catalog Resource`: create or select a project `HexTileCatalogResource`.
+- `TileSet`: select an arbitrary project TileSet resource for the catalog.
+- `Scene Entry Resource`: select a project `PackedScene` for scene-tile entries.
 - `Add Atlas Entry`: add an atlas tile entry to the catalog.
 - `Add Scene Entry`: add a scene entry that references the selected `PackedScene`.
 - `Validate Catalog`: show missing TileSet, missing source, invalid atlas coords, missing scene, and tag/status issues.
@@ -120,9 +130,9 @@ Viewport edits update the document and target display together. Undo / Redo shou
 
 Object mode uses typed resources:
 
-- `Object DB`: select a `HexObjectDatabaseResource`.
+- `Object DB`: create or select a project `HexObjectDatabaseResource`.
 - definition list: choose the object key to place.
-- `Definition Scene`: select the definition `PackedScene`.
+- `Definition Scene`: select the definition project `PackedScene`.
 - `Placement Properties`: edit bool, number, string, and enum values through typed controls.
 
 Normal object placement does not use raw `object_id` text or raw JSON property editing.
@@ -177,9 +187,11 @@ The report includes:
 
 Normal authoring should use concise status and validation rows. The debug report is for support, not for everyday editing.
 
-## 10. Configure Sample Tiles And Atlases
+## 10. Use Samples For Learning
 
-Use `Use Sample Tiles` for the included sample atlas:
+Bundled samples are learning assets. Open `Settings` / Samples to inspect them or duplicate the sample catalog into project-owned files before adapting it.
+
+The included sample atlas is:
 
 ```text
 res://addons/hex_map_kit/assets/sample_hex_tiles.png
@@ -193,6 +205,8 @@ The sample setup uses:
 - tile size `64 x 57`
 
 These numeric values are sample asset details. Normal workflow should still select catalog keys for generated, painted, and overlay tiles.
+
+`Use Sample Tiles` is a quick learning/debug action, not normal production setup. For production, use the Catalog tab to select a project Tile Catalog and TileSet, or duplicate the bundled sample catalog to a project path and then edit the project copy.
 
 Use `Browse Atlas Image` or the target TileSet/Atlas browser when preparing a target `TileSet`. Target status reports TileSet path, source count, tile size, floor/wall/overlay payload, and overlay visibility.
 

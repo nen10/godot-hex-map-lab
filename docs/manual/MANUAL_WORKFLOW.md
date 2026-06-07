@@ -17,14 +17,25 @@ Enable it in Godot:
 enabled=PackedStringArray("res://addons/hex_map_kit/plugin.cfg")
 ```
 
-For display, prepare a `TileMapLayer` or `HexTileMapLayer` with a hex `TileSet`. The included sample atlas and catalog are:
+For production authoring, prepare project assets in the workspace:
+
+- a saved `HexMapDocumentResource`
+- a project `HexTileCatalogResource`
+- a project `TileSet`
+- project Object and Label databases
+- project Validation Rule Suite and Generation Profile resources
+- an explicit export destination
+
+For display, prepare a `TileMapLayer` or `HexTileMapLayer` with a project hex `TileSet`.
+
+Bundled learning samples are available in Settings / Samples:
 
 ```text
 res://addons/hex_map_kit/assets/sample_hex_tiles.png
 res://addons/hex_map_kit/assets/sample_hex_tile_catalog.tres
 ```
 
-The sample catalog owns its `TileSet` resource and its scene-tile entry references a package-contained `PackedScene`.
+The sample catalog owns its `TileSet` resource and its scene-tile entry references a package-contained `PackedScene`. Duplicate the sample catalog to a project path before adapting it for production.
 
 More setup details: `docs/manual/MANUAL_SETUP.md`.
 
@@ -39,9 +50,18 @@ Open **Hex Map Workspace** and work from the authoring goal:
 - Paint: edit terrain, floor tile keys, wall tile keys, objects, and labels in the viewport.
 - Layers: create missing role layers and apply the document through a `HexTileMapLayer` layer stack.
 - Validate: inspect domain/severity grouped issues, focus cells/resources/catalog entries, and read fix suggestions.
+- Settings: learn with bundled samples or duplicate sample assets into project-owned resources.
 - Support: use `Copy Debug Report` when a compact status row is not enough.
 
 Normal editor selection uses Resource pickers and FileDialogs. Saved paths may be displayed as read-only status, but path text is not the primary input workflow.
+
+Project asset first pass:
+
+1. Create or select the Level Document in `Document`.
+2. Create or select the Tile Catalog and assign its TileSet in `Catalog`.
+3. Create or select Object and Label databases in `Paint`.
+4. Create or select Validation Rule Suite and Generation Profile resources in `Validate` and `QA`.
+5. Choose an Export Profile and destination in `Export`.
 
 ## 3. Author A Level Document
 
@@ -75,7 +95,7 @@ var info = HexEditorWorkflowExample.workflow_summary(document)
 
 Use catalog keys instead of raw `source_id` / `atlas_coords` in normal authoring flows.
 
-Sample keys:
+Example catalog keys:
 
 - `terrain.floor`
 - `terrain.wall`
