@@ -145,6 +145,7 @@ func _run() -> void:
 	await _test_workspace_asset_slots_use_strict_resource_type_filters()
 	await _test_workspace_asset_slot_actions_remove_redundant_buttons()
 	await _test_workspace_asset_remaining_actions_are_wired_or_deleted()
+	await _test_sample_settings_duplicate_button_creates_project_catalog()
 	_test_asset_resource_factory_creates_project_resources_and_assigns_context()
 	await _test_map_edit_tool_builds_dock_controls()
 	await _test_plugin_handles_canvas_item_when_map_edit_ready()
@@ -2624,10 +2625,6 @@ func _test_workspace_asset_remaining_actions_are_wired_or_deleted() -> void:
 
 	var panel = workspace.sample_settings_panel()
 	_assert_true(not _has_button_text(panel, "Open"), "ASSET-32 Settings sample Open action is removed until functional")
-	_assert_true(
-		not _has_button_text(panel, "Duplicate To Project"),
-		"ASSET-32 Settings sample duplicate action is removed until functional"
-	)
 	_assert_eq(Array(panel.snapshot()["sample_assets"]).size(), 3, "ASSET-32 Settings sample rows remain visible as learning assets")
 
 	var sample_catalog = HexTileCatalogResource.new()
@@ -2650,6 +2647,72 @@ func _test_workspace_asset_remaining_actions_are_wired_or_deleted() -> void:
 	_assert_eq(String(after_sample["current_source"]), HexMapEditorAssetSlotState.SOURCE_SAMPLE, "ASSET-32 sample action button path records sample source")
 
 	sample_control.queue_free()
+	workspace.queue_free()
+	await process_frame
+
+
+func _test_sample_settings_duplicate_button_creates_project_catalog() -> void:
+	var session = HexMapEditorSessionState.new()
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	var panel = workspace.sample_settings_panel()
+	_assert_true(_has_button_text(panel, "Duplicate To Project"), "SAMPLE-40 Settings shows functional duplicate action")
+	_assert_true(not _has_button_text(panel, "Open"), "SAMPLE-40 Settings keeps Open removed without focus/preview target")
+	var row_actions = panel.sample_action_rows_snapshot()
+	_assert_eq(row_actions.size(), 3, "SAMPLE-40 sample action snapshot covers sample rows")
+	_assert_true(
+		(row_actions[0]["action_button_texts"] as PackedStringArray).has("Duplicate To Project"),
+		"SAMPLE-40 catalog row exposes duplicate action"
+	)
+	_assert_eq(
+		(row_actions[1]["action_button_texts"] as PackedStringArray).size(),
+		0,
+		"SAMPLE-40 tile texture row has no standalone duplicate action"
+	)
+	_assert_eq(
+		(row_actions[2]["action_button_texts"] as PackedStringArray).size(),
+		0,
+		"SAMPLE-40 object scene row has no standalone duplicate action"
+	)
+
+	var output_dir = _test_resource_dir("sample40_settings_duplicate")
+	var catalog_path = "%s/settings_sample_catalog.tres" % output_dir
+	var result = panel.press_sample_action(
+		HexMapSampleSettingsPanel.SAMPLE_CATALOG_ID,
+		HexMapSampleSettingsPanel.ACTION_DUPLICATE_TO_PROJECT,
+		{"path": catalog_path}
+	)
+	_assert_true(bool(result["ok"]), "SAMPLE-40 duplicate button path succeeds")
+	_assert_eq(int(result["error"]), OK, "SAMPLE-40 duplicate button path reports OK")
+	_assert_true(FileAccess.file_exists(String(result["catalog_path"])), "SAMPLE-40 duplicate button writes catalog")
+	_assert_true(FileAccess.file_exists(String(result["texture_path"])), "SAMPLE-40 duplicate button copies texture")
+	_assert_true(FileAccess.file_exists(String(result["scene_path"])), "SAMPLE-40 duplicate button copies scene")
+	_assert_true(not _is_bundled_sample_asset_path(String(result["catalog_path"])), "SAMPLE-40 duplicate catalog is project-owned")
+	_assert_true(not _is_bundled_sample_asset_path(String(result["texture_path"])), "SAMPLE-40 duplicate texture is project-owned")
+	_assert_true(not _is_bundled_sample_asset_path(String(result["scene_path"])), "SAMPLE-40 duplicate scene is project-owned")
+
+	var catalog = result["catalog"] as HexTileCatalogResource
+	_assert_true(catalog is HexTileCatalogResource, "SAMPLE-40 duplicate returns catalog")
+	_assert_eq(workspace.workspace_asset_context().tile_catalog, catalog, "SAMPLE-40 duplicate assigns workspace Catalog context")
+	_assert_project_asset_slot(
+		workspace,
+		"Catalog",
+		HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG,
+		catalog,
+		catalog_path,
+		"SAMPLE-40 duplicated sample Catalog slot"
+	)
+	_assert_eq(workspace.generation_dock().tile_catalog(), catalog, "SAMPLE-40 duplicate updates Generate catalog")
+	_assert_eq(workspace.edit_tool().tile_catalog(), catalog, "SAMPLE-40 duplicate updates Paint catalog")
+	var snapshot = panel.snapshot()
+	var last_action = snapshot["last_sample_action"] as Dictionary
+	_assert_true(bool(last_action["ok"]), "SAMPLE-40 panel snapshot records successful duplicate")
+	_assert_eq(String(last_action["slot_id"]), HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, "SAMPLE-40 panel snapshot records affected slot")
+	_assert_true(String(snapshot["sample_status_text"]).contains(catalog_path), "SAMPLE-40 panel status shows changed catalog path")
+
 	workspace.queue_free()
 	await process_frame
 

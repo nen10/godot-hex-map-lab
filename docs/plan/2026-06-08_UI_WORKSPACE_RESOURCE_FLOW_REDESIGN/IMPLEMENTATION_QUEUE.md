@@ -65,8 +65,8 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `SAMPLE-40` | `READY` | `ASSET-32` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/SAMPLE-40_SETTINGS_SAMPLE_BUTTONS_FUNCTIONAL/` | Functional Settings / Samples buttons | `HexMapSampleSettingsPanel`, `HexMapWorkspace`, sample duplicator, editor tests | Open focuses/previews sample resource or is removed; Duplicate To Project chooses path, creates project copy, sets asset slot as `SOURCE_PROJECT`, and shows what changed. |
-| `SAMPLE-41` | `BACKLOG` | `SAMPLE-40` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/SAMPLE-41_REMOVE_SAMPLE_FROM_MAIN_EXECUTION_FALLBACK/` | Remove sample from main execution fallback | sample settings/session state, Generate/Paint resource lookup, validation/tests | Sample mode ON does not auto-use bundled catalog for Generate/Paint execution; sample remains candidate/preview/duplicate source; direct sample selection is classified as sample with warning. |
+| `SAMPLE-40` | `COMPLETE` | `ASSET-32` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/SAMPLE-40_SETTINGS_SAMPLE_BUTTONS_FUNCTIONAL/` | Functional Settings / Samples buttons | `HexMapSampleSettingsPanel`, `HexMapWorkspace`, sample duplicator, editor tests | Open focuses/previews sample resource or is removed; Duplicate To Project chooses path, creates project copy, sets asset slot as `SOURCE_PROJECT`, and shows what changed. |
+| `SAMPLE-41` | `READY` | `SAMPLE-40` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/SAMPLE-41_REMOVE_SAMPLE_FROM_MAIN_EXECUTION_FALLBACK/` | Remove sample from main execution fallback | sample settings/session state, Generate/Paint resource lookup, validation/tests | Sample mode ON does not auto-use bundled catalog for Generate/Paint execution; sample remains candidate/preview/duplicate source; direct sample selection is classified as sample with warning. |
 
 ---
 
@@ -148,7 +148,7 @@ acceptance / test path:
 
 ## 12. Current pointer
 
-Current recommended next task: `SAMPLE-40`.
+Current recommended next task: `SAMPLE-41`.
 
 Reason:
 
@@ -161,9 +161,10 @@ Reason:
 - `ASSET-30` is complete.
 - `ASSET-31` is complete.
 - `ASSET-32` is complete.
-- `SAMPLE-40` was promoted to READY because `ASSET-32` is complete.
+- `SAMPLE-40` is complete.
+- `SAMPLE-41` was promoted to READY because `SAMPLE-40` is complete.
 - `TAB-55` and `GEN-80` were promoted to READY because `NODE-24` is complete.
-- `SAMPLE-40` is the first READY task in queue order.
+- `SAMPLE-41` is the first READY task in queue order.
 - `TAB-50`, `TAB-55`, `PERF-60`, `INFO-70`, and `GEN-80` are also READY, but they appear later in the queue.
 
 ---
@@ -350,3 +351,17 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_sample_settings_panel.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/ASSET-32_TEST_RESULT_2026-06-08.md`
+
+### SAMPLE-40 Functional Settings / Samples buttons
+
+proof:
+  plan: `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/SAMPLE-40_SETTINGS_SAMPLE_BUTTONS_FUNCTIONAL/`
+  review: `docs/review/autopilot/SAMPLE-40_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_sample_settings_panel.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/SAMPLE-40_TEST_RESULT_2026-06-08.md`
