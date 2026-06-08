@@ -36,6 +36,9 @@ var _selected_hex_tile_map_auto_link_label: Label
 var _resources_context_panel: VBoxContainer
 var _resources_context_status_label: Label
 var _resources_group_labels: Dictionary = {}
+var _catalog_detail_panel: VBoxContainer
+var _catalog_detail_status_label: Label
+var _catalog_detail_entry_label: Label
 var _missing_unique_resources_panel: VBoxContainer
 var _missing_unique_resources_status_label: Label
 var _missing_unique_resources_save_directory_label: Label
@@ -755,6 +758,8 @@ func catalog_screen_snapshot() -> Dictionary:
 		HexMapWorkspaceComponentRegistry.TAB_CATALOG,
 		HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG
 	)
+	var entry_rows := catalog_entry_rows()
+	var entry_detail := catalog_entry_detail()
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_CATALOG,
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_CATALOG),
@@ -763,38 +768,91 @@ func catalog_screen_snapshot() -> Dictionary:
 		"catalog_slot": catalog_slot,
 		"tile_set": catalog.tile_set if catalog != null else null,
 		"tile_set_present": catalog != null and catalog.tile_set != null,
+		"detail_component_present": tab_has_component(HexMapWorkspaceComponentRegistry.TAB_CATALOG, "catalog_detail_panel"),
 		"entry_count": catalog.entries.size() if catalog != null else 0,
 		"entry_keys": catalog.keys() if catalog != null else PackedStringArray(),
+		"entry_rows": entry_rows,
+		"entry_detail": entry_detail,
+		"selected_entry": entry_detail,
+		"primary_input_fields": PackedStringArray([
+			"catalog_resource",
+			"tile_set",
+			"entry_list",
+			"entry_detail",
+			"create_from_selected_tile",
+			"create_from_selected_scene",
+		]),
+		"metadata_fields": PackedStringArray([
+			"source_id",
+			"atlas_coords",
+			"alternative_tile",
+		]),
+		"raw_coordinate_controls_primary": false,
 		"sample_candidates_visible": _ensure_session_state().show_bundled_samples_in_main_selectors,
 	}
+
+
+func catalog_entry_rows() -> Array[Dictionary]:
+	var catalog := workspace_asset_context().tile_catalog
+	if catalog == null:
+		return []
+	var rows: Array[Dictionary] = []
+	for entry in catalog.entries:
+		rows.append(_catalog_entry_detail_from_entry(catalog, entry))
+	return rows
+
+
+func catalog_entry_detail(entry_key: String = "") -> Dictionary:
+	var catalog := workspace_asset_context().tile_catalog
+	if catalog == null:
+		return _missing_catalog_entry_detail("No Tile Catalog selected.")
+	if catalog.entries.is_empty():
+		return _missing_catalog_entry_detail("No catalog entries yet.")
+	var selected_key := entry_key.strip_edges()
+	var entry = null
+	if selected_key != "":
+		entry = catalog.entry_for_key(selected_key)
+	else:
+		entry = catalog.entries[0]
+	if entry == null:
+		return _missing_catalog_entry_detail("Catalog entry is missing: %s." % selected_key)
+	return _catalog_entry_detail_from_entry(catalog, entry)
 
 
 func create_tile_catalog(path: String) -> Dictionary:
 	var panel := _catalog_asset_panel()
 	if panel == null:
 		return _catalog_action_result(false, ERR_UNAVAILABLE, path)
-	return panel.create_asset_for_slot(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, path)
+	var result := panel.create_asset_for_slot(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, path)
+	_refresh_catalog_detail_panel()
+	return result
 
 
 func save_tile_catalog_as(path: String) -> Dictionary:
 	var panel := _catalog_asset_panel()
 	if panel == null:
 		return _catalog_action_result(false, ERR_UNAVAILABLE, path)
-	return panel.save_asset_slot_as(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, path)
+	var result := panel.save_asset_slot_as(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, path)
+	_refresh_catalog_detail_panel()
+	return result
 
 
 func open_tile_catalog() -> Dictionary:
 	var panel := _catalog_asset_panel()
 	if panel == null:
 		return _catalog_action_result(false, ERR_UNAVAILABLE, "")
-	return panel.open_asset_slot(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG)
+	var result := panel.open_asset_slot(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG)
+	_refresh_catalog_detail_panel()
+	return result
 
 
 func clear_tile_catalog() -> Dictionary:
 	var panel := _catalog_asset_panel()
 	if panel == null:
 		return _catalog_action_result(false, ERR_UNAVAILABLE, "")
-	return panel.clear_asset_slot(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG)
+	var result := panel.clear_asset_slot(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG)
+	_refresh_catalog_detail_panel()
+	return result
 
 
 func set_catalog_tile_set(tile_set: TileSet) -> Dictionary:
@@ -803,6 +861,7 @@ func set_catalog_tile_set(tile_set: TileSet) -> Dictionary:
 		return _catalog_action_result(false, ERR_INVALID_PARAMETER, "")
 	catalog.tile_set = tile_set
 	_sync_workspace_asset_context()
+	_refresh_catalog_detail_panel()
 	return {
 		"ok": true,
 		"error": OK,
@@ -833,6 +892,7 @@ func create_catalog_atlas_entry_from_tileset(
 	entry.alternative_tile = alternative_tile
 	catalog.add_entry(entry)
 	_sync_workspace_asset_context()
+	_refresh_catalog_detail_panel()
 	return {
 		"ok": true,
 		"error": OK,
@@ -871,6 +931,7 @@ func create_catalog_scene_entry_from_packed_scene(
 	entry.scene = scene
 	catalog.add_entry(entry)
 	_sync_workspace_asset_context()
+	_refresh_catalog_detail_panel()
 	return {
 		"ok": true,
 		"error": OK,
@@ -1616,6 +1677,7 @@ func _mount_workspace_asset_panels() -> void:
 		]
 	)
 	_mount_missing_unique_resources_panel()
+	_mount_catalog_detail_panel()
 	_mount_asset_panel(
 		HexMapWorkspaceComponentRegistry.TAB_CATALOG,
 		"catalog_asset_panel",
@@ -1706,6 +1768,35 @@ func _mount_resources_context_panel() -> void:
 		_resources_context_panel
 	)
 	_refresh_resources_context_panel()
+
+
+func _mount_catalog_detail_panel() -> void:
+	var page = _tab_pages.get(HexMapWorkspaceComponentRegistry.TAB_CATALOG, null)
+	if page == null or _catalog_detail_panel != null:
+		return
+	_catalog_detail_panel = VBoxContainer.new()
+	_catalog_detail_panel.name = "Catalog Detail Panel"
+	_catalog_detail_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var title := Label.new()
+	title.text = "Catalog Entries"
+	_catalog_detail_panel.add_child(title)
+
+	_catalog_detail_status_label = Label.new()
+	_catalog_detail_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_catalog_detail_panel.add_child(_catalog_detail_status_label)
+
+	_catalog_detail_entry_label = Label.new()
+	_catalog_detail_entry_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_catalog_detail_panel.add_child(_catalog_detail_entry_label)
+
+	(page as Control).add_child(_catalog_detail_panel)
+	_register_tab_component(
+		HexMapWorkspaceComponentRegistry.TAB_CATALOG,
+		"catalog_detail_panel",
+		_catalog_detail_panel
+	)
+	_refresh_catalog_detail_panel()
 
 
 func _mount_asset_panel(
@@ -2045,6 +2136,159 @@ func _update_workspace_validation_counts(result: HexMapValidationResult) -> void
 	result.summary["warnings"] = result.warning_count()
 	result.summary["infos"] = result.info_count()
 	result.summary["issues"] = result.issue_count()
+
+
+func _catalog_entry_detail_from_entry(catalog: HexTileCatalogResource, entry) -> Dictionary:
+	if entry == null:
+		return _missing_catalog_entry_detail("Catalog entry resource is missing.")
+	var key := String(_catalog_entry_value(entry, "key", ""))
+	var display_name := String(_catalog_entry_value(entry, "display_name", ""))
+	var entry_type := String(_catalog_entry_value(entry, "entry_type", ""))
+	var tags := _catalog_entry_tags(entry)
+	var preview := _catalog_entry_preview(catalog, entry)
+	var meaning := display_name if display_name != "" else key
+	if meaning == "":
+		meaning = "<unnamed entry>"
+	return {
+		"present": true,
+		"key": key,
+		"display_name": display_name,
+		"meaning": meaning,
+		"type": entry_type,
+		"type_label": _catalog_entry_type_label(entry_type),
+		"tags": tags,
+		"tag_text": _join_text(tags, ", "),
+		"status": _catalog_entry_status(catalog, entry),
+		"preview": preview,
+		"preview_available": bool(preview.get("available", false)),
+		"preview_kind": String(preview.get("kind", "")),
+		"preview_text": String(preview.get("text", "")),
+		"preview_unavailable_reason": String(preview.get("unavailable_reason", "")),
+		"metadata": {
+			"source_id": int(_catalog_entry_value(entry, "source_id", 0)),
+			"atlas_coords": _catalog_entry_value(entry, "atlas_coords", Vector2i.ZERO),
+			"alternative_tile": int(_catalog_entry_value(entry, "alternative_tile", 0)),
+			"scene_resource_path": _catalog_entry_scene_path(entry),
+		},
+		"raw_coordinate_controls_primary": false,
+	}
+
+
+func _missing_catalog_entry_detail(reason: String) -> Dictionary:
+	return {
+		"present": false,
+		"key": "",
+		"display_name": "",
+		"meaning": "",
+		"type": "",
+		"type_label": "None",
+		"tags": PackedStringArray(),
+		"tag_text": "",
+		"status": "missing",
+		"preview": {
+			"available": false,
+			"kind": "none",
+			"text": "",
+			"unavailable_reason": reason,
+		},
+		"preview_available": false,
+		"preview_kind": "none",
+		"preview_text": "",
+		"preview_unavailable_reason": reason,
+		"metadata": {},
+		"raw_coordinate_controls_primary": false,
+	}
+
+
+func _catalog_entry_preview(catalog: HexTileCatalogResource, entry) -> Dictionary:
+	var entry_type := String(_catalog_entry_value(entry, "entry_type", ""))
+	match entry_type:
+		HexTileCatalogEntry.TYPE_ATLAS:
+			if catalog == null or catalog.tile_set == null:
+				return _catalog_preview_unavailable("tile", "TileSet is not assigned.")
+			var source_id := int(_catalog_entry_value(entry, "source_id", 0))
+			if not catalog.tile_set.has_source(source_id):
+				return _catalog_preview_unavailable("tile", "TileSet source %d is missing." % source_id)
+			return {
+				"available": true,
+				"kind": "tile",
+				"text": "Tile source %d at %s" % [
+					source_id,
+					_catalog_atlas_text(_catalog_entry_value(entry, "atlas_coords", Vector2i.ZERO)),
+				],
+				"unavailable_reason": "",
+			}
+		HexTileCatalogEntry.TYPE_SCENE:
+			var scene = _catalog_entry_value(entry, "scene", null)
+			if not scene is PackedScene:
+				return _catalog_preview_unavailable("scene", "PackedScene is not assigned.")
+			return {
+				"available": true,
+				"kind": "scene",
+				"text": "Scene %s" % _catalog_entry_scene_path(entry),
+				"unavailable_reason": "",
+			}
+		HexTileCatalogEntry.TYPE_PLACEHOLDER:
+			return _catalog_preview_unavailable("placeholder", "Placeholder entry has no preview.")
+	return _catalog_preview_unavailable("invalid", "Entry type is not recognized.")
+
+
+func _catalog_preview_unavailable(kind: String, reason: String) -> Dictionary:
+	return {
+		"available": false,
+		"kind": kind,
+		"text": "",
+		"unavailable_reason": reason,
+	}
+
+
+func _catalog_entry_status(catalog: HexTileCatalogResource, entry) -> String:
+	var preview := _catalog_entry_preview(catalog, entry)
+	return "ok" if bool(preview.get("available", false)) else "warning"
+
+
+func _catalog_entry_type_label(entry_type: String) -> String:
+	match entry_type:
+		HexTileCatalogEntry.TYPE_ATLAS:
+			return "Tile"
+		HexTileCatalogEntry.TYPE_SCENE:
+			return "Scene"
+		HexTileCatalogEntry.TYPE_PLACEHOLDER:
+			return "Placeholder"
+	return "Invalid"
+
+
+func _catalog_entry_tags(entry) -> PackedStringArray:
+	var tags = _catalog_entry_value(entry, "tags", PackedStringArray())
+	if tags is PackedStringArray:
+		return tags
+	if tags is Array:
+		var result := PackedStringArray()
+		for tag in tags:
+			result.append(String(tag))
+		return result
+	return PackedStringArray()
+
+
+func _catalog_entry_scene_path(entry) -> String:
+	var scene = _catalog_entry_value(entry, "scene", null)
+	if scene is PackedScene:
+		var path := String((scene as PackedScene).resource_path)
+		return path if path != "" else "unsaved PackedScene"
+	return ""
+
+
+func _catalog_atlas_text(value) -> String:
+	if value is Vector2i:
+		return "(%d,%d)" % [value.x, value.y]
+	return str(value)
+
+
+func _catalog_entry_value(entry, property: String, fallback = null):
+	if entry == null:
+		return fallback
+	var value = entry.get(property)
+	return fallback if value == null else value
 
 
 func _document_action_result(ok: bool, error: int, path: String) -> Dictionary:
@@ -2468,6 +2712,30 @@ func _refresh_resources_context_panel() -> void:
 			_join_text(slot_labels, ", "),
 		]
 		label.tooltip_text = String(group.get("tooltip", ""))
+
+
+func _refresh_catalog_detail_panel() -> void:
+	if _catalog_detail_panel == null:
+		return
+	var snapshot := catalog_screen_snapshot()
+	var entry_detail = snapshot.get("entry_detail", {}) as Dictionary
+	if _catalog_detail_status_label != null:
+		_catalog_detail_status_label.text = "TileSet: %s | Entries: %d" % [
+			"Linked" if bool(snapshot.get("tile_set_present", false)) else "Missing",
+			int(snapshot.get("entry_count", 0)),
+		]
+	if _catalog_detail_entry_label != null:
+		if bool(entry_detail.get("present", false)):
+			var preview_text := String(entry_detail.get("preview_text", ""))
+			if preview_text == "":
+				preview_text = String(entry_detail.get("preview_unavailable_reason", "No preview."))
+			_catalog_detail_entry_label.text = "%s | %s | %s" % [
+				String(entry_detail.get("meaning", "")),
+				String(entry_detail.get("type_label", "")),
+				preview_text,
+			]
+		else:
+			_catalog_detail_entry_label.text = String(entry_detail.get("preview_unavailable_reason", "No catalog entry selected."))
 
 
 func _refresh_missing_unique_resources_panel() -> void:

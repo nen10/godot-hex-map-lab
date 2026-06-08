@@ -701,7 +701,7 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 			"slots": PackedStringArray(),
 		},
 		"Catalog": {
-			"components": PackedStringArray(["catalog_asset_panel"]),
+			"components": PackedStringArray(["catalog_detail_panel", "catalog_asset_panel"]),
 			"slots": PackedStringArray([HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG]),
 		},
 		"Layers": {
@@ -1111,12 +1111,24 @@ func _test_catalog_asset_screen_manages_project_catalog_without_samples() -> voi
 		"Catalog screen exposes catalog asset component"
 	)
 	_assert_true(
+		PackedStringArray(snapshot["component_ids"]).has("catalog_detail_panel"),
+		"TAB-52 Catalog screen exposes entry detail component"
+	)
+	_assert_true(bool(snapshot["detail_component_present"]), "TAB-52 Catalog screen reports detail component presence")
+	_assert_true(
 		PackedStringArray(snapshot["asset_slot_ids"]).has(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG),
 		"Catalog screen exposes tile catalog slot"
 	)
 	_assert_true(not bool(snapshot["sample_candidates_visible"]), "Catalog screen hides sample catalog candidates while sample mode is OFF")
 	_assert_eq(workspace.workspace_asset_context().tile_catalog, null, "Catalog screen starts without sample catalog")
 	_assert_eq(workspace.generation_dock().tile_catalog(), null, "Catalog screen does not inject generation sample catalog")
+	var missing_detail = snapshot["entry_detail"] as Dictionary
+	_assert_true(not bool(missing_detail["preview_available"]), "TAB-52 Catalog screen starts with unavailable preview")
+	_assert_eq(
+		String(missing_detail["preview_unavailable_reason"]),
+		"No Tile Catalog selected.",
+		"TAB-52 Catalog screen explains missing catalog preview state"
+	)
 
 	var output_dir = _test_resource_dir("screen21_catalog")
 	var catalog_path = "%s/tile_catalog.tres" % output_dir
@@ -1158,9 +1170,48 @@ func _test_catalog_asset_screen_manages_project_catalog_without_samples() -> voi
 	_assert_eq(int(snapshot["entry_count"]), 2, "Catalog screen snapshot reports created entries")
 	_assert_true(PackedStringArray(snapshot["entry_keys"]).has("terrain.floor"), "Catalog screen snapshot lists atlas key")
 	_assert_true(PackedStringArray(snapshot["entry_keys"]).has("object.spawn"), "Catalog screen snapshot lists scene key")
+	_assert_true(not bool(snapshot["raw_coordinate_controls_primary"]), "TAB-52 Catalog source/atlas fields are metadata, not primary inputs")
+	_assert_true(
+		not PackedStringArray(snapshot["primary_input_fields"]).has("source_id"),
+		"TAB-52 Catalog primary inputs do not expose raw source id"
+	)
+	_assert_true(
+		PackedStringArray(snapshot["metadata_fields"]).has("atlas_coords"),
+		"TAB-52 Catalog keeps atlas coordinates as metadata"
+	)
+	var entry_rows = snapshot["entry_rows"] as Array
+	_assert_eq(entry_rows.size(), 2, "TAB-52 Catalog screen exposes entry rows")
+	var atlas_detail = workspace.catalog_entry_detail("terrain.floor")
+	_assert_eq(String(atlas_detail["meaning"]), "terrain.floor", "TAB-52 Catalog atlas detail exposes entry meaning")
+	_assert_eq(String(atlas_detail["type_label"]), "Tile", "TAB-52 Catalog atlas detail has human type label")
+	_assert_true(bool(atlas_detail["preview_available"]), "TAB-52 Catalog atlas detail has tile preview")
+	_assert_eq(String(atlas_detail["preview_kind"]), "tile", "TAB-52 Catalog atlas detail reports tile preview kind")
+	_assert_true(String(atlas_detail["preview_text"]).contains("Tile source 0"), "TAB-52 Catalog atlas preview describes tile source")
+	var atlas_metadata = atlas_detail["metadata"] as Dictionary
+	_assert_eq(int(atlas_metadata["source_id"]), 0, "TAB-52 Catalog atlas source id is metadata")
+	_assert_eq(atlas_metadata["atlas_coords"], Vector2i.ZERO, "TAB-52 Catalog atlas coords are metadata")
+	_assert_true(not bool(atlas_detail["raw_coordinate_controls_primary"]), "TAB-52 Catalog atlas detail does not make raw coordinates primary")
+	var scene_detail = workspace.catalog_entry_detail("object.spawn")
+	_assert_eq(String(scene_detail["type_label"]), "Scene", "TAB-52 Catalog scene detail has human type label")
+	_assert_true(bool(scene_detail["preview_available"]), "TAB-52 Catalog scene detail has scene preview")
+	_assert_eq(String(scene_detail["preview_kind"]), "scene", "TAB-52 Catalog scene detail reports scene preview kind")
 	var validation = workspace.validate_tile_catalog()
 	_assert_true(validation is HexMapValidationResult, "Catalog screen validate returns validation result")
 	_assert_eq(validation.issue_count(), 0, "Catalog screen validates project catalog with selected TileSet and PackedScene")
+
+	var placeholder_entry := HexTileCatalogEntry.new()
+	placeholder_entry.key = "placeholder.todo"
+	placeholder_entry.display_name = "Unassigned Tile"
+	placeholder_entry.entry_type = HexTileCatalogEntry.TYPE_PLACEHOLDER
+	catalog.add_entry(placeholder_entry)
+	var placeholder_detail = workspace.catalog_entry_detail("placeholder.todo")
+	_assert_eq(String(placeholder_detail["meaning"]), "Unassigned Tile", "TAB-52 Catalog placeholder detail exposes display name meaning")
+	_assert_true(not bool(placeholder_detail["preview_available"]), "TAB-52 Catalog placeholder preview is unavailable")
+	_assert_eq(
+		String(placeholder_detail["preview_unavailable_reason"]),
+		"Placeholder entry has no preview.",
+		"TAB-52 Catalog placeholder explains preview absence"
+	)
 
 	var open_result = workspace.open_tile_catalog()
 	_assert_true(bool(open_result["ok"]), "Catalog screen opens selected Tile Catalog")
