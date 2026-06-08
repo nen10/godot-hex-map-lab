@@ -33,6 +33,13 @@ var _dismiss_samples_button: Button
 var _selected_hex_tile_map_context: HBoxContainer
 var _selected_hex_tile_map_status_label: Label
 var _selected_hex_tile_map_auto_link_label: Label
+var _missing_unique_resources_panel: VBoxContainer
+var _missing_unique_resources_status_label: Label
+var _missing_unique_resources_save_directory_label: Label
+var _missing_unique_resources_prefix_edit: LineEdit
+var _missing_unique_resources_choose_directory_button: Button
+var _missing_unique_resources_create_button: Button
+var _missing_unique_resources_save_directory := ""
 var _generation_dock: HexMapGenDock
 var _edit_tool: HexMapEditTool
 var _sample_settings_panel: HexMapSampleSettingsPanel
@@ -167,6 +174,7 @@ func selected_hex_tile_map_snapshot() -> Dictionary:
 	var hex_layer := layer as HexTileMapLayer
 	var selected := hex_layer != null
 	var context := workspace_asset_context()
+	var level_document := hex_layer.level_document_resource if selected else context.level_document
 	var layer_stack := hex_layer.layer_stack_resource if selected else null
 	var runtime_map := hex_layer.hex_map if selected else null
 	var display_tile_set := hex_layer.display_tile_set_resource if selected else null
@@ -182,8 +190,8 @@ func selected_hex_tile_map_snapshot() -> Dictionary:
 		"auto_link_text": "Auto-link: On" if session.selected_hex_tile_map_auto_link_enabled() else "Auto-link: Off",
 		"target_layer": session.current_target_layer(),
 		"target_matches_selected": selected and session.current_target_layer() == hex_layer,
-		"level_document": context.level_document,
-		"level_document_status": "Missing" if selected and context.level_document == null else ("Linked" if context.level_document != null else "Unavailable"),
+		"level_document": level_document,
+		"level_document_status": "Missing" if selected and level_document == null else ("Linked" if level_document != null else "Unavailable"),
 		"runtime_initial_map": runtime_map,
 		"runtime_initial_map_present": runtime_map != null,
 		"layer_stack": layer_stack,
@@ -193,6 +201,130 @@ func selected_hex_tile_map_snapshot() -> Dictionary:
 		"tile_catalog": context.tile_catalog,
 		"tile_catalog_status": "Shared project resource" if context.tile_catalog != null else "No Tile Catalog linked to node",
 	}
+
+
+func missing_unique_resources_dialog_config() -> Dictionary:
+	return {
+		"uses_file_dialog": true,
+		"file_mode": EditorFileDialog.FILE_MODE_OPEN_DIR,
+		"access": EditorFileDialog.ACCESS_RESOURCES,
+		"resource_prefix_editable": true,
+	}
+
+
+func set_missing_unique_resources_save_directory(path: String) -> void:
+	_missing_unique_resources_save_directory = _normalized_resource_directory(path)
+	_refresh_missing_unique_resources_panel()
+
+
+func set_missing_unique_resources_prefix(prefix: String) -> void:
+	if _missing_unique_resources_prefix_edit != null:
+		_missing_unique_resources_prefix_edit.text = _safe_resource_prefix(prefix)
+	_refresh_missing_unique_resources_panel()
+
+
+func missing_unique_resources_snapshot(save_directory: String = "", resource_prefix: String = "") -> Dictionary:
+	var session := _ensure_session_state()
+	var layer := session.current_selected_hex_tile_map_layer()
+	var hex_layer := layer as HexTileMapLayer
+	var selected := hex_layer != null
+	var directory := _normalized_resource_directory(save_directory)
+	if directory == "":
+		directory = _missing_unique_resources_save_directory
+	var prefix := _safe_resource_prefix(resource_prefix)
+	if prefix == "":
+		prefix = _missing_unique_resources_prefix()
+	var missing_ids := _missing_unique_resource_ids(hex_layer)
+	var paths := _missing_unique_resource_paths(directory, prefix)
+	return {
+		"selected": selected,
+		"selected_node": hex_layer,
+		"status_text": _selected_hex_tile_map_status_text(hex_layer),
+		"save_directory": directory,
+		"resource_prefix": prefix,
+		"missing_resource_ids": missing_ids,
+		"missing_count": missing_ids.size(),
+		"can_create": selected and directory != "" and prefix != "" and not missing_ids.is_empty(),
+		"paths": paths,
+		"dialog_config": missing_unique_resources_dialog_config(),
+		"shared_resources_created": false,
+		"level_document": hex_layer.level_document_resource if selected else null,
+		"layer_stack": hex_layer.layer_stack_resource if selected else null,
+	}
+
+
+func create_missing_selected_hex_tile_map_resources(
+	save_directory: String = "",
+	resource_prefix: String = ""
+) -> Dictionary:
+	var before := missing_unique_resources_snapshot(save_directory, resource_prefix)
+	var hex_layer := before.get("selected_node", null) as HexTileMapLayer
+	if hex_layer == null:
+		return _missing_unique_resources_result(false, ERR_DOES_NOT_EXIST, before, {}, "No HexTileMap selected")
+	var directory := String(before.get("save_directory", ""))
+	var prefix := String(before.get("resource_prefix", ""))
+	if directory == "" or prefix == "":
+		return _missing_unique_resources_result(false, ERR_INVALID_PARAMETER, before, {}, "Choose a save directory and prefix.")
+	var missing_ids := PackedStringArray(before.get("missing_resource_ids", PackedStringArray()))
+	if missing_ids.is_empty():
+		return _missing_unique_resources_result(true, OK, before, {}, "Selected HexTileMap unique resources are already configured.")
+
+	var paths := before.get("paths", {}) as Dictionary
+	var created := {}
+	var errors := {}
+	var created_ids := PackedStringArray()
+
+	if missing_ids.has(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT):
+		var document := hex_layer.to_document_resource()
+		document.resource_name = "%s Document" % prefix
+		var path := String(paths.get(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, ""))
+		var error := _save_resource_if_missing(document, path)
+		if error == OK:
+			document.resource_path = path
+			hex_layer.level_document_resource = document
+			created[HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT] = document
+			created_ids.append(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT)
+		else:
+			errors[HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT] = error
+
+	if missing_ids.has(HexMapWorkspaceAssetContext.SLOT_LAYER_STACK):
+		var stack = HexLayerStackResource.standard_template() as HexLayerStackResource
+		stack.resource_name = "%s Layer Stack" % prefix
+		var path := String(paths.get(HexMapWorkspaceAssetContext.SLOT_LAYER_STACK, ""))
+		var error := _save_resource_if_missing(stack, path)
+		if error == OK:
+			stack.resource_path = path
+			hex_layer.layer_stack_resource = stack
+			created[HexMapWorkspaceAssetContext.SLOT_LAYER_STACK] = stack
+			created_ids.append(HexMapWorkspaceAssetContext.SLOT_LAYER_STACK)
+		else:
+			errors[HexMapWorkspaceAssetContext.SLOT_LAYER_STACK] = error
+
+	_sync_selected_hex_tile_map_resources()
+	if created.has(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT):
+		_ensure_session_state().set_document(
+			created[HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT] as Resource,
+			"workspace.selected_hex_tile_map",
+			String(paths.get(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "")),
+			"workspace.create_missing_unique_resources"
+		)
+	if _edit_tool != null and created.has(HexMapWorkspaceAssetContext.SLOT_LAYER_STACK):
+		_edit_tool.set_layer_stack_resource(created[HexMapWorkspaceAssetContext.SLOT_LAYER_STACK] as HexLayerStackResource, false)
+	_refresh_selected_hex_tile_map_context()
+	_refresh_missing_unique_resources_panel()
+
+	var ok := errors.is_empty()
+	var result := _missing_unique_resources_result(
+		ok,
+		OK if ok else ERR_CANT_CREATE,
+		before,
+		created,
+		"Created missing resources." if ok else "Could not create all missing resources."
+	)
+	result["created_resource_ids"] = created_ids
+	result["errors"] = errors
+	result["after"] = missing_unique_resources_snapshot(directory, prefix)
+	return result
 
 
 func viewport_input_enabled() -> bool:
@@ -1338,6 +1470,7 @@ func _mount_workspace_asset_panels() -> void:
 			_slot_row(HexMapWorkspaceAssetContext.SLOT_LAYER_STACK, "Layer Stack", false),
 		]
 	)
+	_mount_missing_unique_resources_panel()
 	_mount_asset_panel(
 		HexMapWorkspaceComponentRegistry.TAB_CATALOG,
 		"catalog_asset_panel",
@@ -1418,6 +1551,56 @@ func _mount_asset_panel(
 	(page as Control).add_child(panel)
 	_asset_panels[tab_name] = panel
 	_register_tab_component(tab_name, component_id, panel)
+
+
+func _mount_missing_unique_resources_panel() -> void:
+	var page = _tab_pages.get(HexMapWorkspaceComponentRegistry.TAB_DOCUMENT, null)
+	if page == null or _missing_unique_resources_panel != null:
+		return
+	_missing_unique_resources_panel = VBoxContainer.new()
+	_missing_unique_resources_panel.name = "Missing Unique Resources Panel"
+	_missing_unique_resources_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var title := Label.new()
+	title.text = "Missing resources for Selected HexTileMap"
+	_missing_unique_resources_panel.add_child(title)
+
+	_missing_unique_resources_status_label = Label.new()
+	_missing_unique_resources_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_missing_unique_resources_panel.add_child(_missing_unique_resources_status_label)
+
+	var directory_row := HBoxContainer.new()
+	_missing_unique_resources_save_directory_label = Label.new()
+	_missing_unique_resources_save_directory_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	directory_row.add_child(_missing_unique_resources_save_directory_label)
+	_missing_unique_resources_choose_directory_button = Button.new()
+	_missing_unique_resources_choose_directory_button.text = "Choose Folder..."
+	_missing_unique_resources_choose_directory_button.pressed.connect(_on_missing_unique_resources_choose_directory_pressed)
+	directory_row.add_child(_missing_unique_resources_choose_directory_button)
+	_missing_unique_resources_panel.add_child(directory_row)
+
+	var prefix_row := HBoxContainer.new()
+	var prefix_label := Label.new()
+	prefix_label.text = "Resource prefix"
+	prefix_row.add_child(prefix_label)
+	_missing_unique_resources_prefix_edit = LineEdit.new()
+	_missing_unique_resources_prefix_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_missing_unique_resources_prefix_edit.text_changed.connect(_on_missing_unique_resources_prefix_changed)
+	prefix_row.add_child(_missing_unique_resources_prefix_edit)
+	_missing_unique_resources_panel.add_child(prefix_row)
+
+	_missing_unique_resources_create_button = Button.new()
+	_missing_unique_resources_create_button.text = "Create Missing Resources"
+	_missing_unique_resources_create_button.pressed.connect(_on_create_missing_unique_resources_pressed)
+	_missing_unique_resources_panel.add_child(_missing_unique_resources_create_button)
+
+	(page as Control).add_child(_missing_unique_resources_panel)
+	_register_tab_component(
+		HexMapWorkspaceComponentRegistry.TAB_DOCUMENT,
+		"missing_unique_resources_panel",
+		_missing_unique_resources_panel
+	)
+	_refresh_missing_unique_resources_panel()
 
 
 func _mount_validation_issue_navigator() -> void:
@@ -1950,6 +2133,37 @@ func _on_export_run_workspace_pressed() -> void:
 	export_selected_document_to_destination()
 
 
+func _popup_missing_unique_resources_directory_dialog() -> bool:
+	if not Engine.is_editor_hint():
+		return false
+	var dialog := HexMapEditorPathSelector.new_dialog(
+		EditorFileDialog.FILE_MODE_OPEN_DIR,
+		[]
+	)
+	dialog.dir_selected.connect(_on_missing_unique_resources_directory_selected)
+	add_child(dialog)
+	return HexMapEditorPathSelector.popup_dialog(dialog)
+
+
+func _on_missing_unique_resources_choose_directory_pressed() -> void:
+	_popup_missing_unique_resources_directory_dialog()
+
+
+func _on_missing_unique_resources_directory_selected(path: String) -> void:
+	set_missing_unique_resources_save_directory(path)
+
+
+func _on_missing_unique_resources_prefix_changed(_text: String) -> void:
+	_refresh_missing_unique_resources_panel()
+
+
+func _on_create_missing_unique_resources_pressed() -> void:
+	create_missing_selected_hex_tile_map_resources(
+		_missing_unique_resources_save_directory,
+		_missing_unique_resources_prefix()
+	)
+
+
 func _apply_selected_hex_tile_map_to_edit_tool() -> void:
 	if _edit_tool == null:
 		return
@@ -1965,7 +2179,7 @@ func _sync_selected_hex_tile_map_resources() -> void:
 	var layer := session.current_selected_hex_tile_map_layer()
 	var hex_layer := layer as HexTileMapLayer
 	var context := workspace_asset_context()
-	context.set_level_document(null)
+	context.set_level_document(hex_layer.level_document_resource if hex_layer != null else null)
 	context.set_layer_stack(hex_layer.layer_stack_resource if hex_layer != null else null)
 
 
@@ -1977,6 +2191,37 @@ func _refresh_selected_hex_tile_map_context() -> void:
 	_selected_hex_tile_map_status_label.tooltip_text = _selected_hex_tile_map_tooltip(snapshot)
 	_selected_hex_tile_map_auto_link_label.text = String(snapshot.get("auto_link_text", "Auto-link: On"))
 	_selected_hex_tile_map_auto_link_label.tooltip_text = "Workspace follows the selected HexTileMap node."
+	_refresh_missing_unique_resources_panel()
+
+
+func _refresh_missing_unique_resources_panel() -> void:
+	if _missing_unique_resources_panel == null:
+		return
+	var snapshot := missing_unique_resources_snapshot(
+		_missing_unique_resources_save_directory,
+		_missing_unique_resources_prefix()
+	)
+	var selected := bool(snapshot.get("selected", false))
+	var missing_ids := PackedStringArray(snapshot.get("missing_resource_ids", PackedStringArray()))
+	if _missing_unique_resources_prefix_edit != null:
+		var snapshot_prefix := String(snapshot.get("resource_prefix", ""))
+		var current_prefix := _safe_resource_prefix(_missing_unique_resources_prefix_edit.text)
+		if current_prefix == "" or (current_prefix == "HexTileMap" and snapshot_prefix != "HexTileMap"):
+			_missing_unique_resources_prefix_edit.text = snapshot_prefix
+	if _missing_unique_resources_status_label != null:
+		if not selected:
+			_missing_unique_resources_status_label.text = "No HexTileMap selected"
+		elif missing_ids.is_empty():
+			_missing_unique_resources_status_label.text = "Selected HexTileMap unique resources are configured."
+		else:
+			_missing_unique_resources_status_label.text = "Missing: %s" % _join_text(_missing_unique_resource_labels(missing_ids), ", ")
+	if _missing_unique_resources_save_directory_label != null:
+		var directory := String(snapshot.get("save_directory", ""))
+		_missing_unique_resources_save_directory_label.text = "Save directory: %s" % ("Not selected" if directory == "" else directory)
+	if _missing_unique_resources_choose_directory_button != null:
+		_missing_unique_resources_choose_directory_button.disabled = not selected
+	if _missing_unique_resources_create_button != null:
+		_missing_unique_resources_create_button.disabled = not bool(snapshot.get("can_create", false))
 
 
 func _selected_hex_tile_map_status_text(layer: Node) -> String:
@@ -2020,6 +2265,119 @@ func _node_display_path(node: Node) -> String:
 	if node == null or not is_instance_valid(node):
 		return ""
 	return str(node.get_path()) if node.is_inside_tree() else node.name
+
+
+func _missing_unique_resources_prefix() -> String:
+	var layer := _ensure_session_state().current_selected_hex_tile_map_layer()
+	var selected_default := "HexTileMap"
+	if layer != null and is_instance_valid(layer):
+		selected_default = _safe_resource_prefix(layer.name)
+	if _missing_unique_resources_prefix_edit != null:
+		var text := _safe_resource_prefix(_missing_unique_resources_prefix_edit.text)
+		if text != "" and (text != "HexTileMap" or layer == null):
+			return text
+	return selected_default
+
+
+func _missing_unique_resource_ids(layer: HexTileMapLayer) -> PackedStringArray:
+	var result := PackedStringArray()
+	if layer == null:
+		return result
+	if layer.level_document_resource == null:
+		result.append(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT)
+	if layer.layer_stack_resource == null:
+		result.append(HexMapWorkspaceAssetContext.SLOT_LAYER_STACK)
+	return result
+
+
+func _missing_unique_resource_paths(directory: String, prefix: String) -> Dictionary:
+	var result := {}
+	var actual_directory := _normalized_resource_directory(directory)
+	var actual_prefix := _safe_resource_prefix(prefix)
+	if actual_directory == "" or actual_prefix == "":
+		return result
+	result[HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT] = "%s/%s_document.tres" % [
+		actual_directory,
+		actual_prefix,
+	]
+	result[HexMapWorkspaceAssetContext.SLOT_LAYER_STACK] = "%s/%s_layer_stack.tres" % [
+		actual_directory,
+		actual_prefix,
+	]
+	return result
+
+
+func _missing_unique_resource_labels(ids: PackedStringArray) -> PackedStringArray:
+	var labels := PackedStringArray()
+	for id in ids:
+		match String(id):
+			HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT:
+				labels.append("Level Document")
+			HexMapWorkspaceAssetContext.SLOT_LAYER_STACK:
+				labels.append("Layer Stack")
+			_:
+				labels.append(String(id))
+	return labels
+
+
+func _join_text(values: PackedStringArray, separator: String) -> String:
+	var result := ""
+	for value in values:
+		if result != "":
+			result += separator
+		result += String(value)
+	return result
+
+
+func _missing_unique_resources_result(
+	ok: bool,
+	error: int,
+	before: Dictionary,
+	created: Dictionary,
+	message: String
+) -> Dictionary:
+	return {
+		"ok": ok,
+		"error": error,
+		"message": message,
+		"before": before,
+		"created_resources": created,
+		"created_resource_ids": PackedStringArray(created.keys()),
+		"selected_node": before.get("selected_node", null),
+		"save_directory": before.get("save_directory", ""),
+		"resource_prefix": before.get("resource_prefix", ""),
+		"paths": before.get("paths", {}),
+		"shared_resources_created": false,
+	}
+
+
+func _save_resource_if_missing(resource: Resource, path: String) -> int:
+	if resource == null or path == "":
+		return ERR_INVALID_PARAMETER
+	if ResourceLoader.exists(path):
+		return ERR_ALREADY_EXISTS
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
+	return ResourceSaver.save(resource, path)
+
+
+func _normalized_resource_directory(path: String) -> String:
+	var result := path.strip_edges()
+	while result.ends_with("/") and result.length() > "res://".length():
+		result = result.trim_suffix("/")
+	return result
+
+
+func _safe_resource_prefix(value: String) -> String:
+	var result := value.strip_edges()
+	for token in [" ", "/", "\\", ":", "*", "?", "\"", "<", ">", "|"]:
+		result = result.replace(token, "_")
+	while result.contains("__"):
+		result = result.replace("__", "_")
+	while result.begins_with("_"):
+		result = result.substr(1)
+	while result.ends_with("_"):
+		result = result.substr(0, result.length() - 1)
+	return result
 
 
 func _ensure_session_state() -> HexMapEditorSessionState:

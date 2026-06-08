@@ -57,6 +57,12 @@ class OverlayCanvas:
 		if v and is_node_ready() and not _hex_map_setter_suppressed:
 			apply_map(v)
 
+@export var level_document_resource: HexMapDocumentResource:
+	set(v):
+		level_document_resource = v
+		if v and is_node_ready() and not _level_document_setter_suppressed:
+			apply_document(v)
+
 @export var hex_size: float = 24.0:
 	set(v):
 		hex_size = v
@@ -121,6 +127,7 @@ var _path_color := Color(0.12, 0.48, 0.88, 0.90)
 var _movement_range_overlay: Dictionary = {}
 var _hovered_hit_key := ""
 var _hex_map_setter_suppressed := false
+var _level_document_setter_suppressed := false
 var _pending_document_payloads = null
 var _tile_overrides_by_key: Dictionary = {}
 var _overlay_tiles_by_key: Dictionary = {}
@@ -132,7 +139,9 @@ func _ready() -> void:
 	_ensure_tile_map_layers()
 	if display_tile_set_resource != null:
 		_apply_display_tile_set_resource()
-	if hex_map:
+	if level_document_resource:
+		apply_document(level_document_resource)
+	elif hex_map:
 		apply_map(hex_map)
 	elif _data != null:
 		_redraw()
@@ -276,6 +285,10 @@ func to_document_resource() -> HexMapDocumentResource:
 func apply_document(document) -> void:
 	if document == null:
 		return
+	if document is HexMapDocumentResource and level_document_resource != document:
+		_level_document_setter_suppressed = true
+		level_document_resource = document
+		_level_document_setter_suppressed = false
 	var snapshot = HexMapDocumentAdapter.duplicate_document(document)
 	var resource = HexMapDocumentAdapter.to_map_resource(snapshot)
 	_hex_map_setter_suppressed = true

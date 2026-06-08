@@ -113,6 +113,7 @@ func _run() -> void:
 	_test_plugin_registration_files()
 	await _test_hex_map_workspace_exposes_tabs_and_routes_editing()
 	await _test_workspace_selected_hex_tile_map_auto_binding()
+	await _test_workspace_create_missing_unique_resources_for_selected_hex_tile_map()
 	await _test_workspace_tab_content_query_contract_lists_expected_components_and_slots()
 	await _test_workspace_first_run_learning_cta_routes_to_settings_without_sample_defaults()
 	await _test_workspace_asset_context_is_shared_by_workspace_generate_and_paint()
@@ -434,6 +435,116 @@ func _test_workspace_selected_hex_tile_map_auto_binding() -> void:
 	await process_frame
 
 
+func _test_workspace_create_missing_unique_resources_for_selected_hex_tile_map() -> void:
+	var session = HexMapEditorSessionState.new()
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	var scene_root = Node2D.new()
+	scene_root.name = "MissingResourcesScene"
+	root.add_child(scene_root)
+	var selected_layer = HexTileMapLayer.new()
+	selected_layer.name = "Missing Resource Map"
+	selected_layer.hex_map = HexMapResource.from_map_data(HexMapData.rectangle(2, 1))
+	scene_root.add_child(selected_layer)
+	await process_frame
+
+	workspace.set_selected_hex_tile_map_node(selected_layer, "test.node22.select")
+	var missing_snapshot = workspace.missing_unique_resources_snapshot()
+	_assert_true(not bool(missing_snapshot["can_create"]), "NODE-22 create is unavailable without save directory")
+	_assert_eq(int(missing_snapshot["missing_count"]), 2, "NODE-22 selected node reports missing unique resources")
+	_assert_true(
+		(missing_snapshot["missing_resource_ids"] as PackedStringArray).has(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT),
+		"NODE-22 missing list includes Level Document"
+	)
+	_assert_true(
+		(missing_snapshot["missing_resource_ids"] as PackedStringArray).has(HexMapWorkspaceAssetContext.SLOT_LAYER_STACK),
+		"NODE-22 missing list includes Layer Stack"
+	)
+	_assert_eq(String(missing_snapshot["resource_prefix"]), "Missing_Resource_Map", "NODE-22 prefix defaults to safe selected node name")
+	_assert_eq(
+		int((missing_snapshot["dialog_config"] as Dictionary).get("file_mode", -1)),
+		EditorFileDialog.FILE_MODE_OPEN_DIR,
+		"NODE-22 save directory uses folder picker config"
+	)
+
+	var save_dir = _test_resource_dir("node22_missing_unique_resources")
+	var planned_snapshot = workspace.missing_unique_resources_snapshot(save_dir)
+	var planned_paths = planned_snapshot["paths"] as Dictionary
+	_assert_eq(
+		String(planned_paths[HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT]),
+		"%s/Missing_Resource_Map_document.tres" % save_dir,
+		"NODE-22 document path uses selected node prefix"
+	)
+	_assert_eq(
+		String(planned_paths[HexMapWorkspaceAssetContext.SLOT_LAYER_STACK]),
+		"%s/Missing_Resource_Map_layer_stack.tres" % save_dir,
+		"NODE-22 layer stack path uses selected node prefix"
+	)
+
+	var result = workspace.create_missing_selected_hex_tile_map_resources(save_dir)
+	_assert_true(bool(result["ok"]), "NODE-22 creates missing selected-node resources")
+	_assert_true(
+		(result["created_resource_ids"] as PackedStringArray).has(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT),
+		"NODE-22 creates missing Level Document"
+	)
+	_assert_true(
+		(result["created_resource_ids"] as PackedStringArray).has(HexMapWorkspaceAssetContext.SLOT_LAYER_STACK),
+		"NODE-22 creates missing Layer Stack"
+	)
+	var document_path := String(planned_paths[HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT])
+	var stack_path := String(planned_paths[HexMapWorkspaceAssetContext.SLOT_LAYER_STACK])
+	_assert_true(ResourceLoader.exists(document_path), "NODE-22 saved document exists")
+	_assert_true(ResourceLoader.exists(stack_path), "NODE-22 saved layer stack exists")
+	_assert_true(selected_layer.level_document_resource is HexMapDocumentResource, "NODE-22 assigns created document to selected node")
+	_assert_true(selected_layer.layer_stack_resource is HexLayerStackResource, "NODE-22 assigns created layer stack to selected node")
+	_assert_eq(selected_layer.level_document_resource.resource_path, document_path, "NODE-22 node document reference uses saved path")
+	_assert_eq(selected_layer.layer_stack_resource.resource_path, stack_path, "NODE-22 node layer stack reference uses saved path")
+	_assert_eq(workspace.workspace_asset_context().level_document, selected_layer.level_document_resource, "NODE-22 workspace context shows created document")
+	_assert_eq(workspace.workspace_asset_context().layer_stack, selected_layer.layer_stack_resource, "NODE-22 workspace context shows created layer stack")
+	_assert_eq(session.current_document(), selected_layer.level_document_resource, "NODE-22 session document follows created document")
+	_assert_eq(workspace.workspace_asset_context().tile_catalog, null, "NODE-22 does not silently create shared Tile Catalog")
+	_assert_true(not bool(result["shared_resources_created"]), "NODE-22 result states no shared resources were created")
+	var after_snapshot = result["after"] as Dictionary
+	_assert_eq(int(after_snapshot["missing_count"]), 0, "NODE-22 after snapshot has no missing unique resources")
+	_assert_eq(String(workspace.selected_hex_tile_map_snapshot()["level_document_status"]), "Linked", "NODE-22 selected-node summary shows linked document")
+
+	var repeat_result = workspace.create_missing_selected_hex_tile_map_resources(save_dir)
+	_assert_true(bool(repeat_result["ok"]), "NODE-22 repeat create is a no-op when resources already exist")
+	_assert_eq((repeat_result["created_resource_ids"] as PackedStringArray).size(), 0, "NODE-22 repeat create does not overwrite existing unique resources")
+
+	var existing_stack = HexLayerStackResource.minimal_runtime_template()
+	var partial_layer = HexTileMapLayer.new()
+	partial_layer.name = "PartialResources"
+	partial_layer.layer_stack_resource = existing_stack
+	scene_root.add_child(partial_layer)
+	await process_frame
+	var partial_dir = _test_resource_dir("node22_partial_unique_resources")
+	workspace.set_selected_hex_tile_map_node(partial_layer, "test.node22.partial")
+	var partial_result = workspace.create_missing_selected_hex_tile_map_resources(partial_dir, "PartialMap")
+	_assert_true(bool(partial_result["ok"]), "NODE-22 creates only missing unique resources for partially configured node")
+	_assert_true(
+		(partial_result["created_resource_ids"] as PackedStringArray).has(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT),
+		"NODE-22 partial flow creates missing document"
+	)
+	_assert_true(
+		not (partial_result["created_resource_ids"] as PackedStringArray).has(HexMapWorkspaceAssetContext.SLOT_LAYER_STACK),
+		"NODE-22 partial flow preserves existing layer stack"
+	)
+	_assert_eq(partial_layer.layer_stack_resource, existing_stack, "NODE-22 existing layer stack reference is preserved")
+
+	workspace.clear_selected_hex_tile_map_layer("test.node22.clear")
+	var blocked_result = workspace.create_missing_selected_hex_tile_map_resources(save_dir, "NoSelection")
+	_assert_true(not bool(blocked_result["ok"]), "NODE-22 no selected HexTileMap blocks creation")
+	_assert_eq(int(blocked_result["error"]), ERR_DOES_NOT_EXIST, "NODE-22 no selected HexTileMap returns missing target error")
+
+	scene_root.queue_free()
+	workspace.queue_free()
+	await process_frame
+
+
 func _test_workspace_tab_content_query_contract_lists_expected_components_and_slots() -> void:
 	var session = HexMapEditorSessionState.new()
 	var workspace = HexMapWorkspace.new()
@@ -454,7 +565,7 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 	])
 	var expected_contract := {
 		"Document": {
-			"components": PackedStringArray(["document_asset_panel"]),
+			"components": PackedStringArray(["document_asset_panel", "missing_unique_resources_panel"]),
 			"slots": PackedStringArray([
 				HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT,
 				HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG,

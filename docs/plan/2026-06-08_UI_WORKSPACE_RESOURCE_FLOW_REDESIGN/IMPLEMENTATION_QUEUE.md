@@ -45,9 +45,9 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 |---|---|---|---|---|---|---|
 | `NODE-20` | `COMPLETE` | `UIR-00` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE-20_HEX_TILE_MAP_RESOURCE_OWNERSHIP_POLICY/` | HexTileMap resource ownership policy | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE_RESOURCE_OWNERSHIP_POLICY.md`, relevant resource/editor source notes | UniqueResource / SharedResource / OptionalResource are classified; noisy always-on resources are documented; Resources tab display classification can follow the policy. |
 | `NODE-21` | `COMPLETE` | `NODE-20` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE-21_SELECTED_HEX_TILE_MAP_AUTO_BINDING/` | Selected HexTileMap auto-binding | `HexMapWorkspace`, `HexMapEditorSessionState`, selected node integration, editor tests | Scene Tree selection changes update Workspace context; no selected node shows `No HexTileMap selected`; auto-link is default ON; manual Link button is removed or becomes status indicator. |
-| `NODE-22` | `READY` | `NODE-21` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE-22_CREATE_MISSING_UNIQUE_RESOURCES_FLOW/` | Create missing unique resources flow | Resources tab, resource factory helpers, FileDialog/Save As helpers, editor tests | User chooses save directory and prefix; missing UniqueResources are created with default names and auto-referenced by selected HexTileMap; SharedResource is not silently created. |
+| `NODE-22` | `COMPLETE` | `NODE-21` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE-22_CREATE_MISSING_UNIQUE_RESOURCES_FLOW/` | Create missing unique resources flow | Resources tab, resource factory helpers, FileDialog/Save As helpers, editor tests | User chooses save directory and prefix; missing UniqueResources are created with default names and auto-referenced by selected HexTileMap; SharedResource is not silently created. |
 | `NODE-23` | `READY` | `NODE-21` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE-23_DOCK_SELECTION_WRITES_BACK_TO_NODE/` | Dock resource selection writes back to selected node | Workspace asset context, asset slot handlers, HexTileMap exported references, editor tests | Selecting/creating Document/Catalog/Layer Stack/Object DB/Label DB writes to node or context according to policy; node/workspace diff is visible; auto-link failures explain why. |
-| `NODE-24` | `BACKLOG` | `NODE-22` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE-24_GENERATE_RESULT_RESOURCE_RELATIONSHIP/` | Generate result resource relationship | Generate tab, QA tab, document metadata/generation snapshot helpers, editor/generation tests | Generate has explicit output target; Preview only and Apply to selected Document are distinct; apply updates Resources tab relationship; no selected node blocks apply with clear reason. |
+| `NODE-24` | `READY` | `NODE-22` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE-24_GENERATE_RESULT_RESOURCE_RELATIONSHIP/` | Generate result resource relationship | Generate tab, QA tab, document metadata/generation snapshot helpers, editor/generation tests | Generate has explicit output target; Preview only and Apply to selected Document are distinct; apply updates Resources tab relationship; no selected node blocks apply with clear reason. |
 
 ---
 
@@ -148,15 +148,16 @@ acceptance / test path:
 
 ## 12. Current pointer
 
-Current recommended next task: `NODE-22`.
+Current recommended next task: `NODE-23`.
 
 Reason:
 
 - Phase U1 has no remaining READY task.
 - `NODE-20` is complete.
 - `NODE-21` is complete.
-- `NODE-22` is the first READY task in queue order.
-- `NODE-23`, `ASSET-30`, `PERF-60`, and `INFO-70` are also READY, but they appear later in the queue.
+- `NODE-22` is complete.
+- `NODE-23` is the first READY task in queue order.
+- `NODE-24`, `ASSET-30`, `PERF-60`, and `INFO-70` are also READY, but they appear later in the queue.
 
 ---
 
@@ -249,3 +250,19 @@ proof:
     - `addons/hex_map_kit/plugin.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/NODE-21_TEST_RESULT_2026-06-08.md`
+
+### NODE-22 Create missing unique resources flow
+
+proof:
+  plan: `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE-22_CREATE_MISSING_UNIQUE_RESOURCES_FLOW/`
+  review: `docs/review/autopilot/NODE-22_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/adapter/hex_tile_map_layer.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace_component_registry.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/NODE-22_TEST_RESULT_2026-06-08.md`

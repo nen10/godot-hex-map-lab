@@ -561,7 +561,7 @@ Acceptance:
 
 #### `NODE-22_CREATE_MISSING_UNIQUE_RESOURCES_FLOW`
 
-status: `READY`  
+status: `COMPLETE`  
 dependencies: `NODE-21_SELECTED_HEX_TILE_MAP_AUTO_BINDING`
 
 目的:
@@ -609,7 +609,7 @@ Acceptance:
 
 #### `NODE-24_GENERATE_RESULT_RESOURCE_RELATIONSHIP`
 
-status: `BACKLOG`  
+status: `READY`  
 dependencies: `NODE-22_CREATE_MISSING_UNIQUE_RESOURCES_FLOW`
 
 目的:

@@ -45,6 +45,13 @@ static func component_rows() -> Array[Dictionary]:
 				HexMapWorkspaceAssetContext.SLOT_LAYER_STACK,
 			])
 		),
+		_component(
+			TAB_DOCUMENT,
+			"missing_unique_resources_panel",
+			"VBoxContainer",
+			"SelectedHexTileMapMissingResources",
+			"document"
+		),
 		_component(TAB_GENERATE, "generation_panel", "HexMapGenDock", "GenerationPanel", "generate"),
 		_component(TAB_PAINT, "brush_palette", "HexMapEditTool", "BrushPalette", "paint"),
 		_component(
