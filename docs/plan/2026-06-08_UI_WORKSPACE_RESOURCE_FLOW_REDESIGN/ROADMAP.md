@@ -487,7 +487,7 @@ Acceptance:
 
 #### `NODE-20_HEX_TILE_MAP_RESOURCE_OWNERSHIP_POLICY`
 
-status: `READY`  
+status: `COMPLETE`  
 dependencies: `UIR-00_ADOPT_FIRST_IMPRESSION_FEEDBACK`
 
 目的:
@@ -537,7 +537,7 @@ Acceptance:
 
 #### `NODE-21_SELECTED_HEX_TILE_MAP_AUTO_BINDING`
 
-status: `BACKLOG`  
+status: `READY`  
 dependencies: `NODE-20_HEX_TILE_MAP_RESOURCE_OWNERSHIP_POLICY`
 
 目的:
@@ -635,7 +635,7 @@ Acceptance:
 
 #### `ASSET-30_STRICT_RESOURCE_TYPE_FILTERS`
 
-status: `BACKLOG`  
+status: `READY`  
 dependencies: `NODE-20_HEX_TILE_MAP_RESOURCE_OWNERSHIP_POLICY`
 
 目的:

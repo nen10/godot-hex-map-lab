@@ -43,8 +43,8 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `NODE-20` | `READY` | `UIR-00` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE-20_HEX_TILE_MAP_RESOURCE_OWNERSHIP_POLICY/` | HexTileMap resource ownership policy | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE_RESOURCE_OWNERSHIP_POLICY.md`, relevant resource/editor source notes | UniqueResource / SharedResource / OptionalResource are classified; noisy always-on resources are documented; Resources tab display classification can follow the policy. |
-| `NODE-21` | `BACKLOG` | `NODE-20` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE-21_SELECTED_HEX_TILE_MAP_AUTO_BINDING/` | Selected HexTileMap auto-binding | `HexMapWorkspace`, `HexMapEditorSessionState`, selected node integration, editor tests | Scene Tree selection changes update Workspace context; no selected node shows `No HexTileMap selected`; auto-link is default ON; manual Link button is removed or becomes status indicator. |
+| `NODE-20` | `COMPLETE` | `UIR-00` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE-20_HEX_TILE_MAP_RESOURCE_OWNERSHIP_POLICY/` | HexTileMap resource ownership policy | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE_RESOURCE_OWNERSHIP_POLICY.md`, relevant resource/editor source notes | UniqueResource / SharedResource / OptionalResource are classified; noisy always-on resources are documented; Resources tab display classification can follow the policy. |
+| `NODE-21` | `READY` | `NODE-20` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE-21_SELECTED_HEX_TILE_MAP_AUTO_BINDING/` | Selected HexTileMap auto-binding | `HexMapWorkspace`, `HexMapEditorSessionState`, selected node integration, editor tests | Scene Tree selection changes update Workspace context; no selected node shows `No HexTileMap selected`; auto-link is default ON; manual Link button is removed or becomes status indicator. |
 | `NODE-22` | `BACKLOG` | `NODE-21` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE-22_CREATE_MISSING_UNIQUE_RESOURCES_FLOW/` | Create missing unique resources flow | Resources tab, resource factory helpers, FileDialog/Save As helpers, editor tests | User chooses save directory and prefix; missing UniqueResources are created with default names and auto-referenced by selected HexTileMap; SharedResource is not silently created. |
 | `NODE-23` | `BACKLOG` | `NODE-21` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE-23_DOCK_SELECTION_WRITES_BACK_TO_NODE/` | Dock resource selection writes back to selected node | Workspace asset context, asset slot handlers, HexTileMap exported references, editor tests | Selecting/creating Document/Catalog/Layer Stack/Object DB/Label DB writes to node or context according to policy; node/workspace diff is visible; auto-link failures explain why. |
 | `NODE-24` | `BACKLOG` | `NODE-22` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE-24_GENERATE_RESULT_RESOURCE_RELATIONSHIP/` | Generate result resource relationship | Generate tab, QA tab, document metadata/generation snapshot helpers, editor/generation tests | Generate has explicit output target; Preview only and Apply to selected Document are distinct; apply updates Resources tab relationship; no selected node blocks apply with clear reason. |
@@ -55,7 +55,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `ASSET-30` | `BACKLOG` | `NODE-20` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/ASSET-30_STRICT_RESOURCE_TYPE_FILTERS/` | Strict ResourcePicker type filters | asset slot state/control, workspace asset panel, resource picker filters, editor tests | Typed slots no longer request generic `Resource`; tooltip says what to pick; type mismatch is prevented at picker stage where feasible; generic slots document why flexibility is needed. |
+| `ASSET-30` | `READY` | `NODE-20` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/ASSET-30_STRICT_RESOURCE_TYPE_FILTERS/` | Strict ResourcePicker type filters | asset slot state/control, workspace asset panel, resource picker filters, editor tests | Typed slots no longer request generic `Resource`; tooltip says what to pick; type mismatch is prevented at picker stage where feasible; generic slots document why flexibility is needed. |
 | `ASSET-31` | `BACKLOG` | `LAYOUT-11`, `ASSET-30` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/ASSET-31_REMOVE_REDUNDANT_RESOURCE_ACTION_BUTTONS/` | Remove redundant resource action buttons | asset slot controls, resource rows, workspace/sample panels, editor tests | Clear/Select/Open/Validate/Link/Node buttons are removed, delegated to ResourcePicker, or kept only when the use case is necessary and implemented; no no-op buttons remain. |
 | `ASSET-32` | `BACKLOG` | `ASSET-31` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/ASSET-32_WIRE_REMAINING_ACTIONS_OR_DELETE/` | Wire remaining actions or delete them | asset slot controls, workspace asset panel, sample settings panel, action handlers, editor tests | Every remaining action has observable result from button press to workspace state change; undefined actions are deleted; tests cover signal/button path, not direct API only. |
 
@@ -148,13 +148,14 @@ acceptance / test path:
 
 ## 12. Current pointer
 
-Current recommended next task: `NODE-20`.
+Current recommended next task: `NODE-21`.
 
 Reason:
 
 - Phase U1 has no remaining READY task.
-- `NODE-20` is the first READY task in queue order.
-- `PERF-60` and `INFO-70` are also READY, but they appear later in the queue.
+- `NODE-20` is complete.
+- `NODE-21` is the first READY task in queue order.
+- `ASSET-30`, `PERF-60`, and `INFO-70` are also READY, but they appear later in the queue.
 
 ---
 
@@ -218,3 +219,16 @@ proof:
     - `tests/test_editor_plugin.gd`
     - `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/IMPLEMENTATION_QUEUE.md`
     - `docs/review/autopilot/LAYOUT-11_TEST_RESULT_2026-06-08.md`
+
+### NODE-20 HexTileMap resource ownership policy
+
+proof:
+  plan: `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE-20_HEX_TILE_MAP_RESOURCE_OWNERSHIP_POLICY/`
+  review: `docs/review/autopilot/NODE-20_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE_RESOURCE_OWNERSHIP_POLICY.md`
+  major files:
+    - `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/IMPLEMENTATION_QUEUE.md`
+    - `docs/review/autopilot/NODE-20_TEST_RESULT_2026-06-08.md`
