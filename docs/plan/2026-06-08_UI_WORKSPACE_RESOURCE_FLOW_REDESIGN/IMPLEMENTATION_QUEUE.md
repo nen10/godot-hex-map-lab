@@ -34,8 +34,8 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `LAYOUT-10` | `READY` | `UIR-01` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/LAYOUT-10_SCROLL_CONTAINER_FOR_ALL_TABS/` | Scrollable content for all workspace tabs | `HexMapWorkspace`, per-tab content containers, `HexMapWorkspaceAssetPanel`, `HexMapSampleSettingsPanel`, editor tests | Each tab root has ScrollContainer or equivalent; primary actions remain reachable in narrow/short docks; tab switching does not break scroll/focus. |
-| `LAYOUT-11` | `BACKLOG` | `LAYOUT-10` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/LAYOUT-11_COMPACT_RESOURCE_ROW_LAYOUT/` | Compact resource row layout | asset slot controls, workspace asset panel, sample settings panel, editor tests | Resource rows use `[Title] [ResourcePicker] [status icon]`; long purpose/type/path/validation details move to tooltip or expander; missing state remains short and visible. |
+| `LAYOUT-10` | `COMPLETE` | `UIR-01` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/LAYOUT-10_SCROLL_CONTAINER_FOR_ALL_TABS/` | Scrollable content for all workspace tabs | `HexMapWorkspace`, per-tab content containers, `HexMapWorkspaceAssetPanel`, `HexMapSampleSettingsPanel`, editor tests | Each tab root has ScrollContainer or equivalent; primary actions remain reachable in narrow/short docks; tab switching does not break scroll/focus. |
+| `LAYOUT-11` | `READY` | `LAYOUT-10` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/LAYOUT-11_COMPACT_RESOURCE_ROW_LAYOUT/` | Compact resource row layout | asset slot controls, workspace asset panel, sample settings panel, editor tests | Resource rows use `[Title] [ResourcePicker] [status icon]`; long purpose/type/path/validation details move to tooltip or expander; missing state remains short and visible. |
 
 ---
 
@@ -148,12 +148,12 @@ acceptance / test path:
 
 ## 12. Current pointer
 
-Current recommended next task: `LAYOUT-10`.
+Current recommended next task: `LAYOUT-11`.
 
 Reason:
 
-- `UIR-00` and `UIR-01` are complete.
-- `LAYOUT-10` is the first READY task in queue order.
+- `UIR-00`, `UIR-01`, and `LAYOUT-10` are complete.
+- `LAYOUT-11` is the first READY task in queue order.
 - `NODE-20` and `PERF-60` are also READY, but they appear later in the queue.
 
 ---
@@ -188,3 +188,18 @@ proof:
   major files:
     - `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/IMPLEMENTATION_QUEUE.md`
     - `docs/review/autopilot/UIR-01_TEST_RESULT_2026-06-08.md`
+
+### LAYOUT-10 Scroll container for all tabs
+
+proof:
+  plan: `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/LAYOUT-10_SCROLL_CONTAINER_FOR_ALL_TABS/`
+  review: `docs/review/autopilot/LAYOUT-10_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/IMPLEMENTATION_QUEUE.md`
+    - `docs/review/autopilot/LAYOUT-10_TEST_RESULT_2026-06-08.md`

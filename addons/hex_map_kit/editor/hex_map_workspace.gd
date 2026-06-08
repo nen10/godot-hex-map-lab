@@ -41,6 +41,7 @@ var _export_run_button: Button
 var _asset_panels: Dictionary = {}
 var _tab_components: Dictionary = {}
 var _tab_pages: Dictionary = {}
+var _tab_scroll_roots: Dictionary = {}
 var _last_workspace_validation_result: HexMapValidationResult = null
 
 
@@ -189,6 +190,20 @@ func tab_has_component(tab_name: String, component_id: String = "") -> bool:
 	if component_id == "":
 		return not components.is_empty()
 	return components.has(component_id)
+
+
+func tab_has_scroll_container(tab_name: String) -> bool:
+	return _tab_scroll_roots.get(tab_name, null) is ScrollContainer
+
+
+func tab_scroll_root_class(tab_name: String) -> String:
+	var root = _tab_scroll_roots.get(tab_name, null) as Control
+	return root.get_class() if root != null else ""
+
+
+func tab_content_root_class(tab_name: String) -> String:
+	var content = _tab_pages.get(tab_name, null) as Control
+	return content.get_class() if content != null else ""
 
 
 func asset_slot_count(tab_name: String) -> int:
@@ -1211,11 +1226,20 @@ func _mount_sample_learning_cta() -> void:
 
 
 func _add_tab_page(tab_name: String) -> VBoxContainer:
+	var scroll := ScrollContainer.new()
+	scroll.name = tab_name
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true
+	_tabs.add_child(scroll)
+
 	var page = VBoxContainer.new()
-	page.name = tab_name
+	page.name = "%s Content" % tab_name
 	page.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	page.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_tabs.add_child(page)
+	page.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	scroll.add_child(page)
+	_tab_scroll_roots[tab_name] = scroll
 	_tab_pages[tab_name] = page
 	return page
 

@@ -428,7 +428,7 @@ Acceptance:
 
 #### `LAYOUT-10_SCROLL_CONTAINER_FOR_ALL_TABS`
 
-status: `READY`  
+status: `COMPLETE`  
 dependencies: `UIR-01_CURRENT_VISIBLE_UI_INVENTORY`
 
 目的:
@@ -452,7 +452,7 @@ Acceptance:
 
 #### `LAYOUT-11_COMPACT_RESOURCE_ROW_LAYOUT`
 
-status: `BACKLOG`  
+status: `READY`  
 dependencies: `LAYOUT-10_SCROLL_CONTAINER_FOR_ALL_TABS`
 
 目的:

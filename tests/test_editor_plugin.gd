@@ -274,6 +274,10 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 	])
 	_assert_eq(workspace.name, "Hex Map Workspace", "workspace has stable dock name")
 	_assert_eq(workspace.workspace_tab_names(), expected_tabs, "workspace exposes UX responsibility tabs")
+	for tab_name in expected_tabs:
+		_assert_true(workspace.tab_has_scroll_container(tab_name), "%s tab has workspace scroll root" % tab_name)
+		_assert_eq(workspace.tab_scroll_root_class(tab_name), "ScrollContainer", "%s tab root is a ScrollContainer" % tab_name)
+		_assert_eq(workspace.tab_content_root_class(tab_name), "VBoxContainer", "%s tab keeps vertical content layout" % tab_name)
 	_assert_true(
 		workspace.component_rows().size() >= expected_tabs.size(),
 		"workspace exposes component responsibility map"
@@ -451,6 +455,9 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 		_assert_eq(workspace.components_for_tab(tab_name).size(), expected_components.size(), "TEST-41 %s component row count matches contract" % tab_name)
 		_assert_eq(workspace.tab_asset_slot_ids(tab_name), expected_slots, "TEST-41 %s asset slot ids match contract" % tab_name)
 		_assert_eq(workspace.asset_slot_count(tab_name), expected_slots.size(), "TEST-41 %s asset slot count matches contract" % tab_name)
+		_assert_true(workspace.tab_has_scroll_container(tab_name), "TEST-41 %s has workspace scroll root" % tab_name)
+		_assert_eq(workspace.tab_scroll_root_class(tab_name), "ScrollContainer", "TEST-41 %s root class is ScrollContainer" % tab_name)
+		_assert_eq(workspace.tab_content_root_class(tab_name), "VBoxContainer", "TEST-41 %s content class is VBoxContainer" % tab_name)
 		for component_id in expected_components:
 			_assert_true(workspace.tab_has_component(tab_name, String(component_id)), "TEST-41 %s has component %s" % [tab_name, component_id])
 		for slot_id in expected_slots:
