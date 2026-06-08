@@ -137,6 +137,7 @@ var _test_editor_selected_target_layer: Node = null
 var _test_viewport_canvas_transform_enabled := false
 var _test_viewport_canvas_transform := Transform2D.IDENTITY
 
+var _paint_workspace_summary_label: Label
 var _document_label: Label
 var _document_inspector: HexMapDocumentInspector
 var _document_resource_picker
@@ -456,6 +457,35 @@ func last_edit_status() -> Dictionary:
 	return _last_edit_status.duplicate(true)
 
 
+func paint_workspace_snapshot() -> Dictionary:
+	var target_status := target_readiness_status()
+	var brush := paint_brush_snapshot()
+	var last_edit := last_edit_status()
+	return {
+		"active_document": _document,
+		"active_document_status": _document_state_text(),
+		"active_document_path": _document_path,
+		"active_layer": _target_layer if _target_layer != null and is_instance_valid(_target_layer) else null,
+		"active_layer_name": _target_layer.name if _target_layer != null and is_instance_valid(_target_layer) else "",
+		"active_layer_path": _target_path_string(),
+		"active_layer_class": _target_class_string(),
+		"active_layer_role": _selected_layer_stack_role,
+		"target_ready": bool(target_status.get("ready", false)),
+		"target_message": String(target_status.get("message", "")),
+		"brush": brush,
+		"selected_cell": _paint_selected_cell_snapshot(last_edit),
+		"last_edit": last_edit,
+		"last_edit_summary": _paint_last_edit_summary(last_edit),
+		"last_edit_message": _format_last_edit_detail(last_edit),
+		"undo_available": _undo_redo != null,
+		"undo_hint": "Use editor Undo/Redo." if _undo_redo != null else "Undo uses editor history when available.",
+		"resource_picker_rows_visible": {
+			"object_database": _control_row_is_visible(_object_database_picker),
+			"label_database": _control_row_is_visible(_label_database_picker),
+		},
+	}
+
+
 func target_readiness_status() -> Dictionary:
 	_refresh_target_status_detail()
 	return _target_status_detail.duplicate(true)
@@ -634,6 +664,7 @@ func select_catalog_brush_key(key: String, mode_id: String = "terrain") -> bool:
 	_store_current_tile_payload_for_mode()
 	_select_catalog_option_by_key(_tile_catalog_option, key)
 	_refresh_target_status_detail()
+	_refresh_paint_workspace_summary()
 	return true
 
 
@@ -1075,6 +1106,9 @@ func _build_ui() -> void:
 	var title = Label.new()
 	title.text = "Hex Map Edit"
 	root.add_child(title)
+
+	_paint_workspace_summary_label = _new_detail_label()
+	root.add_child(_wrap_labeled("Paint Workspace", _paint_workspace_summary_label))
 
 	var document_actions_row = HBoxContainer.new()
 	_document_new_button = Button.new()
@@ -1526,6 +1560,7 @@ func _build_ui() -> void:
 	_refresh_persistence_detail()
 	_refresh_payload_controls_visibility()
 	_refresh_overlay_item_key_options()
+	_refresh_paint_workspace_summary()
 	_refresh_action_button_states()
 
 
@@ -1791,6 +1826,7 @@ func _select_object_definition(definition_id: String) -> void:
 	_refresh_object_palette()
 	_refresh_object_property_editor()
 	_refresh_target_status_detail()
+	_refresh_paint_workspace_summary()
 
 
 func _refresh_label_definition_tree() -> void:
@@ -1825,6 +1861,7 @@ func _select_label_definition(definition_id: String) -> void:
 		_label_text_edit.text = String(definition.get("default_text"))
 	_refresh_label_definition_tree()
 	_refresh_target_status_detail()
+	_refresh_paint_workspace_summary()
 
 
 func _apply_selected_definition_defaults() -> void:
@@ -3032,11 +3069,12 @@ func _refresh_payload_controls_visibility() -> void:
 	_set_control_row_visible(_object_properties_table, false)
 	_set_control_row_visible(_object_spawn_condition_edit, false)
 	_set_control_row_visible(_object_spawn_condition_option, show_object)
-	_set_control_row_visible(_object_database_picker, show_object)
+	_set_control_row_visible(_object_database_picker, false)
 	_set_control_row_visible(_label_id_edit, false)
 	_set_control_row_visible(_label_definition_tree, show_label)
 	_set_control_row_visible(_label_text_edit, show_label)
-	_set_control_row_visible(_label_database_picker, show_label)
+	_set_control_row_visible(_label_database_picker, false)
+	_refresh_paint_workspace_summary()
 
 
 func _set_control_row_visible(control, visible: bool) -> void:
@@ -3113,8 +3151,8 @@ func _paint_missing_asset_cta(mode_id: String, brush_key: String) -> Dictionary:
 			if _object_database != null and brush_key != "":
 				return {}
 			return {
-				"target_tab": "Paint",
-				"target_component_id": "object_label_asset_panel",
+				"target_tab": "Resources",
+				"target_component_id": "document_asset_panel",
 				"target_slot_id": HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE,
 				"reason": "missing_object_database" if _object_database == null else "missing_object_definition",
 			}
@@ -3122,8 +3160,8 @@ func _paint_missing_asset_cta(mode_id: String, brush_key: String) -> Dictionary:
 			if _label_database != null and brush_key != "":
 				return {}
 			return {
-				"target_tab": "Paint",
-				"target_component_id": "object_label_asset_panel",
+				"target_tab": "Resources",
+				"target_component_id": "document_asset_panel",
 				"target_slot_id": HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE,
 				"reason": "missing_label_database" if _label_database == null else "missing_label_definition",
 			}
@@ -3265,6 +3303,7 @@ func _refresh_state_labels() -> void:
 		_target_label.text = "Target: %s" % target_name
 	_refresh_target_status_detail()
 	_refresh_overlay_item_key_options()
+	_refresh_paint_workspace_summary()
 	_refresh_action_button_states()
 
 
@@ -4282,6 +4321,24 @@ func _build_last_edit_trace_from_states(
 func _refresh_last_edit_detail() -> void:
 	if _last_edit_detail_label != null:
 		_last_edit_detail_label.text = _format_last_edit_detail(_last_edit_status)
+	_refresh_paint_workspace_summary()
+
+
+func _refresh_paint_workspace_summary() -> void:
+	if _paint_workspace_summary_label == null:
+		return
+	var snapshot := paint_workspace_snapshot()
+	var brush = snapshot.get("brush", {}) as Dictionary
+	var selected_cell = snapshot.get("selected_cell", {}) as Dictionary
+	_paint_workspace_summary_label.text = "Document: %s | Layer: %s | Brush: %s %s | Cell: %s | Last edit: %s | Undo: %s" % [
+		String(snapshot.get("active_document_status", "none")),
+		String(snapshot.get("active_layer_name", "none")) if String(snapshot.get("active_layer_name", "")) != "" else "none",
+		String(brush.get("mode_label", "")),
+		String(brush.get("brush_key", "")) if String(brush.get("brush_key", "")) != "" else "(unselected)",
+		String(selected_cell.get("cell_key", "")) if bool(selected_cell.get("present", false)) else "none",
+		String(snapshot.get("last_edit_summary", "none")),
+		String(snapshot.get("undo_hint", "")),
+	]
 
 
 func _format_last_edit_detail(trace: Dictionary) -> String:
@@ -4315,6 +4372,42 @@ func _format_last_edit_detail(trace: Dictionary) -> String:
 		String(trace.get("target_apply_reason", "")),
 		String(trace.get("target_resolution_reason", "")),
 		String(trace.get("payload", "")),
+	]
+
+
+func _paint_selected_cell_snapshot(trace: Dictionary) -> Dictionary:
+	if trace.is_empty() or not trace.has("hex"):
+		return {
+			"present": false,
+			"cell_key": "",
+			"visual_cell_key": "",
+			"viewport_position": Vector2.ZERO,
+			"scene_position": Vector2.ZERO,
+			"local_position": Vector2.ZERO,
+		}
+	var hex = trace["hex"]
+	var visual_hex = trace.get("visual_hex", hex)
+	return {
+		"present": true,
+		"cell_key": hex.key(),
+		"hex": hex,
+		"visual_cell_key": visual_hex.key(),
+		"visual_hex": visual_hex,
+		"viewport_position": trace.get("viewport_position", Vector2.ZERO),
+		"scene_position": trace.get("scene_position", Vector2.ZERO),
+		"local_position": trace.get("local_position", Vector2.ZERO),
+	}
+
+
+func _paint_last_edit_summary(trace: Dictionary) -> String:
+	if trace.is_empty() or not trace.has("hex"):
+		return "none"
+	var hex = trace["hex"]
+	return "%s document=%s target=%s display=%s" % [
+		hex.key(),
+		_bool_text(bool(trace.get("document_changed", false))),
+		_bool_text(bool(trace.get("target_applied", false))),
+		_bool_text(bool(trace.get("display_changed", false))),
 	]
 
 

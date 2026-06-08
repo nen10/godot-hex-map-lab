@@ -320,7 +320,6 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 	_assert_eq(workspace.sample_settings_panel().editor_session_state(), session, "workspace forwards session to sample settings component")
 	var asset_tab_expectations := [
 		{"tab": "Resources", "component": "document_asset_panel", "count": 5, "slot": "level_document"},
-		{"tab": "Paint", "component": "object_label_asset_panel", "count": 2, "slot": "object_database"},
 		{"tab": "Catalog", "component": "catalog_asset_panel", "count": 1, "slot": "tile_catalog"},
 		{"tab": "Layers", "component": "layer_stack_asset_panel", "count": 1, "slot": "layer_stack"},
 		{"tab": "Validate", "component": "validation_asset_panel", "count": 2, "slot": "validation_rule_suite"},
@@ -361,22 +360,44 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 		"QA tab registry exposes generation profile asset slot"
 	)
 	_assert_true(workspace.tab_has_component("Paint", "brush_palette"), "Paint tab keeps paint component")
-	_assert_eq(workspace.asset_slot_count("Paint"), 2, "Paint tab owns object and label asset slots")
-	_assert_true(
-		workspace.tab_asset_slot_ids("Paint").has(HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE),
-		"Paint tab registry exposes label database asset slot"
-	)
+	_assert_eq(workspace.asset_slot_count("Paint"), 0, "TAB-51 Paint tab no longer owns ResourcePicker asset slots")
+	_assert_eq(workspace.tab_asset_slot_ids("Paint"), PackedStringArray(), "TAB-51 Paint tab asset slots live in Resources")
 	_assert_true(not workspace.tab_has_component("Paint", "document_asset_panel"), "Paint tab does not own Document setup component")
 	_assert_true(workspace.tab_has_component("Settings", "sample_settings_panel"), "Settings tab keeps sample settings component")
 
 	var layer = TileMapLayer.new()
+	layer.tile_set = TileSet.new()
+	HexMapTileAdapter.configure_hex_tile_set(layer.tile_set, true, Vector2i(64, 64))
 	root.add_child(layer)
 	var document = HexMapDocumentAdapter.from_map_resource(
 		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
 	)
+	session.set_debug_numeric_tile_fallback_enabled(true, "test.tab51_workspace_viewport")
 	workspace.edit_tool().set_document(document)
 	workspace.edit_tool().set_target_layer(layer)
 	_assert_true(workspace.viewport_input_enabled(), "workspace gates viewport input through paint/edit component")
+	_assert_eq(workspace.current_workspace_tab_name(), "Resources", "TAB-51 workspace starts on Resources before viewport edit")
+	var canvas_transform = Transform2D(0.0, Vector2(120.0, -40.0))
+	workspace.edit_tool().set_viewport_canvas_transform_for_test(canvas_transform)
+	var origin_local = layer.map_to_local(HexMapTileAdapter.vector_to_map_cell(HexVector.zero(), true))
+	var scene_position = layer.to_global(origin_local)
+	var press = InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.pressed = true
+	press.position = canvas_transform * scene_position
+	_assert_true(workspace.forward_canvas_gui_input(press), "TAB-51 workspace consumes viewport paint edit")
+	_assert_eq(workspace.current_workspace_tab_name(), "Paint", "TAB-51 viewport edit switches to Paint tab")
+	var paint_snapshot = workspace.paint_brush_screen_snapshot()
+	_assert_eq(paint_snapshot["active_document"], document, "TAB-51 Paint snapshot reports active document")
+	_assert_eq(paint_snapshot["active_layer"], layer, "TAB-51 Paint snapshot reports active layer")
+	var selected_cell = paint_snapshot["selected_cell"] as Dictionary
+	_assert_true(bool(selected_cell["present"]), "TAB-51 Paint snapshot reports selected/last edited cell")
+	_assert_eq(String(selected_cell["cell_key"]), HexVector.zero().key(), "TAB-51 Paint snapshot reports edited cell key")
+	_assert_true(
+		String(paint_snapshot["last_edit_message"]).contains("document=yes"),
+		"TAB-51 Paint snapshot reports last edit detail"
+	)
+	_assert_true(String(paint_snapshot["undo_hint"]) != "", "TAB-51 Paint snapshot reports undo hint")
 
 	layer.queue_free()
 	workspace.queue_free()
@@ -676,11 +697,8 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 			"slots": PackedStringArray(),
 		},
 		"Paint": {
-			"components": PackedStringArray(["brush_palette", "object_label_asset_panel"]),
-			"slots": PackedStringArray([
-				HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE,
-				HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE,
-			]),
+			"components": PackedStringArray(["brush_palette"]),
+			"slots": PackedStringArray(),
 		},
 		"Catalog": {
 			"components": PackedStringArray(["catalog_asset_panel"]),
@@ -1278,18 +1296,20 @@ func _test_object_label_asset_screen_manages_project_definitions_without_samples
 	await process_frame
 
 	var snapshot = workspace.object_label_screen_snapshot()
+	_assert_eq(String(snapshot["tab"]), "Resources", "TAB-51 Object/Label resources are managed from Resources")
 	_assert_true(
-		PackedStringArray(snapshot["component_ids"]).has("object_label_asset_panel"),
-		"Object/Label screen exposes asset component"
+		PackedStringArray(snapshot["component_ids"]).has("document_asset_panel"),
+		"TAB-51 Object/Label resources use Resources asset component"
 	)
 	_assert_true(
 		PackedStringArray(snapshot["asset_slot_ids"]).has(HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE),
-		"Object/Label screen exposes object database slot"
+		"TAB-51 Resources exposes object database slot"
 	)
 	_assert_true(
 		PackedStringArray(snapshot["asset_slot_ids"]).has(HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE),
-		"Object/Label screen exposes label database slot"
+		"TAB-51 Resources exposes label database slot"
 	)
+	_assert_true(not workspace.tab_has_component("Paint", "object_label_asset_panel"), "TAB-51 Paint does not duplicate Object/Label resource rows")
 	_assert_eq(workspace.workspace_asset_context().object_database, null, "Object/Label screen starts without sample object database")
 	_assert_eq(workspace.workspace_asset_context().label_database, null, "Object/Label screen starts without sample label database")
 	_assert_true(not bool(snapshot["sample_object_scene_assigned"]), "Object/Label screen does not assign sample object scene")
@@ -1305,9 +1325,9 @@ func _test_object_label_asset_screen_manages_project_definitions_without_samples
 	_assert_eq(workspace.workspace_asset_context().object_database, object_database, "created object database enters workspace context")
 	_assert_eq(workspace.edit_tool().object_database(), object_database, "created object database enters edit tool")
 	_assert_eq(
-		workspace.tab_asset_slot_snapshot("Paint", HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE).get("current_source", ""),
+		workspace.tab_asset_slot_snapshot("Resources", HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE).get("current_source", ""),
 		HexMapEditorAssetSlotState.SOURCE_PROJECT,
-		"Object/Label screen marks created object database as project asset"
+		"TAB-51 Resources marks created object database as project asset"
 	)
 
 	var label_db_path = "%s/label_database.tres" % output_dir
@@ -1391,6 +1411,11 @@ func _test_paint_brush_asset_screen_routes_missing_assets_without_raw_controls()
 	var terrain_mode = workspace.select_paint_brush_mode("terrain")
 	_assert_true(bool(terrain_mode["ok"]), "Paint brush screen selects terrain mode")
 	var brush = (terrain_mode["brush"] as Dictionary)
+	var paint_screen = workspace.paint_brush_screen_snapshot()
+	_assert_eq(PackedStringArray(paint_screen["asset_slot_ids"]), PackedStringArray(), "TAB-51 Paint brush screen does not expose ResourcePicker asset rows")
+	var picker_rows = paint_screen["resource_picker_rows_visible"] as Dictionary
+	_assert_true(not bool(picker_rows["object_database"]), "TAB-51 Paint hides Object Database ResourcePicker row")
+	_assert_true(not bool(picker_rows["label_database"]), "TAB-51 Paint hides Label Database ResourcePicker row")
 	_assert_eq(brush["mode"], "terrain", "Paint brush snapshot reports terrain mode")
 	_assert_true(not bool(brush["ready"]), "Paint brush terrain is not ready without catalog")
 	var cta = brush["missing_asset_cta"] as Dictionary
@@ -1435,8 +1460,12 @@ func _test_paint_brush_asset_screen_routes_missing_assets_without_raw_controls()
 	brush = object_mode["brush"] as Dictionary
 	_assert_true(not bool(brush["ready"]), "Paint brush object is not ready without object database")
 	cta = brush["missing_asset_cta"] as Dictionary
-	_assert_eq(cta["target_component_id"], "object_label_asset_panel", "Paint brush missing object points to object/label panel")
+	_assert_eq(cta["target_tab"], "Resources", "TAB-51 Paint brush missing object points to Resources")
+	_assert_eq(cta["target_component_id"], "document_asset_panel", "TAB-51 Paint brush missing object points to Resources asset panel")
 	_assert_eq(cta["target_slot_id"], HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE, "Paint brush missing object points to object database slot")
+	paint_screen = workspace.paint_brush_screen_snapshot()
+	picker_rows = paint_screen["resource_picker_rows_visible"] as Dictionary
+	_assert_true(not bool(picker_rows["object_database"]), "TAB-51 Paint object mode still hides Object Database ResourcePicker row")
 
 	var object_db_result = workspace.create_object_database("%s/object_database.tres" % output_dir)
 	_assert_true(bool(object_db_result["ok"]), "Paint brush test creates project Object Database")
@@ -1459,8 +1488,12 @@ func _test_paint_brush_asset_screen_routes_missing_assets_without_raw_controls()
 	brush = label_mode["brush"] as Dictionary
 	_assert_true(not bool(brush["ready"]), "Paint brush label is not ready without label database")
 	cta = brush["missing_asset_cta"] as Dictionary
-	_assert_eq(cta["target_component_id"], "object_label_asset_panel", "Paint brush missing label points to object/label panel")
+	_assert_eq(cta["target_tab"], "Resources", "TAB-51 Paint brush missing label points to Resources")
+	_assert_eq(cta["target_component_id"], "document_asset_panel", "TAB-51 Paint brush missing label points to Resources asset panel")
 	_assert_eq(cta["target_slot_id"], HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE, "Paint brush missing label points to label database slot")
+	paint_screen = workspace.paint_brush_screen_snapshot()
+	picker_rows = paint_screen["resource_picker_rows_visible"] as Dictionary
+	_assert_true(not bool(picker_rows["label_database"]), "TAB-51 Paint label mode still hides Label Database ResourcePicker row")
 
 	var label_db_result = workspace.create_label_database("%s/label_database.tres" % output_dir)
 	_assert_true(bool(label_db_result["ok"]), "Paint brush test creates project Label Database")
@@ -1522,12 +1555,13 @@ func _test_validate_asset_screen_reports_missing_project_assets_without_samples(
 	_assert_eq(catalog_row["target_slot_id"], HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, "missing catalog points to tile catalog slot")
 
 	var object_row = _validation_issue_row_for_rule(rows, "workspace.object_database_missing")
-	_assert_eq(object_row["target_tab"], "Paint", "missing object database points to Paint tab object/label panel")
-	_assert_eq(object_row["target_component_id"], "object_label_asset_panel", "missing object database points to object/label panel")
+	_assert_eq(object_row["target_tab"], "Resources", "TAB-51 missing object database points to Resources tab")
+	_assert_eq(object_row["target_component_id"], "document_asset_panel", "TAB-51 missing object database points to Resources asset panel")
 	_assert_eq(object_row["target_slot_id"], HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE, "missing object database points to object database slot")
 
 	var label_row = _validation_issue_row_for_rule(rows, "workspace.label_database_missing")
-	_assert_eq(label_row["target_component_id"], "object_label_asset_panel", "missing label database points to object/label panel")
+	_assert_eq(label_row["target_tab"], "Resources", "TAB-51 missing label database points to Resources tab")
+	_assert_eq(label_row["target_component_id"], "document_asset_panel", "TAB-51 missing label database points to Resources asset panel")
 	_assert_eq(label_row["target_slot_id"], HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE, "missing label database points to label database slot")
 
 	var layer_row = _validation_issue_row_for_rule(rows, "workspace.layer_stack_missing")
@@ -1855,19 +1889,19 @@ func _test_feature_screen_completion_contract_uses_project_assets_with_sample_mo
 	)
 	_assert_project_asset_slot(
 		workspace,
-		"Paint",
+		"Resources",
 		HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE,
 		object_database,
 		object_db_path,
-		"TEST-40 Paint screen Object Database"
+		"TAB-51 Resources screen Object Database"
 	)
 	_assert_project_asset_slot(
 		workspace,
-		"Paint",
+		"Resources",
 		HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE,
 		label_database,
 		label_db_path,
-		"TEST-40 Paint screen Label Database"
+		"TAB-51 Resources screen Label Database"
 	)
 	_assert_project_asset_slot(
 		workspace,
@@ -2164,11 +2198,11 @@ func _test_clean_project_package_contract_uses_project_assets_without_samples() 
 	)
 	_assert_project_asset_slot(
 		workspace,
-		"Paint",
+		"Resources",
 		HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE,
 		object_database,
 		object_db_path,
-		"PKG-71 clean project Object Database slot"
+		"TAB-51 PKG-71 clean project Object Database slot"
 	)
 	_assert_eq(workspace.generation_dock().tile_catalog(), catalog, "PKG-71 Generate uses project catalog after selection")
 	_assert_eq(workspace.edit_tool().tile_catalog(), catalog, "PKG-71 Paint uses project catalog after selection")
@@ -2573,8 +2607,6 @@ func _test_workspace_asset_slots_use_strict_resource_type_filters() -> void:
 		{"tab": "Resources", "slot": HexMapWorkspaceAssetContext.SLOT_LAYER_STACK, "type": "HexLayerStackResource"},
 		{"tab": "Catalog", "slot": HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, "type": "HexTileCatalogResource"},
 		{"tab": "Layers", "slot": HexMapWorkspaceAssetContext.SLOT_LAYER_STACK, "type": "HexLayerStackResource"},
-		{"tab": "Paint", "slot": HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE, "type": "HexObjectDatabaseResource"},
-		{"tab": "Paint", "slot": HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE, "type": "HexLabelDatabaseResource"},
 		{"tab": "Validate", "slot": HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "type": "HexMapDocumentResource"},
 		{"tab": "QA", "slot": HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "type": "HexMapDocumentResource"},
 		{"tab": "Export", "slot": HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "type": "HexMapDocumentResource"},

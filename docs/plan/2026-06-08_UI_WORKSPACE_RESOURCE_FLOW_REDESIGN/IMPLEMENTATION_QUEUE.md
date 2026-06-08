@@ -75,7 +75,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
 | `TAB-50` | `COMPLETE` | `NODE-23`, `LAYOUT-10` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/TAB-50_RESOURCES_TAB_RENAME_AND_CONTEXT_SCREEN/` | Resources tab rename and context screen | Workspace tab labels, Resources tab/component, node/resource context UI, editor tests | Document tab becomes Resources; selected HexTileMap is visible; Unique/Shared/Optional resources are grouped; Create Missing Resources is available; tooltips explain purpose. |
-| `TAB-51` | `READY` | `TAB-50` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/TAB-51_PAINT_TAB_REAL_BRUSH_WORKSPACE/` | Paint tab as real brush workspace | Paint tab/component, brush palette, viewport edit integration, editor tests | Viewport edit switches to Paint tab; active document/layer/brush/cell/last edit are visible; tab is not just resource references; missing Object/Label resources show concise CTA. |
+| `TAB-51` | `COMPLETE` | `TAB-50` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/TAB-51_PAINT_TAB_REAL_BRUSH_WORKSPACE/` | Paint tab as real brush workspace | Paint tab/component, brush palette, viewport edit integration, editor tests | Viewport edit switches to Paint tab; active document/layer/brush/cell/last edit are visible; tab is not just resource references; missing Object/Label resources show concise CTA. |
 | `TAB-52` | `READY` | `TAB-50` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/TAB-52_CATALOG_TAB_DETAIL_EDITOR/` | Catalog tab detail editor | Catalog tab/component, entry list/detail, tile/scene preview, catalog tests | Catalog entry meaning is visible; source id / atlas coords are not primary inputs; preview absence explains why; missing assets produce warnings. |
 | `TAB-53` | `READY` | `TAB-50` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/TAB-53_LAYERS_TAB_ROLE_EDITOR/` | Layers tab role editor | Layers tab/component, layer stack UI, HexTileMap child layer integration, tests | Layer Stack resource, target HexTileMap, roles, create/apply/visibility/locked/writable status are visible in Layers tab, not only resource references. |
 | `TAB-54` | `READY` | `TAB-50` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/TAB-54_VALIDATE_TAB_ISSUE_NAVIGATOR/` | Validate tab issue navigator | Validate tab/component, validation issue navigator, focus/link actions, editor tests | Validate target and purpose are clear; resource-row Validate buttons become unnecessary; clicking issues can move to cell/resource/target tab with suggested action. |
@@ -148,7 +148,7 @@ acceptance / test path:
 
 ## 12. Current pointer
 
-Current recommended next task: `TAB-51`.
+Current recommended next task: `TAB-52`.
 
 Reason:
 
@@ -164,9 +164,10 @@ Reason:
 - `SAMPLE-40` is complete.
 - `SAMPLE-41` is complete.
 - `TAB-50` is complete.
+- `TAB-51` is complete.
 - `TAB-51`, `TAB-52`, `TAB-53`, `TAB-54`, `TAB-56`, and `INFO-71` were promoted to READY because `TAB-50` is complete.
-- `TAB-51` is the first READY task in queue order.
-- `TAB-52`, `TAB-53`, `TAB-54`, `TAB-55`, `TAB-56`, `TAB-57`, `PERF-60`, `INFO-70`, `INFO-71`, and `GEN-80` are also READY, but they appear later in the queue.
+- `TAB-52` is the first READY task in queue order.
+- `TAB-53`, `TAB-54`, `TAB-55`, `TAB-56`, `TAB-57`, `PERF-60`, `INFO-70`, `INFO-71`, and `GEN-80` are also READY, but they appear later in the queue.
 
 ---
 
@@ -397,3 +398,19 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_workspace.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/TAB-50_TEST_RESULT_2026-06-08.md`
+
+### TAB-51 Paint tab as real brush workspace
+
+proof:
+  plan: `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/TAB-51_PAINT_TAB_REAL_BRUSH_WORKSPACE/`
+  review: `docs/review/autopilot/TAB-51_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_edit_tool.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace_component_registry.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/TAB-51_TEST_RESULT_2026-06-08.md`

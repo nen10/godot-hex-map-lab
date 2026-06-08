@@ -58,17 +58,6 @@ static func component_rows() -> Array[Dictionary]:
 		_component(TAB_GENERATE, "generation_panel", "HexMapGenDock", "GenerationPanel", "generate"),
 		_component(TAB_PAINT, "brush_palette", "HexMapEditTool", "BrushPalette", "paint"),
 		_component(
-			TAB_PAINT,
-			"object_label_asset_panel",
-			"HexMapWorkspaceAssetPanel",
-			"ObjectLabelPanel",
-			"paint",
-			PackedStringArray([
-				HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE,
-				HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE,
-			])
-		),
-		_component(
 			TAB_CATALOG,
 			"catalog_asset_panel",
 			"HexMapWorkspaceAssetPanel",

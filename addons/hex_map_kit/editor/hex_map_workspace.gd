@@ -394,7 +394,10 @@ func viewport_input_enabled() -> bool:
 func forward_canvas_gui_input(event: InputEvent) -> bool:
 	if _edit_tool == null:
 		return false
-	return _edit_tool.forward_canvas_gui_input(event)
+	var consumed := _edit_tool.forward_canvas_gui_input(event)
+	if consumed:
+		select_workspace_tab(HexMapWorkspaceComponentRegistry.TAB_PAINT)
+	return consumed
 
 
 func workspace_tab_names() -> PackedStringArray:
@@ -676,8 +679,8 @@ func validate_workspace_assets() -> HexMapValidationResult:
 		context.object_database == null,
 		"workspace.object_database_missing",
 		"Object Database is not selected.",
-		HexMapWorkspaceComponentRegistry.TAB_PAINT,
-		"object_label_asset_panel",
+		HexMapWorkspaceComponentRegistry.TAB_DOCUMENT,
+		"document_asset_panel",
 		HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE
 	)
 	_add_missing_asset_issue(
@@ -685,8 +688,8 @@ func validate_workspace_assets() -> HexMapValidationResult:
 		context.label_database == null,
 		"workspace.label_database_missing",
 		"Label Database is not selected.",
-		HexMapWorkspaceComponentRegistry.TAB_PAINT,
-		"object_label_asset_panel",
+		HexMapWorkspaceComponentRegistry.TAB_DOCUMENT,
+		"document_asset_panel",
 		HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE
 	)
 	_add_missing_asset_issue(
@@ -1048,17 +1051,17 @@ func object_label_screen_snapshot() -> Dictionary:
 	var object_database := context.object_database
 	var label_database := context.label_database
 	var object_slot := tab_asset_slot_snapshot(
-		HexMapWorkspaceComponentRegistry.TAB_PAINT,
+		HexMapWorkspaceComponentRegistry.TAB_DOCUMENT,
 		HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE
 	)
 	var label_slot := tab_asset_slot_snapshot(
-		HexMapWorkspaceComponentRegistry.TAB_PAINT,
+		HexMapWorkspaceComponentRegistry.TAB_DOCUMENT,
 		HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE
 	)
 	return {
-		"tab": HexMapWorkspaceComponentRegistry.TAB_PAINT,
-		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_PAINT),
-		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_PAINT),
+		"tab": HexMapWorkspaceComponentRegistry.TAB_DOCUMENT,
+		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_DOCUMENT),
+		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_DOCUMENT),
 		"object_database": object_database,
 		"label_database": label_database,
 		"object_database_slot": object_slot,
@@ -1222,11 +1225,23 @@ func select_label_definition(label_id: String) -> Dictionary:
 
 
 func paint_brush_screen_snapshot() -> Dictionary:
+	var paint_workspace := _edit_tool.paint_workspace_snapshot() if _edit_tool != null else {}
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_PAINT,
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_PAINT),
 		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_PAINT),
 		"brush": _edit_tool.paint_brush_snapshot() if _edit_tool != null else {},
+		"workspace": paint_workspace,
+		"active_document": paint_workspace.get("active_document", null),
+		"active_document_status": String(paint_workspace.get("active_document_status", "none")),
+		"active_layer": paint_workspace.get("active_layer", null),
+		"active_layer_name": String(paint_workspace.get("active_layer_name", "")),
+		"selected_cell": paint_workspace.get("selected_cell", {}),
+		"last_edit": paint_workspace.get("last_edit", {}),
+		"last_edit_summary": String(paint_workspace.get("last_edit_summary", "none")),
+		"last_edit_message": String(paint_workspace.get("last_edit_message", "none")),
+		"undo_hint": String(paint_workspace.get("undo_hint", "")),
+		"resource_picker_rows_visible": paint_workspace.get("resource_picker_rows_visible", {}),
 	}
 
 
@@ -1618,15 +1633,6 @@ func _mount_workspace_asset_panels() -> void:
 		]
 	)
 	_mount_asset_panel(
-		HexMapWorkspaceComponentRegistry.TAB_PAINT,
-		"object_label_asset_panel",
-		"Object / Label Assets",
-		[
-			_slot_row(HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE, "Object Database"),
-			_slot_row(HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE, "Label Database"),
-		]
-	)
-	_mount_asset_panel(
 		HexMapWorkspaceComponentRegistry.TAB_VALIDATE,
 		"validation_asset_panel",
 		"Validation Assets",
@@ -1905,7 +1911,7 @@ func _layer_stack_asset_panel() -> HexMapWorkspaceAssetPanel:
 
 
 func _object_label_asset_panel() -> HexMapWorkspaceAssetPanel:
-	return _asset_panels.get(HexMapWorkspaceComponentRegistry.TAB_PAINT, null) as HexMapWorkspaceAssetPanel
+	return _document_asset_panel()
 
 
 func _qa_asset_panel() -> HexMapWorkspaceAssetPanel:
