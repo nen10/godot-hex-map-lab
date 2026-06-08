@@ -114,6 +114,7 @@ func _run() -> void:
 	await _test_hex_map_workspace_exposes_tabs_and_routes_editing()
 	await _test_workspace_selected_hex_tile_map_auto_binding()
 	await _test_workspace_create_missing_unique_resources_for_selected_hex_tile_map()
+	await _test_workspace_asset_selection_writes_back_to_selected_hex_tile_map()
 	await _test_workspace_tab_content_query_contract_lists_expected_components_and_slots()
 	await _test_workspace_first_run_learning_cta_routes_to_settings_without_sample_defaults()
 	await _test_workspace_asset_context_is_shared_by_workspace_generate_and_paint()
@@ -539,6 +540,85 @@ func _test_workspace_create_missing_unique_resources_for_selected_hex_tile_map()
 	var blocked_result = workspace.create_missing_selected_hex_tile_map_resources(save_dir, "NoSelection")
 	_assert_true(not bool(blocked_result["ok"]), "NODE-22 no selected HexTileMap blocks creation")
 	_assert_eq(int(blocked_result["error"]), ERR_DOES_NOT_EXIST, "NODE-22 no selected HexTileMap returns missing target error")
+
+	scene_root.queue_free()
+	workspace.queue_free()
+	await process_frame
+
+
+func _test_workspace_asset_selection_writes_back_to_selected_hex_tile_map() -> void:
+	var session = HexMapEditorSessionState.new()
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	var scene_root = Node2D.new()
+	scene_root.name = "WritebackScene"
+	root.add_child(scene_root)
+	var selected_layer = HexTileMapLayer.new()
+	selected_layer.name = "WritebackHexTileMap"
+	scene_root.add_child(selected_layer)
+	await process_frame
+	workspace.set_selected_hex_tile_map_node(selected_layer, "test.node23.select")
+
+	var document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	workspace.workspace_asset_context().set_level_document(document)
+	_assert_eq(selected_layer.level_document_resource, document, "NODE-23 Document slot writes to selected HexTileMap")
+	_assert_eq(session.current_document(), document, "NODE-23 Document write-back updates session document")
+	var writeback = workspace.selected_hex_tile_map_writeback_snapshot()
+	var relationships = writeback["relationships"] as Dictionary
+	var document_relationship = relationships[HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT] as Dictionary
+	_assert_eq(String(document_relationship["status"]), "linked", "NODE-23 Document relationship is visible as linked")
+	_assert_true(bool(document_relationship["matches"]), "NODE-23 Document relationship reports node/workspace match")
+
+	var stack = HexLayerStackResource.minimal_runtime_template()
+	workspace.workspace_asset_context().set_layer_stack(stack)
+	_assert_eq(selected_layer.layer_stack_resource, stack, "NODE-23 Layer Stack slot writes to selected HexTileMap")
+	_assert_eq(workspace.edit_tool().layer_stack_resource(), stack, "NODE-23 Layer Stack write-back updates edit tool")
+	writeback = workspace.selected_hex_tile_map_writeback_snapshot()
+	relationships = writeback["relationships"] as Dictionary
+	var stack_relationship = relationships[HexMapWorkspaceAssetContext.SLOT_LAYER_STACK] as Dictionary
+	_assert_eq(String(stack_relationship["status"]), "linked", "NODE-23 Layer Stack relationship is visible as linked")
+
+	var catalog = HexTileCatalogResource.new()
+	var object_database = HexObjectDatabaseResource.new()
+	var label_database = HexLabelDatabaseResource.new()
+	workspace.workspace_asset_context().set_tile_catalog(catalog)
+	workspace.workspace_asset_context().set_object_database(object_database)
+	workspace.workspace_asset_context().set_label_database(label_database)
+	writeback = workspace.selected_hex_tile_map_writeback_snapshot()
+	relationships = writeback["relationships"] as Dictionary
+	var catalog_relationship = relationships[HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG] as Dictionary
+	var object_relationship = relationships[HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE] as Dictionary
+	var label_relationship = relationships[HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE] as Dictionary
+	_assert_eq(String(catalog_relationship["policy"]), "shared_context", "NODE-23 Tile Catalog remains shared context")
+	_assert_eq(String(object_relationship["policy"]), "shared_context", "NODE-23 Object Database remains shared context")
+	_assert_eq(String(label_relationship["policy"]), "shared_context", "NODE-23 Label Database remains shared context")
+	_assert_eq(catalog_relationship["node_resource"], null, "NODE-23 Tile Catalog is not copied onto the node")
+	_assert_eq(object_relationship["node_resource"], null, "NODE-23 Object Database is not copied onto the node")
+	_assert_eq(label_relationship["node_resource"], null, "NODE-23 Label Database is not copied onto the node")
+	_assert_eq(selected_layer.level_document_resource.dependencies.size(), 0, "NODE-23 shared resources are not silently embedded into document dependencies")
+
+	session.set_auto_link_selected_hex_tile_map(false, "test.node23.disable_auto_link")
+	var blocked_document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(2, 1))
+	)
+	workspace.workspace_asset_context().set_level_document(blocked_document)
+	_assert_eq(selected_layer.level_document_resource, document, "NODE-23 auto-link OFF blocks node-owned write-back")
+	writeback = workspace.selected_hex_tile_map_writeback_snapshot()
+	_assert_true(not bool(writeback["can_writeback"]), "NODE-23 write-back snapshot blocks when auto-link is OFF")
+	_assert_eq(String(writeback["blocked_reason"]), "Auto-link is off.", "NODE-23 auto-link OFF reason is visible")
+
+	workspace.clear_selected_hex_tile_map_layer("test.node23.clear")
+	var no_selection_result = workspace.apply_workspace_asset_context_to_selected_hex_tile_map(
+		HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT,
+		"test.node23.no_selection"
+	)
+	_assert_true(not bool(no_selection_result["ok"]), "NODE-23 no selected HexTileMap blocks explicit write-back")
+	_assert_eq(String(no_selection_result["blocked_reason"]), "No HexTileMap selected", "NODE-23 no selected reason is visible")
 
 	scene_root.queue_free()
 	workspace.queue_free()
