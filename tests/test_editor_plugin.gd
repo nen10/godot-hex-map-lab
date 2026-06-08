@@ -318,6 +318,7 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 	_assert_eq(workspace.generation_dock().editor_session_state(), session, "workspace forwards session to generation component")
 	_assert_eq(workspace.edit_tool().editor_session_state(), session, "workspace forwards session to paint/edit component")
 	_assert_eq(workspace.sample_settings_panel().editor_session_state(), session, "workspace forwards session to sample settings component")
+	_assert_true(workspace.tab_has_component("Layers", "layer_stack_role_panel"), "workspace mounts Layers role editor component")
 	var asset_tab_expectations := [
 		{"tab": "Resources", "component": "document_asset_panel", "count": 5, "slot": "level_document"},
 		{"tab": "Catalog", "component": "catalog_asset_panel", "count": 1, "slot": "tile_catalog"},
@@ -705,7 +706,7 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 			"slots": PackedStringArray([HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG]),
 		},
 		"Layers": {
-			"components": PackedStringArray(["layer_stack_asset_panel"]),
+			"components": PackedStringArray(["layer_stack_role_panel", "layer_stack_asset_panel"]),
 			"slots": PackedStringArray([HexMapWorkspaceAssetContext.SLOT_LAYER_STACK]),
 		},
 		"Validate": {
@@ -1245,9 +1246,33 @@ func _test_layer_stack_asset_screen_manages_project_stack_without_samples() -> v
 		"Layers screen exposes layer stack asset component"
 	)
 	_assert_true(
+		PackedStringArray(snapshot["component_ids"]).has("layer_stack_role_panel"),
+		"TAB-53 Layers screen exposes role editor component"
+	)
+	_assert_true(bool(snapshot["role_component_present"]), "TAB-53 Layers snapshot confirms role editor component")
+	_assert_true(
 		PackedStringArray(snapshot["asset_slot_ids"]).has(HexMapWorkspaceAssetContext.SLOT_LAYER_STACK),
 		"Layers screen exposes layer stack slot"
 	)
+	for required_role in [
+		HexLayerStackResource.ROLE_TERRAIN,
+		HexLayerStackResource.ROLE_OVERLAY,
+		HexLayerStackResource.ROLE_OBJECT,
+		HexLayerStackResource.ROLE_DEBUG,
+		HexLayerStackResource.ROLE_COLLISION,
+		HexLayerStackResource.ROLE_NAVIGATION,
+	]:
+		_assert_true(
+			PackedStringArray(snapshot["required_role_names"]).has(required_role),
+			"TAB-53 Layers required role is visible: %s" % required_role
+		)
+	var initial_relationship = snapshot["relationship"] as Dictionary
+	_assert_eq(initial_relationship["status"], "no_selected_hex_tile_map", "TAB-53 Layers starts with selected node empty state")
+	var initial_counts = snapshot["role_status_counts"] as Dictionary
+	_assert_eq(initial_counts["total"], 0, "TAB-53 Layers does not fake role rows before a project stack is selected")
+	var initial_actions = snapshot["layer_actions"] as Dictionary
+	_assert_true(not bool(initial_actions["create_missing_layers"]), "TAB-53 Create Missing Layers starts unavailable")
+	_assert_true(not bool(initial_actions["apply_document"]), "TAB-53 Apply Document starts unavailable")
 	_assert_true(PackedStringArray(snapshot["template_candidates"]).has("standard"), "Layers screen exposes standard template candidate")
 	_assert_true(PackedStringArray(snapshot["template_candidates"]).has("minimal"), "Layers screen exposes minimal template candidate")
 	_assert_true(not bool(snapshot["sample_template_present"]), "Layers screen has no sample template default")
@@ -1298,6 +1323,12 @@ func _test_layer_stack_asset_screen_manages_project_stack_without_samples() -> v
 	root.add_child(scene_root)
 	await process_frame
 
+	workspace.set_selected_hex_tile_map_layer(layer)
+	workspace.workspace_asset_context().set_layer_stack(duplicated_stack)
+	var writeback_result = workspace.apply_workspace_asset_context_to_selected_hex_tile_map(HexMapWorkspaceAssetContext.SLOT_LAYER_STACK)
+	_assert_true(bool(writeback_result["ok"]), "TAB-53 Layers writes project stack back to selected HexTileMap")
+	_assert_eq(layer.layer_stack_resource, duplicated_stack, "TAB-53 selected HexTileMap owns the active Layer Stack")
+
 	var pick_result = workspace.pick_layer_stack_target_root(scene_root)
 	_assert_true(bool(pick_result["ok"]), "Layers screen picks target from scene root")
 	_assert_eq(pick_result["target_layer"], layer, "Layers screen resolves scene HexTileMapLayer target")
@@ -1306,8 +1337,32 @@ func _test_layer_stack_asset_screen_manages_project_stack_without_samples() -> v
 	var document_result = workspace.set_layer_stack_document(document)
 	_assert_true(bool(document_result["ok"]), "Layers screen accepts document for layer stack actions")
 	snapshot = workspace.layer_stack_screen_snapshot()
+	var relationship = snapshot["relationship"] as Dictionary
+	_assert_eq(relationship["status"], "linked", "TAB-53 Layers shows selected node and stack are linked")
+	_assert_true(bool(relationship["target_matches_selected"]), "TAB-53 Layers target matches selected HexTileMap")
+	var action_state = snapshot["layer_actions"] as Dictionary
+	_assert_true(bool(action_state["create_missing_layers"]), "TAB-53 Layers exposes Create Missing Layers when role nodes are missing")
+	_assert_true(bool(action_state["apply_document"]), "TAB-53 Layers exposes Apply Document when target and document are ready")
+	var status_counts = snapshot["role_status_counts"] as Dictionary
+	_assert_eq(status_counts["total"], 7, "TAB-53 Layers counts standard stack role rows")
+	_assert_true(int(status_counts["missing"]) > 0, "TAB-53 Layers counts missing child role layers")
 	var terrain_row = _layer_stack_row_for_role(snapshot["role_rows"], HexLayerStackResource.ROLE_TERRAIN)
 	_assert_eq(terrain_row["status"], "missing", "Layers screen reports missing terrain role before create")
+	_assert_true(bool(terrain_row["visible"]), "TAB-53 terrain row shows visibility")
+	_assert_eq(terrain_row["locked"], false, "TAB-53 terrain row shows locked state")
+	_assert_eq(terrain_row["writable"], "document", "TAB-53 terrain row shows writable source")
+	var collision_row = _layer_stack_row_for_role(snapshot["role_rows"], HexLayerStackResource.ROLE_COLLISION)
+	_assert_eq(collision_row["visible"], false, "TAB-53 collision row shows hidden visibility state")
+	for role_name in [
+		HexLayerStackResource.ROLE_OVERLAY,
+		HexLayerStackResource.ROLE_OBJECT,
+		HexLayerStackResource.ROLE_DEBUG,
+		HexLayerStackResource.ROLE_COLLISION,
+		HexLayerStackResource.ROLE_NAVIGATION,
+	]:
+		var role_row = _layer_stack_row_for_role(snapshot["role_rows"], role_name)
+		_assert_eq(role_row["role"], role_name, "TAB-53 Layers shows role row: %s" % role_name)
+		_assert_true(["missing", "ok"].has(role_row["status"]), "TAB-53 Layers row has readable status: %s" % role_name)
 	_assert_eq(
 		String((snapshot["target_status"] as Dictionary).get("target_class", "")),
 		"HexTileMapLayer",
@@ -1318,6 +1373,11 @@ func _test_layer_stack_asset_screen_manages_project_stack_without_samples() -> v
 	_assert_true(bool(create_layers_result["ok"]), "Layers screen creates missing target layers")
 	terrain_row = _layer_stack_row_for_role(create_layers_result["role_rows"], HexLayerStackResource.ROLE_TERRAIN)
 	_assert_eq(terrain_row["status"], "ok", "Layers screen reports created terrain role")
+	snapshot = workspace.layer_stack_screen_snapshot()
+	status_counts = snapshot["role_status_counts"] as Dictionary
+	_assert_eq(status_counts["missing"], 0, "TAB-53 Layers reports no missing roles after creating child layers")
+	action_state = snapshot["layer_actions"] as Dictionary
+	_assert_true(not bool(action_state["create_missing_layers"]), "TAB-53 Create Missing Layers disables after all child layers exist")
 	var terrain_node = layer.layer_for_stack_role(HexLayerStackResource.ROLE_TERRAIN) as TileMapLayer
 	_assert_true(terrain_node != null, "Layers screen creates terrain target node")
 

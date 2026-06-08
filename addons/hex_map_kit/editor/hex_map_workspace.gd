@@ -39,6 +39,10 @@ var _resources_group_labels: Dictionary = {}
 var _catalog_detail_panel: VBoxContainer
 var _catalog_detail_status_label: Label
 var _catalog_detail_entry_label: Label
+var _layer_stack_role_panel: VBoxContainer
+var _layer_stack_role_status_label: Label
+var _layer_stack_role_relationship_label: Label
+var _layer_stack_role_rows_label: Label
 var _missing_unique_resources_panel: VBoxContainer
 var _missing_unique_resources_status_label: Label
 var _missing_unique_resources_save_directory_label: Label
@@ -953,22 +957,144 @@ func layer_stack_screen_snapshot() -> Dictionary:
 		HexMapWorkspaceAssetContext.SLOT_LAYER_STACK
 	)
 	var target_status := _edit_tool.target_readiness_status() if _edit_tool != null else {}
-	var role_rows := _edit_tool.layer_stack_rows() if _edit_tool != null else []
+	var role_rows: Array = []
+	if _edit_tool != null and stack != null:
+		for row in _edit_tool.layer_stack_rows():
+			role_rows.append(row)
+	var role_status_counts := _layer_stack_role_status_counts(role_rows)
+	var relationship := _layer_stack_relationship_snapshot(stack)
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_LAYERS,
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_LAYERS),
 		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_LAYERS),
 		"layer_stack": stack,
 		"layer_stack_slot": stack_slot,
+		"role_component_present": tab_has_component(HexMapWorkspaceComponentRegistry.TAB_LAYERS, "layer_stack_role_panel"),
 		"stack_id": stack.stack_id if stack != null else "",
 		"display_name": stack.display_name if stack != null else "",
 		"role_count": stack.layers.size() if stack != null else 0,
 		"role_names": stack.role_names() if stack != null else PackedStringArray(),
+		"required_role_names": _layer_stack_required_role_names(),
 		"role_rows": role_rows,
+		"role_status_counts": role_status_counts,
 		"target_status": target_status,
 		"target_layer": _edit_tool.target_layer() if _edit_tool != null else null,
+		"selected_hex_tile_map": selected_hex_tile_map_snapshot(),
+		"relationship": relationship,
+		"layer_actions": _layer_stack_action_availability(stack, target_status, role_status_counts),
 		"template_candidates": PackedStringArray(["standard", "minimal"]),
 		"sample_template_present": false,
+	}
+
+
+func _layer_stack_required_role_names() -> PackedStringArray:
+	return PackedStringArray([
+		HexLayerStackResource.ROLE_TERRAIN,
+		HexLayerStackResource.ROLE_OVERLAY,
+		HexLayerStackResource.ROLE_OBJECT,
+		HexLayerStackResource.ROLE_DEBUG,
+		HexLayerStackResource.ROLE_COLLISION,
+		HexLayerStackResource.ROLE_NAVIGATION,
+	])
+
+
+func _layer_stack_role_status_counts(role_rows: Array) -> Dictionary:
+	var counts := {
+		"total": role_rows.size(),
+		"ok": 0,
+		"missing": 0,
+		"visible": 0,
+		"hidden": 0,
+		"locked": 0,
+		"writable": 0,
+	}
+	for row in role_rows:
+		if not row is Dictionary:
+			continue
+		var status := String((row as Dictionary).get("status", ""))
+		if status == "ok":
+			counts["ok"] = int(counts["ok"]) + 1
+		elif status == "missing":
+			counts["missing"] = int(counts["missing"]) + 1
+		if bool((row as Dictionary).get("visible", false)):
+			counts["visible"] = int(counts["visible"]) + 1
+		else:
+			counts["hidden"] = int(counts["hidden"]) + 1
+		if bool((row as Dictionary).get("locked", false)):
+			counts["locked"] = int(counts["locked"]) + 1
+		if String((row as Dictionary).get("writable", "")) != "" and not bool((row as Dictionary).get("locked", false)):
+			counts["writable"] = int(counts["writable"]) + 1
+	return counts
+
+
+func _layer_stack_relationship_snapshot(stack: HexLayerStackResource) -> Dictionary:
+	var selected_snapshot := selected_hex_tile_map_snapshot()
+	var selected := bool(selected_snapshot.get("selected", false))
+	var selected_node = selected_snapshot.get("selected_node", null) as HexTileMapLayer
+	var target = _edit_tool.target_layer() if _edit_tool != null else null
+	var writeback = selected_snapshot.get("writeback", {}) as Dictionary
+	var relationships = writeback.get("relationships", {}) as Dictionary
+	var node_relationship = relationships.get(
+		HexMapWorkspaceAssetContext.SLOT_LAYER_STACK,
+		_node_owned_relationship(stack, selected_node.layer_stack_resource if selected_node != null else null, "Selected HexTileMap Layer Stack")
+	) as Dictionary
+	var status := String(node_relationship.get("status", "missing"))
+	var message := "Layer Stack is linked to the selected HexTileMap."
+	if not selected:
+		status = "no_selected_hex_tile_map"
+		message = "Select a HexTileMap node to target layer role actions."
+	elif stack == null:
+		status = "missing_layer_stack"
+		message = "Create or select a Layer Stack for this HexTileMap."
+	elif target == null:
+		status = "no_target_hex_tile_map"
+		message = "Select a HexTileMap target before creating or applying child layers."
+	elif target != selected_node:
+		status = "target_mismatch"
+		message = "Layer target differs from the selected HexTileMap."
+	elif status == "workspace_pending_node_writeback":
+		message = "Layer Stack is selected in the workspace and ready to write to the selected HexTileMap."
+	elif status == "node_only":
+		message = "Selected HexTileMap has a Layer Stack that is not in the workspace context."
+	elif status == "different":
+		message = "Workspace Layer Stack differs from the selected HexTileMap."
+	elif status == "missing":
+		message = "Create or select a Layer Stack for this HexTileMap."
+	return {
+		"status": status,
+		"message": message,
+		"selected_node": selected_node,
+		"selected_node_name": selected_node.name if selected_node != null else "",
+		"selected_node_path": String(selected_snapshot.get("node_path", "")),
+		"target_layer": target,
+		"target_node_name": target.name if target != null else "",
+		"target_matches_selected": selected and target == selected_node,
+		"layer_stack": stack,
+		"node_layer_stack": node_relationship.get("node_resource", null),
+		"workspace_layer_stack": node_relationship.get("workspace_resource", null),
+		"relationship": node_relationship,
+	}
+
+
+func _layer_stack_action_availability(
+	stack: HexLayerStackResource,
+	target_status: Dictionary,
+	role_status_counts: Dictionary
+) -> Dictionary:
+	var target_is_hex := bool(target_status.get("is_hex_tile_map_layer", false))
+	var document_present := bool(target_status.get("document_present", false))
+	var missing_count := int(role_status_counts.get("missing", 0))
+	var ok_count := int(role_status_counts.get("ok", 0))
+	var blocked_reason := ""
+	if stack == null:
+		blocked_reason = "Layer Stack is not selected."
+	elif not target_is_hex:
+		blocked_reason = "Target HexTileMap is not selected."
+	return {
+		"create_missing_layers": stack != null and target_is_hex and missing_count > 0,
+		"apply_document": stack != null and target_is_hex and document_present,
+		"clear_role": stack != null and target_is_hex and ok_count > 0,
+		"blocked_reason": blocked_reason,
 	}
 
 
@@ -1006,6 +1132,7 @@ func clear_layer_stack() -> Dictionary:
 	var result := panel.clear_asset_slot(HexMapWorkspaceAssetContext.SLOT_LAYER_STACK)
 	if _edit_tool != null:
 		_edit_tool.set_layer_stack_resource(null, false)
+	_refresh_layer_stack_role_panel()
 	return result
 
 
@@ -1022,6 +1149,7 @@ func duplicate_layer_stack_template_to_project(template_id: String, path: String
 		stack.resource_path = actual_path
 		workspace_asset_context().set_layer_stack(stack)
 		_sync_workspace_asset_context()
+	_refresh_layer_stack_role_panel()
 	return {
 		"ok": error == OK,
 		"error": error,
@@ -1036,6 +1164,7 @@ func pick_layer_stack_target_root(scene_root: Node) -> Dictionary:
 	if _edit_tool == null or scene_root == null:
 		return _layer_stack_action_result(false, ERR_INVALID_PARAMETER, "")
 	_edit_tool.refresh_target_layer_options(scene_root)
+	_refresh_layer_stack_role_panel()
 	return {
 		"ok": _edit_tool.target_layer() != null,
 		"error": OK if _edit_tool.target_layer() != null else ERR_DOES_NOT_EXIST,
@@ -1049,6 +1178,7 @@ func set_layer_stack_target_layer(layer: Node) -> Dictionary:
 	if _edit_tool == null:
 		return _layer_stack_action_result(false, ERR_UNAVAILABLE, "")
 	_edit_tool.set_target_layer(layer)
+	_refresh_layer_stack_role_panel()
 	return {
 		"ok": _edit_tool.target_layer() != null,
 		"error": OK if _edit_tool.target_layer() != null else ERR_DOES_NOT_EXIST,
@@ -1062,6 +1192,7 @@ func set_layer_stack_document(document: HexMapDocumentResource) -> Dictionary:
 	if _edit_tool == null or document == null:
 		return _layer_stack_action_result(false, ERR_INVALID_PARAMETER, "")
 	_edit_tool.set_document(document)
+	_refresh_layer_stack_role_panel()
 	return {
 		"ok": true,
 		"error": OK,
@@ -1074,6 +1205,7 @@ func create_missing_layer_stack_layers() -> Dictionary:
 	if _edit_tool == null:
 		return _layer_stack_action_result(false, ERR_UNAVAILABLE, "")
 	var ok := _edit_tool.create_missing_layer_stack_layers()
+	_refresh_layer_stack_role_panel()
 	return {
 		"ok": ok,
 		"error": OK if ok else ERR_UNAVAILABLE,
@@ -1086,6 +1218,7 @@ func apply_layer_stack_document_to_target() -> Dictionary:
 	if _edit_tool == null:
 		return _layer_stack_action_result(false, ERR_UNAVAILABLE, "")
 	var ok := _edit_tool.apply_layer_stack_document_to_target()
+	_refresh_layer_stack_role_panel()
 	return {
 		"ok": ok,
 		"error": OK if ok else ERR_UNAVAILABLE,
@@ -1098,6 +1231,7 @@ func clear_layer_stack_role(role: String) -> Dictionary:
 	if _edit_tool == null:
 		return _layer_stack_action_result(false, ERR_UNAVAILABLE, "")
 	var ok := _edit_tool.clear_layer_stack_role(role)
+	_refresh_layer_stack_role_panel()
 	return {
 		"ok": ok,
 		"error": OK if ok else ERR_UNAVAILABLE,
@@ -1686,6 +1820,7 @@ func _mount_workspace_asset_panels() -> void:
 			_slot_row(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, "Tile Catalog"),
 		]
 	)
+	_mount_layer_stack_role_panel()
 	_mount_asset_panel(
 		HexMapWorkspaceComponentRegistry.TAB_LAYERS,
 		"layer_stack_asset_panel",
@@ -1797,6 +1932,39 @@ func _mount_catalog_detail_panel() -> void:
 		_catalog_detail_panel
 	)
 	_refresh_catalog_detail_panel()
+
+
+func _mount_layer_stack_role_panel() -> void:
+	var page = _tab_pages.get(HexMapWorkspaceComponentRegistry.TAB_LAYERS, null)
+	if page == null or _layer_stack_role_panel != null:
+		return
+	_layer_stack_role_panel = VBoxContainer.new()
+	_layer_stack_role_panel.name = "Layer Stack Role Panel"
+	_layer_stack_role_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var title := Label.new()
+	title.text = "Layer Stack Roles"
+	_layer_stack_role_panel.add_child(title)
+
+	_layer_stack_role_status_label = Label.new()
+	_layer_stack_role_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_layer_stack_role_panel.add_child(_layer_stack_role_status_label)
+
+	_layer_stack_role_relationship_label = Label.new()
+	_layer_stack_role_relationship_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_layer_stack_role_panel.add_child(_layer_stack_role_relationship_label)
+
+	_layer_stack_role_rows_label = Label.new()
+	_layer_stack_role_rows_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_layer_stack_role_panel.add_child(_layer_stack_role_rows_label)
+
+	(page as Control).add_child(_layer_stack_role_panel)
+	_register_tab_component(
+		HexMapWorkspaceComponentRegistry.TAB_LAYERS,
+		"layer_stack_role_panel",
+		_layer_stack_role_panel
+	)
+	_refresh_layer_stack_role_panel()
 
 
 func _mount_asset_panel(
@@ -2691,6 +2859,7 @@ func _refresh_selected_hex_tile_map_context() -> void:
 	_selected_hex_tile_map_auto_link_label.text = String(snapshot.get("auto_link_text", "Auto-link: On"))
 	_selected_hex_tile_map_auto_link_label.tooltip_text = "Workspace follows the selected HexTileMap node."
 	_refresh_resources_context_panel()
+	_refresh_layer_stack_role_panel()
 	_refresh_missing_unique_resources_panel()
 
 
@@ -2736,6 +2905,63 @@ func _refresh_catalog_detail_panel() -> void:
 			]
 		else:
 			_catalog_detail_entry_label.text = String(entry_detail.get("preview_unavailable_reason", "No catalog entry selected."))
+
+
+func _refresh_layer_stack_role_panel() -> void:
+	if _layer_stack_role_panel == null:
+		return
+	var snapshot := layer_stack_screen_snapshot()
+	var counts = snapshot.get("role_status_counts", {}) as Dictionary
+	var relationship = snapshot.get("relationship", {}) as Dictionary
+	var actions = snapshot.get("layer_actions", {}) as Dictionary
+	if _layer_stack_role_status_label != null:
+		_layer_stack_role_status_label.text = "Layer Stack: %s | Roles: %d | Missing: %d | Locked: %d | Writable: %d" % [
+			_layer_stack_display_label(snapshot.get("layer_stack", null) as HexLayerStackResource),
+			int(counts.get("total", 0)),
+			int(counts.get("missing", 0)),
+			int(counts.get("locked", 0)),
+			int(counts.get("writable", 0)),
+		]
+	if _layer_stack_role_relationship_label != null:
+		_layer_stack_role_relationship_label.text = "%s | Create Missing: %s | Apply Document: %s" % [
+			String(relationship.get("message", "")),
+			_bool_label(bool(actions.get("create_missing_layers", false))),
+			_bool_label(bool(actions.get("apply_document", false))),
+		]
+	if _layer_stack_role_rows_label != null:
+		var rows = snapshot.get("role_rows", []) as Array
+		_layer_stack_role_rows_label.text = _layer_stack_role_rows_text(rows)
+
+
+func _layer_stack_display_label(stack: HexLayerStackResource) -> String:
+	if stack == null:
+		return "Not selected"
+	if stack.display_name != "":
+		return stack.display_name
+	if stack.stack_id != "":
+		return stack.stack_id
+	return "Layer Stack"
+
+
+func _layer_stack_role_rows_text(rows: Array) -> String:
+	if rows.is_empty():
+		return "No role rows until a Layer Stack is selected."
+	var parts := PackedStringArray()
+	for row in rows:
+		if not row is Dictionary:
+			continue
+		parts.append("%s:%s visible=%s locked=%s writable=%s" % [
+			String((row as Dictionary).get("role", "")),
+			String((row as Dictionary).get("status", "")),
+			_bool_label(bool((row as Dictionary).get("visible", false))),
+			_bool_label(bool((row as Dictionary).get("locked", false))),
+			String((row as Dictionary).get("writable", "")),
+		])
+	return _join_text(parts, " | ")
+
+
+func _bool_label(value: bool) -> String:
+	return "yes" if value else "no"
 
 
 func _refresh_missing_unique_resources_panel() -> void:
@@ -3030,6 +3256,10 @@ func _sync_workspace_asset_context() -> void:
 		_generation_dock.set_workspace_asset_context(context)
 	if _edit_tool != null:
 		_edit_tool.set_workspace_asset_context(context)
+	_refresh_resources_context_panel()
+	_refresh_catalog_detail_panel()
+	_refresh_layer_stack_role_panel()
+	_refresh_missing_unique_resources_panel()
 
 
 func _canonical_tab_name(tab_name: String) -> String:

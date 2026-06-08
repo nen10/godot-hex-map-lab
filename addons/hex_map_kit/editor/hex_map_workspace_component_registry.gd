@@ -66,6 +66,7 @@ static func component_rows() -> Array[Dictionary]:
 			"catalog",
 			PackedStringArray([HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG])
 		),
+		_component(TAB_LAYERS, "layer_stack_role_panel", "VBoxContainer", "LayerStackRolePanel", "layers"),
 		_component(
 			TAB_LAYERS,
 			"layer_stack_asset_panel",
