@@ -89,9 +89,9 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `PERF-60` | `READY` | `UIR-01` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/PERF-60_GENERATE_GLOBAL_UPDATE_PROFILE/` | Generate/global update performance profile | `docs/review/roadmap/GENERATE_UPDATE_PERFORMANCE_PROFILE_2026-06-08.md`, Generate/apply/validation profiling notes | Heavy operations are classified as redraw/generation/apply/validation; UI freeze causes are identified; improvement candidates are prioritized. |
-| `PERF-61` | `BACKLOG` | `PERF-60` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/PERF-61_PROGRESS_AND_BUSY_UI/` | Progress and busy UI | Generate/apply/validation UI, busy overlay/progress helpers, tests | Long operations show start/progress/completion through ProgressBar/busy overlay/current step text; UX is not distorted for progress reporting. |
-| `PERF-62` | `BACKLOG` | `PERF-60` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/PERF-62_INCREMENTAL_UPDATE_AND_DEBOUNCE/` | Incremental update and debounce | Generate/apply/redraw update paths, debounce/cache helpers, performance tests | Continuous changes avoid repeated heavy full updates; visible wait time drops; behavior stays consistent with progress UI. |
+| `PERF-60` | `COMPLETE` | `UIR-01` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/PERF-60_GENERATE_GLOBAL_UPDATE_PROFILE/` | Generate/global update performance profile | `docs/review/roadmap/GENERATE_UPDATE_PERFORMANCE_PROFILE_2026-06-08.md`, Generate/apply/validation profiling notes | Heavy operations are classified as redraw/generation/apply/validation; UI freeze causes are identified; improvement candidates are prioritized. |
+| `PERF-61` | `READY` | `PERF-60` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/PERF-61_PROGRESS_AND_BUSY_UI/` | Progress and busy UI | Generate/apply/validation UI, busy overlay/progress helpers, tests | Long operations show start/progress/completion through ProgressBar/busy overlay/current step text; UX is not distorted for progress reporting. |
+| `PERF-62` | `READY` | `PERF-60` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/PERF-62_INCREMENTAL_UPDATE_AND_DEBOUNCE/` | Incremental update and debounce | Generate/apply/redraw update paths, debounce/cache helpers, performance tests | Continuous changes avoid repeated heavy full updates; visible wait time drops; behavior stays consistent with progress UI. |
 
 ---
 
@@ -148,7 +148,7 @@ acceptance / test path:
 
 ## 12. Current pointer
 
-Current recommended next task: `PERF-60`.
+Current recommended next task: `PERF-61`.
 
 Reason:
 
@@ -172,7 +172,9 @@ Reason:
 - `TAB-55` is complete.
 - `TAB-56` is complete.
 - `TAB-57` is complete.
-- `PERF-60` is the first READY task in queue order.
+- `PERF-60` is complete.
+- `PERF-61` and `PERF-62` were promoted to READY because `PERF-60` is complete.
+- `PERF-61` is the first READY task in queue order.
 - `INFO-70`, `INFO-71`, and `GEN-80` are also READY, but they appear later in the queue.
 
 ---
@@ -509,3 +511,17 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_workspace_component_registry.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/TAB-57_TEST_RESULT_2026-06-08.md`
+
+### PERF-60 Generate/global update performance profile
+
+proof:
+  plan: `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/PERF-60_GENERATE_GLOBAL_UPDATE_PROFILE/`
+  review: `docs/review/autopilot/PERF-60_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+    - `docs/review/roadmap/GENERATE_UPDATE_PERFORMANCE_PROFILE_2026-06-08.md`
+  major files:
+    - `docs/review/roadmap/GENERATE_UPDATE_PERFORMANCE_PROFILE_2026-06-08.md`
+    - `docs/review/autopilot/PERF-60_TEST_RESULT_2026-06-08.md`
