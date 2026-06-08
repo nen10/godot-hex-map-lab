@@ -365,7 +365,7 @@ Resource選択はするが、選択中HexTileMapへリンクしない通常ユ�
 
 #### `UIR-00_ADOPT_FIRST_IMPRESSION_FEEDBACK`
 
-status: `READY`  
+status: `COMPLETE`  
 dependencies: none
 
 目的:
@@ -388,7 +388,7 @@ Acceptance:
 
 #### `UIR-01_CURRENT_VISIBLE_UI_INVENTORY`
 
-status: `BACKLOG`  
+status: `READY`  
 dependencies: `UIR-00_ADOPT_FIRST_IMPRESSION_FEEDBACK`
 
 目的:
@@ -487,7 +487,7 @@ Acceptance:
 
 #### `NODE-20_HEX_TILE_MAP_RESOURCE_OWNERSHIP_POLICY`
 
-status: `BACKLOG`  
+status: `READY`  
 dependencies: `UIR-00_ADOPT_FIRST_IMPRESSION_FEEDBACK`
 
 目的:

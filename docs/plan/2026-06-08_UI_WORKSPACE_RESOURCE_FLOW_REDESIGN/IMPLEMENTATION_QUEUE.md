@@ -25,8 +25,8 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `UIR-00` | `READY` | none | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/UIR-00_ADOPT_FIRST_IMPRESSION_FEEDBACK/` | First impression feedback adoption | `AGENTS.md`, `docs/policy/IMPLEMENTATION_POLICY.md`, `docs/policy/TEST_DESIGN_POLICY.md`, `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/ROADMAP.md` | Sample is learning / duplicate source, not execution fallback; committed dist freshness is final process step, not normal test; UI first impression outranks headless API availability. |
-| `UIR-01` | `BACKLOG` | `UIR-00` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/UIR-01_CURRENT_VISIBLE_UI_INVENTORY/` | Current visible UI inventory | `docs/review/roadmap/WORKSPACE_VISIBLE_UI_INVENTORY_2026-06-08.md`, current editor UI source/readback notes | Inventory reproduces Document/Paint/Catalog/Layers/Validate/QA/Export/Settings first impression and separates display bugs from missing design. |
+| `UIR-00` | `COMPLETE` | none | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/UIR-00_ADOPT_FIRST_IMPRESSION_FEEDBACK/` | First impression feedback adoption | `AGENTS.md`, `docs/policy/IMPLEMENTATION_POLICY.md`, `docs/policy/TEST_DESIGN_POLICY.md`, `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/ROADMAP.md` | Sample is learning / duplicate source, not execution fallback; committed dist freshness is final process step, not normal test; UI first impression outranks headless API availability. |
+| `UIR-01` | `READY` | `UIR-00` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/UIR-01_CURRENT_VISIBLE_UI_INVENTORY/` | Current visible UI inventory | `docs/review/roadmap/WORKSPACE_VISIBLE_UI_INVENTORY_2026-06-08.md`, current editor UI source/readback notes | Inventory reproduces Document/Paint/Catalog/Layers/Validate/QA/Export/Settings first impression and separates display bugs from missing design. |
 
 ---
 
@@ -43,7 +43,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `NODE-20` | `BACKLOG` | `UIR-00` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE-20_HEX_TILE_MAP_RESOURCE_OWNERSHIP_POLICY/` | HexTileMap resource ownership policy | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE_RESOURCE_OWNERSHIP_POLICY.md`, relevant resource/editor source notes | UniqueResource / SharedResource / OptionalResource are classified; noisy always-on resources are documented; Resources tab display classification can follow the policy. |
+| `NODE-20` | `READY` | `UIR-00` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE-20_HEX_TILE_MAP_RESOURCE_OWNERSHIP_POLICY/` | HexTileMap resource ownership policy | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE_RESOURCE_OWNERSHIP_POLICY.md`, relevant resource/editor source notes | UniqueResource / SharedResource / OptionalResource are classified; noisy always-on resources are documented; Resources tab display classification can follow the policy. |
 | `NODE-21` | `BACKLOG` | `NODE-20` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE-21_SELECTED_HEX_TILE_MAP_AUTO_BINDING/` | Selected HexTileMap auto-binding | `HexMapWorkspace`, `HexMapEditorSessionState`, selected node integration, editor tests | Scene Tree selection changes update Workspace context; no selected node shows `No HexTileMap selected`; auto-link is default ON; manual Link button is removed or becomes status indicator. |
 | `NODE-22` | `BACKLOG` | `NODE-21` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE-22_CREATE_MISSING_UNIQUE_RESOURCES_FLOW/` | Create missing unique resources flow | Resources tab, resource factory helpers, FileDialog/Save As helpers, editor tests | User chooses save directory and prefix; missing UniqueResources are created with default names and auto-referenced by selected HexTileMap; SharedResource is not silently created. |
 | `NODE-23` | `BACKLOG` | `NODE-21` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE-23_DOCK_SELECTION_WRITES_BACK_TO_NODE/` | Dock resource selection writes back to selected node | Workspace asset context, asset slot handlers, HexTileMap exported references, editor tests | Selecting/creating Document/Catalog/Layer Stack/Object DB/Label DB writes to node or context according to policy; node/workspace diff is visible; auto-link failures explain why. |
@@ -148,15 +148,30 @@ acceptance / test path:
 
 ## 12. Current pointer
 
-Current recommended next task: `UIR-00`.
+Current recommended next task: `UIR-01`.
 
 Reason:
 
-- `UIR-00` adopts the first-impression feedback and locks the policy choices needed by every later task.
-- No other task has dependencies satisfied.
+- `UIR-00` is complete.
+- `UIR-01` is the first READY task in queue order.
+- `NODE-20` is also READY because `UIR-00` is complete, but it appears later in the queue.
 
 ---
 
 ## 13. Completed task proof log
 
-No tasks have been completed in this queue yet.
+### UIR-00 First impression feedback adoption
+
+proof:
+  plan: `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/UIR-00_ADOPT_FIRST_IMPRESSION_FEEDBACK/`
+  review: `docs/review/autopilot/UIR-00_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `AGENTS.md`
+    - `docs/policy/IMPLEMENTATION_POLICY.md`
+    - `docs/policy/TEST_DESIGN_POLICY.md`
+    - `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/ROADMAP.md`
+  major files:
+    - `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/IMPLEMENTATION_QUEUE.md`
+    - `docs/review/autopilot/UIR-00_TEST_RESULT_2026-06-08.md`

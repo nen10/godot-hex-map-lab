@@ -8,6 +8,7 @@
 
 - テストは UX / API の確認手段であり、設計根拠ではない。
 - headless test の都合で悪い UI を残さない。
+- UI first impression を要する task は、headless API availability だけを completion proof にしない。
 - 旧 UI widget、path text、numeric fallback、migration wording を保存するだけの test は更新または削除する。
 - No sample-only completion: sample preset success だけで feature complete と判定しない。sample だけで動く UI は `sample-only prototype` として扱う。
 - production feature screen の test は、sample mode OFF の project asset selection state、user-selected Resource、または未設定/validation state を確認する。sample mode ON/OFF の挙動は別テストで扱う。
@@ -22,7 +23,7 @@
 | Resource/API | canonical save/load/validation。 |
 | UI headless | 画面の内部形状ではなく、ユーザー目的に接続する state。 |
 | Debug scene | debug scene の状態切替と表示対象データ。 |
-| Package | addon-only manifest、sample asset、clean project load。 |
+| Package | addon-only manifest、sample asset、clean project load。Committed `dist` freshness は final process step で確認し、通常 task の test gate にはしない。 |
 
 ## Parallel execution
 

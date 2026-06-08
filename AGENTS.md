@@ -14,12 +14,14 @@ Read the smallest relevant set.
 
 - The addon is unpublished; compatibility is not a default requirement.
 - Core functionality is stable. Most current work is about clean Resource/API and Editor UX presentation.
+- UI first impression is completion evidence for workspace UI tasks; headless API availability alone is not enough.
 - UI/API design is based on game-development UX rationality, not headless-test convenience.
 - Old UI tests may be deleted or rewritten when they preserve bad UX.
 - No sample-only completion: sample preset success is not production feature completion. A UI path that only works with bundled samples is a `sample-only prototype` unless the active roadmap explicitly scopes the task to sample/package integrity.
 - Feature completion requires arbitrary project asset selection or a visible unconfigured/validation state; samples are learning/onboarding assets, not silent defaults.
 - Fallback, hack, legacy, migration wording, path text, raw JSON, and numeric fallback are not specification unless the active roadmap explicitly keeps them.
 - During CLEAN UI work, do not create new analog tests unless the user asks.
+- Committed `dist` freshness is handled by the roadmap final process step, not by normal per-task testing.
 
 ## Which document to use
 
