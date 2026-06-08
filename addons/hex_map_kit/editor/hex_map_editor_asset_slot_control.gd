@@ -6,6 +6,9 @@ const HexMapEditorAssetSlotState = preload("res://addons/hex_map_kit/editor/hex_
 const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
 const HexMapWorkspaceAssetResourceFactory = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_resource_factory.gd")
 
+const ACTION_CREATE_NEW := "create_new"
+const ACTION_APPLY_SAMPLE := "apply_sample"
+
 signal select_requested(slot_id: String)
 signal create_requested(slot_id: String)
 signal create_path_selected(slot_id: String, path: String)
@@ -154,6 +157,51 @@ func select_create_path(path: String) -> void:
 	_on_create_file_selected(path)
 
 
+func press_action(action_id: String, options: Dictionary = {}) -> Dictionary:
+	var before := _state.snapshot()
+	var result := {
+		"ok": false,
+		"error": ERR_INVALID_PARAMETER,
+		"action_id": action_id,
+		"slot_id": _state.slot_id,
+		"before": before,
+		"after": before,
+	}
+	match action_id:
+		ACTION_CREATE_NEW:
+			if not bool(before.get("allows_create_new", false)):
+				result["error"] = ERR_UNAVAILABLE
+				return result
+			var path := String(options.get("path", ""))
+			create_requested.emit(_state.slot_id)
+			if path != "":
+				_on_create_file_selected(path)
+				result["ok"] = true
+				result["error"] = OK
+				result["path"] = path
+			else:
+				var dialog_opened := popup_create_new_dialog()
+				result["ok"] = dialog_opened
+				result["error"] = OK if dialog_opened else ERR_UNAVAILABLE
+			result["after"] = _state.snapshot()
+			return result
+		ACTION_APPLY_SAMPLE:
+			if not (bool(before.get("allows_sample", false)) and bool(before.get("sample_available", false))):
+				result["error"] = ERR_UNAVAILABLE
+				return result
+			var applied := _state.apply_sample_source()
+			_sync_picker()
+			if applied:
+				sample_requested.emit(_state.slot_id)
+			var after := _state.snapshot()
+			result["after"] = after
+			result["ok"] = after.get("current_resource", null) == before.get("sample_resource", null)
+			result["error"] = OK if bool(result["ok"]) else ERR_UNAVAILABLE
+			return result
+		_:
+			return result
+
+
 func _build_ui() -> void:
 	if _title_label != null:
 		return
@@ -273,8 +321,7 @@ func _on_select_pressed() -> void:
 
 
 func _on_create_pressed() -> void:
-	create_requested.emit(_state.slot_id)
-	popup_create_new_dialog()
+	press_action(ACTION_CREATE_NEW)
 
 
 func _on_open_pressed() -> void:
@@ -295,8 +342,7 @@ func _on_validate_pressed() -> void:
 
 
 func _on_sample_pressed() -> void:
-	if _state.apply_sample_source():
-		sample_requested.emit(_state.slot_id)
+	press_action(ACTION_APPLY_SAMPLE)
 
 
 func _can_use_editor_resource_picker() -> bool:

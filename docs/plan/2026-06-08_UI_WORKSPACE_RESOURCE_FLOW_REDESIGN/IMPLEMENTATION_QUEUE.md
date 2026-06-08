@@ -57,7 +57,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 |---|---|---|---|---|---|---|
 | `ASSET-30` | `COMPLETE` | `NODE-20` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/ASSET-30_STRICT_RESOURCE_TYPE_FILTERS/` | Strict ResourcePicker type filters | asset slot state/control, workspace asset panel, resource picker filters, editor tests | Typed slots no longer request generic `Resource`; tooltip says what to pick; type mismatch is prevented at picker stage where feasible; generic slots document why flexibility is needed. |
 | `ASSET-31` | `COMPLETE` | `LAYOUT-11`, `ASSET-30` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/ASSET-31_REMOVE_REDUNDANT_RESOURCE_ACTION_BUTTONS/` | Remove redundant resource action buttons | asset slot controls, resource rows, workspace/sample panels, editor tests | Clear/Select/Open/Validate/Link/Node buttons are removed, delegated to ResourcePicker, or kept only when the use case is necessary and implemented; no no-op buttons remain. |
-| `ASSET-32` | `READY` | `ASSET-31` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/ASSET-32_WIRE_REMAINING_ACTIONS_OR_DELETE/` | Wire remaining actions or delete them | asset slot controls, workspace asset panel, sample settings panel, action handlers, editor tests | Every remaining action has observable result from button press to workspace state change; undefined actions are deleted; tests cover signal/button path, not direct API only. |
+| `ASSET-32` | `COMPLETE` | `ASSET-31` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/ASSET-32_WIRE_REMAINING_ACTIONS_OR_DELETE/` | Wire remaining actions or delete them | asset slot controls, workspace asset panel, sample settings panel, action handlers, editor tests | Every remaining action has observable result from button press to workspace state change; undefined actions are deleted; tests cover signal/button path, not direct API only. |
 
 ---
 
@@ -65,7 +65,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `SAMPLE-40` | `BACKLOG` | `ASSET-32` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/SAMPLE-40_SETTINGS_SAMPLE_BUTTONS_FUNCTIONAL/` | Functional Settings / Samples buttons | `HexMapSampleSettingsPanel`, `HexMapWorkspace`, sample duplicator, editor tests | Open focuses/previews sample resource or is removed; Duplicate To Project chooses path, creates project copy, sets asset slot as `SOURCE_PROJECT`, and shows what changed. |
+| `SAMPLE-40` | `READY` | `ASSET-32` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/SAMPLE-40_SETTINGS_SAMPLE_BUTTONS_FUNCTIONAL/` | Functional Settings / Samples buttons | `HexMapSampleSettingsPanel`, `HexMapWorkspace`, sample duplicator, editor tests | Open focuses/previews sample resource or is removed; Duplicate To Project chooses path, creates project copy, sets asset slot as `SOURCE_PROJECT`, and shows what changed. |
 | `SAMPLE-41` | `BACKLOG` | `SAMPLE-40` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/SAMPLE-41_REMOVE_SAMPLE_FROM_MAIN_EXECUTION_FALLBACK/` | Remove sample from main execution fallback | sample settings/session state, Generate/Paint resource lookup, validation/tests | Sample mode ON does not auto-use bundled catalog for Generate/Paint execution; sample remains candidate/preview/duplicate source; direct sample selection is classified as sample with warning. |
 
 ---
@@ -148,7 +148,7 @@ acceptance / test path:
 
 ## 12. Current pointer
 
-Current recommended next task: `ASSET-32`.
+Current recommended next task: `SAMPLE-40`.
 
 Reason:
 
@@ -160,9 +160,10 @@ Reason:
 - `NODE-24` is complete.
 - `ASSET-30` is complete.
 - `ASSET-31` is complete.
-- `ASSET-32` was promoted to READY because `ASSET-31` is complete.
+- `ASSET-32` is complete.
+- `SAMPLE-40` was promoted to READY because `ASSET-32` is complete.
 - `TAB-55` and `GEN-80` were promoted to READY because `NODE-24` is complete.
-- `ASSET-32` is the first READY task in queue order.
+- `SAMPLE-40` is the first READY task in queue order.
 - `TAB-50`, `TAB-55`, `PERF-60`, `INFO-70`, and `GEN-80` are also READY, but they appear later in the queue.
 
 ---
@@ -332,3 +333,20 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_editor_asset_slot_control.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/ASSET-31_TEST_RESULT_2026-06-08.md`
+
+### ASSET-32 Wire remaining actions or delete them
+
+proof:
+  plan: `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/ASSET-32_WIRE_REMAINING_ACTIONS_OR_DELETE/`
+  review: `docs/review/autopilot/ASSET-32_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_editor_asset_slot_control.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace_asset_panel.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `addons/hex_map_kit/editor/hex_map_sample_settings_panel.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/ASSET-32_TEST_RESULT_2026-06-08.md`

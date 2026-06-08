@@ -69,6 +69,21 @@ func asset_slot_layout_snapshot(slot_id: String) -> Dictionary:
 	return control.slot_layout_snapshot()
 
 
+func press_asset_slot_action(slot_id: String, action_id: String, options: Dictionary = {}) -> Dictionary:
+	var control = _slot_controls.get(slot_id, null) as HexMapEditorAssetSlotControl
+	if control == null:
+		return {
+			"ok": false,
+			"error": ERR_DOES_NOT_EXIST,
+			"slot_id": slot_id,
+			"action_id": action_id,
+		}
+	var result := control.press_action(action_id, options)
+	result["context_resource"] = _context.asset_for_slot(slot_id) if _context != null else null
+	result["after"] = asset_slot_snapshot(slot_id)
+	return result
+
+
 func create_asset_for_slot(slot_id: String, path: String) -> Dictionary:
 	var result := HexMapWorkspaceAssetResourceFactory.create_and_save_for_slot(slot_id, path, _context)
 	_sync_slots_from_context()

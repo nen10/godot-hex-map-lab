@@ -7,8 +7,6 @@ const HexMapSampleAssetDuplicator = preload("res://addons/hex_map_kit/editor/hex
 const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
 
 signal sample_settings_changed(snapshot: Dictionary)
-signal open_sample_requested(sample_id: String, path: String)
-signal duplicate_sample_requested(sample_id: String, path: String)
 
 const SAMPLE_CATALOG_ID := "sample_catalog"
 const SAMPLE_TILE_SET_ID := "sample_tile_set"
@@ -135,22 +133,10 @@ func _build_ui() -> void:
 		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		row_control.add_child(label)
 
-		var open_button = Button.new()
-		open_button.text = "Open"
-		open_button.pressed.connect(_on_open_sample_pressed.bind(String(row["id"]), String(row["path"])))
-		row_control.add_child(open_button)
-
-		var duplicate_button = Button.new()
-		duplicate_button.text = "Duplicate To Project"
-		duplicate_button.disabled = not bool(row.get("duplicate_available", false))
-		duplicate_button.pressed.connect(_on_duplicate_sample_pressed.bind(String(row["id"]), String(row["path"])))
-		row_control.add_child(duplicate_button)
 		add_child(row_control)
 		_asset_rows.append({
 			"id": row["id"],
 			"control": row_control,
-			"open_button": open_button,
-			"duplicate_button": duplicate_button,
 		})
 
 
@@ -203,14 +189,6 @@ func _on_copy_samples_toggled(enabled: bool) -> void:
 
 func _on_debug_numeric_fallback_toggled(enabled: bool) -> void:
 	set_debug_numeric_tile_fallback_enabled(enabled)
-
-
-func _on_open_sample_pressed(sample_id: String, path: String) -> void:
-	open_sample_requested.emit(sample_id, path)
-
-
-func _on_duplicate_sample_pressed(sample_id: String, path: String) -> void:
-	duplicate_sample_requested.emit(sample_id, path)
 
 
 func _on_session_changed(key: String) -> void:

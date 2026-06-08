@@ -479,6 +479,26 @@ func tab_asset_slot_layout_snapshot(tab_name: String, slot_id: String) -> Dictio
 	return panel.asset_slot_layout_snapshot(slot_id)
 
 
+func press_asset_slot_action(
+	tab_name: String,
+	slot_id: String,
+	action_id: String,
+	options: Dictionary = {}
+) -> Dictionary:
+	var panel = _asset_panels.get(tab_name, null) as HexMapWorkspaceAssetPanel
+	if panel == null:
+		return {
+			"ok": false,
+			"error": ERR_DOES_NOT_EXIST,
+			"tab": tab_name,
+			"slot_id": slot_id,
+			"action_id": action_id,
+		}
+	var result := panel.press_asset_slot_action(slot_id, action_id, options)
+	result["tab"] = tab_name
+	return result
+
+
 func document_screen_snapshot() -> Dictionary:
 	var context := workspace_asset_context()
 	var document := context.level_document

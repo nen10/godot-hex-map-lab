@@ -101,6 +101,13 @@ class AssetCreatePathRecorder:
 		})
 
 
+class AssetSampleActionRecorder:
+	var slots: PackedStringArray = PackedStringArray()
+
+	func record(slot_id: String) -> void:
+		slots.append(slot_id)
+
+
 var _failures: Array[String] = []
 var _test_output_root := ""
 
@@ -137,6 +144,7 @@ func _run() -> void:
 	await _test_asset_slot_control_exposes_state_snapshot_contract()
 	await _test_workspace_asset_slots_use_strict_resource_type_filters()
 	await _test_workspace_asset_slot_actions_remove_redundant_buttons()
+	await _test_workspace_asset_remaining_actions_are_wired_or_deleted()
 	_test_asset_resource_factory_creates_project_resources_and_assigns_context()
 	await _test_map_edit_tool_builds_dock_controls()
 	await _test_plugin_handles_canvas_item_when_map_edit_ready()
@@ -2584,6 +2592,64 @@ func _test_workspace_asset_slot_actions_remove_redundant_buttons() -> void:
 			_assert_true(not action_texts.has("Validate"), "ASSET-31 %s/%s removes Validate action" % [tab_name, slot_id])
 			_assert_true(action_texts.has("Create New..."), "ASSET-31 %s/%s keeps Create New action" % [tab_name, slot_id])
 
+	workspace.queue_free()
+	await process_frame
+
+
+func _test_workspace_asset_remaining_actions_are_wired_or_deleted() -> void:
+	var session = HexMapEditorSessionState.new()
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	var output_dir = _test_resource_dir("asset32_remaining_actions")
+	var catalog_path = "%s/action_catalog.tres" % output_dir
+	var create_result = workspace.press_asset_slot_action(
+		"Catalog",
+		HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG,
+		HexMapEditorAssetSlotControl.ACTION_CREATE_NEW,
+		{"path": catalog_path}
+	)
+	_assert_true(bool(create_result["ok"]), "ASSET-32 Create New button path succeeds")
+	_assert_eq(int(create_result["error"]), OK, "ASSET-32 Create New button path reports OK")
+	_assert_true(ResourceLoader.exists(catalog_path), "ASSET-32 Create New button path writes project resource")
+	var created_catalog = workspace.workspace_asset_context().tile_catalog
+	_assert_true(created_catalog is HexTileCatalogResource, "ASSET-32 Create New button path assigns Catalog context")
+	_assert_eq(create_result["context_resource"], created_catalog, "ASSET-32 Create New button path returns context resource")
+	var after_create = create_result["after"] as Dictionary
+	_assert_eq(after_create["current_resource"], created_catalog, "ASSET-32 Create New button path refreshes row state")
+	_assert_eq(String(after_create["current_source"]), HexMapEditorAssetSlotState.SOURCE_PROJECT, "ASSET-32 Create New button path records project source")
+	_assert_eq(String(after_create["current_path"]), catalog_path, "ASSET-32 Create New button path records selected path")
+
+	var panel = workspace.sample_settings_panel()
+	_assert_true(not _has_button_text(panel, "Open"), "ASSET-32 Settings sample Open action is removed until functional")
+	_assert_true(
+		not _has_button_text(panel, "Duplicate To Project"),
+		"ASSET-32 Settings sample duplicate action is removed until functional"
+	)
+	_assert_eq(Array(panel.snapshot()["sample_assets"]).size(), 3, "ASSET-32 Settings sample rows remain visible as learning assets")
+
+	var sample_catalog = HexTileCatalogResource.new()
+	var sample_state = HexMapEditorAssetSlotState.new()
+	sample_state.configure(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, "Tile Catalog", &"HexTileCatalogResource", true)
+	sample_state.set_sample_source(sample_catalog, "res://addons/hex_map_kit/assets/sample_hex_tile_catalog.tres", "Bundled Sample Catalog")
+	var sample_control = HexMapEditorAssetSlotControl.new()
+	root.add_child(sample_control)
+	sample_control.set_slot_state(sample_state)
+	var sample_recorder = AssetSampleActionRecorder.new()
+	sample_control.sample_requested.connect(Callable(sample_recorder, "record"))
+	await process_frame
+
+	var sample_result = sample_control.press_action(HexMapEditorAssetSlotControl.ACTION_APPLY_SAMPLE)
+	_assert_true(bool(sample_result["ok"]), "ASSET-32 sample action button path succeeds")
+	_assert_eq(sample_recorder.slots.size(), 1, "ASSET-32 sample action button path emits sample signal")
+	_assert_eq(sample_recorder.slots[0], HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, "ASSET-32 sample action signal includes slot id")
+	var after_sample = sample_result["after"] as Dictionary
+	_assert_eq(after_sample["current_resource"], sample_catalog, "ASSET-32 sample action button path selects sample resource")
+	_assert_eq(String(after_sample["current_source"]), HexMapEditorAssetSlotState.SOURCE_SAMPLE, "ASSET-32 sample action button path records sample source")
+
+	sample_control.queue_free()
 	workspace.queue_free()
 	await process_frame
 
