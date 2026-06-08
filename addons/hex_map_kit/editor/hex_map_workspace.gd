@@ -33,6 +33,9 @@ var _dismiss_samples_button: Button
 var _selected_hex_tile_map_context: HBoxContainer
 var _selected_hex_tile_map_status_label: Label
 var _selected_hex_tile_map_auto_link_label: Label
+var _resources_context_panel: VBoxContainer
+var _resources_context_status_label: Label
+var _resources_group_labels: Dictionary = {}
 var _missing_unique_resources_panel: VBoxContainer
 var _missing_unique_resources_status_label: Label
 var _missing_unique_resources_save_directory_label: Label
@@ -91,7 +94,8 @@ func workspace_asset_context() -> HexMapWorkspaceAssetContext:
 
 
 func workspace_asset_context_for_tab(tab_name: String) -> HexMapWorkspaceAssetContext:
-	if not HexMapWorkspaceComponentRegistry.tab_names().has(tab_name):
+	var actual_tab := _canonical_tab_name(tab_name)
+	if not HexMapWorkspaceComponentRegistry.tab_names().has(actual_tab):
 		return null
 	return workspace_asset_context()
 
@@ -117,8 +121,9 @@ func current_workspace_tab_name() -> String:
 func select_workspace_tab(tab_name: String) -> bool:
 	if _tabs == null:
 		return false
+	var actual_tab := _canonical_tab_name(tab_name)
 	for index in range(_tabs.get_tab_count()):
-		if _tabs.get_tab_title(index) == tab_name:
+		if _tabs.get_tab_title(index) == actual_tab:
 			_tabs.current_tab = index
 			return true
 	return false
@@ -410,13 +415,14 @@ func component_for_responsibility(responsibility: String) -> Dictionary:
 
 
 func components_for_tab(tab_name: String) -> Array[Dictionary]:
-	return HexMapWorkspaceComponentRegistry.components_for_tab(tab_name)
+	return HexMapWorkspaceComponentRegistry.components_for_tab(_canonical_tab_name(tab_name))
 
 
 func tab_component_ids(tab_name: String) -> PackedStringArray:
 	var result := PackedStringArray()
-	var registry_ids := HexMapWorkspaceComponentRegistry.component_ids_for_tab(tab_name)
-	var components = _tab_components.get(tab_name, {})
+	var actual_tab := _canonical_tab_name(tab_name)
+	var registry_ids := HexMapWorkspaceComponentRegistry.component_ids_for_tab(actual_tab)
+	var components = _tab_components.get(actual_tab, {})
 	for component_id in registry_ids:
 		if components is Dictionary and components.has(component_id):
 			result.append(component_id)
@@ -429,7 +435,7 @@ func tab_component_ids(tab_name: String) -> PackedStringArray:
 
 
 func tab_has_component(tab_name: String, component_id: String = "") -> bool:
-	var components = _tab_components.get(tab_name, {})
+	var components = _tab_components.get(_canonical_tab_name(tab_name), {})
 	if not components is Dictionary:
 		return false
 	if component_id == "":
@@ -438,42 +444,43 @@ func tab_has_component(tab_name: String, component_id: String = "") -> bool:
 
 
 func tab_has_scroll_container(tab_name: String) -> bool:
-	return _tab_scroll_roots.get(tab_name, null) is ScrollContainer
+	return _tab_scroll_roots.get(_canonical_tab_name(tab_name), null) is ScrollContainer
 
 
 func tab_scroll_root_class(tab_name: String) -> String:
-	var root = _tab_scroll_roots.get(tab_name, null) as Control
+	var root = _tab_scroll_roots.get(_canonical_tab_name(tab_name), null) as Control
 	return root.get_class() if root != null else ""
 
 
 func tab_content_root_class(tab_name: String) -> String:
-	var content = _tab_pages.get(tab_name, null) as Control
+	var content = _tab_pages.get(_canonical_tab_name(tab_name), null) as Control
 	return content.get_class() if content != null else ""
 
 
 func asset_slot_count(tab_name: String) -> int:
-	var panel = _asset_panels.get(tab_name, null) as HexMapWorkspaceAssetPanel
+	var panel = _asset_panels.get(_canonical_tab_name(tab_name), null) as HexMapWorkspaceAssetPanel
 	if panel == null:
 		return 0
 	return panel.asset_slot_count()
 
 
 func tab_asset_slot_ids(tab_name: String) -> PackedStringArray:
-	var panel = _asset_panels.get(tab_name, null) as HexMapWorkspaceAssetPanel
+	var actual_tab := _canonical_tab_name(tab_name)
+	var panel = _asset_panels.get(actual_tab, null) as HexMapWorkspaceAssetPanel
 	if panel == null:
-		return HexMapWorkspaceComponentRegistry.asset_slot_ids_for_tab(tab_name)
+		return HexMapWorkspaceComponentRegistry.asset_slot_ids_for_tab(actual_tab)
 	return panel.asset_slot_ids()
 
 
 func tab_asset_slot_snapshot(tab_name: String, slot_id: String) -> Dictionary:
-	var panel = _asset_panels.get(tab_name, null) as HexMapWorkspaceAssetPanel
+	var panel = _asset_panels.get(_canonical_tab_name(tab_name), null) as HexMapWorkspaceAssetPanel
 	if panel == null:
 		return {}
 	return panel.asset_slot_snapshot(slot_id)
 
 
 func tab_asset_slot_layout_snapshot(tab_name: String, slot_id: String) -> Dictionary:
-	var panel = _asset_panels.get(tab_name, null) as HexMapWorkspaceAssetPanel
+	var panel = _asset_panels.get(_canonical_tab_name(tab_name), null) as HexMapWorkspaceAssetPanel
 	if panel == null:
 		return {}
 	return panel.asset_slot_layout_snapshot(slot_id)
@@ -485,21 +492,26 @@ func press_asset_slot_action(
 	action_id: String,
 	options: Dictionary = {}
 ) -> Dictionary:
-	var panel = _asset_panels.get(tab_name, null) as HexMapWorkspaceAssetPanel
+	var actual_tab := _canonical_tab_name(tab_name)
+	var panel = _asset_panels.get(actual_tab, null) as HexMapWorkspaceAssetPanel
 	if panel == null:
 		return {
 			"ok": false,
 			"error": ERR_DOES_NOT_EXIST,
-			"tab": tab_name,
+			"tab": actual_tab,
 			"slot_id": slot_id,
 			"action_id": action_id,
 		}
 	var result := panel.press_asset_slot_action(slot_id, action_id, options)
-	result["tab"] = tab_name
+	result["tab"] = actual_tab
 	return result
 
 
 func document_screen_snapshot() -> Dictionary:
+	return resources_screen_snapshot()
+
+
+func resources_screen_snapshot() -> Dictionary:
 	var context := workspace_asset_context()
 	var document := context.level_document
 	var document_slot := tab_asset_slot_snapshot(
@@ -522,7 +534,42 @@ func document_screen_snapshot() -> Dictionary:
 		"saved_path": document.resource_path if document != null else "",
 		"saved_status": "saved" if document != null and document.resource_path != "" else "unsaved",
 		"dirty": false,
+		"selected_hex_tile_map": selected_hex_tile_map_snapshot(),
+		"resource_groups": resource_group_rows(),
+		"create_missing_resources_available": _missing_unique_resources_create_button != null,
+		"create_missing_resources_button_text": _missing_unique_resources_create_button.text if _missing_unique_resources_create_button != null else "",
 	}
+
+
+func resource_group_rows() -> Array[Dictionary]:
+	return [
+		_resource_group_row(
+			"unique",
+			"Unique Resources",
+			PackedStringArray([
+				HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT,
+				HexMapWorkspaceAssetContext.SLOT_LAYER_STACK,
+			]),
+			"Owned by the selected HexTileMap node and created per map."
+		),
+		_resource_group_row(
+			"shared",
+			"Shared Resources",
+			PackedStringArray([
+				HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG,
+			]),
+			"Project assets shared by Generate, Paint, Validate, QA, and Export."
+		),
+		_resource_group_row(
+			"optional",
+			"Optional Resources",
+			PackedStringArray([
+				HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE,
+				HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE,
+			]),
+			"Project assets used when object or label workflows are enabled."
+		),
+	]
 
 
 func create_level_document(path: String) -> Dictionary:
@@ -1540,10 +1587,11 @@ func _add_tab_page(tab_name: String) -> VBoxContainer:
 
 
 func _mount_workspace_asset_panels() -> void:
+	_mount_resources_context_panel()
 	_mount_asset_panel(
 		HexMapWorkspaceComponentRegistry.TAB_DOCUMENT,
 		"document_asset_panel",
-		"Document Assets",
+		"Resource Context",
 		[
 			_slot_row(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "Level Document"),
 			_slot_row(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, "Tile Catalog"),
@@ -1614,6 +1662,44 @@ func _mount_workspace_asset_panels() -> void:
 			_slot_row(HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE, "Movement Profile", false),
 		]
 	)
+
+
+func _mount_resources_context_panel() -> void:
+	var page = _tab_pages.get(HexMapWorkspaceComponentRegistry.TAB_DOCUMENT, null)
+	if page == null or _resources_context_panel != null:
+		return
+	_resources_context_panel = VBoxContainer.new()
+	_resources_context_panel.name = "Resources Context Panel"
+	_resources_context_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var title := Label.new()
+	title.text = "Selected HexTileMap Resources"
+	_resources_context_panel.add_child(title)
+
+	_resources_context_status_label = Label.new()
+	_resources_context_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_resources_context_panel.add_child(_resources_context_status_label)
+
+	for group in resource_group_rows():
+		var group_id := String(group.get("group_id", ""))
+		var label := Label.new()
+		var slot_labels = group.get("slot_labels", PackedStringArray()) as PackedStringArray
+		label.text = "%s: %s" % [
+			String(group.get("label", "")),
+			_join_text(slot_labels, ", "),
+		]
+		label.tooltip_text = String(group.get("tooltip", ""))
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_resources_context_panel.add_child(label)
+		_resources_group_labels[group_id] = label
+
+	(page as Control).add_child(_resources_context_panel)
+	_register_tab_component(
+		HexMapWorkspaceComponentRegistry.TAB_DOCUMENT,
+		"resources_context_panel",
+		_resources_context_panel
+	)
+	_refresh_resources_context_panel()
 
 
 func _mount_asset_panel(
@@ -1764,6 +1850,46 @@ func _slot_row(slot_id: String, display_name: String, required: bool = true) -> 
 		"type_filter_reason": HexMapWorkspaceAssetResourceFactory.type_filter_reason(slot_id),
 		"allows_create_new": true,
 	}
+
+
+func _resource_group_row(
+	group_id: String,
+	label: String,
+	slot_ids: PackedStringArray,
+	tooltip: String
+) -> Dictionary:
+	var slot_labels := PackedStringArray()
+	var tooltip_lines := PackedStringArray()
+	tooltip_lines.append(tooltip)
+	for slot_id in slot_ids:
+		var text := _resource_group_slot_label(String(slot_id))
+		slot_labels.append(text)
+		var purpose := HexMapWorkspaceAssetResourceFactory.resource_purpose(String(slot_id))
+		if purpose != "":
+			tooltip_lines.append("%s: %s" % [text, purpose])
+	return {
+		"group_id": group_id,
+		"label": label,
+		"slot_ids": slot_ids.duplicate(),
+		"slot_labels": slot_labels,
+		"tooltip": "\n".join(tooltip_lines),
+	}
+
+
+func _resource_group_slot_label(slot_id: String) -> String:
+	match slot_id:
+		HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT:
+			return "Level Document"
+		HexMapWorkspaceAssetContext.SLOT_LAYER_STACK:
+			return "Layer Stack"
+		HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG:
+			return "Tile Catalog"
+		HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE:
+			return "Object Database"
+		HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE:
+			return "Label Database"
+		_:
+			return slot_id.capitalize()
 
 
 func _document_asset_panel() -> HexMapWorkspaceAssetPanel:
@@ -2314,7 +2440,28 @@ func _refresh_selected_hex_tile_map_context() -> void:
 	_selected_hex_tile_map_status_label.tooltip_text = _selected_hex_tile_map_tooltip(snapshot)
 	_selected_hex_tile_map_auto_link_label.text = String(snapshot.get("auto_link_text", "Auto-link: On"))
 	_selected_hex_tile_map_auto_link_label.tooltip_text = "Workspace follows the selected HexTileMap node."
+	_refresh_resources_context_panel()
 	_refresh_missing_unique_resources_panel()
+
+
+func _refresh_resources_context_panel() -> void:
+	if _resources_context_panel == null:
+		return
+	var snapshot := selected_hex_tile_map_snapshot()
+	if _resources_context_status_label != null:
+		_resources_context_status_label.text = String(snapshot.get("status_text", "No HexTileMap selected"))
+		_resources_context_status_label.tooltip_text = _selected_hex_tile_map_tooltip(snapshot)
+	for group in resource_group_rows():
+		var group_id := String(group.get("group_id", ""))
+		var label = _resources_group_labels.get(group_id, null) as Label
+		if label == null:
+			continue
+		var slot_labels = group.get("slot_labels", PackedStringArray()) as PackedStringArray
+		label.text = "%s: %s" % [
+			String(group.get("label", "")),
+			_join_text(slot_labels, ", "),
+		]
+		label.tooltip_text = String(group.get("tooltip", ""))
 
 
 func _refresh_missing_unique_resources_panel() -> void:
@@ -2609,6 +2756,10 @@ func _sync_workspace_asset_context() -> void:
 		_generation_dock.set_workspace_asset_context(context)
 	if _edit_tool != null:
 		_edit_tool.set_workspace_asset_context(context)
+
+
+func _canonical_tab_name(tab_name: String) -> String:
+	return HexMapWorkspaceComponentRegistry.canonical_tab_name(tab_name)
 
 
 func _register_tab_component(tab_name: String, component_id: String, control: Control) -> void:

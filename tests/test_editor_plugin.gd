@@ -277,7 +277,7 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 	await process_frame
 
 	var expected_tabs = PackedStringArray([
-		"Document",
+		"Resources",
 		"Generate",
 		"Paint",
 		"Catalog",
@@ -319,7 +319,7 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 	_assert_eq(workspace.edit_tool().editor_session_state(), session, "workspace forwards session to paint/edit component")
 	_assert_eq(workspace.sample_settings_panel().editor_session_state(), session, "workspace forwards session to sample settings component")
 	var asset_tab_expectations := [
-		{"tab": "Document", "component": "document_asset_panel", "count": 5, "slot": "level_document"},
+		{"tab": "Resources", "component": "document_asset_panel", "count": 5, "slot": "level_document"},
 		{"tab": "Paint", "component": "object_label_asset_panel", "count": 2, "slot": "object_database"},
 		{"tab": "Catalog", "component": "catalog_asset_panel", "count": 1, "slot": "tile_catalog"},
 		{"tab": "Layers", "component": "layer_stack_asset_panel", "count": 1, "slot": "layer_stack"},
@@ -425,6 +425,11 @@ func _test_workspace_selected_hex_tile_map_auto_binding() -> void:
 	_assert_true(bool(selected_snapshot["runtime_initial_map_present"]), "NODE-21 runtime initial map is visible as node state")
 	_assert_eq(String(selected_snapshot["display_tile_set_status"]), "Linked", "NODE-21 selected node display TileSet is visible")
 	_assert_eq(String(selected_snapshot["tile_catalog_status"]), "No Tile Catalog linked to node", "NODE-21 missing shared catalog is not silently filled")
+	_assert_eq(
+		(workspace.resources_screen_snapshot()["selected_hex_tile_map"] as Dictionary)["selected_node"],
+		selected_layer,
+		"TAB-50 Resources screen shows selected HexTileMap node"
+	)
 	_assert_true(recorder.keys.has("selected_hex_tile_map_layer"), "NODE-21 session emits selected node change")
 	_assert_true(recorder.keys.has("target_layer"), "NODE-21 auto-link emits target change")
 
@@ -645,7 +650,7 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 	await process_frame
 
 	var expected_tabs = PackedStringArray([
-		"Document",
+		"Resources",
 		"Generate",
 		"Paint",
 		"Catalog",
@@ -656,8 +661,8 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 		"Settings",
 	])
 	var expected_contract := {
-		"Document": {
-			"components": PackedStringArray(["document_asset_panel", "missing_unique_resources_panel"]),
+		"Resources": {
+			"components": PackedStringArray(["resources_context_panel", "document_asset_panel", "missing_unique_resources_panel"]),
 			"slots": PackedStringArray([
 				HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT,
 				HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG,
@@ -753,6 +758,19 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 			)
 
 	_assert_true(not workspace.tab_has_component("Paint", "document_asset_panel"), "TEST-41 Paint tab excludes Document setup panel")
+	var resources_contract = expected_contract["Resources"] as Dictionary
+	_assert_eq(
+		workspace.tab_component_ids("Document"),
+		resources_contract["components"],
+		"TAB-50 legacy Document tab query aliases Resources components"
+	)
+	_assert_eq(
+		workspace.tab_asset_slot_ids("Document"),
+		resources_contract["slots"],
+		"TAB-50 legacy Document tab query aliases Resources asset slots"
+	)
+	_assert_true(workspace.select_workspace_tab("Document"), "TAB-50 legacy Document tab selection aliases Resources tab")
+	_assert_eq(workspace.current_workspace_tab_name(), "Resources", "TAB-50 legacy Document selection lands on Resources tab")
 	_assert_eq(workspace.tab_component_ids("MissingTab"), PackedStringArray(), "TEST-41 missing tab has no component ids")
 	_assert_eq(workspace.tab_asset_slot_ids("MissingTab"), PackedStringArray(), "TEST-41 missing tab has no asset slot ids")
 	_assert_eq(workspace.asset_slot_count("MissingTab"), 0, "TEST-41 missing tab has zero asset slots")
@@ -772,7 +790,7 @@ func _test_workspace_first_run_learning_cta_routes_to_settings_without_sample_de
 	var snapshot = workspace.sample_learning_cta_snapshot()
 	_assert_true(bool(snapshot["visible"]), "workspace exposes visible first-run sample CTA")
 	_assert_eq(String(snapshot["learn_label"]), "Learn with bundled samples", "sample CTA uses learning action label")
-	_assert_eq(workspace.current_workspace_tab_name(), "Document", "workspace starts on normal project document tab")
+	_assert_eq(workspace.current_workspace_tab_name(), "Resources", "workspace starts on normal project resources tab")
 	_assert_true(
 		not session.show_bundled_samples_in_main_selectors,
 		"sample CTA does not enable sample selector visibility by default"
@@ -817,7 +835,7 @@ func _test_workspace_first_run_learning_cta_routes_to_settings_without_sample_de
 	dismiss_workspace.dismiss_sample_learning_cta()
 	await process_frame
 	_assert_true(not dismiss_workspace.sample_learning_cta_visible(), "sample CTA dismiss action hides CTA")
-	_assert_eq(dismiss_workspace.current_workspace_tab_name(), "Document", "dismissing sample CTA keeps normal project tab")
+	_assert_eq(dismiss_workspace.current_workspace_tab_name(), "Resources", "dismissing sample CTA keeps normal project tab")
 	_assert_true(
 		not dismiss_session.show_bundled_samples_in_main_selectors,
 		"dismissing sample CTA does not enable sample mode"
@@ -976,13 +994,18 @@ func _test_document_asset_screen_manages_project_document_without_samples() -> v
 	await process_frame
 
 	var snapshot = workspace.document_screen_snapshot()
+	_assert_eq(String(snapshot["tab"]), "Resources", "TAB-50 document snapshot now represents Resources tab")
 	_assert_true(
 		PackedStringArray(snapshot["component_ids"]).has("document_asset_panel"),
-		"Document screen exposes document asset component"
+		"TAB-50 Resources screen exposes resource asset component"
+	)
+	_assert_true(
+		PackedStringArray(snapshot["component_ids"]).has("resources_context_panel"),
+		"TAB-50 Resources screen exposes context component"
 	)
 	_assert_true(
 		PackedStringArray(snapshot["asset_slot_ids"]).has(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT),
-		"Document screen exposes level document slot"
+		"TAB-50 Resources screen exposes level document slot"
 	)
 	_assert_true(
 		PackedStringArray(snapshot["dependency_slot_ids"]).has(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG),
@@ -990,8 +1013,22 @@ func _test_document_asset_screen_manages_project_document_without_samples() -> v
 	)
 	_assert_true(
 		PackedStringArray(snapshot["dependency_slot_ids"]).has(HexMapWorkspaceAssetContext.SLOT_LAYER_STACK),
-		"Document screen exposes layer stack dependency slot"
+		"TAB-50 Resources screen exposes layer stack dependency slot"
 	)
+	var resources_selected = snapshot["selected_hex_tile_map"] as Dictionary
+	_assert_eq(String(resources_selected["status_text"]), "No HexTileMap selected", "TAB-50 Resources screen shows selected HexTileMap state")
+	var resource_groups = snapshot["resource_groups"] as Array
+	var groups_by_id := {}
+	for group in resource_groups:
+		groups_by_id[String(group["group_id"])] = group
+	_assert_true(groups_by_id.has("unique"), "TAB-50 Resources screen exposes UniqueResource group")
+	_assert_true(groups_by_id.has("shared"), "TAB-50 Resources screen exposes SharedResource group")
+	_assert_true(groups_by_id.has("optional"), "TAB-50 Resources screen exposes OptionalResource group")
+	_assert_true(
+		String((groups_by_id["unique"] as Dictionary)["tooltip"]).contains("Level Document"),
+		"TAB-50 UniqueResource tooltip explains resource purpose"
+	)
+	_assert_eq(String(snapshot["create_missing_resources_button_text"]), "Create Missing Resources", "TAB-50 Resources screen keeps Create Missing Resources")
 	_assert_eq(workspace.workspace_asset_context().level_document, null, "Document screen starts without a sample document")
 	_assert_true(not session.show_bundled_samples_in_main_selectors, "Document screen starts with sample mode OFF")
 
@@ -1475,7 +1512,7 @@ func _test_validate_asset_screen_reports_missing_project_assets_without_samples(
 	_assert_eq(result.error_count(), 7, "Validate screen reports missing project assets as errors")
 	var rows = validate_result["issue_rows"] as Array
 	var document_row = _validation_issue_row_for_rule(rows, "workspace.level_document_missing")
-	_assert_eq(document_row["target_tab"], "Document", "missing document points to Document tab")
+	_assert_eq(document_row["target_tab"], "Resources", "missing document points to Resources tab")
 	_assert_eq(document_row["target_component_id"], "document_asset_panel", "missing document points to document panel")
 	_assert_eq(document_row["target_slot_id"], HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "missing document points to level document slot")
 
@@ -2529,11 +2566,11 @@ func _test_workspace_asset_slots_use_strict_resource_type_filters() -> void:
 	await process_frame
 
 	var typed_expectations: Array[Dictionary] = [
-		{"tab": "Document", "slot": HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "type": "HexMapDocumentResource"},
-		{"tab": "Document", "slot": HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, "type": "HexTileCatalogResource"},
-		{"tab": "Document", "slot": HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE, "type": "HexObjectDatabaseResource"},
-		{"tab": "Document", "slot": HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE, "type": "HexLabelDatabaseResource"},
-		{"tab": "Document", "slot": HexMapWorkspaceAssetContext.SLOT_LAYER_STACK, "type": "HexLayerStackResource"},
+		{"tab": "Resources", "slot": HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "type": "HexMapDocumentResource"},
+		{"tab": "Resources", "slot": HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, "type": "HexTileCatalogResource"},
+		{"tab": "Resources", "slot": HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE, "type": "HexObjectDatabaseResource"},
+		{"tab": "Resources", "slot": HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE, "type": "HexLabelDatabaseResource"},
+		{"tab": "Resources", "slot": HexMapWorkspaceAssetContext.SLOT_LAYER_STACK, "type": "HexLayerStackResource"},
 		{"tab": "Catalog", "slot": HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, "type": "HexTileCatalogResource"},
 		{"tab": "Layers", "slot": HexMapWorkspaceAssetContext.SLOT_LAYER_STACK, "type": "HexLayerStackResource"},
 		{"tab": "Paint", "slot": HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE, "type": "HexObjectDatabaseResource"},

@@ -4,7 +4,9 @@ extends RefCounted
 
 const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
 
-const TAB_DOCUMENT := "Document"
+const TAB_RESOURCES := "Resources"
+const TAB_DOCUMENT := TAB_RESOURCES
+const TAB_DOCUMENT_LEGACY := "Document"
 const TAB_GENERATE := "Generate"
 const TAB_PAINT := "Paint"
 const TAB_CATALOG := "Catalog"
@@ -31,12 +33,13 @@ static func tab_names() -> PackedStringArray:
 
 static func component_rows() -> Array[Dictionary]:
 	return [
+		_component(TAB_DOCUMENT, "resources_context_panel", "VBoxContainer", "ResourcesContextPanel", "resources"),
 		_component(
 			TAB_DOCUMENT,
 			"document_asset_panel",
 			"HexMapWorkspaceAssetPanel",
-			"DocumentHeader",
-			"document",
+			"ResourcesAssetPanel",
+			"resources",
 			PackedStringArray([
 				HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT,
 				HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG,
@@ -50,7 +53,7 @@ static func component_rows() -> Array[Dictionary]:
 			"missing_unique_resources_panel",
 			"VBoxContainer",
 			"SelectedHexTileMapMissingResources",
-			"document"
+			"resources"
 		),
 		_component(TAB_GENERATE, "generation_panel", "HexMapGenDock", "GenerationPanel", "generate"),
 		_component(TAB_PAINT, "brush_palette", "HexMapEditTool", "BrushPalette", "paint"),
@@ -137,18 +140,24 @@ static func component_for_responsibility(responsibility: String) -> Dictionary:
 
 
 static func component_for_tab(tab_name: String) -> Dictionary:
+	var actual_tab := canonical_tab_name(tab_name)
 	for row in component_rows():
-		if String(row.get("tab", "")) == tab_name:
+		if String(row.get("tab", "")) == actual_tab:
 			return row.duplicate(true)
 	return {}
 
 
 static func components_for_tab(tab_name: String) -> Array[Dictionary]:
+	var actual_tab := canonical_tab_name(tab_name)
 	var result: Array[Dictionary] = []
 	for row in component_rows():
-		if String(row.get("tab", "")) == tab_name:
+		if String(row.get("tab", "")) == actual_tab:
 			result.append(row.duplicate(true))
 	return result
+
+
+static func canonical_tab_name(tab_name: String) -> String:
+	return TAB_RESOURCES if tab_name == TAB_DOCUMENT_LEGACY else tab_name
 
 
 static func component_ids_for_tab(tab_name: String) -> PackedStringArray:
