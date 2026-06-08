@@ -47,7 +47,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 | `NODE-21` | `COMPLETE` | `NODE-20` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE-21_SELECTED_HEX_TILE_MAP_AUTO_BINDING/` | Selected HexTileMap auto-binding | `HexMapWorkspace`, `HexMapEditorSessionState`, selected node integration, editor tests | Scene Tree selection changes update Workspace context; no selected node shows `No HexTileMap selected`; auto-link is default ON; manual Link button is removed or becomes status indicator. |
 | `NODE-22` | `COMPLETE` | `NODE-21` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE-22_CREATE_MISSING_UNIQUE_RESOURCES_FLOW/` | Create missing unique resources flow | Resources tab, resource factory helpers, FileDialog/Save As helpers, editor tests | User chooses save directory and prefix; missing UniqueResources are created with default names and auto-referenced by selected HexTileMap; SharedResource is not silently created. |
 | `NODE-23` | `COMPLETE` | `NODE-21` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE-23_DOCK_SELECTION_WRITES_BACK_TO_NODE/` | Dock resource selection writes back to selected node | Workspace asset context, asset slot handlers, HexTileMap exported references, editor tests | Selecting/creating Document/Catalog/Layer Stack/Object DB/Label DB writes to node or context according to policy; node/workspace diff is visible; auto-link failures explain why. |
-| `NODE-24` | `READY` | `NODE-22` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE-24_GENERATE_RESULT_RESOURCE_RELATIONSHIP/` | Generate result resource relationship | Generate tab, QA tab, document metadata/generation snapshot helpers, editor/generation tests | Generate has explicit output target; Preview only and Apply to selected Document are distinct; apply updates Resources tab relationship; no selected node blocks apply with clear reason. |
+| `NODE-24` | `COMPLETE` | `NODE-22` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE-24_GENERATE_RESULT_RESOURCE_RELATIONSHIP/` | Generate result resource relationship | Generate tab, QA tab, document metadata/generation snapshot helpers, editor/generation tests | Generate has explicit output target; Preview only and Apply to selected Document are distinct; apply updates Resources tab relationship; no selected node blocks apply with clear reason. |
 
 ---
 
@@ -79,7 +79,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 | `TAB-52` | `BACKLOG` | `TAB-50` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/TAB-52_CATALOG_TAB_DETAIL_EDITOR/` | Catalog tab detail editor | Catalog tab/component, entry list/detail, tile/scene preview, catalog tests | Catalog entry meaning is visible; source id / atlas coords are not primary inputs; preview absence explains why; missing assets produce warnings. |
 | `TAB-53` | `BACKLOG` | `TAB-50` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/TAB-53_LAYERS_TAB_ROLE_EDITOR/` | Layers tab role editor | Layers tab/component, layer stack UI, HexTileMap child layer integration, tests | Layer Stack resource, target HexTileMap, roles, create/apply/visibility/locked/writable status are visible in Layers tab, not only resource references. |
 | `TAB-54` | `BACKLOG` | `TAB-50` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/TAB-54_VALIDATE_TAB_ISSUE_NAVIGATOR/` | Validate tab issue navigator | Validate tab/component, validation issue navigator, focus/link actions, editor tests | Validate target and purpose are clear; resource-row Validate buttons become unnecessary; clicking issues can move to cell/resource/target tab with suggested action. |
-| `TAB-55` | `BACKLOG` | `NODE-24` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/TAB-55_QA_TAB_SEED_LAB_SCREEN/` | QA tab Seed Lab screen | QA tab/component, generation profile, validation suite, score table, promotion target, tests | QA tab supports seed comparison and adoption; Generate and QA roles are distinct; promotion updates Resources tab Document relationship. |
+| `TAB-55` | `READY` | `NODE-24` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/TAB-55_QA_TAB_SEED_LAB_SCREEN/` | QA tab Seed Lab screen | QA tab/component, generation profile, validation suite, score table, promotion target, tests | QA tab supports seed comparison and adoption; Generate and QA roles are distinct; promotion updates Resources tab Document relationship. |
 | `TAB-56` | `BACKLOG` | `TAB-50` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/TAB-56_EXPORT_TAB_PURPOSE_REDESIGN/` | Export tab purpose redesign | Export tab/component, export profile/destination UI, runtime handoff/debug report/package support docs/tests | Export tab states what is exported and why; output target/type are clear; unusable buttons are absent; experimental exports are hidden or backlog. |
 | `TAB-57` | `BACKLOG` | `SAMPLE-41` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/TAB-57_SETTINGS_TAB_SIMPLIFICATION/` | Settings tab simplification | Settings tab/component, sample controls, debug fallback controls, preferences UI, tests | Settings contains sample learning controls and debug/preferences only; production asset selection lives in Resources; sample actions work or are removed. |
 
@@ -109,7 +109,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `GEN-80` | `BACKLOG` | `NODE-24` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/GEN-80_GENERATION_INTERMEDIATE_DATA_USE_CASE_REVIEW/` | Generation intermediate data use-case review | `docs/review/roadmap/GENERATION_PIPELINE_GRAPH_REVIEW_2026-06-08.md`, generation/resource notes | Intermediate data use cases are separated into immediate UI, backlog, and research; Generate tab is not expanded into graph editor prematurely. |
+| `GEN-80` | `READY` | `NODE-24` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/GEN-80_GENERATION_INTERMEDIATE_DATA_USE_CASE_REVIEW/` | Generation intermediate data use-case review | `docs/review/roadmap/GENERATION_PIPELINE_GRAPH_REVIEW_2026-06-08.md`, generation/resource notes | Intermediate data use cases are separated into immediate UI, backlog, and research; Generate tab is not expanded into graph editor prematurely. |
 | `GEN-81` | `BACKLOG` | `GEN-80` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/GEN-81_GENERATION_PROFILE_AND_RESULT_MODEL/` | Generation Profile / Result / Document model | generation profile/result docs, resource/API notes, tests if schema changes | Generate preview, intermediate, and committed document states are defined and aligned with QA, Seed Lab, and Document metadata; graph editor remains out of scope. |
 
 ---
@@ -148,7 +148,7 @@ acceptance / test path:
 
 ## 12. Current pointer
 
-Current recommended next task: `NODE-24`.
+Current recommended next task: `ASSET-30`.
 
 Reason:
 
@@ -157,8 +157,10 @@ Reason:
 - `NODE-21` is complete.
 - `NODE-22` is complete.
 - `NODE-23` is complete.
-- `NODE-24` is the first READY task in queue order.
-- `ASSET-30`, `TAB-50`, `PERF-60`, and `INFO-70` are also READY, but they appear later in the queue.
+- `NODE-24` is complete.
+- `TAB-55` and `GEN-80` were promoted to READY because `NODE-24` is complete.
+- `ASSET-30` is the first READY task in queue order.
+- `TAB-50`, `TAB-55`, `PERF-60`, `INFO-70`, and `GEN-80` are also READY, but they appear later in the queue.
 
 ---
 
@@ -281,3 +283,18 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_workspace.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/NODE-23_TEST_RESULT_2026-06-08.md`
+
+### NODE-24 Generate result resource relationship
+
+proof:
+  plan: `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/NODE-24_GENERATE_RESULT_RESOURCE_RELATIONSHIP/`
+  review: `docs/review/autopilot/NODE-24_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_gen_dock.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/NODE-24_TEST_RESULT_2026-06-08.md`

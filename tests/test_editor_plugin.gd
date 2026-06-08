@@ -221,6 +221,7 @@ func _run() -> void:
 	await _test_generation_dock_selects_atlas_image()
 	await _test_generation_dock_generate_auto_applies_current_map()
 	await _test_generation_dock_generate_auto_applies_hex_tile_map_layer()
+	await _test_generation_dock_output_target_preview_and_selected_document()
 	await _test_generation_dock_overlay_uniform_generation_and_apply()
 	await _test_generation_dock_overlay_applies_to_hex_tile_map_layer()
 	await _test_generation_dock_overlay_limit_and_apply_policy()
@@ -5798,6 +5799,88 @@ func _test_generation_dock_generate_auto_applies_hex_tile_map_layer() -> void:
 
 	scene_root.queue_free()
 	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_output_target_preview_and_selected_document() -> void:
+	var session = HexMapEditorSessionState.new()
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	var scene_root = Node2D.new()
+	scene_root.name = "OutputTargetScene"
+	root.add_child(scene_root)
+	var layer = HexTileMapLayer.new()
+	layer.name = "OutputTargetHexTileMap"
+	var document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	layer.level_document_resource = document
+	scene_root.add_child(layer)
+	await process_frame
+
+	workspace.set_selected_hex_tile_map_node(layer, "test.node24.select")
+	var dock = workspace.generation_dock()
+	dock.refresh_tile_layer_options(scene_root)
+	dock._tile_layer_option.select(1)
+	dock._on_tile_layer_target_selected(1)
+	dock._generate_option.select(HexMapGenDock.GENERATE_SIMPLE)
+	dock._shape_option_simple.select(HexMapGenDock.SHAPE_RECTANGLE)
+	dock._rect_width_spin.set_value_no_signal(2)
+	dock._rect_height_spin.set_value_no_signal(1)
+	dock._wall_prob_slider.set_value_no_signal(0.0)
+	dock._seed_spin.set_value_no_signal(2401)
+	dock._refresh_controls()
+
+	var initial_output = dock.output_target_snapshot()
+	_assert_true(dock._output_target_option != null, "NODE-24 Generate exposes Output target option")
+	_assert_eq(String(initial_output["mode"]), HexMapGenDock.OUTPUT_TARGET_PREVIEW_ONLY, "NODE-24 preview only is the default output target")
+	_assert_eq(String(initial_output["label"]), "Preview only", "NODE-24 preview target label is visible")
+	_assert_true(not bool(initial_output["generated_document_present"]), "NODE-24 starts without generated output")
+
+	_assert_true(await dock._generate_map(), "NODE-24 preview output generation succeeds")
+	_assert_true(layer.hex_map is HexMapResource, "NODE-24 preview writes runtime HexTileMap map")
+	_assert_eq(layer.display_used_cell_count(), 2, "NODE-24 preview updates selected HexTileMap display")
+	_assert_eq(HexMapDocumentAdapter.document_summary(document)["cells"], 1, "NODE-24 preview leaves Level Document unchanged")
+	_assert_eq(layer.level_document_resource, document, "NODE-24 preview keeps selected node document reference")
+	var preview_output = dock.output_target_snapshot()
+	_assert_true(bool(preview_output["generated_document_present"]), "NODE-24 preview snapshot records generated output")
+	_assert_true(not bool((preview_output["document_generation_metadata"] as Dictionary)["present"]), "NODE-24 preview does not mark document generated")
+
+	dock.set_output_target_mode(HexMapGenDock.OUTPUT_TARGET_SELECTED_DOCUMENT)
+	var ready_output = dock.output_target_snapshot()
+	_assert_eq(String(ready_output["label"]), "Apply to selected Document", "NODE-24 selected document output target is visible")
+	_assert_true(bool(ready_output["can_apply_selected_document"]), "NODE-24 selected document output can apply when node/document/generated output exist")
+	var apply_result = dock.apply_current_generation_to_selected_document()
+	_assert_true(bool(apply_result["ok"]), "NODE-24 applies current generation to selected document")
+	_assert_eq(HexMapDocumentAdapter.document_summary(document)["cells"], 2, "NODE-24 apply replaces selected Level Document terrain")
+	_assert_eq(workspace.workspace_asset_context().level_document, document, "NODE-24 apply updates workspace Level Document relationship")
+	_assert_eq(session.current_document(), document, "NODE-24 apply updates session current document")
+	var metadata = (dock.output_target_snapshot()["document_generation_metadata"] as Dictionary)
+	_assert_true(bool(metadata["present"]), "NODE-24 apply records generated metadata on document")
+	_assert_eq(String(metadata["generation_source"]), "hex_map_gen_dock", "NODE-24 apply records Generate as metadata source")
+	_assert_eq(String(metadata["generation_output_target"]), HexMapGenDock.OUTPUT_TARGET_SELECTED_DOCUMENT, "NODE-24 apply records output target metadata")
+	_assert_eq(int(metadata["generation_seed"]), 2401, "NODE-24 apply records generation seed metadata")
+	_assert_true((metadata["generation_snapshot"] as Dictionary).has("rect_width"), "NODE-24 apply records generation snapshot metadata")
+
+	var writeback = workspace.selected_hex_tile_map_writeback_snapshot()
+	var relationships = writeback["relationships"] as Dictionary
+	var document_relationship = relationships[HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT] as Dictionary
+	_assert_eq(String(document_relationship["status"]), "linked", "NODE-24 Resources relationship remains linked after apply")
+	var relationship_metadata = document_relationship["generation_metadata"] as Dictionary
+	_assert_true(bool(relationship_metadata["present"]), "NODE-24 Resources relationship exposes generated metadata")
+	_assert_eq(String(relationship_metadata["generation_output_target"]), HexMapGenDock.OUTPUT_TARGET_SELECTED_DOCUMENT, "NODE-24 Resources relationship classifies generated output target")
+
+	workspace.clear_selected_hex_tile_map_layer("test.node24.clear")
+	var blocked = dock.apply_current_generation_to_selected_document()
+	_assert_true(not bool(blocked["ok"]), "NODE-24 apply blocks without selected HexTileMap")
+	_assert_eq(String(blocked["blocked_reason"]), "No HexTileMap selected", "NODE-24 no selected node reason is visible")
+	_assert_eq(String(dock.output_target_snapshot()["blocked_reason"]), "No HexTileMap selected", "NODE-24 output target snapshot keeps no-selection reason")
+
+	scene_root.queue_free()
+	workspace.queue_free()
 	await process_frame
 
 

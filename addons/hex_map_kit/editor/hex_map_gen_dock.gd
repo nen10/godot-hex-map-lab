@@ -95,6 +95,16 @@ const QUERY_KIND_REFERENCE := "reference"
 const QUERY_KIND_DEDUCTOR_FLOOR := "deductor_floor"
 const SAMPLE_TILE_CATALOG_PATH := "res://addons/hex_map_kit/assets/sample_hex_tile_catalog.tres"
 const CATALOG_FALLBACK_LABEL := "Choose catalog key"
+const OUTPUT_TARGET_PREVIEW_ONLY := "preview_only"
+const OUTPUT_TARGET_SELECTED_DOCUMENT := "selected_document"
+const OUTPUT_TARGET_MODES := [
+	OUTPUT_TARGET_PREVIEW_ONLY,
+	OUTPUT_TARGET_SELECTED_DOCUMENT,
+]
+const OUTPUT_TARGET_LABELS := [
+	"Preview only",
+	"Apply to selected Document",
+]
 
 var _generator_row: HBoxContainer
 var _generate_option: OptionButton
@@ -143,6 +153,10 @@ var _tile_layer_refresh_button: Button
 var _tile_layer_nodes: Array[Node] = []
 var _tile_layer_scan_root: Node = null
 var _test_selected_tile_map_layer: Node = null
+var _output_target_option: OptionButton
+var _output_target_apply_button: Button
+var _output_target_status_label: Label
+var _output_target_mode := OUTPUT_TARGET_PREVIEW_ONLY
 var _tile_orientation_option: OptionButton
 var _tile_width_spin: SpinBox
 var _tile_height_spin: SpinBox
@@ -253,6 +267,8 @@ var _last_generation_validation_capture_order := 0
 var _last_generation_apply_order := 0
 var _last_batch_generation_results: Array[Dictionary] = []
 var _last_promoted_generation_document = null
+var _last_generation_snapshot: Dictionary = {}
+var _last_output_apply_result: Dictionary = {}
 
 
 func _ready() -> void:
@@ -278,6 +294,7 @@ func set_editor_session_state(session: HexMapEditorSessionState) -> void:
 		_select_tile_layer_target(session_target)
 	if _shape_symmetric_row != null:
 		_refresh_controls()
+	_refresh_output_target_status()
 
 
 func editor_session_state() -> HexMapEditorSessionState:
@@ -288,6 +305,7 @@ func set_workspace_asset_context(context: HexMapWorkspaceAssetContext) -> void:
 	_workspace_asset_context = context
 	_tile_catalog = _workspace_asset_context.tile_catalog if _workspace_asset_context != null else null
 	_refresh_catalog_options()
+	_refresh_output_target_status()
 
 
 func workspace_asset_context() -> HexMapWorkspaceAssetContext:
@@ -307,6 +325,8 @@ func main_sample_controls_visible() -> bool:
 func _on_editor_session_changed(key: String) -> void:
 	if key == "workspace_asset_context" or key.begins_with("workspace_asset_context."):
 		set_workspace_asset_context(_editor_session_state.current_workspace_asset_context())
+	elif key == "selected_hex_tile_map_layer" or key == "target_layer" or key == "document":
+		_refresh_output_target_status()
 	elif key.begins_with("sample_settings."):
 		_clear_sample_catalog_if_hidden()
 		_refresh_catalog_options()
@@ -353,6 +373,8 @@ func _build_ui() -> void:
 	_tile_layer_refresh_button.pressed.connect(_on_tile_layer_refresh_pressed)
 	target_row.add_child(_tile_layer_refresh_button)
 	root.add_child(target_row)
+
+	root.add_child(_build_output_target_controls())
 
 	_size_container = HBoxContainer.new()
 	root.add_child(_size_container)
@@ -589,6 +611,265 @@ func _build_apply_write_controls() -> Control:
 	_apply_write_policy_option.select(0)
 	_apply_write_policy_option.item_selected.connect(_on_option_changed)
 	return _wrap_labeled("Apply Write", _apply_write_policy_option)
+
+
+func _build_output_target_controls() -> Control:
+	var box = VBoxContainer.new()
+
+	var row = HBoxContainer.new()
+	row.add_child(_build_small_label("Output target"))
+	_output_target_option = OptionButton.new()
+	_output_target_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for index in range(OUTPUT_TARGET_MODES.size()):
+		_output_target_option.add_item(String(OUTPUT_TARGET_LABELS[index]))
+		_output_target_option.set_item_metadata(index, String(OUTPUT_TARGET_MODES[index]))
+	_output_target_option.select(0)
+	_output_target_option.item_selected.connect(_on_output_target_selected)
+	row.add_child(_output_target_option)
+
+	_output_target_apply_button = Button.new()
+	_output_target_apply_button.text = "Apply to Document"
+	_output_target_apply_button.pressed.connect(_on_apply_to_selected_document_pressed)
+	row.add_child(_output_target_apply_button)
+	box.add_child(row)
+
+	_output_target_status_label = Label.new()
+	_output_target_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_output_target_status_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+	box.add_child(_output_target_status_label)
+
+	_refresh_output_target_status()
+	return box
+
+
+func output_target_snapshot() -> Dictionary:
+	var selected_layer := _selected_hex_tile_map_layer()
+	var selected_document = selected_layer.level_document_resource if selected_layer != null else null
+	var relationship_metadata := _document_generation_metadata_snapshot(selected_document)
+	var block_reason := _selected_document_output_block_reason()
+	return {
+		"mode": _output_target_mode,
+		"label": _output_target_label(_output_target_mode),
+		"selected_node": selected_layer,
+		"selected_node_path": _node_display_path(selected_layer),
+		"selected_document": selected_document,
+		"selected_document_path": selected_document.resource_path if selected_document != null else "",
+		"generated_document_present": _generated_output_present(),
+		"can_apply_selected_document": block_reason == "",
+		"blocked_reason": block_reason,
+		"document_generation_metadata": relationship_metadata,
+		"last_apply": _last_output_apply_result.duplicate(true),
+	}
+
+
+func set_output_target_mode(mode: String) -> void:
+	var next_mode := _normalized_output_target_mode(mode)
+	if _output_target_mode == next_mode:
+		_refresh_output_target_status()
+		return
+	_output_target_mode = next_mode
+	if _output_target_option != null:
+		for index in range(_output_target_option.item_count):
+			if String(_output_target_option.get_item_metadata(index)) == _output_target_mode:
+				_output_target_option.select(index)
+				break
+	_refresh_output_target_status()
+
+
+func apply_current_generation_to_selected_document() -> Dictionary:
+	var selected_layer := _selected_hex_tile_map_layer()
+	var block_reason := _selected_document_output_block_reason()
+	if block_reason != "":
+		return _record_output_apply_result(false, ERR_UNAVAILABLE, block_reason, selected_layer, null)
+
+	var target_document = selected_layer.level_document_resource
+	var generated_document = _generated_document_snapshot()
+	if generated_document == null:
+		return _record_output_apply_result(false, ERR_UNAVAILABLE, "No generated preview to apply.", selected_layer, target_document)
+
+	var snapshot := _generation_snapshot_for_output_metadata()
+	var validation_summary := _validation_summary_for_output_metadata(generated_document)
+	var metadata_options := {
+		"output_target": OUTPUT_TARGET_SELECTED_DOCUMENT,
+		"selected_node_path": _node_display_path(selected_layer),
+		"selected_node_name": selected_layer.name,
+		"target_document_path": target_document.resource_path if target_document != null else "",
+	}
+	_attach_generation_metadata(
+		generated_document,
+		snapshot,
+		int(snapshot.get("seed", int(_seed_spin.value))),
+		validation_summary,
+		metadata_options
+	)
+	HexMapDocumentAdapter.copy_document_state(target_document, generated_document)
+	selected_layer.level_document_resource = target_document
+	selected_layer.apply_document(target_document)
+	var context := workspace_asset_context()
+	if context != null:
+		context.set_level_document(target_document)
+	if _editor_session_state != null:
+		_editor_session_state.set_document(
+			target_document,
+			"generate.output_target",
+			target_document.resource_path,
+			"generate.output_target.apply_selected_document"
+		)
+	return _record_output_apply_result(true, OK, "", selected_layer, target_document)
+
+
+func _on_output_target_selected(index: int) -> void:
+	if _output_target_option == null:
+		return
+	var mode = _output_target_option.get_item_metadata(index)
+	set_output_target_mode(String(mode))
+
+
+func _on_apply_to_selected_document_pressed() -> void:
+	apply_current_generation_to_selected_document()
+
+
+func _selected_hex_tile_map_layer() -> HexTileMapLayer:
+	if _editor_session_state == null:
+		return null
+	return _editor_session_state.current_selected_hex_tile_map_layer() as HexTileMapLayer
+
+
+func _selected_document_output_block_reason() -> String:
+	var selected_layer := _selected_hex_tile_map_layer()
+	if selected_layer == null:
+		return "No HexTileMap selected"
+	if selected_layer.level_document_resource == null:
+		return "Selected HexTileMap has no Level Document."
+	if not _generated_output_present():
+		return "No generated preview to apply."
+	return ""
+
+
+func _generated_output_present() -> bool:
+	return _current_data != null or _current_overlay_data != null
+
+
+func _node_display_path(node: Node) -> String:
+	if node == null or not is_instance_valid(node):
+		return ""
+	return str(node.get_path()) if node.is_inside_tree() else node.name
+
+
+func _normalized_output_target_mode(mode: String) -> String:
+	if OUTPUT_TARGET_MODES.has(mode):
+		return mode
+	return OUTPUT_TARGET_PREVIEW_ONLY
+
+
+func _output_target_label(mode: String) -> String:
+	var index := OUTPUT_TARGET_MODES.find(mode)
+	if index >= 0 and index < OUTPUT_TARGET_LABELS.size():
+		return String(OUTPUT_TARGET_LABELS[index])
+	return String(OUTPUT_TARGET_LABELS[0])
+
+
+func _refresh_output_target_status() -> void:
+	if _output_target_status_label == null:
+		return
+	var snapshot := output_target_snapshot()
+	var status_text := ""
+	if String(snapshot.get("mode", "")) == OUTPUT_TARGET_PREVIEW_ONLY:
+		status_text = "Preview only: generated result updates target display; Level Document stays unchanged."
+	else:
+		var block_reason := String(snapshot.get("blocked_reason", ""))
+		if block_reason != "":
+			status_text = "Apply blocked: %s" % block_reason
+		else:
+			status_text = "Ready to apply generated result to the selected Level Document."
+	var last_apply := snapshot.get("last_apply", {}) as Dictionary
+	if bool(last_apply.get("ok", false)) and String(snapshot.get("blocked_reason", "")) == "":
+		status_text = "Applied generated result to selected Level Document."
+	_output_target_status_label.text = status_text
+	_output_target_status_label.tooltip_text = _output_target_status_tooltip(snapshot)
+	if _output_target_apply_button != null:
+		_output_target_apply_button.disabled = _output_target_mode != OUTPUT_TARGET_SELECTED_DOCUMENT \
+			or String(snapshot.get("blocked_reason", "")) != ""
+		_output_target_apply_button.tooltip_text = String(snapshot.get("blocked_reason", ""))
+
+
+func _output_target_status_tooltip(snapshot: Dictionary) -> String:
+	var lines := PackedStringArray()
+	lines.append("Output target: %s" % String(snapshot.get("label", "")))
+	var node_path := String(snapshot.get("selected_node_path", ""))
+	lines.append("Selected HexTileMap: %s" % (node_path if node_path != "" else "None"))
+	lines.append("Generated preview: %s" % ("Yes" if bool(snapshot.get("generated_document_present", false)) else "No"))
+	var document = snapshot.get("selected_document", null)
+	lines.append("Level Document: %s" % (_resource_display_name(document) if document != null else "None"))
+	var block_reason := String(snapshot.get("blocked_reason", ""))
+	if block_reason != "":
+		lines.append("Apply blocked: %s" % block_reason)
+	return _join_lines(lines)
+
+
+func _resource_display_name(resource) -> String:
+	if resource == null:
+		return ""
+	if resource is Resource and String((resource as Resource).resource_path) != "":
+		return String((resource as Resource).resource_path)
+	if resource is Object:
+		return (resource as Object).get_class()
+	return String(resource)
+
+
+func _generation_snapshot_for_output_metadata() -> Dictionary:
+	if not _last_generation_snapshot.is_empty():
+		return _last_generation_snapshot.duplicate(true)
+	return _create_generation_snapshot()
+
+
+func _validation_summary_for_output_metadata(document) -> Dictionary:
+	if not _last_generation_validation_summary.is_empty():
+		return _last_generation_validation_summary.duplicate(true)
+	var validation_result = HexMapDocumentValidator.validate_document(document, _generation_validation_options())
+	return _validation_summary_from_result(validation_result, document != null)
+
+
+func _document_generation_metadata_snapshot(document) -> Dictionary:
+	if document == null or document.metadata == null:
+		return {
+			"present": false,
+		}
+	var custom: Dictionary = document.metadata.custom_properties
+	return {
+		"present": not document.metadata.generation_snapshot.is_empty() \
+			or custom.has("generation_source"),
+		"generation_seed": document.metadata.generation_seed,
+		"generation_snapshot": document.metadata.generation_snapshot.duplicate(true),
+		"generation_source": String(custom.get("generation_source", "")),
+		"generation_output_target": String(custom.get("generation_output_target", "")),
+		"generation_target_node_path": String(custom.get("generation_target_node_path", "")),
+		"generation_target_document_path": String(custom.get("generation_target_document_path", "")),
+		"generation_validation_summary": custom.get("generation_validation_summary", {}).duplicate(true) \
+			if custom.get("generation_validation_summary", {}) is Dictionary else {},
+	}
+
+
+func _record_output_apply_result(
+	ok: bool,
+	error: int,
+	blocked_reason: String,
+	selected_layer: HexTileMapLayer,
+	document
+) -> Dictionary:
+	_last_output_apply_result = {
+		"ok": ok,
+		"error": error,
+		"blocked_reason": blocked_reason,
+		"output_target": OUTPUT_TARGET_SELECTED_DOCUMENT,
+		"selected_node": selected_layer,
+		"selected_node_path": _node_display_path(selected_layer),
+		"selected_document": document,
+		"selected_document_path": document.resource_path if document != null else "",
+		"document_generation_metadata": _document_generation_metadata_snapshot(document),
+	}
+	_refresh_output_target_status()
+	return _last_output_apply_result.duplicate(true)
 
 
 func _build_source_registry_controls() -> Control:
@@ -2972,6 +3253,14 @@ func _attach_generation_metadata(
 	document.metadata.generation_snapshot = _metadata_generation_snapshot(snapshot)
 	document.metadata.custom_properties["generation_source"] = "hex_map_gen_dock"
 	document.metadata.custom_properties["generation_validation_summary"] = validation_summary.duplicate(true)
+	if String(options.get("output_target", "")) != "":
+		document.metadata.custom_properties["generation_output_target"] = String(options.get("output_target", ""))
+	if String(options.get("selected_node_path", "")) != "":
+		document.metadata.custom_properties["generation_target_node_path"] = String(options.get("selected_node_path", ""))
+	if String(options.get("selected_node_name", "")) != "":
+		document.metadata.custom_properties["generation_target_node_name"] = String(options.get("selected_node_name", ""))
+	if String(options.get("target_document_path", "")) != "":
+		document.metadata.custom_properties["generation_target_document_path"] = String(options.get("target_document_path", ""))
 	var score_row = options.get("score_row", {})
 	if score_row is Dictionary:
 		document.metadata.custom_properties["generation_score"] = float((score_row as Dictionary).get("score", 0.0))
@@ -3584,6 +3873,7 @@ func _refresh_controls() -> void:
 	_refresh_overlay_item_pool_rows()
 	_refresh_adjacency_rules_status()
 	_refresh_generation_block_state()
+	_refresh_output_target_status()
 
 
 func _sample_catalog_fallback_enabled() -> bool:
@@ -3677,6 +3967,9 @@ func _generate_map(show_progress: bool = false) -> bool:
 	if _generation_running:
 		return false
 	var snapshot = _create_generation_snapshot()
+	_last_generation_snapshot = snapshot.duplicate(true)
+	_last_output_apply_result.clear()
+	_refresh_output_target_status()
 	var block_reason = _generation_block_reason_for_snapshot(snapshot)
 	if block_reason != "":
 		_set_generation_progress(0.0, _generation_block_status(block_reason))
@@ -3712,6 +4005,10 @@ func _generate_map(show_progress: bool = false) -> bool:
 
 	_validate_current_generation_result()
 	_find_target_tile_map_layer_and_apply_current()
+	if _output_target_mode == OUTPUT_TARGET_SELECTED_DOCUMENT:
+		var apply_result := apply_current_generation_to_selected_document()
+		return bool(apply_result.get("ok", false))
+	_refresh_output_target_status()
 	return true
 
 

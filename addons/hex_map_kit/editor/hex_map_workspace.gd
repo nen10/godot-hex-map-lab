@@ -2382,6 +2382,26 @@ func _node_owned_relationship(workspace_resource: Resource, node_resource: Resou
 		"node_resource": node_resource,
 		"status": status,
 		"matches": workspace_resource == node_resource,
+		"generation_metadata": _document_generation_metadata_snapshot(node_resource),
+	}
+
+
+func _document_generation_metadata_snapshot(resource: Resource) -> Dictionary:
+	var document := resource as HexMapDocumentResource
+	if document == null or document.metadata == null:
+		return {
+			"present": false,
+		}
+	var custom: Dictionary = document.metadata.custom_properties
+	return {
+		"present": not document.metadata.generation_snapshot.is_empty() \
+			or custom.has("generation_source"),
+		"generation_seed": document.metadata.generation_seed,
+		"generation_snapshot": document.metadata.generation_snapshot.duplicate(true),
+		"generation_source": String(custom.get("generation_source", "")),
+		"generation_output_target": String(custom.get("generation_output_target", "")),
+		"generation_target_node_path": String(custom.get("generation_target_node_path", "")),
+		"generation_target_document_path": String(custom.get("generation_target_document_path", "")),
 	}
 
 
