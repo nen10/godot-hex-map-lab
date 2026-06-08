@@ -109,8 +109,8 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `GEN-80` | `READY` | `NODE-24` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/GEN-80_GENERATION_INTERMEDIATE_DATA_USE_CASE_REVIEW/` | Generation intermediate data use-case review | `docs/review/roadmap/GENERATION_PIPELINE_GRAPH_REVIEW_2026-06-08.md`, generation/resource notes | Intermediate data use cases are separated into immediate UI, backlog, and research; Generate tab is not expanded into graph editor prematurely. |
-| `GEN-81` | `BACKLOG` | `GEN-80` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/GEN-81_GENERATION_PROFILE_AND_RESULT_MODEL/` | Generation Profile / Result / Document model | generation profile/result docs, resource/API notes, tests if schema changes | Generate preview, intermediate, and committed document states are defined and aligned with QA, Seed Lab, and Document metadata; graph editor remains out of scope. |
+| `GEN-80` | `COMPLETE` | `NODE-24` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/GEN-80_GENERATION_INTERMEDIATE_DATA_USE_CASE_REVIEW/` | Generation intermediate data use-case review | `docs/review/roadmap/GENERATION_PIPELINE_GRAPH_REVIEW_2026-06-08.md`, generation/resource notes | Intermediate data use cases are separated into immediate UI, backlog, and research; Generate tab is not expanded into graph editor prematurely. |
+| `GEN-81` | `READY` | `GEN-80` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/GEN-81_GENERATION_PROFILE_AND_RESULT_MODEL/` | Generation Profile / Result / Document model | generation profile/result docs, resource/API notes, tests if schema changes | Generate preview, intermediate, and committed document states are defined and aligned with QA, Seed Lab, and Document metadata; graph editor remains out of scope. |
 
 ---
 
@@ -148,7 +148,7 @@ acceptance / test path:
 
 ## 12. Current pointer
 
-Current recommended next task: `GEN-80`.
+Current recommended next task: `GEN-81`.
 
 Reason:
 
@@ -180,8 +180,10 @@ Reason:
 - `INFO-71` is complete.
 - `INFO-72` is complete.
 - Phase U7 has no remaining READY task.
-- `GEN-80` is the first READY task in queue order.
-- `DOC-90` was promoted to READY because `TAB-57` and `INFO-72` are complete, but it appears later in the queue.
+- `GEN-80` is complete.
+- `GEN-81` was promoted to READY because `GEN-80` is complete.
+- `GEN-81` is the first READY task in queue order.
+- `DOC-90` is also READY, but it appears later in the queue.
 
 ---
 
@@ -607,3 +609,16 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_workspace.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/INFO-72_TEST_RESULT_2026-06-08.md`
+
+### GEN-80 Generation intermediate data use-case review
+
+proof:
+  plan: `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/GEN-80_GENERATION_INTERMEDIATE_DATA_USE_CASE_REVIEW/`
+  review: `docs/review/autopilot/GEN-80_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+    - `docs/review/roadmap/GENERATION_PIPELINE_GRAPH_REVIEW_2026-06-08.md`
+  major files:
+    - `docs/review/autopilot/GEN-80_TEST_RESULT_2026-06-08.md`
