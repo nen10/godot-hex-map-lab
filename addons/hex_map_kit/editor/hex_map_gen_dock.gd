@@ -49,7 +49,19 @@ const CONNECT_METHOD_VALUES := [
 const GENERATION_PROGRESS_START := 0.1
 const GENERATION_PROGRESS_SCALE := 0.8
 const GENERATION_PROGRESS_UPDATE := 0.95
+const GENERATION_PROGRESS_VALIDATE := 0.9
+const GENERATION_PROGRESS_APPLY := 0.96
+const GENERATION_PROGRESS_FINALIZE := 0.99
 const GENERATION_PROGRESS_MIN_VISIBLE_SEC := 0.8
+const PROGRESS_STEP_IDLE := "idle"
+const PROGRESS_STEP_PREPARING := "preparing"
+const PROGRESS_STEP_GENERATING := "generating"
+const PROGRESS_STEP_VALIDATING := "validating"
+const PROGRESS_STEP_APPLYING := "applying"
+const PROGRESS_STEP_TILE_SETTINGS := "tile_settings"
+const PROGRESS_STEP_COMPLETE := "complete"
+const PROGRESS_STEP_CANCELLED := "cancelled"
+const PROGRESS_STEP_BLOCKED := "blocked"
 const TILE_TARGET_AUTO_INDEX := 0
 const TILE_TARGET_LAYER_INDEX_OFFSET := 1
 const TILE_TARGET_AUTO_LABEL := "Auto: Selected / first scene layer"
@@ -256,6 +268,7 @@ var _generation_progress_hide_token := 0
 var _generation_progress_scheduled_hide_token := 0
 var _generation_progress_visible_started_msec := 0
 var _generation_progress_hide_after_msec := 0
+var _generation_progress_step := PROGRESS_STEP_IDLE
 var _suppress_tile_settings_apply := false
 var _current_overlay_data = null
 var _editor_session_state: HexMapEditorSessionState = null
@@ -2531,9 +2544,20 @@ func _apply_tile_settings_to_current_layer() -> bool:
 	var layer = _find_editor_selected_tile_map_layer()
 	if layer == null:
 		return false
+	_show_busy_progress_step(
+		PROGRESS_STEP_TILE_SETTINGS,
+		GENERATION_PROGRESS_UPDATE,
+		"Applying tile settings",
+		false,
+		true
+	)
+	var ok := false
 	if _overlay_mode_enabled():
-		return apply_current_overlay_data_to_tile_map_layer(layer)
-	return apply_current_data_to_tile_map_layer(layer)
+		ok = apply_current_overlay_data_to_tile_map_layer(layer)
+	else:
+		ok = apply_current_data_to_tile_map_layer(layer)
+	_finish_generation_progress_controls_success("Tile settings applied" if ok else "Failed")
+	return ok
 
 
 func apply_current_overlay_data_to_tile_map_layer(layer) -> bool:
@@ -2746,6 +2770,28 @@ func generation_status() -> Dictionary:
 		"cancel_requested": _is_generation_cancel_requested(),
 		"progress": _generation_progress,
 		"status": _generation_status,
+		"step": _generation_progress_step,
+		"visible": _generation_progress_container != null and _generation_progress_container.visible,
+		"cancel_available": _generation_progress_cancel_button != null \
+			and not _generation_progress_cancel_button.disabled,
+	}
+
+
+func generation_progress_snapshot() -> Dictionary:
+	return {
+		"running": _generation_running,
+		"cancel_requested": _is_generation_cancel_requested(),
+		"progress": _generation_progress,
+		"status": _generation_status,
+		"step": _generation_progress_step,
+		"current_step_text": _generation_progress_status_label.text \
+			if _generation_progress_status_label != null else _generation_status,
+		"visible": _generation_progress_container != null and _generation_progress_container.visible,
+		"progress_bar_visible": _generation_progress_bar != null and _generation_progress_container != null \
+			and _generation_progress_container.visible,
+		"cancel_available": _generation_progress_cancel_button != null \
+			and not _generation_progress_cancel_button.disabled,
+		"modal_window_count": 0,
 	}
 
 
@@ -4019,12 +4065,53 @@ func _generate_map(show_progress: bool = false) -> bool:
 	if _last_generation_cancelled:
 		return false
 
+	var show_post_progress := show_progress or (
+		_generation_progress_container != null and _generation_progress_container.visible
+	)
+	_show_busy_progress_step(
+		PROGRESS_STEP_VALIDATING,
+		GENERATION_PROGRESS_VALIDATE,
+		"Validating generated document",
+		false,
+		show_post_progress
+	)
+	if show_post_progress:
+		await get_tree().process_frame
 	_validate_current_generation_result()
+	_show_busy_progress_step(
+		PROGRESS_STEP_APPLYING,
+		GENERATION_PROGRESS_APPLY,
+		"Applying generated result",
+		false,
+		show_post_progress
+	)
+	if show_post_progress:
+		await get_tree().process_frame
 	_find_target_tile_map_layer_and_apply_current()
 	if _output_target_mode == OUTPUT_TARGET_SELECTED_DOCUMENT:
+		_show_busy_progress_step(
+			PROGRESS_STEP_APPLYING,
+			GENERATION_PROGRESS_FINALIZE,
+			"Applying generated result",
+			false,
+			show_post_progress
+		)
+		if show_post_progress:
+			await get_tree().process_frame
 		var apply_result := apply_current_generation_to_selected_document()
+		_finish_generation_progress_controls_success()
 		return bool(apply_result.get("ok", false))
 	_refresh_output_target_status()
+	_show_busy_progress_step(
+		PROGRESS_STEP_COMPLETE,
+		GENERATION_PROGRESS_FINALIZE,
+		"Finalizing",
+		false,
+		show_post_progress
+	)
+	if show_post_progress:
+		await get_tree().process_frame
+	_finish_generation_progress_controls_success()
 	return true
 
 
@@ -4715,13 +4802,50 @@ func _finish_generation(cancelled: bool) -> void:
 	generation_finished.emit(cancelled)
 
 
+func _show_busy_progress_step(
+	step: String,
+	progress: float,
+	status: String,
+	cancel_available: bool = false,
+	show_controls: bool = true
+) -> void:
+	if show_controls:
+		_show_generation_progress_controls()
+	_set_generation_progress_cancel_enabled(cancel_available)
+	_set_generation_progress(progress, status)
+	_generation_progress_step = step
+
+
 func _set_generation_progress(progress: float, status: String) -> void:
 	_generation_progress = clampf(progress, 0.0, 1.0)
 	_generation_status = status
+	_generation_progress_step = _progress_step_for_status(status)
 	if _generation_progress_bar != null:
 		_generation_progress_bar.value = _generation_progress
 	if _generation_progress_status_label != null:
 		_generation_progress_status_label.text = _generation_status
+
+
+func _progress_step_for_status(status: String) -> String:
+	if status == "Ready":
+		return PROGRESS_STEP_COMPLETE
+	if status == "Preparing":
+		return PROGRESS_STEP_PREPARING
+	if status == "Generating":
+		return PROGRESS_STEP_GENERATING
+	if status == "Validating generated document":
+		return PROGRESS_STEP_VALIDATING
+	if status == "Applying generated result" or status == "Applying tile settings":
+		return PROGRESS_STEP_APPLYING
+	if status == "Tile settings applied":
+		return PROGRESS_STEP_COMPLETE
+	if status == "Cancelled" or status == "Cancel requested":
+		return PROGRESS_STEP_CANCELLED
+	if status.begins_with(GENERATION_BLOCK_STATUS_PREFIX):
+		return PROGRESS_STEP_BLOCKED
+	if status == "Failed":
+		return PROGRESS_STEP_BLOCKED
+	return _generation_progress_step
 
 
 func _set_generation_cancel_requested(requested: bool) -> void:
@@ -4748,11 +4872,11 @@ func _show_generation_progress_controls() -> void:
 	_set_generation_progress(_generation_progress, _generation_status)
 
 
-func _finish_generation_progress_controls_success() -> void:
+func _finish_generation_progress_controls_success(status: String = "Ready") -> void:
 	if _generation_progress_container == null or not _generation_progress_container.visible:
 		return
 	_set_generation_progress_cancel_enabled(false)
-	_set_generation_progress(1.0, "Ready")
+	_set_generation_progress(1.0, status)
 
 	_generation_progress_hide_token += 1
 	var hide_token = _generation_progress_hide_token

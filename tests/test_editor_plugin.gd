@@ -5537,12 +5537,19 @@ func _test_generation_dock_tracks_generation_progress_state() -> void:
 
 	dock._on_generate_pressed()
 	await _wait_for_progress_controls(dock, "Generate button generation")
+	await _wait_for_progress_status(dock, "Validating generated document", "Generate validation progress")
+	await _wait_for_progress_status(dock, "Applying generated result", "Generate apply progress")
 	await _wait_for_generation(dock, "Generate button generation")
 	var ready_status = dock.generation_status()
 	_assert_true(not ready_status["running"], "generation dock clears running state after Generate")
 	_assert_true(not ready_status["cancel_requested"], "generation dock clears cancel request after Generate")
 	_assert_eq(ready_status["progress"], 1.0, "generation dock reports completed progress")
 	_assert_eq(ready_status["status"], "Ready", "generation dock reports ready status")
+	_assert_eq(String(ready_status["step"]), HexMapGenDock.PROGRESS_STEP_COMPLETE, "PERF-61 generation status exposes complete step")
+	var progress_snapshot = dock.generation_progress_snapshot()
+	_assert_eq(String(progress_snapshot["current_step_text"]), "Ready", "PERF-61 progress snapshot exposes current step text")
+	_assert_true(bool(progress_snapshot["progress_bar_visible"]), "PERF-61 progress snapshot exposes visible ProgressBar")
+	_assert_true(not bool(progress_snapshot["cancel_available"]), "PERF-61 cancel is unavailable after synchronous apply/finalize")
 	_assert_true(_progress_controls_visible(dock), "generation dock keeps Generate progress visible after fast generation")
 	_assert_true(dock._generation_progress_cancel_button.disabled, "generation dock disables progress cancel after Generate finish")
 	_assert_eq(_window_child_count(dock), 0, "generation dock does not create modal progress window for Generate")
@@ -5578,6 +5585,22 @@ func _test_generation_dock_tracks_generation_progress_state() -> void:
 	_assert_eq(cancelled_status["status"], "Cancelled", "generation dock reports cancelled status")
 	_assert_true(_progress_controls_hidden(dock), "generation dock hides progress after cancellation")
 
+	var layer = TileMapLayer.new()
+	root.add_child(layer)
+	await process_frame
+	dock._current_data = HexMapData.rectangle(2, 1)
+	dock._current_orientation = HexMapResource.ORIENTATION_FLAT_TOP
+	dock._set_editor_selected_tile_map_layer_for_test(layer)
+	_assert_true(dock.setup_sample_tiles_on_tile_map_layer(layer), "PERF-61 tile setting progress test configures display tiles")
+	_assert_true(dock._apply_tile_settings_to_current_layer(), "PERF-61 tile setting apply succeeds")
+	progress_snapshot = dock.generation_progress_snapshot()
+	_assert_true(bool(progress_snapshot["visible"]), "PERF-61 tile setting apply shows inline progress")
+	_assert_eq(String(progress_snapshot["status"]), "Tile settings applied", "PERF-61 tile setting apply reports completion")
+	_assert_eq(String(progress_snapshot["step"]), HexMapGenDock.PROGRESS_STEP_COMPLETE, "PERF-61 tile setting completion uses complete step")
+	_assert_true(not bool(progress_snapshot["cancel_available"]), "PERF-61 tile setting apply is not cancellable")
+	_assert_eq(_window_child_count(dock), 0, "PERF-61 tile setting apply does not create modal busy window")
+
+	layer.queue_free()
 	dock.queue_free()
 	await process_frame
 
@@ -7434,11 +7457,29 @@ func _begin_manual_generation(dock: HexMapGenDock, show_progress: bool = false) 
 
 func _wait_for_generation(dock: HexMapGenDock, message: String) -> void:
 	var guard := 0
-	while dock.generation_status()["running"] and guard < 240:
+	while _generation_operation_active(dock) and guard < 240:
 		await process_frame
 		guard += 1
 	_assert_true(guard < 240, "%s finishes" % message)
 	await process_frame
+
+
+func _wait_for_progress_status(dock: HexMapGenDock, expected_status: String, message: String) -> void:
+	var guard := 0
+	while String(dock.generation_progress_snapshot()["status"]) != expected_status and guard < 240:
+		await process_frame
+		guard += 1
+	_assert_eq(String(dock.generation_progress_snapshot()["status"]), expected_status, "%s reaches progress status" % message)
+
+
+func _generation_operation_active(dock: HexMapGenDock) -> bool:
+	var status = dock.generation_status()
+	if bool(status["running"]):
+		return true
+	var text := String(status["status"])
+	return text == "Validating generated document" \
+		or text == "Applying generated result" \
+		or text == "Finalizing"
 
 
 func _wait_for_progress_controls(dock: HexMapGenDock, message: String) -> void:
