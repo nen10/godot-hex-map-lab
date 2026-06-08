@@ -1,9 +1,9 @@
-[gd_resource type="Resource" script_class="HexTileCatalogResource" format=3]
+[gd_resource type="Resource" script_class="HexTileCatalogResource" format=3 uid="uid://deax15n03fyvs"]
 
-[ext_resource type="Script" path="res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd" id="1_v6yv3"]
+[ext_resource type="Script" uid="uid://c3lq3ebxyjy5q" path="res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd" id="1_v6yv3"]
 [ext_resource type="PackedScene" path="res://addons/hex_map_kit/assets/sample_spawn_marker.tscn" id="2_haekq"]
-[ext_resource type="Script" path="res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd" id="3_do16n"]
-[ext_resource type="Texture2D" path="res://addons/hex_map_kit/assets/sample_hex_tiles.png" id="4_6xd80"]
+[ext_resource type="Script" uid="uid://bcp3u3gmcy0b1" path="res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd" id="3_do16n"]
+[ext_resource type="Texture2D" uid="uid://8wbyqip7p7w1" path="res://addons/hex_map_kit/assets/sample_hex_tiles.png" id="4_6xd80"]
 
 [sub_resource type="Resource" id="Resource_5yivj"]
 script = ExtResource("1_v6yv3")
