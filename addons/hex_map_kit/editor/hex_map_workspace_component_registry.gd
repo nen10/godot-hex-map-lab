@@ -87,6 +87,7 @@ static func component_rows() -> Array[Dictionary]:
 			])
 		),
 		_component(TAB_VALIDATE, "validation_issue_navigator", "VBoxContainer", "ValidationIssueNavigator", "validate"),
+		_component(TAB_QA, "qa_seed_lab_panel", "VBoxContainer", "SeedLabPanel", "qa"),
 		_component(
 			TAB_QA,
 			"qa_asset_panel",

@@ -61,6 +61,12 @@ var _validation_issue_rows_label: Label
 var _selected_validate_issue_index := -1
 var _selected_validate_issue_row: Dictionary = {}
 var _selected_validate_issue_navigation: Dictionary = {}
+var _qa_seed_lab_panel: VBoxContainer
+var _qa_seed_lab_status_label: Label
+var _qa_seed_lab_selected_label: Label
+var _qa_seed_lab_rows_label: Label
+var _qa_selected_seed_row: Dictionary = {}
+var _qa_promoted_document: HexMapDocumentResource = null
 var _export_destination_panel: VBoxContainer
 var _export_destination_label: Label
 var _export_recent_destinations_label: Label
@@ -1655,10 +1661,14 @@ func select_paint_catalog_brush_key(key: String, mode_id: String = "terrain") ->
 
 func qa_screen_snapshot() -> Dictionary:
 	var context := workspace_asset_context()
+	var seed_lab := qa_seed_lab_context()
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_QA,
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_QA),
 		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_QA),
+		"purpose_text": "Compare generated seeds and promote one result to the Level Document.",
+		"generate_role_text": "Generate previews one candidate; QA compares seed batches and adopts a winner.",
+		"seed_lab_component_present": tab_has_component(HexMapWorkspaceComponentRegistry.TAB_QA, "qa_seed_lab_panel"),
 		"generation_profile": context.generation_profile,
 		"validation_rule_suite": context.validation_rule_suite,
 		"promotion_target_document": context.level_document,
@@ -1671,6 +1681,11 @@ func qa_screen_snapshot() -> Dictionary:
 			HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE
 		),
 		"score_table_context": qa_score_table_context(),
+		"seed_lab": seed_lab,
+		"score_rows": seed_lab.get("score_rows", []),
+		"selected_seed_row": _qa_selected_seed_row.duplicate(true),
+		"promoted_document": _qa_promoted_document,
+		"promotion_updates_resources": context.level_document != null and context.level_document == _qa_promoted_document,
 		"sample_candidates_visible": _ensure_session_state().show_bundled_samples_in_main_selectors,
 	}
 
@@ -1680,7 +1695,114 @@ func qa_score_table_context() -> Dictionary:
 	return {
 		"generation_profile": _qa_resource_context(context.generation_profile),
 		"validation_rule_suite": _qa_resource_context(context.validation_rule_suite),
-		"score_rows": _generation_dock.generation_batch_score_table("score", true) if _generation_dock != null else [],
+		"score_rows": _qa_score_rows(),
+	}
+
+
+func qa_seed_lab_context() -> Dictionary:
+	var context := workspace_asset_context()
+	var score_rows := _qa_score_rows()
+	return {
+		"generation_profile": _qa_resource_context(context.generation_profile),
+		"validation_rule_suite": _qa_resource_context(context.validation_rule_suite),
+		"score_rows": score_rows,
+		"score_row_count": score_rows.size(),
+		"selected_seed_row": _qa_selected_seed_row.duplicate(true),
+		"selected_seed": int(_qa_selected_seed_row.get("seed", 0)) if not _qa_selected_seed_row.is_empty() else 0,
+		"selected_score": float(_qa_selected_seed_row.get("score", 0.0)) if not _qa_selected_seed_row.is_empty() else 0.0,
+		"can_run_batch": _generation_dock != null,
+		"can_promote": _generation_dock != null and not _qa_selected_seed_row.is_empty(),
+		"promotion_target": _qa_promotion_target_context(context),
+		"promoted_document": _qa_promoted_document,
+		"empty_state_text": "Run Seed Lab to compare generated seeds." if score_rows.is_empty() else "",
+	}
+
+
+func _qa_score_rows() -> Array:
+	var rows: Array = []
+	if _generation_dock == null:
+		return rows
+	for row in _generation_dock.generation_batch_score_table("score", true):
+		rows.append(row)
+	return rows
+
+
+func run_qa_seed_lab(seed_count: int, options: Dictionary = {}) -> Dictionary:
+	if _generation_dock == null:
+		return {
+			"ok": false,
+			"error": ERR_UNAVAILABLE,
+			"score_rows": [],
+	}
+	_generation_dock.run_generation_batch(seed_count, options)
+	var rows := _qa_score_rows()
+	_qa_selected_seed_row.clear()
+	if not rows.is_empty():
+		_qa_selected_seed_row = (rows[0] as Dictionary).duplicate(true)
+	_refresh_qa_seed_lab_panel()
+	return {
+		"ok": true,
+		"error": OK,
+		"score_rows": rows,
+		"selected_seed_row": _qa_selected_seed_row.duplicate(true),
+	}
+
+
+func select_qa_seed_row(index: int) -> Dictionary:
+	var rows := _qa_score_rows()
+	if index < 0 or index >= rows.size():
+		_qa_selected_seed_row.clear()
+		_refresh_qa_seed_lab_panel()
+		return {
+			"ok": false,
+			"error": ERR_DOES_NOT_EXIST,
+			"selected_seed_row": {},
+		}
+	_qa_selected_seed_row = (rows[index] as Dictionary).duplicate(true)
+	_refresh_qa_seed_lab_panel()
+	return {
+		"ok": true,
+		"error": OK,
+		"selected_seed_row": _qa_selected_seed_row.duplicate(true),
+	}
+
+
+func promote_qa_selected_seed_to_document() -> Dictionary:
+	if _generation_dock == null or _qa_selected_seed_row.is_empty():
+		return {
+			"ok": false,
+			"error": ERR_UNAVAILABLE,
+			"document": null,
+			"seed_lab": qa_seed_lab_context(),
+		}
+	var document = _generation_dock.promote_generation_batch_row(_qa_selected_seed_row) as HexMapDocumentResource
+	if document == null:
+		return {
+			"ok": false,
+			"error": ERR_CANT_CREATE,
+			"document": null,
+			"seed_lab": qa_seed_lab_context(),
+		}
+	_qa_promoted_document = document
+	workspace_asset_context().set_level_document(document)
+	_ensure_session_state().set_document(document, "workspace.qa.seed_lab", document.resource_path, "workspace.qa.promote_seed")
+	_ensure_session_state().set_document_saved_path(document.resource_path, "workspace.qa.promote_seed")
+	var writeback := {}
+	if bool(selected_hex_tile_map_writeback_snapshot().get("can_writeback", false)):
+		writeback = _apply_workspace_asset_change_to_selected_node(
+			HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT,
+			"workspace.qa.promote_seed"
+		)
+	_sync_workspace_asset_context()
+	_refresh_selected_hex_tile_map_context()
+	_refresh_qa_seed_lab_panel()
+	return {
+		"ok": true,
+		"error": OK,
+		"document": document,
+		"selected_seed_row": _qa_selected_seed_row.duplicate(true),
+		"writeback": writeback,
+		"seed_lab": qa_seed_lab_context(),
 	}
 
 
@@ -2026,6 +2148,7 @@ func _mount_workspace_asset_panels() -> void:
 			_slot_row(HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE, "Validation Rule Suite"),
 		]
 	)
+	_mount_qa_seed_lab_panel()
 	_mount_asset_panel(
 		HexMapWorkspaceComponentRegistry.TAB_QA,
 		"qa_asset_panel",
@@ -2251,6 +2374,39 @@ func _mount_validation_issue_navigator() -> void:
 		_validation_issue_navigator
 	)
 	_refresh_validation_issue_navigator()
+
+
+func _mount_qa_seed_lab_panel() -> void:
+	var page = _tab_pages.get(HexMapWorkspaceComponentRegistry.TAB_QA, null)
+	if page == null or _qa_seed_lab_panel != null:
+		return
+	_qa_seed_lab_panel = VBoxContainer.new()
+	_qa_seed_lab_panel.name = "QA Seed Lab Panel"
+	_qa_seed_lab_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var title := Label.new()
+	title.text = "Seed Lab"
+	_qa_seed_lab_panel.add_child(title)
+
+	_qa_seed_lab_status_label = Label.new()
+	_qa_seed_lab_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_qa_seed_lab_panel.add_child(_qa_seed_lab_status_label)
+
+	_qa_seed_lab_selected_label = Label.new()
+	_qa_seed_lab_selected_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_qa_seed_lab_panel.add_child(_qa_seed_lab_selected_label)
+
+	_qa_seed_lab_rows_label = Label.new()
+	_qa_seed_lab_rows_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_qa_seed_lab_panel.add_child(_qa_seed_lab_rows_label)
+
+	(page as Control).add_child(_qa_seed_lab_panel)
+	_register_tab_component(
+		HexMapWorkspaceComponentRegistry.TAB_QA,
+		"qa_seed_lab_panel",
+		_qa_seed_lab_panel
+	)
+	_refresh_qa_seed_lab_panel()
 
 
 func _mount_export_destination_panel() -> void:
@@ -2787,6 +2943,18 @@ func _qa_resource_context(resource: Resource) -> Dictionary:
 	}
 
 
+func _qa_promotion_target_context(context: HexMapWorkspaceAssetContext) -> Dictionary:
+	var document := context.level_document
+	return {
+		"document": document,
+		"selected": document != null,
+		"status": "Level Document linked" if document != null else "No Level Document selected",
+		"resource_path": document.resource_path if document != null else "",
+		"promoted": document != null and document == _qa_promoted_document,
+		"generation_seed": document.metadata.generation_seed if document != null and document.metadata != null else 0,
+	}
+
+
 func _export_destination_context() -> Dictionary:
 	var session := _ensure_session_state()
 	var recent: Array[String] = []
@@ -3201,6 +3369,48 @@ func _validate_issue_rows_text(rows: Array) -> String:
 	return _join_text(parts, " | ")
 
 
+func _refresh_qa_seed_lab_panel() -> void:
+	if _qa_seed_lab_panel == null:
+		return
+	var context := qa_seed_lab_context()
+	if _qa_seed_lab_status_label != null:
+		var target = context.get("promotion_target", {}) as Dictionary
+		_qa_seed_lab_status_label.text = "Rows: %d | Profile: %s | Validation: %s | Promotion target: %s" % [
+			int(context.get("score_row_count", 0)),
+			"selected" if bool((context.get("generation_profile", {}) as Dictionary).get("selected", false)) else "missing",
+			"selected" if bool((context.get("validation_rule_suite", {}) as Dictionary).get("selected", false)) else "missing",
+			String(target.get("status", "")),
+		]
+	if _qa_seed_lab_selected_label != null:
+		var selected = context.get("selected_seed_row", {}) as Dictionary
+		if selected.is_empty():
+			_qa_seed_lab_selected_label.text = "Selected seed: none"
+		else:
+			_qa_seed_lab_selected_label.text = "Selected seed: %d | score=%.2f | validation=%dE/%dW" % [
+				int(selected.get("seed", 0)),
+				float(selected.get("score", 0.0)),
+				int(selected.get("validation_errors", 0)),
+				int(selected.get("validation_warnings", 0)),
+			]
+	if _qa_seed_lab_rows_label != null:
+		_qa_seed_lab_rows_label.text = _qa_seed_lab_rows_text(context.get("score_rows", []) as Array)
+
+
+func _qa_seed_lab_rows_text(rows: Array) -> String:
+	if rows.is_empty():
+		return "No seed batch rows."
+	var parts := PackedStringArray()
+	for row in rows:
+		if not row is Dictionary:
+			continue
+		parts.append("#%d seed=%d score=%.2f" % [
+			int((row as Dictionary).get("rank", 0)),
+			int((row as Dictionary).get("seed", 0)),
+			float((row as Dictionary).get("score", 0.0)),
+		])
+	return _join_text(parts, " | ")
+
+
 func _refresh_missing_unique_resources_panel() -> void:
 	if _missing_unique_resources_panel == null:
 		return
@@ -3497,6 +3707,7 @@ func _sync_workspace_asset_context() -> void:
 	_refresh_catalog_detail_panel()
 	_refresh_layer_stack_role_panel()
 	_refresh_validation_issue_navigator()
+	_refresh_qa_seed_lab_panel()
 	_refresh_missing_unique_resources_panel()
 
 

@@ -319,6 +319,7 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 	_assert_eq(workspace.edit_tool().editor_session_state(), session, "workspace forwards session to paint/edit component")
 	_assert_eq(workspace.sample_settings_panel().editor_session_state(), session, "workspace forwards session to sample settings component")
 	_assert_true(workspace.tab_has_component("Layers", "layer_stack_role_panel"), "workspace mounts Layers role editor component")
+	_assert_true(workspace.tab_has_component("QA", "qa_seed_lab_panel"), "workspace mounts QA Seed Lab component")
 	var asset_tab_expectations := [
 		{"tab": "Resources", "component": "document_asset_panel", "count": 5, "slot": "level_document"},
 		{"tab": "Catalog", "component": "catalog_asset_panel", "count": 1, "slot": "tile_catalog"},
@@ -717,7 +718,7 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 			]),
 		},
 		"QA": {
-			"components": PackedStringArray(["qa_asset_panel"]),
+			"components": PackedStringArray(["qa_seed_lab_panel", "qa_asset_panel"]),
 			"slots": PackedStringArray([
 				HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE,
 				HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE,
@@ -1748,6 +1749,13 @@ func _test_qa_asset_screen_manages_profiles_and_score_context_without_samples() 
 		"QA screen exposes QA asset panel"
 	)
 	_assert_true(
+		PackedStringArray(snapshot["component_ids"]).has("qa_seed_lab_panel"),
+		"TAB-55 QA screen exposes Seed Lab panel"
+	)
+	_assert_true(bool(snapshot["seed_lab_component_present"]), "TAB-55 QA snapshot confirms Seed Lab component")
+	_assert_eq(snapshot["purpose_text"], "Compare generated seeds and promote one result to the Level Document.", "TAB-55 QA screen states purpose")
+	_assert_true(String(snapshot["generate_role_text"]).contains("Generate previews one candidate"), "TAB-55 QA distinguishes Generate and QA roles")
+	_assert_true(
 		PackedStringArray(snapshot["asset_slot_ids"]).has(HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE),
 		"QA screen exposes generation profile slot"
 	)
@@ -1834,6 +1842,45 @@ func _test_qa_asset_screen_manages_profiles_and_score_context_without_samples() 
 		"standard",
 		"QA score context reports duplicated validation preset"
 	)
+	snapshot = workspace.qa_screen_snapshot()
+	var seed_lab = snapshot["seed_lab"] as Dictionary
+	_assert_eq(seed_lab["empty_state_text"], "Run Seed Lab to compare generated seeds.", "TAB-55 QA Seed Lab starts with empty state")
+	_assert_true(bool(seed_lab["can_run_batch"]), "TAB-55 QA Seed Lab can run through generation dock")
+	_assert_true(not bool(seed_lab["can_promote"]), "TAB-55 QA Seed Lab requires selected seed before promotion")
+
+	var dock = workspace.generation_dock()
+	dock._generate_option.select(HexMapGenDock.GENERATE_SIMPLE)
+	dock._shape_option_simple.select(HexMapGenDock.SHAPE_RECTANGLE)
+	dock._rect_width_spin.set_value_no_signal(2)
+	dock._rect_height_spin.set_value_no_signal(1)
+	dock._wall_prob_slider.set_value_no_signal(0.0)
+	dock._connect_method_option.select(_connect_method_index(HexMapGenerator.CONNECT_DENSE))
+	dock._refresh_controls()
+
+	var batch_result = workspace.run_qa_seed_lab(2, {"seeds": [901, 902]})
+	_assert_true(bool(batch_result["ok"]), "TAB-55 QA Seed Lab runs batch")
+	var score_rows = batch_result["score_rows"] as Array
+	_assert_eq(score_rows.size(), 2, "TAB-55 QA Seed Lab records score rows")
+	_assert_true(not (batch_result["selected_seed_row"] as Dictionary).is_empty(), "TAB-55 QA Seed Lab selects top row after batch")
+	snapshot = workspace.qa_screen_snapshot()
+	seed_lab = snapshot["seed_lab"] as Dictionary
+	_assert_eq(int(seed_lab["score_row_count"]), 2, "TAB-55 QA snapshot reports score row count")
+	_assert_true((snapshot["score_rows"] as Array).size() == 2, "TAB-55 QA screen exposes score rows")
+	_assert_true(bool(seed_lab["can_promote"]), "TAB-55 QA Seed Lab can promote selected row")
+
+	var seed_select = workspace.select_qa_seed_row(1)
+	_assert_true(bool(seed_select["ok"]), "TAB-55 QA Seed Lab selects score row")
+	var selected_seed = int((seed_select["selected_seed_row"] as Dictionary).get("seed", 0))
+	var promote_result = workspace.promote_qa_selected_seed_to_document()
+	_assert_true(bool(promote_result["ok"]), "TAB-55 QA Seed Lab promotes selected row")
+	var promoted_document = promote_result["document"] as HexMapDocumentResource
+	_assert_true(promoted_document is HexMapDocumentResource, "TAB-55 promotion creates Level Document")
+	_assert_eq(promoted_document.metadata.generation_seed, selected_seed, "TAB-55 promoted document records selected seed")
+	_assert_eq(workspace.workspace_asset_context().level_document, promoted_document, "TAB-55 promotion updates Resources Level Document context")
+	snapshot = workspace.qa_screen_snapshot()
+	_assert_true(bool(snapshot["promotion_updates_resources"]), "TAB-55 QA snapshot reports Resources document update")
+	seed_lab = snapshot["seed_lab"] as Dictionary
+	_assert_true(bool((seed_lab["promotion_target"] as Dictionary).get("promoted", false)), "TAB-55 promotion target marks promoted document")
 
 	var clear_profile = workspace.clear_generation_profile()
 	_assert_true(bool(clear_profile["ok"]), "QA screen clears Generation Profile")
