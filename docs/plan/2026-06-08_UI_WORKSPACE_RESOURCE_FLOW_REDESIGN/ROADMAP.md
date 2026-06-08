@@ -388,7 +388,7 @@ Acceptance:
 
 #### `UIR-01_CURRENT_VISIBLE_UI_INVENTORY`
 
-status: `READY`  
+status: `COMPLETE`  
 dependencies: `UIR-00_ADOPT_FIRST_IMPRESSION_FEEDBACK`
 
 目的:
@@ -428,7 +428,7 @@ Acceptance:
 
 #### `LAYOUT-10_SCROLL_CONTAINER_FOR_ALL_TABS`
 
-status: `BACKLOG`  
+status: `READY`  
 dependencies: `UIR-01_CURRENT_VISIBLE_UI_INVENTORY`
 
 目的:
@@ -948,7 +948,7 @@ Acceptance:
 
 #### `PERF-60_GENERATE_GLOBAL_UPDATE_PROFILE`
 
-status: `BACKLOG`  
+status: `READY`  
 dependencies: `UIR-01_CURRENT_VISIBLE_UI_INVENTORY`
 
 目的:

@@ -26,7 +26,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
 | `UIR-00` | `COMPLETE` | none | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/UIR-00_ADOPT_FIRST_IMPRESSION_FEEDBACK/` | First impression feedback adoption | `AGENTS.md`, `docs/policy/IMPLEMENTATION_POLICY.md`, `docs/policy/TEST_DESIGN_POLICY.md`, `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/ROADMAP.md` | Sample is learning / duplicate source, not execution fallback; committed dist freshness is final process step, not normal test; UI first impression outranks headless API availability. |
-| `UIR-01` | `READY` | `UIR-00` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/UIR-01_CURRENT_VISIBLE_UI_INVENTORY/` | Current visible UI inventory | `docs/review/roadmap/WORKSPACE_VISIBLE_UI_INVENTORY_2026-06-08.md`, current editor UI source/readback notes | Inventory reproduces Document/Paint/Catalog/Layers/Validate/QA/Export/Settings first impression and separates display bugs from missing design. |
+| `UIR-01` | `COMPLETE` | `UIR-00` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/UIR-01_CURRENT_VISIBLE_UI_INVENTORY/` | Current visible UI inventory | `docs/review/roadmap/WORKSPACE_VISIBLE_UI_INVENTORY_2026-06-08.md`, current editor UI source/readback notes | Inventory reproduces Document/Paint/Catalog/Layers/Validate/QA/Export/Settings first impression and separates display bugs from missing design. |
 
 ---
 
@@ -34,7 +34,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `LAYOUT-10` | `BACKLOG` | `UIR-01` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/LAYOUT-10_SCROLL_CONTAINER_FOR_ALL_TABS/` | Scrollable content for all workspace tabs | `HexMapWorkspace`, per-tab content containers, `HexMapWorkspaceAssetPanel`, `HexMapSampleSettingsPanel`, editor tests | Each tab root has ScrollContainer or equivalent; primary actions remain reachable in narrow/short docks; tab switching does not break scroll/focus. |
+| `LAYOUT-10` | `READY` | `UIR-01` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/LAYOUT-10_SCROLL_CONTAINER_FOR_ALL_TABS/` | Scrollable content for all workspace tabs | `HexMapWorkspace`, per-tab content containers, `HexMapWorkspaceAssetPanel`, `HexMapSampleSettingsPanel`, editor tests | Each tab root has ScrollContainer or equivalent; primary actions remain reachable in narrow/short docks; tab switching does not break scroll/focus. |
 | `LAYOUT-11` | `BACKLOG` | `LAYOUT-10` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/LAYOUT-11_COMPACT_RESOURCE_ROW_LAYOUT/` | Compact resource row layout | asset slot controls, workspace asset panel, sample settings panel, editor tests | Resource rows use `[Title] [ResourcePicker] [status icon]`; long purpose/type/path/validation details move to tooltip or expander; missing state remains short and visible. |
 
 ---
@@ -89,7 +89,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `PERF-60` | `BACKLOG` | `UIR-01` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/PERF-60_GENERATE_GLOBAL_UPDATE_PROFILE/` | Generate/global update performance profile | `docs/review/roadmap/GENERATE_UPDATE_PERFORMANCE_PROFILE_2026-06-08.md`, Generate/apply/validation profiling notes | Heavy operations are classified as redraw/generation/apply/validation; UI freeze causes are identified; improvement candidates are prioritized. |
+| `PERF-60` | `READY` | `UIR-01` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/PERF-60_GENERATE_GLOBAL_UPDATE_PROFILE/` | Generate/global update performance profile | `docs/review/roadmap/GENERATE_UPDATE_PERFORMANCE_PROFILE_2026-06-08.md`, Generate/apply/validation profiling notes | Heavy operations are classified as redraw/generation/apply/validation; UI freeze causes are identified; improvement candidates are prioritized. |
 | `PERF-61` | `BACKLOG` | `PERF-60` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/PERF-61_PROGRESS_AND_BUSY_UI/` | Progress and busy UI | Generate/apply/validation UI, busy overlay/progress helpers, tests | Long operations show start/progress/completion through ProgressBar/busy overlay/current step text; UX is not distorted for progress reporting. |
 | `PERF-62` | `BACKLOG` | `PERF-60` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/PERF-62_INCREMENTAL_UPDATE_AND_DEBOUNCE/` | Incremental update and debounce | Generate/apply/redraw update paths, debounce/cache helpers, performance tests | Continuous changes avoid repeated heavy full updates; visible wait time drops; behavior stays consistent with progress UI. |
 
@@ -148,13 +148,13 @@ acceptance / test path:
 
 ## 12. Current pointer
 
-Current recommended next task: `UIR-01`.
+Current recommended next task: `LAYOUT-10`.
 
 Reason:
 
-- `UIR-00` is complete.
-- `UIR-01` is the first READY task in queue order.
-- `NODE-20` is also READY because `UIR-00` is complete, but it appears later in the queue.
+- `UIR-00` and `UIR-01` are complete.
+- `LAYOUT-10` is the first READY task in queue order.
+- `NODE-20` and `PERF-60` are also READY, but they appear later in the queue.
 
 ---
 
@@ -175,3 +175,16 @@ proof:
   major files:
     - `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/IMPLEMENTATION_QUEUE.md`
     - `docs/review/autopilot/UIR-00_TEST_RESULT_2026-06-08.md`
+
+### UIR-01 Current visible UI inventory
+
+proof:
+  plan: `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/UIR-01_CURRENT_VISIBLE_UI_INVENTORY/`
+  review: `docs/review/autopilot/UIR-01_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/review/roadmap/WORKSPACE_VISIBLE_UI_INVENTORY_2026-06-08.md`
+  major files:
+    - `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/IMPLEMENTATION_QUEUE.md`
+    - `docs/review/autopilot/UIR-01_TEST_RESULT_2026-06-08.md`
