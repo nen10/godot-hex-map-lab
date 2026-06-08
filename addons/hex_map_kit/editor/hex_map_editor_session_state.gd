@@ -3,12 +3,15 @@ class_name HexMapEditorSessionState
 extends RefCounted
 
 const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
+const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 
 const MAX_RECENT_EXPORT_DESTINATIONS := 8
 
 signal changed(key: String)
 
 var target_layer: Node = null
+var selected_hex_tile_map_layer: Node = null
+var auto_link_selected_hex_tile_map := true
 var document: Resource = null
 var document_source: String = ""
 var document_saved_path: String = ""
@@ -39,6 +42,39 @@ func set_target_layer(layer: Node, reason: String = "") -> void:
 
 func current_target_layer() -> Node:
 	return target_layer if target_layer != null and is_instance_valid(target_layer) else null
+
+
+func set_selected_hex_tile_map_layer(layer: Node, reason: String = "") -> void:
+	var next_layer := _coerce_hex_tile_map_layer(layer)
+	var should_emit := selected_hex_tile_map_layer != next_layer or last_reason != reason
+	selected_hex_tile_map_layer = next_layer
+	last_reason = reason
+	if should_emit:
+		changed.emit("selected_hex_tile_map_layer")
+	if auto_link_selected_hex_tile_map:
+		set_target_layer(next_layer, reason)
+
+
+func clear_selected_hex_tile_map_layer(reason: String = "") -> void:
+	set_selected_hex_tile_map_layer(null, reason)
+
+
+func current_selected_hex_tile_map_layer() -> Node:
+	return selected_hex_tile_map_layer if selected_hex_tile_map_layer != null and is_instance_valid(selected_hex_tile_map_layer) else null
+
+
+func set_auto_link_selected_hex_tile_map(enabled: bool, reason: String = "") -> void:
+	if auto_link_selected_hex_tile_map == enabled:
+		return
+	auto_link_selected_hex_tile_map = enabled
+	last_reason = reason
+	changed.emit("selected_hex_tile_map.auto_link")
+	if enabled:
+		set_target_layer(current_selected_hex_tile_map_layer(), reason)
+
+
+func selected_hex_tile_map_auto_link_enabled() -> bool:
+	return auto_link_selected_hex_tile_map
 
 
 func set_document(value: Resource, source: String = "", saved_path: String = "", reason: String = "") -> void:
@@ -179,6 +215,8 @@ func snapshot() -> Dictionary:
 	var context := current_workspace_asset_context()
 	return {
 		"target_layer": current_target_layer(),
+		"selected_hex_tile_map_layer": current_selected_hex_tile_map_layer(),
+		"auto_link_selected_hex_tile_map": auto_link_selected_hex_tile_map,
 		"document": document,
 		"document_source": document_source,
 		"document_saved_path": document_saved_path,
@@ -196,6 +234,12 @@ func snapshot() -> Dictionary:
 		"debug_numeric_tile_fallback_enabled": debug_numeric_tile_fallback_enabled,
 		"last_reason": last_reason,
 	}
+
+
+func _coerce_hex_tile_map_layer(layer: Node) -> Node:
+	if layer != null and is_instance_valid(layer) and layer is HexTileMapLayer:
+		return layer
+	return null
 
 
 func _connect_workspace_asset_context() -> void:

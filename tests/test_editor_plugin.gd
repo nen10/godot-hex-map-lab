@@ -112,6 +112,7 @@ func _init() -> void:
 func _run() -> void:
 	_test_plugin_registration_files()
 	await _test_hex_map_workspace_exposes_tabs_and_routes_editing()
+	await _test_workspace_selected_hex_tile_map_auto_binding()
 	await _test_workspace_tab_content_query_contract_lists_expected_components_and_slots()
 	await _test_workspace_first_run_learning_cta_routes_to_settings_without_sample_defaults()
 	await _test_workspace_asset_context_is_shared_by_workspace_generate_and_paint()
@@ -364,6 +365,71 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 	_assert_true(workspace.viewport_input_enabled(), "workspace gates viewport input through paint/edit component")
 
 	layer.queue_free()
+	workspace.queue_free()
+	await process_frame
+
+
+func _test_workspace_selected_hex_tile_map_auto_binding() -> void:
+	var session = HexMapEditorSessionState.new()
+	var recorder = SessionChangeRecorder.new()
+	session.changed.connect(Callable(recorder, "record"))
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	var empty_snapshot = workspace.selected_hex_tile_map_snapshot()
+	_assert_true(session.selected_hex_tile_map_auto_link_enabled(), "NODE-21 auto-link defaults ON in session state")
+	_assert_true(not bool(empty_snapshot["selected"]), "NODE-21 workspace starts without selected HexTileMap")
+	_assert_eq(String(empty_snapshot["status_text"]), "No HexTileMap selected", "NODE-21 empty state text is visible")
+	_assert_true(bool(empty_snapshot["auto_link"]), "NODE-21 workspace snapshot exposes auto-link ON")
+	_assert_eq(String(empty_snapshot["auto_link_text"]), "Auto-link: On", "NODE-21 auto-link status is informational")
+
+	var scene_root = Node2D.new()
+	scene_root.name = "SelectionScene"
+	root.add_child(scene_root)
+	var selected_layer = HexTileMapLayer.new()
+	selected_layer.name = "SelectedHexTileMap"
+	selected_layer.hex_map = HexMapResource.from_map_data(HexMapData.rectangle(2, 1))
+	var selected_stack = HexLayerStackResource.minimal_runtime_template()
+	selected_layer.layer_stack_resource = selected_stack
+	selected_layer.display_tile_set_resource = TileSet.new()
+	scene_root.add_child(selected_layer)
+	await process_frame
+
+	var selected_snapshot = workspace.set_selected_hex_tile_map_node(selected_layer, "test.selected_hex_tile_map")
+	_assert_true(bool(selected_snapshot["selected"]), "NODE-21 selected HexTileMap is recorded")
+	_assert_eq(selected_snapshot["selected_node"], selected_layer, "NODE-21 selected node is the HexTileMapLayer")
+	_assert_true(String(selected_snapshot["status_text"]).contains("SelectedHexTileMap"), "NODE-21 selected status names the node")
+	_assert_eq(session.current_selected_hex_tile_map_layer(), selected_layer, "NODE-21 session stores selected HexTileMap")
+	_assert_eq(session.current_target_layer(), selected_layer, "NODE-21 auto-link publishes selected node as target")
+	_assert_eq(workspace.edit_tool().target_layer(), selected_layer, "NODE-21 workspace applies selected node to edit tool")
+	_assert_eq(workspace.workspace_asset_context().layer_stack, selected_stack, "NODE-21 selected node layer stack enters workspace context")
+	_assert_eq(workspace.workspace_asset_context().level_document, null, "NODE-21 runtime map is not mislabeled as Level Document")
+	_assert_eq(String(selected_snapshot["level_document_status"]), "Missing", "NODE-21 missing unique document is visible")
+	_assert_eq(String(selected_snapshot["layer_stack_status"]), "Linked", "NODE-21 selected node layer stack is visible")
+	_assert_true(bool(selected_snapshot["runtime_initial_map_present"]), "NODE-21 runtime initial map is visible as node state")
+	_assert_eq(String(selected_snapshot["display_tile_set_status"]), "Linked", "NODE-21 selected node display TileSet is visible")
+	_assert_eq(String(selected_snapshot["tile_catalog_status"]), "No Tile Catalog linked to node", "NODE-21 missing shared catalog is not silently filled")
+	_assert_true(recorder.keys.has("selected_hex_tile_map_layer"), "NODE-21 session emits selected node change")
+	_assert_true(recorder.keys.has("target_layer"), "NODE-21 auto-link emits target change")
+
+	var display_layer = selected_layer.display_tile_map_layer()
+	var internal_snapshot = workspace.set_selected_hex_tile_map_node(display_layer, "test.selected_internal_layer")
+	_assert_eq(internal_snapshot["selected_node"], selected_layer, "NODE-21 internal display layer maps back to selected HexTileMap")
+
+	var invalid_node = Node2D.new()
+	invalid_node.name = "NotAHexTileMap"
+	scene_root.add_child(invalid_node)
+	var cleared_snapshot = workspace.set_selected_hex_tile_map_node(invalid_node, "test.invalid_selection")
+	_assert_true(not bool(cleared_snapshot["selected"]), "NODE-21 non-HexTileMap selection clears selected node")
+	_assert_eq(String(cleared_snapshot["status_text"]), "No HexTileMap selected", "NODE-21 clear state keeps exact empty text")
+	_assert_eq(session.current_selected_hex_tile_map_layer(), null, "NODE-21 session clears selected node")
+	_assert_eq(session.current_target_layer(), null, "NODE-21 auto-link clears target when no HexTileMap is selected")
+	_assert_eq(workspace.edit_tool().target_layer(), null, "NODE-21 edit target clears with no selected HexTileMap")
+	_assert_eq(workspace.workspace_asset_context().layer_stack, null, "NODE-21 selected-node layer stack clears with no selected HexTileMap")
+
+	scene_root.queue_free()
 	workspace.queue_free()
 	await process_frame
 
@@ -2554,6 +2620,9 @@ func _test_plugin_handles_canvas_item_when_map_edit_ready() -> void:
 	_assert_true(plugin_source.contains("viewport_input_enabled"), "plugin gates viewport input through workspace")
 	_assert_true(plugin_source.contains("hex_map_editor_session_state.gd"), "plugin creates shared editor session state")
 	_assert_true(plugin_source.contains("set_editor_session_state"), "plugin wires shared editor session state into workspace")
+	_assert_true(plugin_source.contains("selection_changed"), "NODE-21 plugin listens for Scene Tree selection changes")
+	_assert_true(plugin_source.contains("set_selected_hex_tile_map_node"), "NODE-21 plugin publishes selection into workspace")
+	_assert_true(plugin_source.contains("HexTileMapLayer"), "NODE-21 plugin resolves selected HexTileMap nodes")
 	_assert_true(plugin_source.contains("object is CanvasItem"), "plugin handles CanvasItem viewport objects")
 	_assert_true(not plugin_source.contains("_dock.name = \"Hex Map Generate\""), "plugin no longer registers a separate generation dock")
 	_assert_true(

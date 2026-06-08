@@ -16,6 +16,7 @@ const HexTileCatalogEntry = preload("res://addons/hex_map_kit/adapter/hex_tile_c
 const HexTileCatalogResource = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd")
 const HexTileCatalogValidator = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_validator.gd")
 const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
+const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 const HexMapGenDock = preload("res://addons/hex_map_kit/editor/hex_map_gen_dock.gd")
 const HexMapEditTool = preload("res://addons/hex_map_kit/editor/hex_map_edit_tool.gd")
 const HexMapSampleSettingsPanel = preload("res://addons/hex_map_kit/editor/hex_map_sample_settings_panel.gd")
@@ -29,6 +30,9 @@ var _tabs: TabContainer
 var _sample_learning_cta: HBoxContainer
 var _learn_samples_button: Button
 var _dismiss_samples_button: Button
+var _selected_hex_tile_map_context: HBoxContainer
+var _selected_hex_tile_map_status_label: Label
+var _selected_hex_tile_map_auto_link_label: Label
 var _generation_dock: HexMapGenDock
 var _edit_tool: HexMapEditTool
 var _sample_settings_panel: HexMapSampleSettingsPanel
@@ -62,6 +66,7 @@ func set_editor_session_state(session: HexMapEditorSessionState) -> void:
 	if _sample_settings_panel != null:
 		_sample_settings_panel.set_editor_session_state(_ensure_session_state())
 	_refresh_sample_learning_cta()
+	_refresh_selected_hex_tile_map_context()
 	_sync_workspace_asset_context()
 
 
@@ -134,6 +139,59 @@ func sample_learning_cta_snapshot() -> Dictionary:
 		"dismissed": session.sample_learning_cta_dismissed,
 		"selected_tab": current_workspace_tab_name(),
 		"learn_label": _learn_samples_button.text if _learn_samples_button != null else "",
+	}
+
+
+func set_selected_hex_tile_map_node(node: Node, reason: String = "workspace.selected_hex_tile_map") -> Dictionary:
+	return set_selected_hex_tile_map_layer(_hex_tile_map_layer_from_node(node), reason)
+
+
+func set_selected_hex_tile_map_layer(layer: Node, reason: String = "workspace.selected_hex_tile_map") -> Dictionary:
+	var hex_layer := layer as HexTileMapLayer
+	var session := _ensure_session_state()
+	session.set_selected_hex_tile_map_layer(hex_layer, reason)
+	if session.selected_hex_tile_map_auto_link_enabled():
+		_apply_selected_hex_tile_map_to_edit_tool()
+	_sync_selected_hex_tile_map_resources()
+	_refresh_selected_hex_tile_map_context()
+	return selected_hex_tile_map_snapshot()
+
+
+func clear_selected_hex_tile_map_layer(reason: String = "workspace.selected_hex_tile_map.clear") -> Dictionary:
+	return set_selected_hex_tile_map_layer(null, reason)
+
+
+func selected_hex_tile_map_snapshot() -> Dictionary:
+	var session := _ensure_session_state()
+	var layer := session.current_selected_hex_tile_map_layer()
+	var hex_layer := layer as HexTileMapLayer
+	var selected := hex_layer != null
+	var context := workspace_asset_context()
+	var layer_stack := hex_layer.layer_stack_resource if selected else null
+	var runtime_map := hex_layer.hex_map if selected else null
+	var display_tile_set := hex_layer.display_tile_set_resource if selected else null
+	if selected and display_tile_set == null:
+		display_tile_set = hex_layer.display_tile_set()
+	return {
+		"selected": selected,
+		"selected_node": hex_layer,
+		"node_name": hex_layer.name if selected else "",
+		"node_path": _node_display_path(hex_layer),
+		"status_text": _selected_hex_tile_map_status_text(hex_layer),
+		"auto_link": session.selected_hex_tile_map_auto_link_enabled(),
+		"auto_link_text": "Auto-link: On" if session.selected_hex_tile_map_auto_link_enabled() else "Auto-link: Off",
+		"target_layer": session.current_target_layer(),
+		"target_matches_selected": selected and session.current_target_layer() == hex_layer,
+		"level_document": context.level_document,
+		"level_document_status": "Missing" if selected and context.level_document == null else ("Linked" if context.level_document != null else "Unavailable"),
+		"runtime_initial_map": runtime_map,
+		"runtime_initial_map_present": runtime_map != null,
+		"layer_stack": layer_stack,
+		"layer_stack_status": "Linked" if layer_stack != null else ("Missing" if selected else "Unavailable"),
+		"display_tile_set": display_tile_set,
+		"display_tile_set_status": "Linked" if display_tile_set != null else ("Missing" if selected else "Unavailable"),
+		"tile_catalog": context.tile_catalog,
+		"tile_catalog_status": "Shared project resource" if context.tile_catalog != null else "No Tile Catalog linked to node",
 	}
 
 
@@ -1190,6 +1248,7 @@ func _build_ui() -> void:
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_mount_sample_learning_cta()
+	_mount_selected_hex_tile_map_context()
 	_tabs = TabContainer.new()
 	_tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -1223,6 +1282,28 @@ func _mount_sample_learning_cta() -> void:
 	_sample_learning_cta.add_child(_dismiss_samples_button)
 	add_child(_sample_learning_cta)
 	_refresh_sample_learning_cta()
+
+
+func _mount_selected_hex_tile_map_context() -> void:
+	if _selected_hex_tile_map_context != null:
+		return
+	_selected_hex_tile_map_context = HBoxContainer.new()
+	_selected_hex_tile_map_context.name = "Selected HexTileMap Context"
+	_selected_hex_tile_map_context.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	_selected_hex_tile_map_status_label = Label.new()
+	_selected_hex_tile_map_status_label.name = "Selected HexTileMap Status"
+	_selected_hex_tile_map_status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_selected_hex_tile_map_status_label.clip_text = true
+	_selected_hex_tile_map_context.add_child(_selected_hex_tile_map_status_label)
+
+	_selected_hex_tile_map_auto_link_label = Label.new()
+	_selected_hex_tile_map_auto_link_label.name = "Selected HexTileMap Auto Link"
+	_selected_hex_tile_map_auto_link_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_selected_hex_tile_map_context.add_child(_selected_hex_tile_map_auto_link_label)
+
+	add_child(_selected_hex_tile_map_context)
+	_refresh_selected_hex_tile_map_context()
 
 
 func _add_tab_page(tab_name: String) -> VBoxContainer:
@@ -1869,6 +1950,78 @@ func _on_export_run_workspace_pressed() -> void:
 	export_selected_document_to_destination()
 
 
+func _apply_selected_hex_tile_map_to_edit_tool() -> void:
+	if _edit_tool == null:
+		return
+	var session := _ensure_session_state()
+	var layer := session.current_selected_hex_tile_map_layer()
+	if _edit_tool.target_layer() == layer:
+		return
+	_edit_tool.set_target_layer(layer)
+
+
+func _sync_selected_hex_tile_map_resources() -> void:
+	var session := _ensure_session_state()
+	var layer := session.current_selected_hex_tile_map_layer()
+	var hex_layer := layer as HexTileMapLayer
+	var context := workspace_asset_context()
+	context.set_level_document(null)
+	context.set_layer_stack(hex_layer.layer_stack_resource if hex_layer != null else null)
+
+
+func _refresh_selected_hex_tile_map_context() -> void:
+	if _selected_hex_tile_map_status_label == null or _selected_hex_tile_map_auto_link_label == null:
+		return
+	var snapshot := selected_hex_tile_map_snapshot()
+	_selected_hex_tile_map_status_label.text = String(snapshot.get("status_text", "No HexTileMap selected"))
+	_selected_hex_tile_map_status_label.tooltip_text = _selected_hex_tile_map_tooltip(snapshot)
+	_selected_hex_tile_map_auto_link_label.text = String(snapshot.get("auto_link_text", "Auto-link: On"))
+	_selected_hex_tile_map_auto_link_label.tooltip_text = "Workspace follows the selected HexTileMap node."
+
+
+func _selected_hex_tile_map_status_text(layer: Node) -> String:
+	if layer == null or not is_instance_valid(layer):
+		return "No HexTileMap selected"
+	return "Selected HexTileMap: %s" % _node_display_path(layer)
+
+
+func _selected_hex_tile_map_tooltip(snapshot: Dictionary) -> String:
+	if not bool(snapshot.get("selected", false)):
+		return "No HexTileMap selected"
+	return "Node: %s\n%s\nLevel Document: %s\nLayer Stack: %s\nTile Catalog: %s" % [
+		String(snapshot.get("node_path", "")),
+		String(snapshot.get("auto_link_text", "")),
+		String(snapshot.get("level_document_status", "")),
+		String(snapshot.get("layer_stack_status", "")),
+		String(snapshot.get("tile_catalog_status", "")),
+	]
+
+
+func _hex_tile_map_layer_from_node(node: Node) -> HexTileMapLayer:
+	if node == null or not is_instance_valid(node):
+		return null
+	if node is HexTileMapLayer:
+		return node as HexTileMapLayer
+	if node is TileMapLayer and _is_hex_tile_map_internal_layer(node):
+		return node.get_parent() as HexTileMapLayer
+	return null
+
+
+func _is_hex_tile_map_internal_layer(node: Node) -> bool:
+	var parent := node.get_parent()
+	if not (parent is HexTileMapLayer):
+		return false
+	return node.name == HexTileMapLayer.BASE_TILE_MAP_NAME \
+		or node.name == HexTileMapLayer.LOOP_TILE_MAP_NAME \
+		or node.name == HexTileMapLayer.OVERLAY_TILE_MAP_NAME
+
+
+func _node_display_path(node: Node) -> String:
+	if node == null or not is_instance_valid(node):
+		return ""
+	return str(node.get_path()) if node.is_inside_tree() else node.name
+
+
 func _ensure_session_state() -> HexMapEditorSessionState:
 	if _editor_session_state == null:
 		_editor_session_state = HexMapEditorSessionState.new()
@@ -1913,5 +2066,10 @@ func _on_sample_learning_cta_dismissed() -> void:
 
 
 func _on_session_state_changed(_key: String) -> void:
+	if _key == "selected_hex_tile_map_layer" or _key == "selected_hex_tile_map.auto_link":
+		if _ensure_session_state().selected_hex_tile_map_auto_link_enabled():
+			_apply_selected_hex_tile_map_to_edit_tool()
+		_sync_selected_hex_tile_map_resources()
+		_refresh_selected_hex_tile_map_context()
 	_refresh_sample_learning_cta()
 	_refresh_export_destination_panel()

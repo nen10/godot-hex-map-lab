@@ -537,7 +537,7 @@ Acceptance:
 
 #### `NODE-21_SELECTED_HEX_TILE_MAP_AUTO_BINDING`
 
-status: `READY`  
+status: `COMPLETE`  
 dependencies: `NODE-20_HEX_TILE_MAP_RESOURCE_OWNERSHIP_POLICY`
 
 目的:
@@ -561,7 +561,7 @@ Acceptance:
 
 #### `NODE-22_CREATE_MISSING_UNIQUE_RESOURCES_FLOW`
 
-status: `BACKLOG`  
+status: `READY`  
 dependencies: `NODE-21_SELECTED_HEX_TILE_MAP_AUTO_BINDING`
 
 目的:
@@ -593,7 +593,7 @@ Acceptance:
 
 #### `NODE-23_DOCK_SELECTION_WRITES_BACK_TO_NODE`
 
-status: `BACKLOG`  
+status: `READY`  
 dependencies: `NODE-21_SELECTED_HEX_TILE_MAP_AUTO_BINDING`
 
 目的:
