@@ -452,7 +452,7 @@ Acceptance:
 
 #### `LAYOUT-11_COMPACT_RESOURCE_ROW_LAYOUT`
 
-status: `READY`  
+status: `COMPLETE`  
 dependencies: `LAYOUT-10_SCROLL_CONTAINER_FOR_ALL_TABS`
 
 目的:
@@ -1025,7 +1025,7 @@ Acceptance:
 
 #### `INFO-70_RESOURCE_PURPOSE_TOOLTIPS`
 
-status: `BACKLOG`  
+status: `READY`  
 dependencies: `LAYOUT-11_COMPACT_RESOURCE_ROW_LAYOUT`
 
 目的:

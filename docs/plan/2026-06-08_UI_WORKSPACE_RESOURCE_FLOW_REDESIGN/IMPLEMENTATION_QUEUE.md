@@ -35,7 +35,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
 | `LAYOUT-10` | `COMPLETE` | `UIR-01` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/LAYOUT-10_SCROLL_CONTAINER_FOR_ALL_TABS/` | Scrollable content for all workspace tabs | `HexMapWorkspace`, per-tab content containers, `HexMapWorkspaceAssetPanel`, `HexMapSampleSettingsPanel`, editor tests | Each tab root has ScrollContainer or equivalent; primary actions remain reachable in narrow/short docks; tab switching does not break scroll/focus. |
-| `LAYOUT-11` | `READY` | `LAYOUT-10` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/LAYOUT-11_COMPACT_RESOURCE_ROW_LAYOUT/` | Compact resource row layout | asset slot controls, workspace asset panel, sample settings panel, editor tests | Resource rows use `[Title] [ResourcePicker] [status icon]`; long purpose/type/path/validation details move to tooltip or expander; missing state remains short and visible. |
+| `LAYOUT-11` | `COMPLETE` | `LAYOUT-10` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/LAYOUT-11_COMPACT_RESOURCE_ROW_LAYOUT/` | Compact resource row layout | asset slot controls, workspace asset panel, sample settings panel, editor tests | Resource rows use `[Title] [ResourcePicker] [status icon]`; long purpose/type/path/validation details move to tooltip or expander; missing state remains short and visible. |
 
 ---
 
@@ -99,7 +99,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `INFO-70` | `BACKLOG` | `LAYOUT-11` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/INFO-70_RESOURCE_PURPOSE_TOOLTIPS/` | Resource purpose tooltips | resource rows, asset slot controls, docs/tests | Level Document, TileSet, Catalog, Layer Stack, Object DB, Label DB, Movement Profile, Generation Profile, Validation Suite, Export Profile have concise purpose/type tooltips. |
+| `INFO-70` | `READY` | `LAYOUT-11` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/INFO-70_RESOURCE_PURPOSE_TOOLTIPS/` | Resource purpose tooltips | resource rows, asset slot controls, docs/tests | Level Document, TileSet, Catalog, Layer Stack, Object DB, Label DB, Movement Profile, Generation Profile, Validation Suite, Export Profile have concise purpose/type tooltips. |
 | `INFO-71` | `BACKLOG` | `TAB-50` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/INFO-71_TAB_PURPOSE_EMPTY_STATES/` | Tab purpose and empty states | workspace tabs/components, empty-state copy, tests | Empty states do not use sample to fill gaps; next action is one or two clear choices; detailed help moves to tooltip/help link. |
 | `INFO-72` | `BACKLOG` | `TAB-56` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/INFO-72_EXPORT_TERMINOLOGY_DECISION/` | Export terminology decision | `docs/review/roadmap/EXPORT_TERMINOLOGY_DECISION_2026-06-08.md`, Export tab/manual docs | Save Document, Runtime Handoff, Data Export, Package Build, Debug Report are classified; Export tab contents and manual terms are unified. |
 
@@ -148,13 +148,13 @@ acceptance / test path:
 
 ## 12. Current pointer
 
-Current recommended next task: `LAYOUT-11`.
+Current recommended next task: `NODE-20`.
 
 Reason:
 
-- `UIR-00`, `UIR-01`, and `LAYOUT-10` are complete.
-- `LAYOUT-11` is the first READY task in queue order.
-- `NODE-20` and `PERF-60` are also READY, but they appear later in the queue.
+- Phase U1 has no remaining READY task.
+- `NODE-20` is the first READY task in queue order.
+- `PERF-60` and `INFO-70` are also READY, but they appear later in the queue.
 
 ---
 
@@ -203,3 +203,18 @@ proof:
     - `tests/test_editor_plugin.gd`
     - `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/IMPLEMENTATION_QUEUE.md`
     - `docs/review/autopilot/LAYOUT-10_TEST_RESULT_2026-06-08.md`
+
+### LAYOUT-11 Compact resource row layout
+
+proof:
+  plan: `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/LAYOUT-11_COMPACT_RESOURCE_ROW_LAYOUT/`
+  review: `docs/review/autopilot/LAYOUT-11_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_editor_asset_slot_control.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/IMPLEMENTATION_QUEUE.md`
+    - `docs/review/autopilot/LAYOUT-11_TEST_RESULT_2026-06-08.md`

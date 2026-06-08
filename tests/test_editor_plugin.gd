@@ -2180,6 +2180,12 @@ func _test_asset_slot_control_exposes_state_snapshot_contract() -> void:
 	_assert_true(bool(snapshot["allows_sample"]), "asset slot control snapshot exposes sample availability")
 	_assert_true(bool(snapshot["allows_create_new"]), "asset slot control snapshot exposes create-new availability")
 	_assert_true(not bool(snapshot["selected"]), "asset slot control does not auto-select sample source")
+	var layout = control.slot_layout_snapshot()
+	_assert_true(bool(layout["compact_row"]), "asset slot control uses compact row layout")
+	_assert_eq(layout["status_text"], "Missing", "asset slot compact row keeps missing state visible")
+	_assert_true(not bool(layout["details_visible"]), "asset slot details start collapsed")
+	_assert_true(String(layout["status_tooltip"]).contains("Type: HexObjectDatabaseResource"), "asset slot compact status tooltip includes type")
+	_assert_true(String(layout["current_detail_text"]).contains("Current: Not selected"), "asset slot details keep current selection text")
 
 	var database = HexObjectDatabaseResource.new()
 	control.set_selected_resource(database, "res://project/object_database.tres")
@@ -2187,6 +2193,9 @@ func _test_asset_slot_control_exposes_state_snapshot_contract() -> void:
 	_assert_eq(snapshot["status"], HexMapEditorAssetSlotState.STATUS_SELECTED, "asset slot control records selected state")
 	_assert_eq(snapshot["current_resource"], database, "asset slot control records selected resource")
 	_assert_eq(snapshot["current_path"], "res://project/object_database.tres", "asset slot control records selected path")
+	layout = control.slot_layout_snapshot()
+	_assert_eq(layout["status_text"], "OK", "asset slot compact row reports selected state")
+	_assert_true(String(layout["status_tooltip"]).contains("res://project/object_database.tres"), "asset slot compact tooltip carries selected path")
 
 	control.mark_invalid(["Object database is missing required definitions."])
 	snapshot = control.slot_state_snapshot()
@@ -2196,11 +2205,20 @@ func _test_asset_slot_control_exposes_state_snapshot_contract() -> void:
 		"Object database is missing required definitions.",
 		"asset slot control exposes validation messages"
 	)
+	layout = control.slot_layout_snapshot()
+	_assert_eq(layout["status_text"], "Invalid", "asset slot compact row reports invalid state")
+	_assert_true(String(layout["message_detail_text"]).contains("Object database is missing"), "asset slot details keep validation messages")
+	control.set_details_visible(true)
+	layout = control.slot_layout_snapshot()
+	_assert_true(bool(layout["details_visible"]), "asset slot details can expand without private node access")
 
 	_assert_true(control.apply_sample_source(), "asset slot control applies sample only through explicit action")
 	snapshot = control.slot_state_snapshot()
 	_assert_eq(snapshot["current_source"], HexMapEditorAssetSlotState.SOURCE_SAMPLE, "asset slot control records explicit sample source")
 	_assert_eq(snapshot["current_path"], "res://addons/hex_map_kit/assets/sample_object_db.tres", "asset slot control records sample path after explicit action")
+	layout = control.slot_layout_snapshot()
+	_assert_eq(layout["status_text"], "OK", "asset slot compact row returns to OK after explicit sample selection")
+	_assert_true(String(layout["status_tooltip"]).contains("Source: sample"), "asset slot compact tooltip records sample source")
 
 	var create_recorder = AssetCreatePathRecorder.new()
 	control.create_path_selected.connect(Callable(create_recorder, "record"))
