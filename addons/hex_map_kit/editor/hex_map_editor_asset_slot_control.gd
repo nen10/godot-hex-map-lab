@@ -113,6 +113,8 @@ func slot_layout_snapshot() -> Dictionary:
 		"type_detail_text": _type_label.text if _type_label != null else "",
 		"message_detail_text": _messages_label.text if _messages_label != null else "",
 		"resource_picker_visible": _resource_picker != null,
+		"resource_picker_base_type": _resource_picker.base_type if _resource_picker != null else "",
+		"resource_picker_tooltip": _resource_picker.tooltip_text if _resource_picker != null else "",
 		"actions_visible": _actions_container != null and _actions_container.visible,
 	}
 
@@ -240,14 +242,14 @@ func _refresh() -> void:
 	var detail_text := _detail_text(snapshot)
 	_title_label.tooltip_text = detail_text
 	_current_label.text = "Current: %s" % String(snapshot.get("current_display", "Not selected"))
-	_type_label.text = "Type: %s" % String(snapshot.get("required_type", ""))
+	_type_label.text = "Type: %s" % String(snapshot.get("expected_type", "Resource"))
 	_status_label.text = _compact_status_text(snapshot)
 	_status_label.tooltip_text = detail_text
 	_messages_label.text = "\n".join(snapshot.get("validation_messages", []))
 	_messages_label.visible = _messages_label.text != ""
 	_details_button.tooltip_text = detail_text
 	if _resource_picker != null:
-		_resource_picker.base_type = String(snapshot.get("required_type", ""))
+		_resource_picker.base_type = String(snapshot.get("picker_base_type", "Resource"))
 		_resource_picker.tooltip_text = detail_text
 	_open_button.disabled = not bool(snapshot.get("selected", false))
 	_clear_button.disabled = not bool(snapshot.get("selected", false))
@@ -261,7 +263,7 @@ func _refresh() -> void:
 func _sync_picker() -> void:
 	if _resource_picker == null:
 		return
-	_resource_picker.base_type = String(_state.required_type)
+	_resource_picker.base_type = _state.picker_base_type()
 	_resource_picker.edited_resource = _state.current_resource
 
 
@@ -329,11 +331,18 @@ func _compact_status_text(snapshot: Dictionary) -> String:
 
 func _detail_text(snapshot: Dictionary) -> String:
 	var lines: Array[String] = [
+		"Pick: %s" % String(snapshot.get("expected_type", "Resource")),
 		"Current: %s" % String(snapshot.get("current_display", "Not selected")),
-		"Type: %s" % String(snapshot.get("required_type", "")),
+		"Type: %s" % String(snapshot.get("expected_type", "Resource")),
 		"Status: %s" % String(snapshot.get("status_label", "")),
 		"Source: %s" % String(snapshot.get("current_source", "")),
 	]
+	var purpose := String(snapshot.get("purpose", ""))
+	if purpose != "":
+		lines.append("Purpose: %s" % purpose)
+	var type_filter_reason := String(snapshot.get("type_filter_reason", ""))
+	if type_filter_reason != "":
+		lines.append("Filter: %s" % type_filter_reason)
 	var messages = snapshot.get("validation_messages", [])
 	for message in messages:
 		var text := String(message)

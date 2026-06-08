@@ -62,6 +62,13 @@ func asset_slot_snapshot(slot_id: String) -> Dictionary:
 	return control.slot_state_snapshot()
 
 
+func asset_slot_layout_snapshot(slot_id: String) -> Dictionary:
+	var control = _slot_controls.get(slot_id, null) as HexMapEditorAssetSlotControl
+	if control == null:
+		return {}
+	return control.slot_layout_snapshot()
+
+
 func create_asset_for_slot(slot_id: String, path: String) -> Dictionary:
 	var result := HexMapWorkspaceAssetResourceFactory.create_and_save_for_slot(slot_id, path, _context)
 	_sync_slots_from_context()
@@ -143,7 +150,9 @@ func _build_ui() -> void:
 			slot_id,
 			String(row.get("display_name", slot_id)),
 			StringName(row.get("required_type", HexMapWorkspaceAssetResourceFactory.resource_type_name(slot_id))),
-			bool(row.get("required", true))
+			bool(row.get("required", true)),
+			String(row.get("purpose", HexMapWorkspaceAssetResourceFactory.resource_purpose(slot_id))),
+			String(row.get("type_filter_reason", HexMapWorkspaceAssetResourceFactory.type_filter_reason(slot_id)))
 		)
 		state.allows_create_new = bool(row.get("allows_create_new", true))
 		var control := HexMapEditorAssetSlotControl.new()

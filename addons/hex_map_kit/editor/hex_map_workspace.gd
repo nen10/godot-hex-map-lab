@@ -472,6 +472,13 @@ func tab_asset_slot_snapshot(tab_name: String, slot_id: String) -> Dictionary:
 	return panel.asset_slot_snapshot(slot_id)
 
 
+func tab_asset_slot_layout_snapshot(tab_name: String, slot_id: String) -> Dictionary:
+	var panel = _asset_panels.get(tab_name, null) as HexMapWorkspaceAssetPanel
+	if panel == null:
+		return {}
+	return panel.asset_slot_layout_snapshot(slot_id)
+
+
 func document_screen_snapshot() -> Dictionary:
 	var context := workspace_asset_context()
 	var document := context.level_document
@@ -1733,6 +1740,8 @@ func _slot_row(slot_id: String, display_name: String, required: bool = true) -> 
 		"display_name": display_name,
 		"required": required,
 		"required_type": HexMapWorkspaceAssetResourceFactory.resource_type_name(slot_id),
+		"purpose": HexMapWorkspaceAssetResourceFactory.resource_purpose(slot_id),
+		"type_filter_reason": HexMapWorkspaceAssetResourceFactory.type_filter_reason(slot_id),
 		"allows_create_new": true,
 	}
 

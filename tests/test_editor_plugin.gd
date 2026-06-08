@@ -135,6 +135,7 @@ func _run() -> void:
 	_test_asset_slot_state_model_reports_selection_validation_and_sample_source()
 	await _test_asset_slot_state_model_contract_covers_sample_visibility_and_project_duplicates()
 	await _test_asset_slot_control_exposes_state_snapshot_contract()
+	await _test_workspace_asset_slots_use_strict_resource_type_filters()
 	_test_asset_resource_factory_creates_project_resources_and_assigns_context()
 	await _test_map_edit_tool_builds_dock_controls()
 	await _test_plugin_handles_canvas_item_when_map_edit_ready()
@@ -2438,11 +2439,16 @@ func _test_asset_slot_control_exposes_state_snapshot_contract() -> void:
 	_assert_true(bool(snapshot["allows_sample"]), "asset slot control snapshot exposes sample availability")
 	_assert_true(bool(snapshot["allows_create_new"]), "asset slot control snapshot exposes create-new availability")
 	_assert_true(not bool(snapshot["selected"]), "asset slot control does not auto-select sample source")
+	_assert_eq(String(snapshot["picker_base_type"]), "HexObjectDatabaseResource", "ASSET-30 asset slot state exposes strict picker base type")
+	_assert_true(not bool(snapshot["uses_generic_resource_filter"]), "ASSET-30 typed asset slot does not use generic Resource filter")
 	var layout = control.slot_layout_snapshot()
 	_assert_true(bool(layout["compact_row"]), "asset slot control uses compact row layout")
 	_assert_eq(layout["status_text"], "Missing", "asset slot compact row keeps missing state visible")
 	_assert_true(not bool(layout["details_visible"]), "asset slot details start collapsed")
 	_assert_true(String(layout["status_tooltip"]).contains("Type: HexObjectDatabaseResource"), "asset slot compact status tooltip includes type")
+	_assert_true(String(layout["status_tooltip"]).contains("Pick: HexObjectDatabaseResource"), "ASSET-30 asset slot tooltip says what type to pick")
+	if bool(layout["resource_picker_visible"]):
+		_assert_eq(String(layout["resource_picker_base_type"]), "HexObjectDatabaseResource", "ASSET-30 EditorResourcePicker uses strict base type")
 	_assert_true(String(layout["current_detail_text"]).contains("Current: Not selected"), "asset slot details keep current selection text")
 
 	var database = HexObjectDatabaseResource.new()
@@ -2490,6 +2496,62 @@ func _test_asset_slot_control_exposes_state_snapshot_contract() -> void:
 	_assert_eq(create_recorder.entries[0]["path"], "res://project/new_object_database.tres", "asset slot create path includes selected path")
 
 	control.queue_free()
+	await process_frame
+
+
+func _test_workspace_asset_slots_use_strict_resource_type_filters() -> void:
+	var session = HexMapEditorSessionState.new()
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	var typed_expectations: Array[Dictionary] = [
+		{"tab": "Document", "slot": HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "type": "HexMapDocumentResource"},
+		{"tab": "Document", "slot": HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, "type": "HexTileCatalogResource"},
+		{"tab": "Document", "slot": HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE, "type": "HexObjectDatabaseResource"},
+		{"tab": "Document", "slot": HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE, "type": "HexLabelDatabaseResource"},
+		{"tab": "Document", "slot": HexMapWorkspaceAssetContext.SLOT_LAYER_STACK, "type": "HexLayerStackResource"},
+		{"tab": "Catalog", "slot": HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, "type": "HexTileCatalogResource"},
+		{"tab": "Layers", "slot": HexMapWorkspaceAssetContext.SLOT_LAYER_STACK, "type": "HexLayerStackResource"},
+		{"tab": "Paint", "slot": HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE, "type": "HexObjectDatabaseResource"},
+		{"tab": "Paint", "slot": HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE, "type": "HexLabelDatabaseResource"},
+		{"tab": "Validate", "slot": HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "type": "HexMapDocumentResource"},
+		{"tab": "QA", "slot": HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "type": "HexMapDocumentResource"},
+		{"tab": "Export", "slot": HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "type": "HexMapDocumentResource"},
+		{"tab": "Settings", "slot": HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE, "type": "HexMovementProfileResource"},
+	]
+	for expectation in typed_expectations:
+		var tab_name := String(expectation["tab"])
+		var slot_id := String(expectation["slot"])
+		var expected_type := String(expectation["type"])
+		var snapshot = workspace.tab_asset_slot_snapshot(tab_name, slot_id)
+		var layout = workspace.tab_asset_slot_layout_snapshot(tab_name, slot_id)
+		_assert_eq(String(snapshot["required_type"]), expected_type, "ASSET-30 %s/%s uses strict required type" % [tab_name, slot_id])
+		_assert_eq(String(snapshot["picker_base_type"]), expected_type, "ASSET-30 %s/%s picker base type is strict" % [tab_name, slot_id])
+		_assert_true(not bool(snapshot["uses_generic_resource_filter"]), "ASSET-30 %s/%s does not use generic Resource" % [tab_name, slot_id])
+		_assert_true(String(layout["status_tooltip"]).contains("Pick: %s" % expected_type), "ASSET-30 %s/%s tooltip says what to pick" % [tab_name, slot_id])
+		if bool(layout.get("resource_picker_visible", false)):
+			_assert_eq(String(layout["resource_picker_base_type"]), expected_type, "ASSET-30 %s/%s EditorResourcePicker base type is strict" % [tab_name, slot_id])
+
+	var flexible_expectations: Array[Dictionary] = [
+		{"tab": "Validate", "slot": HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE},
+		{"tab": "QA", "slot": HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE},
+		{"tab": "QA", "slot": HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE},
+		{"tab": "Export", "slot": HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE},
+	]
+	for expectation in flexible_expectations:
+		var tab_name := String(expectation["tab"])
+		var slot_id := String(expectation["slot"])
+		var snapshot = workspace.tab_asset_slot_snapshot(tab_name, slot_id)
+		var layout = workspace.tab_asset_slot_layout_snapshot(tab_name, slot_id)
+		_assert_eq(String(snapshot["required_type"]), "Resource", "ASSET-30 %s/%s remains flexible Resource by policy" % [tab_name, slot_id])
+		_assert_true(bool(snapshot["uses_generic_resource_filter"]), "ASSET-30 %s/%s reports generic Resource filter" % [tab_name, slot_id])
+		_assert_true(bool(snapshot["generic_resource_filter_allowed"]), "ASSET-30 %s/%s documents why generic Resource is allowed" % [tab_name, slot_id])
+		_assert_true(String(snapshot["type_filter_reason"]).contains("no concrete"), "ASSET-30 %s/%s flexible reason is explicit" % [tab_name, slot_id])
+		_assert_true(String(layout["status_tooltip"]).contains("Flexible Resource slot"), "ASSET-30 %s/%s tooltip carries flexible reason" % [tab_name, slot_id])
+
+	workspace.queue_free()
 	await process_frame
 
 

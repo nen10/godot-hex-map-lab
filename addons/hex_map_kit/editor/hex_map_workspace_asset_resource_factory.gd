@@ -101,6 +101,40 @@ static func resource_type_name(slot_id: String) -> String:
 	return ""
 
 
+static func resource_purpose(slot_id: String) -> String:
+	match slot_id:
+		HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT:
+			return "Stores canonical map terrain, overlays, objects, labels, zones, and generation metadata."
+		HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG:
+			return "Maps logical terrain and overlay keys to TileSet atlas tiles or scene tiles."
+		HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE:
+			return "Defines placeable object ids, scenes, previews, tags, and placement schema."
+		HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE:
+			return "Defines label ids, display text defaults, and label metadata used by paint/edit tools."
+		HexMapWorkspaceAssetContext.SLOT_LAYER_STACK:
+			return "Defines selected HexTileMap child layer roles and display/write behavior."
+		HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE:
+			return "Defines traversal costs, passability, and movement validation behavior."
+		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE:
+			return "Stores project validation preset data until a dedicated Validation Rule Suite class exists."
+		HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE:
+			return "Stores project generation preset data until a dedicated Generation Profile class exists."
+		HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE:
+			return "Stores project export preset data until a dedicated Export Profile class exists."
+	return ""
+
+
+static func type_filter_reason(slot_id: String) -> String:
+	match slot_id:
+		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE:
+			return "Flexible Resource slot: no concrete Validation Rule Suite Resource class exists yet."
+		HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE:
+			return "Flexible Resource slot: no concrete Generation Profile Resource class exists yet."
+		HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE:
+			return "Flexible Resource slot: no concrete Export Profile Resource class exists yet."
+	return ""
+
+
 static func save_dialog_config(slot_id: String) -> Dictionary:
 	return {
 		"file_mode": EditorFileDialog.FILE_MODE_SAVE_FILE,

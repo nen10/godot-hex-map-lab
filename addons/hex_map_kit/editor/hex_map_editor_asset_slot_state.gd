@@ -16,6 +16,8 @@ const SOURCE_SAMPLE := "sample"
 var slot_id := ""
 var display_name := ""
 var required_type: StringName = &""
+var purpose := ""
+var type_filter_reason := ""
 var current_resource: Resource = null
 var current_path := ""
 var current_source := SOURCE_NONE
@@ -33,15 +35,25 @@ func configure(
 	p_slot_id: String,
 	p_display_name: String,
 	p_required_type: StringName = &"",
-	p_is_required: bool = true
+	p_is_required: bool = true,
+	p_purpose: String = "",
+	p_type_filter_reason: String = ""
 ) -> HexMapEditorAssetSlotState:
 	slot_id = p_slot_id
 	display_name = p_display_name
 	required_type = p_required_type
 	is_required = p_is_required
+	purpose = p_purpose
+	type_filter_reason = p_type_filter_reason
 	_recompute_status()
 	changed.emit()
 	return self
+
+
+func set_usage_metadata(p_purpose: String = "", p_type_filter_reason: String = "") -> void:
+	purpose = p_purpose
+	type_filter_reason = p_type_filter_reason
+	changed.emit()
 
 
 func set_selected_resource(resource: Resource, path: String = "", source: String = SOURCE_PROJECT) -> void:
@@ -153,6 +165,12 @@ func snapshot() -> Dictionary:
 		"slot_id": slot_id,
 		"display_name": display_name,
 		"required_type": String(required_type),
+		"expected_type": expected_type_name(),
+		"picker_base_type": picker_base_type(),
+		"uses_generic_resource_filter": uses_generic_resource_filter(),
+		"generic_resource_filter_allowed": generic_resource_filter_allowed(),
+		"type_filter_reason": type_filter_reason,
+		"purpose": purpose,
 		"current_resource": current_resource,
 		"current_path": current_path,
 		"current_source": current_source,
@@ -171,6 +189,23 @@ func snapshot() -> Dictionary:
 		"current_display": current_display_text(),
 		"sample_display": sample_display_text(),
 	}
+
+
+func expected_type_name() -> String:
+	var text := String(required_type)
+	return text if text != "" else "Resource"
+
+
+func picker_base_type() -> String:
+	return expected_type_name()
+
+
+func uses_generic_resource_filter() -> bool:
+	return picker_base_type() == "Resource"
+
+
+func generic_resource_filter_allowed() -> bool:
+	return uses_generic_resource_filter() and type_filter_reason.strip_edges() != ""
 
 
 func _recompute_status() -> void:
