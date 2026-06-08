@@ -147,11 +147,14 @@ func settings_screen_snapshot() -> Dictionary:
 		sample_snapshot = _sample_settings_panel.snapshot()
 	var settings_slot_ids := tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_SETTINGS)
 	var resources_slot_ids := tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_DOCUMENT)
+	var empty_state := _settings_tab_empty_state()
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_SETTINGS,
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_SETTINGS),
 		"asset_slot_ids": settings_slot_ids,
-		"purpose_text": _settings_purpose_text(),
+		"purpose_text": String(empty_state.get("purpose_text", "")),
+		"empty_state": empty_state,
+		"empty_state_text": String(empty_state.get("empty_state_text", "")),
 		"sample_learning_controls_present": _sample_settings_panel != null,
 		"sample_asset_count": (sample_snapshot.get("sample_assets", []) as Array).size(),
 		"sample_actions_work_or_removed": _settings_sample_actions_work_or_removed(sample_snapshot),
@@ -541,6 +544,28 @@ func tab_asset_slot_layout_snapshot(tab_name: String, slot_id: String) -> Dictio
 	return panel.asset_slot_layout_snapshot(slot_id)
 
 
+func tab_empty_state_snapshot(tab_name: String) -> Dictionary:
+	var actual_tab := _canonical_tab_name(tab_name)
+	match actual_tab:
+		HexMapWorkspaceComponentRegistry.TAB_DOCUMENT:
+			return _resources_tab_empty_state()
+		HexMapWorkspaceComponentRegistry.TAB_PAINT:
+			return _paint_tab_empty_state()
+		HexMapWorkspaceComponentRegistry.TAB_CATALOG:
+			return _catalog_tab_empty_state()
+		HexMapWorkspaceComponentRegistry.TAB_LAYERS:
+			return _layers_tab_empty_state()
+		HexMapWorkspaceComponentRegistry.TAB_VALIDATE:
+			return _validate_tab_empty_state()
+		HexMapWorkspaceComponentRegistry.TAB_QA:
+			return _qa_tab_empty_state()
+		HexMapWorkspaceComponentRegistry.TAB_EXPORT:
+			return _export_tab_empty_state()
+		HexMapWorkspaceComponentRegistry.TAB_SETTINGS:
+			return _settings_tab_empty_state()
+	return _tab_empty_state(actual_tab, "", "", PackedStringArray(), "")
+
+
 func press_asset_slot_action(
 	tab_name: String,
 	slot_id: String,
@@ -562,6 +587,211 @@ func press_asset_slot_action(
 	return result
 
 
+func _tab_empty_state(
+	tab_name: String,
+	purpose_text: String,
+	empty_state_text: String,
+	next_actions: PackedStringArray,
+	help_tooltip: String
+) -> Dictionary:
+	return {
+		"tab": tab_name,
+		"purpose_text": purpose_text,
+		"empty_state_text": empty_state_text,
+		"visible": empty_state_text.strip_edges() != "",
+		"next_actions": next_actions.duplicate(),
+		"next_action_count": next_actions.size(),
+		"help_tooltip": help_tooltip,
+		"detail_help_in_tooltip": help_tooltip.strip_edges() != "" and not empty_state_text.contains(help_tooltip),
+	}
+
+
+func _resources_tab_empty_state() -> Dictionary:
+	var context := workspace_asset_context()
+	var selected := bool(selected_hex_tile_map_snapshot().get("selected", false))
+	var text := ""
+	var actions := PackedStringArray()
+	if not selected:
+		text = "No HexTileMap selected."
+		actions.append("Select a HexTileMap node")
+	elif context.level_document == null or context.layer_stack == null:
+		text = "Selected HexTileMap needs project resources."
+		actions.append("Create Missing Resources")
+		actions.append("Choose project assets")
+	return _tab_empty_state(
+		HexMapWorkspaceComponentRegistry.TAB_DOCUMENT,
+		"Manage selected HexTileMap project resources.",
+		text,
+		actions,
+		"Resources owns project assets. Bundled samples stay in Settings and must be duplicated before production use."
+	)
+
+
+func _catalog_tab_empty_state(entry_rows: Array = [], entry_detail: Dictionary = {}) -> Dictionary:
+	var catalog := workspace_asset_context().tile_catalog
+	var text := ""
+	var actions := PackedStringArray()
+	if catalog == null:
+		text = "No Tile Catalog selected."
+		actions.append("Select or create a Tile Catalog")
+	elif catalog.tile_set == null:
+		text = "Tile Catalog has no TileSet."
+		actions.append("Assign a TileSet")
+	elif entry_rows.is_empty():
+		text = "No catalog entries yet."
+		actions.append("Create a tile or scene entry")
+	elif not bool(entry_detail.get("preview_available", true)):
+		text = String(entry_detail.get("preview_unavailable_reason", "Selected entry has no preview."))
+		actions.append("Fix the selected Catalog entry")
+	return _tab_empty_state(
+		HexMapWorkspaceComponentRegistry.TAB_CATALOG,
+		"Build the Tile Catalog used by Generate and Paint.",
+		text,
+		actions,
+		"Choose a project Tile Catalog and TileSet. Samples are learning sources only, not automatic catalog defaults."
+	)
+
+
+func _layers_tab_empty_state(role_rows: Array = [], relationship: Dictionary = {}) -> Dictionary:
+	var stack := workspace_asset_context().layer_stack
+	var text := ""
+	var actions := PackedStringArray()
+	if stack == null:
+		text = "No Layer Stack selected."
+		actions.append("Select or create a Layer Stack")
+		actions.append("Select a HexTileMap target")
+	elif not bool(relationship.get("target_matches_selected", false)):
+		text = String(relationship.get("message", "Layer Stack needs a selected HexTileMap target."))
+		actions.append("Select a HexTileMap target")
+	elif role_rows.is_empty():
+		text = "No role rows until a Layer Stack is selected."
+		actions.append("Create missing role layers")
+	return _tab_empty_state(
+		HexMapWorkspaceComponentRegistry.TAB_LAYERS,
+		"Connect Layer Stack roles to the selected HexTileMap.",
+		text,
+		actions,
+		"Layer roles are project structure. Bundled samples do not create production layers."
+	)
+
+
+func _paint_tab_empty_state() -> Dictionary:
+	var brush := _edit_tool.paint_brush_snapshot() if _edit_tool != null else {}
+	var paint_workspace := _edit_tool.paint_workspace_snapshot() if _edit_tool != null else {}
+	var cta = brush.get("missing_asset_cta", {}) as Dictionary
+	var text := ""
+	var actions := PackedStringArray()
+	if not bool(brush.get("ready", false)):
+		var slot_id := String(cta.get("target_slot_id", ""))
+		var reason := String(cta.get("reason", ""))
+		text = _paint_empty_state_reason(reason)
+		if slot_id != "":
+			actions.append("Select or create %s" % _resource_group_slot_label(slot_id))
+		else:
+			actions.append("Choose a paint brush target")
+	elif paint_workspace.get("active_document", null) == null:
+		text = "No active Level Document."
+		actions.append("Select or create Level Document")
+	elif not bool(paint_workspace.get("target_ready", false)):
+		text = String(paint_workspace.get("target_message", "No editable HexTileMap target."))
+		actions.append("Select a HexTileMap target")
+	return _tab_empty_state(
+		HexMapWorkspaceComponentRegistry.TAB_PAINT,
+		"Paint terrain, overlays, objects, and labels into the active document.",
+		text,
+		actions,
+		"Paint reads project resources from Resources and Catalog. Bundled samples are not auto-used for production painting."
+	)
+
+
+func _paint_empty_state_reason(reason: String) -> String:
+	match reason:
+		"missing_tile_catalog":
+			return "No Tile Catalog selected."
+		"missing_catalog_key":
+			return "No Catalog brush selected."
+		"missing_object_database":
+			return "No Object Database selected."
+		"missing_object_definition":
+			return "No Object Definition selected."
+		"missing_label_database":
+			return "No Label Database selected."
+		"missing_label_definition":
+			return "No Label Definition selected."
+	return "Paint brush is not ready."
+
+
+func _validate_tab_empty_state(issue_rows: Array = []) -> Dictionary:
+	var actions := PackedStringArray()
+	if _last_workspace_validation_result == null:
+		actions.append("Run validation")
+	elif issue_rows.is_empty():
+		actions.append("Review validation summary")
+	return _tab_empty_state(
+		HexMapWorkspaceComponentRegistry.TAB_VALIDATE,
+		"Validate workspace assets and the active Level Document.",
+		_validate_empty_state_text(issue_rows),
+		actions,
+		"Validation reports missing project assets and routes each issue to the owning tab. Samples are not selected to satisfy missing project resources."
+	)
+
+
+func _qa_tab_empty_state(seed_lab: Dictionary = {}) -> Dictionary:
+	var score_rows = seed_lab.get("score_rows", []) as Array
+	var text := ""
+	var actions := PackedStringArray()
+	if score_rows.is_empty():
+		text = "Run Seed Lab to compare generated seeds."
+		if workspace_asset_context().generation_profile == null:
+			actions.append("Select or duplicate Generation Profile")
+		actions.append("Run Seed Lab")
+	return _tab_empty_state(
+		HexMapWorkspaceComponentRegistry.TAB_QA,
+		"Compare generated seeds and promote one result to the Level Document.",
+		text,
+		actions,
+		"QA compares generated candidates against project validation settings. Bundled samples do not become QA defaults."
+	)
+
+
+func _export_tab_empty_state(context: HexMapWorkspaceAssetContext = null, destination: Dictionary = {}) -> Dictionary:
+	var actual_context := context if context != null else workspace_asset_context()
+	var actual_destination := destination if not destination.is_empty() else _export_destination_context()
+	var text := ""
+	var actions := PackedStringArray()
+	if actual_context.level_document == null or not bool(actual_destination.get("selected", false)):
+		text = _export_cannot_export_reason(actual_context, actual_destination)
+		if actual_context.level_document == null:
+			actions.append("Select Level Document")
+		if not bool(actual_destination.get("selected", false)):
+			actions.append("Choose export destination")
+	return _tab_empty_state(
+		HexMapWorkspaceComponentRegistry.TAB_EXPORT,
+		"Export writes the current Level Document as a runtime HexMapResource handoff.",
+		text,
+		actions,
+		"Export uses a project document and a user-selected destination. Samples are not export destinations."
+	)
+
+
+func _settings_tab_empty_state() -> Dictionary:
+	return _tab_empty_state(
+		HexMapWorkspaceComponentRegistry.TAB_SETTINGS,
+		_settings_purpose_text(),
+		"Settings holds sample learning and explicit debug opt-ins.",
+		PackedStringArray(["Duplicate samples to project before production"]),
+		"Production asset selection lives in Resources; sample actions here are learning and duplication tools."
+	)
+
+
+func _empty_state_inline_text(empty_state: Dictionary) -> String:
+	var text := String(empty_state.get("empty_state_text", ""))
+	var actions = empty_state.get("next_actions", PackedStringArray()) as PackedStringArray
+	if text == "" or actions.is_empty():
+		return text
+	return "%s Next: %s." % [text, _join_text(actions, " / ")]
+
+
 func document_screen_snapshot() -> Dictionary:
 	return resources_screen_snapshot()
 
@@ -573,10 +803,14 @@ func resources_screen_snapshot() -> Dictionary:
 		HexMapWorkspaceComponentRegistry.TAB_DOCUMENT,
 		HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT
 	)
+	var empty_state := _resources_tab_empty_state()
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_DOCUMENT,
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_DOCUMENT),
 		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_DOCUMENT),
+		"purpose_text": String(empty_state.get("purpose_text", "")),
+		"empty_state": empty_state,
+		"empty_state_text": String(empty_state.get("empty_state_text", "")),
 		"dependency_slot_ids": PackedStringArray([
 			HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG,
 			HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE,
@@ -676,11 +910,13 @@ func validate_level_document():
 func validate_screen_snapshot() -> Dictionary:
 	var context := workspace_asset_context()
 	var issue_rows := validate_screen_issue_rows(_last_workspace_validation_result)
+	var empty_state := _validate_tab_empty_state(issue_rows)
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_VALIDATE,
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_VALIDATE),
 		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_VALIDATE),
-		"purpose_text": "Validate workspace assets and the active Level Document.",
+		"purpose_text": String(empty_state.get("purpose_text", "")),
+		"empty_state": empty_state,
 		"target_summary": _validate_target_summary(context),
 		"level_document": context.level_document,
 		"tile_catalog": context.tile_catalog,
@@ -698,7 +934,7 @@ func validate_screen_snapshot() -> Dictionary:
 		"selected_issue_index": _selected_validate_issue_index,
 		"selected_issue_row": _selected_validate_issue_row.duplicate(true),
 		"selected_issue_navigation": _selected_validate_issue_navigation.duplicate(true),
-		"empty_state_text": _validate_empty_state_text(issue_rows),
+		"empty_state_text": String(empty_state.get("empty_state_text", "")),
 		"resource_row_validate_buttons_present": false,
 		"sample_candidates_visible": _ensure_session_state().show_bundled_samples_in_main_selectors,
 	}
@@ -991,10 +1227,14 @@ func catalog_screen_snapshot() -> Dictionary:
 	)
 	var entry_rows := catalog_entry_rows()
 	var entry_detail := catalog_entry_detail()
+	var empty_state := _catalog_tab_empty_state(entry_rows, entry_detail)
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_CATALOG,
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_CATALOG),
 		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_CATALOG),
+		"purpose_text": String(empty_state.get("purpose_text", "")),
+		"empty_state": empty_state,
+		"empty_state_text": String(empty_state.get("empty_state_text", "")),
 		"tile_catalog": catalog,
 		"catalog_slot": catalog_slot,
 		"tile_set": catalog.tile_set if catalog != null else null,
@@ -1191,10 +1431,14 @@ func layer_stack_screen_snapshot() -> Dictionary:
 			role_rows.append(row)
 	var role_status_counts := _layer_stack_role_status_counts(role_rows)
 	var relationship := _layer_stack_relationship_snapshot(stack)
+	var empty_state := _layers_tab_empty_state(role_rows, relationship)
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_LAYERS,
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_LAYERS),
 		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_LAYERS),
+		"purpose_text": String(empty_state.get("purpose_text", "")),
+		"empty_state": empty_state,
+		"empty_state_text": String(empty_state.get("empty_state_text", "")),
 		"layer_stack": stack,
 		"layer_stack_slot": stack_slot,
 		"role_component_present": tab_has_component(HexMapWorkspaceComponentRegistry.TAB_LAYERS, "layer_stack_role_panel"),
@@ -1649,10 +1893,14 @@ func select_label_definition(label_id: String) -> Dictionary:
 
 func paint_brush_screen_snapshot() -> Dictionary:
 	var paint_workspace := _edit_tool.paint_workspace_snapshot() if _edit_tool != null else {}
+	var empty_state := _paint_tab_empty_state()
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_PAINT,
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_PAINT),
 		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_PAINT),
+		"purpose_text": String(empty_state.get("purpose_text", "")),
+		"empty_state": empty_state,
+		"empty_state_text": String(empty_state.get("empty_state_text", "")),
 		"brush": _edit_tool.paint_brush_snapshot() if _edit_tool != null else {},
 		"workspace": paint_workspace,
 		"active_document": paint_workspace.get("active_document", null),
@@ -1696,11 +1944,14 @@ func select_paint_catalog_brush_key(key: String, mode_id: String = "terrain") ->
 func qa_screen_snapshot() -> Dictionary:
 	var context := workspace_asset_context()
 	var seed_lab := qa_seed_lab_context()
+	var empty_state := _qa_tab_empty_state(seed_lab)
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_QA,
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_QA),
 		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_QA),
-		"purpose_text": "Compare generated seeds and promote one result to the Level Document.",
+		"purpose_text": String(empty_state.get("purpose_text", "")),
+		"empty_state": empty_state,
+		"empty_state_text": String(empty_state.get("empty_state_text", "")),
 		"generate_role_text": "Generate previews one candidate; QA compares seed batches and adopts a winner.",
 		"seed_lab_component_present": tab_has_component(HexMapWorkspaceComponentRegistry.TAB_QA, "qa_seed_lab_panel"),
 		"generation_profile": context.generation_profile,
@@ -1932,11 +2183,14 @@ func export_screen_snapshot() -> Dictionary:
 	var context := workspace_asset_context()
 	var destination := _export_destination_context()
 	var output_type := _export_output_type_context(context, destination)
+	var empty_state := _export_tab_empty_state(context, destination)
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_EXPORT,
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_EXPORT),
 		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_EXPORT),
-		"purpose_text": "Export writes the current Level Document as a runtime HexMapResource handoff.",
+		"purpose_text": String(empty_state.get("purpose_text", "")),
+		"empty_state": empty_state,
+		"empty_state_text": String(empty_state.get("empty_state_text", "")),
 		"purpose_component_present": tab_has_component(HexMapWorkspaceComponentRegistry.TAB_EXPORT, "export_purpose_panel"),
 		"active_output_type": "runtime_handoff_resource",
 		"output_type": output_type,
@@ -3253,8 +3507,11 @@ func _refresh_export_destination_panel() -> void:
 		return
 	var session := _ensure_session_state()
 	var destination := session.export_saved_path
+	var empty_state := _export_tab_empty_state()
 	if _export_destination_label != null:
-		_export_destination_label.text = "Destination: %s" % ("Not selected" if destination == "" else destination)
+		_export_destination_label.text = _empty_state_inline_text(empty_state) \
+			if bool(empty_state.get("visible", false)) else "Destination: %s" % destination
+		_export_destination_label.tooltip_text = String(empty_state.get("help_tooltip", ""))
 	if _export_recent_destinations_label != null:
 		_export_recent_destinations_label.text = "Recent destinations: %d" % session.recent_export_destinations.size()
 	if _export_use_recent_button != null:
@@ -3402,9 +3659,11 @@ func _refresh_resources_context_panel() -> void:
 	if _resources_context_panel == null:
 		return
 	var snapshot := selected_hex_tile_map_snapshot()
+	var empty_state := _resources_tab_empty_state()
 	if _resources_context_status_label != null:
-		_resources_context_status_label.text = String(snapshot.get("status_text", "No HexTileMap selected"))
-		_resources_context_status_label.tooltip_text = _selected_hex_tile_map_tooltip(snapshot)
+		_resources_context_status_label.text = _empty_state_inline_text(empty_state) \
+			if bool(empty_state.get("visible", false)) else String(snapshot.get("status_text", "No HexTileMap selected"))
+		_resources_context_status_label.tooltip_text = String(empty_state.get("help_tooltip", _selected_hex_tile_map_tooltip(snapshot)))
 	for group in resource_group_rows():
 		var group_id := String(group.get("group_id", ""))
 		var label = _resources_group_labels.get(group_id, null) as Label
@@ -3423,6 +3682,7 @@ func _refresh_catalog_detail_panel() -> void:
 		return
 	var snapshot := catalog_screen_snapshot()
 	var entry_detail = snapshot.get("entry_detail", {}) as Dictionary
+	var empty_state = snapshot.get("empty_state", {}) as Dictionary
 	if _catalog_detail_status_label != null:
 		_catalog_detail_status_label.text = "TileSet: %s | Entries: %d" % [
 			"Linked" if bool(snapshot.get("tile_set_present", false)) else "Missing",
@@ -3440,7 +3700,9 @@ func _refresh_catalog_detail_panel() -> void:
 				preview_text,
 			]
 		else:
-			_catalog_detail_entry_label.text = String(entry_detail.get("preview_unavailable_reason", "No catalog entry selected."))
+			_catalog_detail_entry_label.text = _empty_state_inline_text(empty_state) \
+				if bool(empty_state.get("visible", false)) else String(entry_detail.get("preview_unavailable_reason", "No catalog entry selected."))
+		_catalog_detail_entry_label.tooltip_text = String(empty_state.get("help_tooltip", ""))
 
 
 func _catalog_tile_set_tooltip() -> String:
@@ -3454,6 +3716,7 @@ func _refresh_layer_stack_role_panel() -> void:
 	var counts = snapshot.get("role_status_counts", {}) as Dictionary
 	var relationship = snapshot.get("relationship", {}) as Dictionary
 	var actions = snapshot.get("layer_actions", {}) as Dictionary
+	var empty_state = snapshot.get("empty_state", {}) as Dictionary
 	if _layer_stack_role_status_label != null:
 		_layer_stack_role_status_label.text = "Layer Stack: %s | Roles: %d | Missing: %d | Locked: %d | Writable: %d" % [
 			_layer_stack_display_label(snapshot.get("layer_stack", null) as HexLayerStackResource),
@@ -3470,7 +3733,9 @@ func _refresh_layer_stack_role_panel() -> void:
 		]
 	if _layer_stack_role_rows_label != null:
 		var rows = snapshot.get("role_rows", []) as Array
-		_layer_stack_role_rows_label.text = _layer_stack_role_rows_text(rows)
+		_layer_stack_role_rows_label.text = _empty_state_inline_text(empty_state) \
+			if bool(empty_state.get("visible", false)) else _layer_stack_role_rows_text(rows)
+		_layer_stack_role_rows_label.tooltip_text = String(empty_state.get("help_tooltip", ""))
 
 
 func _layer_stack_display_label(stack: HexLayerStackResource) -> String:
@@ -3508,15 +3773,17 @@ func _refresh_validation_issue_navigator() -> void:
 	if _validation_issue_navigator == null:
 		return
 	var snapshot := validate_screen_snapshot()
+	var empty_state = snapshot.get("empty_state", {}) as Dictionary
 	if _validation_issue_status_label != null:
 		var issue_count := int(snapshot.get("issue_count", 0))
 		var error_count := int(snapshot.get("error_count", 0))
 		var empty_text := String(snapshot.get("empty_state_text", ""))
-		_validation_issue_status_label.text = empty_text if empty_text != "" else "%s | Issues: %d | Errors: %d" % [
+		_validation_issue_status_label.text = _empty_state_inline_text(empty_state) if empty_text != "" else "%s | Issues: %d | Errors: %d" % [
 			String(snapshot.get("target_summary", "")),
 			issue_count,
 			error_count,
 		]
+		_validation_issue_status_label.tooltip_text = String(empty_state.get("help_tooltip", ""))
 	if _validation_issue_selected_label != null:
 		var selected_row = snapshot.get("selected_issue_row", {}) as Dictionary
 		var navigation = snapshot.get("selected_issue_navigation", {}) as Dictionary
@@ -3551,14 +3818,16 @@ func _refresh_qa_seed_lab_panel() -> void:
 	if _qa_seed_lab_panel == null:
 		return
 	var context := qa_seed_lab_context()
+	var empty_state := _qa_tab_empty_state(context)
 	if _qa_seed_lab_status_label != null:
 		var target = context.get("promotion_target", {}) as Dictionary
-		_qa_seed_lab_status_label.text = "Rows: %d | Profile: %s | Validation: %s | Promotion target: %s" % [
+		_qa_seed_lab_status_label.text = _empty_state_inline_text(empty_state) if bool(empty_state.get("visible", false)) else "Rows: %d | Profile: %s | Validation: %s | Promotion target: %s" % [
 			int(context.get("score_row_count", 0)),
 			"selected" if bool((context.get("generation_profile", {}) as Dictionary).get("selected", false)) else "missing",
 			"selected" if bool((context.get("validation_rule_suite", {}) as Dictionary).get("selected", false)) else "missing",
 			String(target.get("status", "")),
 		]
+		_qa_seed_lab_status_label.tooltip_text = String(empty_state.get("help_tooltip", ""))
 	if _qa_seed_lab_selected_label != null:
 		var selected = context.get("selected_seed_row", {}) as Dictionary
 		if selected.is_empty():
@@ -3593,8 +3862,10 @@ func _refresh_settings_preferences_panel() -> void:
 	if _settings_preferences_panel == null:
 		return
 	var snapshot := settings_screen_snapshot()
+	var empty_state = snapshot.get("empty_state", {}) as Dictionary
 	if _settings_preferences_status_label != null:
 		_settings_preferences_status_label.text = String(snapshot.get("purpose_text", _settings_purpose_text()))
+		_settings_preferences_status_label.tooltip_text = String(empty_state.get("help_tooltip", ""))
 	if _settings_preferences_debug_label != null:
 		_settings_preferences_debug_label.text = "Debug numeric fallback: %s" % (
 			"enabled" if bool(snapshot.get("debug_numeric_tile_fallback_enabled", false)) else "disabled"
@@ -3628,8 +3899,10 @@ func _refresh_export_purpose_panel() -> void:
 		return
 	var snapshot := export_screen_snapshot()
 	var output_type = snapshot.get("output_type", {}) as Dictionary
+	var empty_state = snapshot.get("empty_state", {}) as Dictionary
 	if _export_purpose_status_label != null:
 		_export_purpose_status_label.text = String(snapshot.get("purpose_text", ""))
+		_export_purpose_status_label.tooltip_text = String(empty_state.get("help_tooltip", ""))
 	if _export_purpose_mode_label != null:
 		_export_purpose_mode_label.text = "%s | Source: %s | Target: %s%s" % [
 			String(output_type.get("label", "")),

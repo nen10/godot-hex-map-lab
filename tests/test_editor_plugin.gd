@@ -144,6 +144,7 @@ func _run() -> void:
 	await _test_asset_slot_control_exposes_state_snapshot_contract()
 	await _test_workspace_asset_slots_use_strict_resource_type_filters()
 	await _test_workspace_resource_purpose_tooltips_cover_resource_rows()
+	await _test_workspace_tab_purpose_empty_states_route_to_project_actions()
 	await _test_workspace_asset_slot_actions_remove_redundant_buttons()
 	await _test_workspace_asset_remaining_actions_are_wired_or_deleted()
 	await _test_sample_settings_duplicate_button_creates_project_catalog()
@@ -2942,6 +2943,73 @@ func _test_workspace_resource_purpose_tooltips_cover_resource_rows() -> void:
 		tile_set_tooltip.contains("Purpose: %s" % HexMapWorkspaceAssetResourceFactory.tile_set_purpose()),
 		"INFO-70 Catalog TileSet tooltip includes purpose"
 	)
+
+	workspace.queue_free()
+	await process_frame
+
+
+func _test_workspace_tab_purpose_empty_states_route_to_project_actions() -> void:
+	var session = HexMapEditorSessionState.new()
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	var snapshots := {
+		"Resources": workspace.resources_screen_snapshot(),
+		"Paint": workspace.paint_brush_screen_snapshot(),
+		"Catalog": workspace.catalog_screen_snapshot(),
+		"Layers": workspace.layer_stack_screen_snapshot(),
+		"Validate": workspace.validate_screen_snapshot(),
+		"QA": workspace.qa_screen_snapshot(),
+		"Export": workspace.export_screen_snapshot(),
+		"Settings": workspace.settings_screen_snapshot(),
+	}
+	var production_tabs := PackedStringArray([
+		"Resources",
+		"Paint",
+		"Catalog",
+		"Layers",
+		"Validate",
+		"QA",
+		"Export",
+	])
+	for tab_name in snapshots.keys():
+		var snapshot = snapshots[tab_name] as Dictionary
+		var empty_state = snapshot["empty_state"] as Dictionary
+		var purpose := String(snapshot["purpose_text"])
+		var empty_text := String(empty_state["empty_state_text"])
+		var actions = empty_state["next_actions"] as PackedStringArray
+		var help_tooltip := String(empty_state["help_tooltip"])
+		_assert_true(purpose != "", "INFO-71 %s states tab purpose" % tab_name)
+		_assert_eq(String(empty_state["purpose_text"]), purpose, "INFO-71 %s empty state mirrors purpose" % tab_name)
+		_assert_eq(String(snapshot["empty_state_text"]), empty_text, "INFO-71 %s snapshot exposes empty text" % tab_name)
+		_assert_true(empty_text != "", "INFO-71 %s has first-run empty-state text" % tab_name)
+		_assert_true(actions.size() >= 1 and actions.size() <= 2, "INFO-71 %s has one or two next actions" % tab_name)
+		_assert_eq(int(empty_state["next_action_count"]), actions.size(), "INFO-71 %s reports action count" % tab_name)
+		_assert_true(help_tooltip != "", "INFO-71 %s keeps detailed help in tooltip" % tab_name)
+		_assert_true(bool(empty_state["detail_help_in_tooltip"]), "INFO-71 %s detailed help stays out of primary text" % tab_name)
+		_assert_true(not empty_text.contains(help_tooltip), "INFO-71 %s primary empty text does not inline tooltip detail" % tab_name)
+		if production_tabs.has(String(tab_name)):
+			var primary_text := ("%s %s" % [empty_text, " ".join(actions)]).to_lower()
+			_assert_true(not primary_text.contains("sample"), "INFO-71 %s primary empty state does not use samples" % tab_name)
+			_assert_true(not primary_text.contains("bundled"), "INFO-71 %s primary empty state does not use bundled assets" % tab_name)
+
+	var resource_actions = (snapshots["Resources"] as Dictionary)["empty_state"]["next_actions"] as PackedStringArray
+	_assert_true(resource_actions.has("Select a HexTileMap node"), "INFO-71 Resources next action points to node selection")
+	var catalog_actions = (snapshots["Catalog"] as Dictionary)["empty_state"]["next_actions"] as PackedStringArray
+	_assert_true(catalog_actions.has("Select or create a Tile Catalog"), "INFO-71 Catalog next action points to project catalog")
+	var paint_actions = (snapshots["Paint"] as Dictionary)["empty_state"]["next_actions"] as PackedStringArray
+	_assert_true(
+		paint_actions.has("Select or create Level Document") or paint_actions.has("Select or create Tile Catalog"),
+		"INFO-71 Paint next action points to project setup"
+	)
+	var export_actions = (snapshots["Export"] as Dictionary)["empty_state"]["next_actions"] as PackedStringArray
+	_assert_true(export_actions.has("Select Level Document"), "INFO-71 Export next action includes document selection")
+	_assert_true(export_actions.has("Choose export destination"), "INFO-71 Export next action includes destination selection")
+	_assert_true(not session.show_bundled_samples_in_main_selectors, "INFO-71 empty states do not enable sample selector visibility")
+	_assert_eq(workspace.generation_dock().tile_catalog(), null, "INFO-71 empty states do not inject generation sample catalog")
+	_assert_eq(workspace.edit_tool().tile_catalog(), null, "INFO-71 empty states do not inject paint sample catalog")
 
 	workspace.queue_free()
 	await process_frame
