@@ -15,7 +15,7 @@ enabled=PackedStringArray("res://addons/hex_map_kit/plugin.cfg")
 
 After Godot starts, the editor shows the **Hex Map Workspace** dock. The workspace uses these task tabs:
 
-- `Document`
+- `Resources`
 - `Generate`
 - `Paint`
 - `Catalog`
@@ -25,39 +25,36 @@ After Godot starts, the editor shows the **Hex Map Workspace** dock. The workspa
 - `Export`
 - `Settings`
 
-The tab names are the stable task map for the editor UI. Production work starts with project asset slots, not bundled samples:
+The tab names are the stable task map for the editor UI. Production work starts with a selected scene node and project asset slots, not bundled samples:
 
-1. In `Document`, create or select a project `HexMapDocumentResource`.
-2. In `Catalog`, create or select a project `HexTileCatalogResource`, then select its `TileSet` and optional scene-entry `PackedScene` resources.
-3. In `Paint`, select project Object and Label databases before placing definitions.
-4. In `Layers`, select a project Layer Stack and a scene target.
-5. In `Validate` and `QA`, select project Validation Rule Suite and Generation Profile resources.
-6. In `Export`, select a project Export Profile and choose an explicit Runtime Handoff destination with the FileDialog.
-7. In `Settings`, use Samples only for learning or duplicating bundled assets into project-owned resources.
+1. Select the target `HexTileMap` in the Scene tree. The Workspace auto-links the selected node by default.
+2. In `Resources`, create or select a project `HexMapDocumentResource`, Layer Stack, Object Database, Label Database, and optional Movement Profile. Use `Create Missing Resources` for missing node-owned unique resources.
+3. In `Catalog`, create or select a project `HexTileCatalogResource`, then select its `TileSet` and optional scene-entry `PackedScene` resources.
+4. In `Generate`, choose whether the generated result is `Preview only` or should be applied to the selected document.
+5. In `Paint`, choose terrain/object/label brushes from the project resources already selected in `Resources` and `Catalog`.
+6. In `Layers`, inspect the selected `HexTileMap`, create role layers, and apply the document by role.
+7. In `Validate` and `QA`, inspect issues, compare seeds, and promote a selected result to the project Level Document.
+8. In `Export`, select a project Export Profile and choose an explicit Runtime Handoff destination with the FileDialog.
+9. In `Settings`, use Samples only for learning or duplicating bundled assets into project-owned resources.
 
-## 2. Start Or Open A Level Document
+## 2. Manage Resources And Level Document
 
-Use `HexMapDocumentResource` when a map needs terrain, overlays, objects, labels, zones, metadata, dependencies, and runtime handoff in one resource.
+Use `Resources` when a map needs terrain, overlays, objects, labels, zones, metadata, dependencies, and runtime handoff in one Level Document relationship.
 
-Normal document actions:
+The normal Resources workflow:
 
-- `New Document`: create a canonical document in memory.
-- `Create New...`: save a new project document resource through a FileDialog.
-- `Document Resource`: select an existing `HexMapDocumentResource` with a Resource picker.
-- `Open...`: choose a document through a FileDialog.
-- `Save`: write the current document to its saved location.
-- `Save As...`: choose a new save location through a FileDialog.
-- `Validate`: run document validation before handoff.
+- Select a `HexTileMap` in the Scene tree. The Resources context shows the selected node, `Auto-link: On`, or `No HexTileMap selected`.
+- Use `Level Document` to create or select a project `HexMapDocumentResource` with the Resource picker and `Create New...` FileDialog.
+- Use `Layer Stack` for the selected node's role-layer resource.
+- Use `Object Database`, `Label Database`, and `Movement Profile` for shared or optional authoring data.
+- Use `Create Missing Resources` to create missing node-owned unique resources at a chosen project folder and prefix.
+- Leave shared project resources unselected until the project has real assets; missing states route to `Resources`, `Catalog`, or validation rows instead of silently loading samples.
 
-The saved path is shown as read-only status. Do not use editable `res://...` text as the normal document workflow.
+Selecting or creating node-owned resources writes back to the selected `HexTileMap` while auto-link is on. Shared resources stay in the Workspace asset context and are reused by Generate, Paint, Validate, QA, and Export according to their task.
 
-Use Advanced Convert only when bringing an older `HexMapResource` into document authoring:
+The saved resource path is shown as read-only status. Do not use editable `res://...` text as the normal document workflow.
 
-- `Convert Resource`
-- `Browse...`
-- `Convert`
-
-Use the `Export` tab's Runtime Handoff workflow when producing a runtime-oriented `HexMapResource`.
+Use the `Export` tab's Runtime Handoff workflow when producing a runtime-oriented `HexMapResource`; it is separate from saving the authoring `HexMapDocumentResource`.
 
 ## 3. Generate A Map
 
@@ -84,6 +81,13 @@ For display, choose a `Target`, orientation, tile size, and catalog keys:
 | `Apply Write` | clear target first or add generated cells over existing cells |
 
 Generation normally auto-applies to the target layer. Numeric source and atlas controls are not part of normal authoring; catalog entries and the target `TileSet` own those details.
+
+Use `Output target` to decide what happens to the generated result:
+
+- `Preview only`: updates the target display and keeps the selected Level Document unchanged.
+- `Apply to selected Document`: enables `Apply to Document` when a `HexTileMap`, Level Document, and generated preview are available. Applying copies the generated document state into the selected node's Level Document and records generation metadata.
+
+If no `HexTileMap` is selected, or the selected node has no Level Document, the apply path stays blocked with a visible reason.
 
 ## 4. Compare Seeds In QA
 
@@ -212,7 +216,7 @@ First-run onboarding:
 3. Enable `Show bundled samples in asset selectors` when you want learning candidates visible in main selectors.
 4. Use `Duplicate sample catalog to project` before editing the sample catalog, TileSet texture, or object scene for production.
 
-Sample mode ON does not override selected project assets. If a project Tile Catalog is selected, Generate and Paint continue to use that project catalog before any bundled sample fallback.
+Sample mode ON does not override selected project assets. Generate and Paint do not use bundled samples as production fallbacks; duplicate a sample to a project path before adapting it.
 
 The included sample atlas is:
 

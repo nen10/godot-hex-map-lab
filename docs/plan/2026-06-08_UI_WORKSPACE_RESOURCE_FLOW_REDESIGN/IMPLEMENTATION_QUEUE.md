@@ -118,8 +118,8 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `DOC-90` | `READY` | `TAB-57`, `INFO-72` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/DOC-90_WORKSPACE_UI_MANUAL_UPDATE/` | Workspace UI manual update | `docs/manual/MANUAL_EDITOR_PLUGIN.md`, `docs/manual/MANUAL_WORKFLOW.md`, `docs/TEST.md`, `README.md` | Manual explains Resources tab, sample learning flow, HexTileMap selection auto resource sync, Generate output target / Apply to Document; no analog test is added. |
-| `PROCESS-91` | `BACKLOG` | `DOC-90` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/PROCESS-91_FINAL_DIST_REGENERATION_STEP/` | Final dist regeneration process step | `tools/package_addon.sh`, `dist/`, process/review log | `tools/package_addon.sh` regenerates `dist`; manifest reflects current addon tree; work log records dist update; this is not added to `tools/test.sh` mandatory tests. |
+| `DOC-90` | `COMPLETE` | `TAB-57`, `INFO-72` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/DOC-90_WORKSPACE_UI_MANUAL_UPDATE/` | Workspace UI manual update | `docs/manual/MANUAL_EDITOR_PLUGIN.md`, `docs/manual/MANUAL_WORKFLOW.md`, `docs/TEST.md`, `README.md` | Manual explains Resources tab, sample learning flow, HexTileMap selection auto resource sync, Generate output target / Apply to Document; no analog test is added. |
+| `PROCESS-91` | `READY` | `DOC-90` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/PROCESS-91_FINAL_DIST_REGENERATION_STEP/` | Final dist regeneration process step | `tools/package_addon.sh`, `dist/`, process/review log | `tools/package_addon.sh` regenerates `dist`; manifest reflects current addon tree; work log records dist update; this is not added to `tools/test.sh` mandatory tests. |
 
 ---
 
@@ -148,7 +148,7 @@ acceptance / test path:
 
 ## 12. Current pointer
 
-Current recommended next task: `DOC-90`.
+Current recommended next task: `PROCESS-91`.
 
 Reason:
 
@@ -183,7 +183,9 @@ Reason:
 - `GEN-80` is complete.
 - `GEN-81` is complete.
 - Phase U8 has no remaining READY task.
-- `DOC-90` is the first READY task in queue order.
+- `DOC-90` is complete.
+- `PROCESS-91` was promoted to READY because `DOC-90` is complete.
+- `PROCESS-91` is the first READY task in queue order.
 
 ---
 
@@ -635,3 +637,18 @@ proof:
     - `docs/review/roadmap/GENERATION_PROFILE_RESULT_MODEL_2026-06-08.md`
   major files:
     - `docs/review/autopilot/GEN-81_TEST_RESULT_2026-06-08.md`
+
+### DOC-90 Workspace UI manual update
+
+proof:
+  plan: `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/DOC-90_WORKSPACE_UI_MANUAL_UPDATE/`
+  review: `docs/review/autopilot/DOC-90_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/manual/MANUAL_EDITOR_PLUGIN.md`
+    - `docs/manual/MANUAL_WORKFLOW.md`
+    - `docs/TEST.md`
+    - `README.md`
+  major files:
+    - `docs/review/autopilot/DOC-90_TEST_RESULT_2026-06-08.md`

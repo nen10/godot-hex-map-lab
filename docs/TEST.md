@@ -95,6 +95,7 @@ GodotでのDebug実行によるテストが有用なケースについては、�
 - `tests/test_editor_plugin.gd` INFO-72 coverage: Export tab の active/visible output mode が Runtime Handoff のみで、Data Export / Package Build / Debug Report は分類済みだが active visible output ではないことを headless で検証し、terminology decision は `docs/review/roadmap/EXPORT_TERMINOLOGY_DECISION_2026-06-08.md` に記録する。
 - GEN-80 review coverage: `docs/review/roadmap/GENERATION_PIPELINE_GRAPH_REVIEW_2026-06-08.md` が generation preview / QA Seed Lab / overlay query / document metadata の現状を根拠に、immediate UI / backlog Resource/API / graph-editor research を分類し、Generate tab を肥大化させない判断を記録する。
 - GEN-81 model coverage: `docs/review/roadmap/GENERATION_PROFILE_RESULT_MODEL_2026-06-08.md` が Generation Profile / Preview / Result / Level Document の境界、QA Seed Lab との整合、document metadata provenance、将来 schema test 条件を定義し、graph editor を out of scope とする。
+- DOC-90 manual coverage: `docs/manual/MANUAL_EDITOR_PLUGIN.md` / `docs/manual/MANUAL_WORKFLOW.md` / `README.md` が Resources tab、sample learning flow、selected HexTileMap auto resource sync、Generate output target / Apply to selected Document を説明し、新規アナログテスト文書を追加しないことを self-review と `./tools/test.sh` で確認する。
 - `tests/test_editor_plugin.gd` TEST-40 coverage: feature screen completion contract として Resources / Catalog / Layers / Validate / QA / Export の project asset slot が sample mode OFF で `SOURCE_PROJECT` になること、Catalog が任意 TileSet を保持すること、Export destination が user project path であることを headless で検証し、sample mode ON/OFF は Settings / Samples test、bundled sample asset validity は `tools/package_addon.sh --check` と sample catalog adapter test に分離する。
 - `tests/test_editor_plugin.gd` CLEANUP-30 coverage: Settings の debug numeric fallback default OFF / explicit opt-in、plain `TileMapLayer` normal apply が missing catalog を numeric fallback で埋めないこと、debug opt-in 時だけ numeric fallback source/atlas を適用すること、missing catalog assignment が validation issue のまま残ることを headless で検証する。
 - `tests/test_editor_plugin.gd` CLEANUP-31 coverage: Overlay item key / Label ID / Object variant / Spawn condition / Object property key-value が selector / definition / enum / schema source を持つこと、normal UI で raw overlay key / label id / object variant / spawn condition / raw JSON properties / property table が非表示であることを headless で検証する。
@@ -128,21 +129,21 @@ Godot が出す終了コード 0の macOS 証明書関連の非致命的な ERRO
 
 ## Debug 実行
 
-Hex Map Edit Dock の手動確認:
+Hex Map Workspace の手動確認:
 
-1. Godot Editorで addon を有効にし、`Hex Map Edit` Dock が生成Dockとは別に表示されることを確認する。
-2. Generate Dockで `HexMapResource` を作成するか、既存 `.tres` を用意し、Hex Map Editで `New Document` / `Open...` / `Convert` により編集用documentを用意する。
+1. Godot Editorで addon を有効にし、`Hex Map Workspace` Dock が表示されることを確認する。
+2. Hex Map Workspace の `Resources` で `HexMapDocumentResource` を作成または選択し、必要なら `Create Missing Resources` で選択中 HexTileMap の node-owned resource を作成する。
 3. Targetで編集対象の `TileMapLayer` または `HexTileMapLayer` を選ぶ。
 4. `Target Status` に target class、TileSet readiness、floor / wall atlas、used cell count、`HexTileMapLayer` の loop state が表示されることを確認する。
 5. `Edit Mode` を `Shape` / `Wall / Floor` / `Floor Tile` / `Wall Tile` / `Object` / `Label` に切り替え、viewport上のhex cellをclickする。
 6. `Last Edit` に canonical / visual cell、document mutation、target apply、display tile change、tile atlas before / after、target used cell count before / after が表示されることを確認する。
 7. Undo / Redoで document と TileMapLayer 表示が同時に戻ることを確認する。
-8. `Open...` で documentを読み込み、`Save` / `Save As...` でTarget由来documentを保存できることを確認する。保存後はDocument表示で Saved / Dirty 状態が分かることを確認する。
-9. Advanced convert の `Browse...` / `Convert` と `Export...` / `Export As...` で `HexMapResource` を入出力し、`Save / Export` detail に path、resource class、cell count、wall count が表示されることを確認する。
+8. `Resources` の Resource picker / `Create New...` で documentを選択または作成し、保存後は Level Document の resource path / Dirty 状態が分かることを確認する。
+9. `Export` の Runtime Handoff で `HexMapResource` を作成し、handoff status に path、resource class、cell count、wall count が表示されることを確認する。
 10. `HexTileMapLayer` の toric loop表示では、複製表示されたcellが outline だけでなく floor / wall tile として表示されることを確認する。
 11. 複製表示されたcellをclickしてcanonical cellが編集され、Undo / Redo 後も canonical cell と duplicate tile が同じ floor / wall 状態へ戻ることを確認する。
 12. 連続して別cellを編集したとき、highlight が最後の canonical cell だけに残ることを確認する。
-13. `Copy Debug Report` を押し、Target Status / Last Edit / Save Export / raw statusを含む報告用textが一括copyできることを確認する。
+13. `Copy Debug Report` を押し、Target Status / Last Edit / Runtime Handoff status / raw statusを含む報告用textが一括copyできることを確認する。
 14. `HexTileMapLayer` targetでは、内部 `TileMapLayer` をScene Treeで選んでも `Target Status` が親 `HexTileMapLayer` として解決されることを確認する。
 15. 選択不能cellをclickして `No editable cell.` が出た後、visible cellをclickして編集・highlight・Last Editが更新されることを確認する。
 16. `Target TileSet / Atlas` の `Browse` またはsample presetでTarget TileSetを設定し、Target StatusにTileSet path / source count / tile size / overlay payload / overlay visibilityが表示されることを確認する。

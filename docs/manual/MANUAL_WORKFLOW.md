@@ -19,10 +19,12 @@ enabled=PackedStringArray("res://addons/hex_map_kit/plugin.cfg")
 
 For production authoring, prepare project assets in the workspace:
 
+- a selected `HexTileMap` scene node
 - a saved `HexMapDocumentResource`
 - a project `HexTileCatalogResource`
 - a project `TileSet`
 - project Object and Label databases
+- a project Layer Stack and optional Movement Profile
 - project Validation Rule Suite and Generation Profile resources
 - an explicit Runtime Handoff destination
 
@@ -51,11 +53,11 @@ More setup details: `docs/manual/MANUAL_SETUP.md`.
 
 Open **Hex Map Workspace** and work from the authoring goal:
 
-- Document: create, open, save, save as, and validate a `HexMapDocumentResource`.
-- Generate: choose generator shape, seed, catalog keys, target, orientation, and tile size.
+- Resources: select the `HexTileMap` context, create or select the Level Document, create missing node-owned resources, and manage shared Object, Label, Layer Stack, and Movement Profile resources.
+- Generate: choose generator shape, seed, catalog keys, target, orientation, tile size, and output target.
 - QA: run Seed Lab batch comparison and promote a selected seed to a document.
 - Catalog: select a `HexTileCatalogResource`, catalog `TileSet`, and scene-entry `PackedScene`; validate catalog status.
-- Paint: edit terrain, floor tile keys, wall tile keys, objects, and labels in the viewport.
+- Paint: edit terrain, floor tile keys, wall tile keys, objects, and labels in the viewport using resources selected in `Resources` and `Catalog`.
 - Layers: create missing role layers and apply the document through a `HexTileMapLayer` layer stack.
 - Validate: inspect domain/severity grouped issues, focus cells/resources/catalog entries, and read fix suggestions.
 - Export: create a Runtime Handoff `HexMapResource` from the current Level Document.
@@ -66,11 +68,22 @@ Normal editor selection uses Resource pickers and FileDialogs. Saved paths may b
 
 Project asset first pass:
 
-1. Create or select the Level Document in `Document`.
-2. Create or select the Tile Catalog and assign its TileSet in `Catalog`.
-3. Create or select Object and Label databases in `Paint`.
-4. Create or select Validation Rule Suite and Generation Profile resources in `Validate` and `QA`.
-5. Choose an Export Profile and Runtime Handoff destination in `Export`.
+1. Select a `HexTileMap` in the Scene tree and confirm `Resources` shows the selected node.
+2. Create or select the Level Document and missing node-owned unique resources in `Resources`.
+3. Create or select the Tile Catalog and assign its TileSet in `Catalog`.
+4. Create or select Object and Label databases, Layer Stack, and optional Movement Profile in `Resources`.
+5. Create or select Validation Rule Suite and Generation Profile resources in `Validate` and `QA`.
+6. Choose an Export Profile and Runtime Handoff destination in `Export`.
+
+`Resources` auto-links the selected `HexTileMap` while auto-link is on. If no node is selected, the tab shows `No HexTileMap selected` and keeps production asset selection visible instead of filling the workspace with samples.
+
+Generate output target:
+
+1. Use `Preview only` to update the target display while leaving the selected Level Document unchanged.
+2. Use `Apply to selected Document` and press `Apply to Document` when the generated preview should become the selected `HexTileMap` Level Document.
+3. If no `HexTileMap`, Level Document, or generated preview is available, the apply action stays blocked with a visible reason.
+
+QA Seed Lab promotion follows the same ownership model: promoted seeds update the project Level Document relationship in `Resources` and remain unsaved until the document save workflow writes the resource.
 
 Sample onboarding is optional and separate from this first pass. Use it to inspect or duplicate bundled assets, then return to project asset slots for production work.
 
@@ -101,6 +114,8 @@ const HexEditorWorkflowExample = preload("res://examples/editor_workflow/editor_
 var document = HexEditorWorkflowExample.build_authoring_document()
 var info = HexEditorWorkflowExample.workflow_summary(document)
 ```
+
+In the editor, create or select the Level Document from `Resources`. With auto-link on, selecting or creating the Level Document writes the resource relationship back to the selected `HexTileMap`; shared project resources remain in the Workspace asset context for Generate, Paint, Validate, QA, and Export.
 
 ## 4. Use Catalog Keys
 

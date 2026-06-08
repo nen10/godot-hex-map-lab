@@ -20,7 +20,7 @@ Hex 座標系・ランダム壁生成・通路生成(連結性回復)処理を G
   - `HexMapResource` による runtime map `.tres` 保存
   - `HexMapTileAdapter` / `HexTileMapLayer` による `TileMapLayer` 反映
   - `HexTileMapLayer` による実行時 helper
-  - EditorPlugin の Hex Map Workspace、Resource picker workflow、Catalog、Layer Stack、Validation、Seed Lab、Distribution Editor
+  - EditorPlugin の Hex Map Workspace、Resources tab、選択中 HexTileMap の auto-link、Catalog、Layer Stack、Validation、Seed Lab、Distribution Editor
 - Debug scene
   - flat-top / pointy-top の配置確認
   - 生成 map、toric domain、9 split、対称生成 overlay の視覚確認
@@ -36,7 +36,7 @@ Hex 座標系・ランダム壁生成・通路生成(連結性回復)処理を G
 - `docs/manual/MANUAL_PACKAGE.md`
 - `docs/api/API_REFERENCE.md`
 
-Editor authoring starts in **Hex Map Workspace**. The production workflow is project asset selection: create or select a Level Document, Tile Catalog, TileSet, Object Database, Label Database, Generation Profile, Validation Rule Suite, Export Profile, and Runtime Handoff destination through Resource pickers and FileDialogs. Normal tile and object workflows use catalog keys and object keys rather than raw tile source numbers or editable path text. Bundled samples live in Settings / Samples for learning and can be duplicated into project assets when you want to adapt them.
+Editor authoring starts in **Hex Map Workspace** by selecting a `HexTileMap` scene node and using the `Resources` tab. The production workflow is project asset selection: create or select a Level Document, Tile Catalog, TileSet, Object Database, Label Database, Layer Stack, Movement Profile, Generation Profile, Validation Rule Suite, Export Profile, and Runtime Handoff destination through Resource pickers and FileDialogs. `Resources` auto-links node-owned resources back to the selected `HexTileMap`; Generate can stay `Preview only` or explicitly `Apply to selected Document`. Normal tile and object workflows use catalog keys and object keys rather than raw tile source numbers or editable path text. Bundled samples live in Settings / Samples for learning and can be duplicated into project assets when you want to adapt them.
 
 For onboarding, use **Learn with bundled samples** to open Settings / Samples. Sample mode is OFF by default; turning it ON exposes bundled learning candidates while keeping selected project assets primary. `Duplicate sample catalog to project` copies the sample catalog, tile texture, and object scene into project-owned files.
 
