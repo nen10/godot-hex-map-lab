@@ -80,7 +80,7 @@ Docs and examples are source-repository material. The addon zip is intentionally
 
 ## Production Assets And Samples
 
-The zip includes bundled samples so new users can learn the editor after installation. They are not the production default workflow. In a project, create or select project-owned documents, catalogs, TileSets, object databases, label databases, generation profiles, validation suites, export profiles, and export destinations through Hex Map Workspace.
+The zip includes bundled samples so new users can learn the editor after installation. They are not the production default workflow. In a project, create or select project-owned documents, catalogs, TileSets, object databases, label databases, generation profiles, validation suites, export profiles, and Runtime Handoff destinations through Hex Map Workspace.
 
 When a sample is useful as a starting point, duplicate it from Settings / Samples into a project path, then edit the project copy. The duplication flow copies the sample catalog, tile texture, object scene, and catalog scene-entry references into project-owned files. Package checks verify that bundled sample files are present; feature completion tests verify that normal editor screens work with project assets and sample mode OFF.
 

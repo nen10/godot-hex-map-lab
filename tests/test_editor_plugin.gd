@@ -1937,6 +1937,16 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 	_assert_eq(_export_mode_status(modes, "data_export_json"), "backlog", "TAB-56 data export is backlog")
 	_assert_eq(_export_mode_status(modes, "package_build"), "process", "TAB-56 package build is process")
 	_assert_eq(_export_mode_status(modes, "debug_report"), "diagnostic", "TAB-56 debug report is diagnostic")
+	_assert_eq(
+		snapshot["visible_output_mode_ids"],
+		PackedStringArray(["runtime_handoff_resource"]),
+		"INFO-72 Export tab visible output is Runtime Handoff only"
+	)
+	var visible_mode_labels = snapshot["visible_output_mode_labels"] as PackedStringArray
+	_assert_true(visible_mode_labels.has("Runtime Handoff"), "INFO-72 Export visible mode names Runtime Handoff")
+	_assert_true(not visible_mode_labels.has("Data Export"), "INFO-72 Data Export is classified but not visible")
+	_assert_true(not visible_mode_labels.has("Package Build"), "INFO-72 Package Build is classified but not visible")
+	_assert_true(not visible_mode_labels.has("Debug Report"), "INFO-72 Debug Report is classified but not visible")
 	_assert_true(
 		PackedStringArray(snapshot["component_ids"]).has("export_asset_panel"),
 		"Export screen exposes export asset panel"
@@ -3006,7 +3016,7 @@ func _test_workspace_tab_purpose_empty_states_route_to_project_actions() -> void
 	)
 	var export_actions = (snapshots["Export"] as Dictionary)["empty_state"]["next_actions"] as PackedStringArray
 	_assert_true(export_actions.has("Select Level Document"), "INFO-71 Export next action includes document selection")
-	_assert_true(export_actions.has("Choose export destination"), "INFO-71 Export next action includes destination selection")
+	_assert_true(export_actions.has("Choose Runtime Handoff destination"), "INFO-71 Export next action includes destination selection")
 	_assert_true(not session.show_bundled_samples_in_main_selectors, "INFO-71 empty states do not enable sample selector visibility")
 	_assert_eq(workspace.generation_dock().tile_catalog(), null, "INFO-71 empty states do not inject generation sample catalog")
 	_assert_eq(workspace.edit_tool().tile_catalog(), null, "INFO-71 empty states do not inject paint sample catalog")

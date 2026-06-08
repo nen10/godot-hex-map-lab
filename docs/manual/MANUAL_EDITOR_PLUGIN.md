@@ -1,6 +1,6 @@
 # Editor Plugin Manual
 
-Hex Map Kit provides one editor workspace for authoring, generating, validating, and exporting hex-map level documents.
+Hex Map Kit provides one editor workspace for authoring, generating, validating, and creating runtime handoffs from hex-map level documents.
 
 This manual describes user workflows. For API details, use `docs/api/API_REFERENCE.md`. For end-to-end authoring and runtime handoff, use `docs/manual/MANUAL_WORKFLOW.md`.
 
@@ -32,7 +32,7 @@ The tab names are the stable task map for the editor UI. Production work starts 
 3. In `Paint`, select project Object and Label databases before placing definitions.
 4. In `Layers`, select a project Layer Stack and a scene target.
 5. In `Validate` and `QA`, select project Validation Rule Suite and Generation Profile resources.
-6. In `Export`, select a project Export Profile and choose an explicit destination with the FileDialog.
+6. In `Export`, select a project Export Profile and choose an explicit Runtime Handoff destination with the FileDialog.
 7. In `Settings`, use Samples only for learning or duplicating bundled assets into project-owned resources.
 
 ## 2. Start Or Open A Level Document
@@ -57,7 +57,7 @@ Use Advanced Convert only when bringing an older `HexMapResource` into document 
 - `Browse...`
 - `Convert`
 
-Use `Export...` / `Export As...` when producing a runtime-oriented `HexMapResource`.
+Use the `Export` tab's Runtime Handoff workflow when producing a runtime-oriented `HexMapResource`.
 
 ## 3. Generate A Map
 
@@ -173,7 +173,21 @@ Selecting an issue shows:
 
 Cell issues can focus the target cell. Catalog issues can focus catalog entries. Resource issues point back to the relevant dependency or selected resource.
 
-## 9. Copy A Debug Report
+## 9. Create A Runtime Handoff
+
+Use `Export` when gameplay/runtime code needs a `HexMapResource` created from the current Level Document.
+
+Current Export tab terms:
+
+- `Runtime Handoff Resource`: active output type.
+- `Current Level Document`: source.
+- `HexMapResource`: target resource class.
+- `Export Profile`: optional project resource for handoff settings.
+- destination: explicit FileDialog path chosen by the user.
+
+The Export tab does not save the authoring document. Use Resources/document save actions for `HexMapDocumentResource` persistence. Package Build is a developer process (`tools/package_addon.sh`), and Debug Report is a support/diagnostic action.
+
+## 10. Copy A Debug Report
 
 Use `Copy Debug Report` when reporting an authoring or validation problem.
 
@@ -185,9 +199,9 @@ The report includes:
 - validation summary
 - raw status needed for support
 
-Normal authoring should use concise status and validation rows. The debug report is for support, not for everyday editing.
+Normal authoring should use concise status and validation rows. The debug report is for support, not for everyday editing, and is not an Export tab output.
 
-## 10. Use Samples For Learning
+## 11. Use Samples For Learning
 
 Bundled samples are learning assets. Open `Settings` / Samples to inspect them or duplicate the sample catalog into project-owned files before adapting it.
 
@@ -226,7 +240,7 @@ These numeric values are sample asset details. Normal workflow should still sele
 
 Use `Browse Atlas Image` or the target TileSet/Atlas browser when preparing a target `TileSet`. Target status reports TileSet path, source count, tile size, floor/wall/overlay payload, and overlay visibility.
 
-## 11. Distribution Editor
+## 12. Distribution Editor
 
 For symmetric generation, use `Dist` to choose a preset. Press `Edit` to open Distribution Editor.
 
@@ -239,7 +253,7 @@ Distribution Editor actions:
 
 Distribution values are generator weights from `0.0` to `8.0`; probability is `value / 8.0`.
 
-## 12. Reference
+## 13. Reference
 
 - Workflow: `docs/manual/MANUAL_WORKFLOW.md`
 - Scripting: `docs/manual/MANUAL_SCRIPTING.md`

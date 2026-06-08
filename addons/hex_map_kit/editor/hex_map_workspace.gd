@@ -764,13 +764,13 @@ func _export_tab_empty_state(context: HexMapWorkspaceAssetContext = null, destin
 		if actual_context.level_document == null:
 			actions.append("Select Level Document")
 		if not bool(actual_destination.get("selected", false)):
-			actions.append("Choose export destination")
+			actions.append("Choose Runtime Handoff destination")
 	return _tab_empty_state(
 		HexMapWorkspaceComponentRegistry.TAB_EXPORT,
 		"Export writes the current Level Document as a runtime HexMapResource handoff.",
 		text,
 		actions,
-		"Export uses a project document and a user-selected destination. Samples are not export destinations."
+		"Export uses a project document and a user-selected Runtime Handoff destination. Samples are not Runtime Handoff destinations."
 	)
 
 
@@ -2184,6 +2184,7 @@ func export_screen_snapshot() -> Dictionary:
 	var destination := _export_destination_context()
 	var output_type := _export_output_type_context(context, destination)
 	var empty_state := _export_tab_empty_state(context, destination)
+	var output_modes := _export_output_modes()
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_EXPORT,
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_EXPORT),
@@ -2194,7 +2195,9 @@ func export_screen_snapshot() -> Dictionary:
 		"purpose_component_present": tab_has_component(HexMapWorkspaceComponentRegistry.TAB_EXPORT, "export_purpose_panel"),
 		"active_output_type": "runtime_handoff_resource",
 		"output_type": output_type,
-		"output_modes": _export_output_modes(),
+		"output_modes": output_modes,
+		"visible_output_mode_ids": _export_visible_output_mode_ids(output_modes),
+		"visible_output_mode_labels": _export_visible_output_mode_labels(output_modes),
 		"level_document": context.level_document,
 		"export_profile": context.export_profile,
 		"level_document_slot": tab_asset_slot_snapshot(
@@ -2227,7 +2230,7 @@ func export_destination_dialog_config() -> Dictionary:
 		"uses_file_dialog": true,
 		"file_mode": EditorFileDialog.FILE_MODE_SAVE_FILE,
 		"filters": HexMapEditorPathSelector.TRES_FILTERS.duplicate(),
-		"current_file": "hex_map_export.tres",
+		"current_file": "hex_map_runtime_handoff.tres",
 		"editable_path_text_visible": false,
 	}
 
@@ -2752,7 +2755,7 @@ func _mount_export_destination_panel() -> void:
 	_export_destination_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	var title := Label.new()
-	title.text = "Export Destination"
+	title.text = "Runtime Handoff Destination"
 	_export_destination_panel.add_child(title)
 
 	_export_destination_label = Label.new()
@@ -2775,7 +2778,7 @@ func _mount_export_destination_panel() -> void:
 	actions.add_child(_export_use_recent_button)
 
 	_export_run_button = Button.new()
-	_export_run_button.text = "Export"
+	_export_run_button.text = "Create Runtime Handoff"
 	_export_run_button.pressed.connect(_on_export_run_workspace_pressed)
 	actions.add_child(_export_run_button)
 	_export_destination_panel.add_child(actions)
@@ -3360,6 +3363,7 @@ func _export_output_modes() -> Array[Dictionary]:
 			"label": "Runtime Handoff",
 			"status": "available",
 			"active": true,
+			"visible_in_export_tab": true,
 			"description": "Writes the current Level Document as a HexMapResource .tres for runtime/API use.",
 		},
 		{
@@ -3367,6 +3371,7 @@ func _export_output_modes() -> Array[Dictionary]:
 			"label": "Data Export",
 			"status": "backlog",
 			"active": false,
+			"visible_in_export_tab": false,
 			"description": "JSON/external formats are not active Export tab controls.",
 		},
 		{
@@ -3374,6 +3379,7 @@ func _export_output_modes() -> Array[Dictionary]:
 			"label": "Package Build",
 			"status": "process",
 			"active": false,
+			"visible_in_export_tab": false,
 			"description": "Addon/package generation stays in the developer release process.",
 		},
 		{
@@ -3381,9 +3387,30 @@ func _export_output_modes() -> Array[Dictionary]:
 			"label": "Debug Report",
 			"status": "diagnostic",
 			"active": false,
+			"visible_in_export_tab": false,
 			"description": "Debug reports remain diagnostic actions outside production Export.",
 		},
 	]
+
+
+func _export_visible_output_mode_ids(modes: Array) -> PackedStringArray:
+	var ids := PackedStringArray()
+	for mode in modes:
+		if not mode is Dictionary:
+			continue
+		if bool((mode as Dictionary).get("visible_in_export_tab", false)):
+			ids.append(String((mode as Dictionary).get("id", "")))
+	return ids
+
+
+func _export_visible_output_mode_labels(modes: Array) -> PackedStringArray:
+	var labels := PackedStringArray()
+	for mode in modes:
+		if not mode is Dictionary:
+			continue
+		if bool((mode as Dictionary).get("visible_in_export_tab", false)):
+			labels.append(String((mode as Dictionary).get("label", "")))
+	return labels
 
 
 func _export_cannot_export_reason(context: HexMapWorkspaceAssetContext, destination: Dictionary) -> String:
@@ -3918,6 +3945,8 @@ func _export_backlog_modes_text(modes: Array) -> String:
 	var parts := PackedStringArray()
 	for mode in modes:
 		if not mode is Dictionary:
+			continue
+		if not bool((mode as Dictionary).get("visible_in_export_tab", false)):
 			continue
 		if bool((mode as Dictionary).get("active", false)):
 			continue

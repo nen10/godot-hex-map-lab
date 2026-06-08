@@ -101,7 +101,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 |---|---|---|---|---|---|---|
 | `INFO-70` | `COMPLETE` | `LAYOUT-11` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/INFO-70_RESOURCE_PURPOSE_TOOLTIPS/` | Resource purpose tooltips | resource rows, asset slot controls, docs/tests | Level Document, TileSet, Catalog, Layer Stack, Object DB, Label DB, Movement Profile, Generation Profile, Validation Suite, Export Profile have concise purpose/type tooltips. |
 | `INFO-71` | `COMPLETE` | `TAB-50` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/INFO-71_TAB_PURPOSE_EMPTY_STATES/` | Tab purpose and empty states | workspace tabs/components, empty-state copy, tests | Empty states do not use sample to fill gaps; next action is one or two clear choices; detailed help moves to tooltip/help link. |
-| `INFO-72` | `READY` | `TAB-56` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/INFO-72_EXPORT_TERMINOLOGY_DECISION/` | Export terminology decision | `docs/review/roadmap/EXPORT_TERMINOLOGY_DECISION_2026-06-08.md`, Export tab/manual docs | Save Document, Runtime Handoff, Data Export, Package Build, Debug Report are classified; Export tab contents and manual terms are unified. |
+| `INFO-72` | `COMPLETE` | `TAB-56` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/INFO-72_EXPORT_TERMINOLOGY_DECISION/` | Export terminology decision | `docs/review/roadmap/EXPORT_TERMINOLOGY_DECISION_2026-06-08.md`, Export tab/manual docs | Save Document, Runtime Handoff, Data Export, Package Build, Debug Report are classified; Export tab contents and manual terms are unified. |
 
 ---
 
@@ -118,7 +118,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `DOC-90` | `BACKLOG` | `TAB-57`, `INFO-72` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/DOC-90_WORKSPACE_UI_MANUAL_UPDATE/` | Workspace UI manual update | `docs/manual/MANUAL_EDITOR_PLUGIN.md`, `docs/manual/MANUAL_WORKFLOW.md`, `docs/TEST.md`, `README.md` | Manual explains Resources tab, sample learning flow, HexTileMap selection auto resource sync, Generate output target / Apply to Document; no analog test is added. |
+| `DOC-90` | `READY` | `TAB-57`, `INFO-72` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/DOC-90_WORKSPACE_UI_MANUAL_UPDATE/` | Workspace UI manual update | `docs/manual/MANUAL_EDITOR_PLUGIN.md`, `docs/manual/MANUAL_WORKFLOW.md`, `docs/TEST.md`, `README.md` | Manual explains Resources tab, sample learning flow, HexTileMap selection auto resource sync, Generate output target / Apply to Document; no analog test is added. |
 | `PROCESS-91` | `BACKLOG` | `DOC-90` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/PROCESS-91_FINAL_DIST_REGENERATION_STEP/` | Final dist regeneration process step | `tools/package_addon.sh`, `dist/`, process/review log | `tools/package_addon.sh` regenerates `dist`; manifest reflects current addon tree; work log records dist update; this is not added to `tools/test.sh` mandatory tests. |
 
 ---
@@ -148,7 +148,7 @@ acceptance / test path:
 
 ## 12. Current pointer
 
-Current recommended next task: `INFO-72`.
+Current recommended next task: `GEN-80`.
 
 Reason:
 
@@ -178,9 +178,10 @@ Reason:
 - Phase U6 has no remaining READY task.
 - `INFO-70` is complete.
 - `INFO-71` is complete.
-- `INFO-72` was promoted to READY because `TAB-56` is complete.
-- `INFO-72` is the first READY task in queue order.
-- `GEN-80` is also READY, but it appears later in the queue.
+- `INFO-72` is complete.
+- Phase U7 has no remaining READY task.
+- `GEN-80` is the first READY task in queue order.
+- `DOC-90` was promoted to READY because `TAB-57` and `INFO-72` are complete, but it appears later in the queue.
 
 ---
 
@@ -587,3 +588,22 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_workspace.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/INFO-71_TEST_RESULT_2026-06-08.md`
+
+### INFO-72 Export terminology decision
+
+proof:
+  plan: `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/INFO-72_EXPORT_TERMINOLOGY_DECISION/`
+  review: `docs/review/autopilot/INFO-72_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+    - `docs/review/roadmap/EXPORT_TERMINOLOGY_DECISION_2026-06-08.md`
+    - `docs/manual/MANUAL_EDITOR_PLUGIN.md`
+    - `docs/manual/MANUAL_WORKFLOW.md`
+    - `docs/manual/MANUAL_PACKAGE.md`
+    - `README.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/INFO-72_TEST_RESULT_2026-06-08.md`

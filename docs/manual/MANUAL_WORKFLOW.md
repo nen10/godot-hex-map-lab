@@ -24,7 +24,7 @@ For production authoring, prepare project assets in the workspace:
 - a project `TileSet`
 - project Object and Label databases
 - project Validation Rule Suite and Generation Profile resources
-- an explicit export destination
+- an explicit Runtime Handoff destination
 
 For display, prepare a `TileMapLayer` or `HexTileMapLayer` with a project hex `TileSet`.
 
@@ -51,13 +51,14 @@ More setup details: `docs/manual/MANUAL_SETUP.md`.
 
 Open **Hex Map Workspace** and work from the authoring goal:
 
-- Document: create, open, save, save as, validate, and export a `HexMapDocumentResource`.
+- Document: create, open, save, save as, and validate a `HexMapDocumentResource`.
 - Generate: choose generator shape, seed, catalog keys, target, orientation, and tile size.
 - QA: run Seed Lab batch comparison and promote a selected seed to a document.
 - Catalog: select a `HexTileCatalogResource`, catalog `TileSet`, and scene-entry `PackedScene`; validate catalog status.
 - Paint: edit terrain, floor tile keys, wall tile keys, objects, and labels in the viewport.
 - Layers: create missing role layers and apply the document through a `HexTileMapLayer` layer stack.
 - Validate: inspect domain/severity grouped issues, focus cells/resources/catalog entries, and read fix suggestions.
+- Export: create a Runtime Handoff `HexMapResource` from the current Level Document.
 - Settings: learn with bundled samples or duplicate sample assets into project-owned resources.
 - Support: use `Copy Debug Report` when a compact status row is not enough.
 
@@ -69,7 +70,7 @@ Project asset first pass:
 2. Create or select the Tile Catalog and assign its TileSet in `Catalog`.
 3. Create or select Object and Label databases in `Paint`.
 4. Create or select Validation Rule Suite and Generation Profile resources in `Validate` and `QA`.
-5. Choose an Export Profile and destination in `Export`.
+5. Choose an Export Profile and Runtime Handoff destination in `Export`.
 
 Sample onboarding is optional and separate from this first pass. Use it to inspect or duplicate bundled assets, then return to project asset slots for production work.
 
@@ -153,7 +154,7 @@ Object authoring uses a typed object database:
 - `Definition Scene`: `PackedScene` reference.
 - `Placement Properties`: typed bool, number, string, and enum controls.
 
-Script-side runtime export is covered in section 9.
+Script-side runtime object export is covered in section 10.
 
 ## 7. Validate Before Runtime Handoff
 
@@ -174,7 +175,20 @@ Validation checks include payloads outside the map, orphan objects/labels, missi
 
 In the editor, use the validation dashboard for domain/severity rows, focus targets, and fix suggestions. Use `Copy Debug Report` for support reports that need target status, last edit, save/export status, validation summary, and raw details.
 
-## 8. Runtime Query
+## 8. Create Runtime Handoff
+
+Use the editor `Export` tab when runtime code needs a saved `HexMapResource` generated from the current Level Document.
+
+The current Export tab workflow is:
+
+1. Select the Level Document.
+2. Optionally select an Export Profile.
+3. Choose a Runtime Handoff destination with the FileDialog.
+4. Run the handoff to write a `HexMapResource`.
+
+This workflow is not Save Document. Authoring saves keep the `HexMapDocumentResource`. It is also not Package Build or Debug Report; package artifacts are created by developer tooling, and debug reports are support/diagnostic text.
+
+## 9. Runtime Query
 
 Pass a canonical document Resource to runtime query helpers:
 
@@ -218,9 +232,9 @@ For a scene wrapper, open:
 res://examples/basic_runtime/runtime_query_example.tscn
 ```
 
-## 9. Runtime Object Export
+## 10. Runtime Object Export
 
-Use runtime object export when gameplay code should instantiate objects without mutating authoring placements.
+Use script-side runtime object export when gameplay code should instantiate objects without mutating authoring placements. This API helper is separate from the editor `Export` tab's Runtime Handoff workflow.
 
 ```gdscript
 var export = HexRuntimeQuerySample.export_runtime_objects(document, object_database)
@@ -230,7 +244,7 @@ for item in export["runtime_objects"]:
 
 The returned dictionaries are copies. Runtime-only changes do not write back into `document.object_placements`.
 
-## 10. Reference
+## 11. Reference
 
 - API surface: `docs/api/API_REFERENCE.md`
 - Runtime example: `examples/basic_runtime/`
