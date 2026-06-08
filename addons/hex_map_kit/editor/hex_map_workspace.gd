@@ -67,6 +67,10 @@ var _qa_seed_lab_selected_label: Label
 var _qa_seed_lab_rows_label: Label
 var _qa_selected_seed_row: Dictionary = {}
 var _qa_promoted_document: HexMapDocumentResource = null
+var _export_purpose_panel: VBoxContainer
+var _export_purpose_status_label: Label
+var _export_purpose_mode_label: Label
+var _export_purpose_backlog_label: Label
 var _export_destination_panel: VBoxContainer
 var _export_destination_label: Label
 var _export_recent_destinations_label: Label
@@ -1896,10 +1900,17 @@ func duplicate_validation_rule_suite_preset_to_project(preset_id: String, path: 
 
 func export_screen_snapshot() -> Dictionary:
 	var context := workspace_asset_context()
+	var destination := _export_destination_context()
+	var output_type := _export_output_type_context(context, destination)
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_EXPORT,
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_EXPORT),
 		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_EXPORT),
+		"purpose_text": "Export writes the current Level Document as a runtime HexMapResource handoff.",
+		"purpose_component_present": tab_has_component(HexMapWorkspaceComponentRegistry.TAB_EXPORT, "export_purpose_panel"),
+		"active_output_type": "runtime_handoff_resource",
+		"output_type": output_type,
+		"output_modes": _export_output_modes(),
 		"level_document": context.level_document,
 		"export_profile": context.export_profile,
 		"level_document_slot": tab_asset_slot_snapshot(
@@ -1910,11 +1921,17 @@ func export_screen_snapshot() -> Dictionary:
 			HexMapWorkspaceComponentRegistry.TAB_EXPORT,
 			HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE
 		),
-		"destination": _export_destination_context(),
+		"destination": destination,
 		"destination_dialog_config": export_destination_dialog_config(),
 		"can_export": context.level_document != null and _ensure_session_state().export_saved_path != "",
+		"cannot_export_reason": _export_cannot_export_reason(context, destination),
 		"package_handoff": _export_handoff_context(_ensure_session_state().export_saved_path, null),
 		"runtime_handoff": _export_handoff_context(_ensure_session_state().export_saved_path, null),
+		"unsupported_export_buttons_visible": false,
+		"data_export_button_visible": false,
+		"package_build_button_visible": false,
+		"debug_report_export_button_visible": false,
+		"experimental_exports_hidden": true,
 		"sample_candidates_visible": _ensure_session_state().show_bundled_samples_in_main_selectors,
 		"sample_destination_available": false,
 		"editable_destination_path_visible": false,
@@ -1972,6 +1989,7 @@ func select_export_destination(path: String) -> Dictionary:
 	_ensure_session_state().record_export_destination(actual_path, "workspace.export.destination")
 	if _edit_tool != null:
 		_edit_tool.set_export_path(actual_path)
+	_refresh_export_purpose_panel()
 	_refresh_export_destination_panel()
 	return _export_action_result(true, OK, actual_path)
 
@@ -1987,6 +2005,7 @@ func clear_export_destination() -> Dictionary:
 	_ensure_session_state().set_export_saved_path("", "workspace.export.destination.clear")
 	if _edit_tool != null:
 		_edit_tool.set_export_path("")
+	_refresh_export_purpose_panel()
 	_refresh_export_destination_panel()
 	return _export_action_result(true, OK, "")
 
@@ -2017,8 +2036,11 @@ func export_selected_document_to_destination(path: String = "") -> Dictionary:
 	result["cell_count"] = data.cells.size() if data != null else 0
 	result["wall_count"] = data.walls.size() if data != null else 0
 	result["export_profile"] = workspace_asset_context().export_profile
+	result["output_type"] = "runtime_handoff_resource"
+	result["purpose_text"] = "Runtime handoff HexMapResource"
 	result["package_handoff"] = _export_handoff_context(actual_path, map_resource)
 	result["runtime_handoff"] = _export_handoff_context(actual_path, map_resource)
+	_refresh_export_purpose_panel()
 	_refresh_export_destination_panel()
 	return result
 
@@ -2159,6 +2181,7 @@ func _mount_workspace_asset_panels() -> void:
 			_slot_row(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "Promotion Target Document", false),
 		]
 	)
+	_mount_export_purpose_panel()
 	_mount_asset_panel(
 		HexMapWorkspaceComponentRegistry.TAB_EXPORT,
 		"export_asset_panel",
@@ -2407,6 +2430,39 @@ func _mount_qa_seed_lab_panel() -> void:
 		_qa_seed_lab_panel
 	)
 	_refresh_qa_seed_lab_panel()
+
+
+func _mount_export_purpose_panel() -> void:
+	var page = _tab_pages.get(HexMapWorkspaceComponentRegistry.TAB_EXPORT, null)
+	if page == null or _export_purpose_panel != null:
+		return
+	_export_purpose_panel = VBoxContainer.new()
+	_export_purpose_panel.name = "Export Purpose Panel"
+	_export_purpose_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var title := Label.new()
+	title.text = "Runtime Handoff"
+	_export_purpose_panel.add_child(title)
+
+	_export_purpose_status_label = Label.new()
+	_export_purpose_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_export_purpose_panel.add_child(_export_purpose_status_label)
+
+	_export_purpose_mode_label = Label.new()
+	_export_purpose_mode_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_export_purpose_panel.add_child(_export_purpose_mode_label)
+
+	_export_purpose_backlog_label = Label.new()
+	_export_purpose_backlog_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_export_purpose_panel.add_child(_export_purpose_backlog_label)
+
+	(page as Control).add_child(_export_purpose_panel)
+	_register_tab_component(
+		HexMapWorkspaceComponentRegistry.TAB_EXPORT,
+		"export_purpose_panel",
+		_export_purpose_panel
+	)
+	_refresh_export_purpose_panel()
 
 
 func _mount_export_destination_panel() -> void:
@@ -2966,7 +3022,63 @@ func _export_destination_context() -> Dictionary:
 		"recent_destinations": recent,
 		"uses_file_dialog": true,
 		"editable_path_text_visible": false,
+		"output_type": "runtime_handoff_resource",
+		"target_resource_class": "HexMapResource",
 	}
+
+
+func _export_output_type_context(context: HexMapWorkspaceAssetContext, destination: Dictionary) -> Dictionary:
+	return {
+		"id": "runtime_handoff_resource",
+		"label": "Runtime Handoff Resource",
+		"source": "Current Level Document",
+		"target_resource_class": "HexMapResource",
+		"file_extension": ".tres",
+		"source_ready": context.level_document != null,
+		"destination_ready": bool(destination.get("selected", false)),
+		"export_profile_optional": true,
+	}
+
+
+func _export_output_modes() -> Array[Dictionary]:
+	return [
+		{
+			"id": "runtime_handoff_resource",
+			"label": "Runtime Handoff",
+			"status": "available",
+			"active": true,
+			"description": "Writes the current Level Document as a HexMapResource .tres for runtime/API use.",
+		},
+		{
+			"id": "data_export_json",
+			"label": "Data Export",
+			"status": "backlog",
+			"active": false,
+			"description": "JSON/external formats are not active Export tab controls.",
+		},
+		{
+			"id": "package_build",
+			"label": "Package Build",
+			"status": "process",
+			"active": false,
+			"description": "Addon/package generation stays in the developer release process.",
+		},
+		{
+			"id": "debug_report",
+			"label": "Debug Report",
+			"status": "diagnostic",
+			"active": false,
+			"description": "Debug reports remain diagnostic actions outside production Export.",
+		},
+	]
+
+
+func _export_cannot_export_reason(context: HexMapWorkspaceAssetContext, destination: Dictionary) -> String:
+	if context.level_document == null:
+		return "Level Document is not selected."
+	if not bool(destination.get("selected", false)):
+		return "Export destination is not selected."
+	return ""
 
 
 func _export_handoff_context(path: String, resource) -> Dictionary:
@@ -3411,6 +3523,38 @@ func _qa_seed_lab_rows_text(rows: Array) -> String:
 	return _join_text(parts, " | ")
 
 
+func _refresh_export_purpose_panel() -> void:
+	if _export_purpose_panel == null:
+		return
+	var snapshot := export_screen_snapshot()
+	var output_type = snapshot.get("output_type", {}) as Dictionary
+	if _export_purpose_status_label != null:
+		_export_purpose_status_label.text = String(snapshot.get("purpose_text", ""))
+	if _export_purpose_mode_label != null:
+		_export_purpose_mode_label.text = "%s | Source: %s | Target: %s%s" % [
+			String(output_type.get("label", "")),
+			String(output_type.get("source", "")),
+			String(output_type.get("target_resource_class", "")),
+			String(output_type.get("file_extension", "")),
+		]
+	if _export_purpose_backlog_label != null:
+		_export_purpose_backlog_label.text = _export_backlog_modes_text(snapshot.get("output_modes", []) as Array)
+
+
+func _export_backlog_modes_text(modes: Array) -> String:
+	var parts := PackedStringArray()
+	for mode in modes:
+		if not mode is Dictionary:
+			continue
+		if bool((mode as Dictionary).get("active", false)):
+			continue
+		parts.append("%s: %s" % [
+			String((mode as Dictionary).get("label", "")),
+			String((mode as Dictionary).get("status", "")),
+		])
+	return _join_text(parts, " | ")
+
+
 func _refresh_missing_unique_resources_panel() -> void:
 	if _missing_unique_resources_panel == null:
 		return
@@ -3708,6 +3852,7 @@ func _sync_workspace_asset_context() -> void:
 	_refresh_layer_stack_role_panel()
 	_refresh_validation_issue_navigator()
 	_refresh_qa_seed_lab_panel()
+	_refresh_export_purpose_panel()
 	_refresh_missing_unique_resources_panel()
 
 

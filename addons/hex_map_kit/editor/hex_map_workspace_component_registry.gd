@@ -100,6 +100,7 @@ static func component_rows() -> Array[Dictionary]:
 				HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT,
 			])
 		),
+		_component(TAB_EXPORT, "export_purpose_panel", "VBoxContainer", "ExportPurposePanel", "export"),
 		_component(
 			TAB_EXPORT,
 			"export_asset_panel",

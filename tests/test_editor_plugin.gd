@@ -320,6 +320,7 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 	_assert_eq(workspace.sample_settings_panel().editor_session_state(), session, "workspace forwards session to sample settings component")
 	_assert_true(workspace.tab_has_component("Layers", "layer_stack_role_panel"), "workspace mounts Layers role editor component")
 	_assert_true(workspace.tab_has_component("QA", "qa_seed_lab_panel"), "workspace mounts QA Seed Lab component")
+	_assert_true(workspace.tab_has_component("Export", "export_purpose_panel"), "workspace mounts Export purpose component")
 	var asset_tab_expectations := [
 		{"tab": "Resources", "component": "document_asset_panel", "count": 5, "slot": "level_document"},
 		{"tab": "Catalog", "component": "catalog_asset_panel", "count": 1, "slot": "tile_catalog"},
@@ -726,7 +727,7 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 			]),
 		},
 		"Export": {
-			"components": PackedStringArray(["export_asset_panel", "export_destination_panel"]),
+			"components": PackedStringArray(["export_purpose_panel", "export_asset_panel", "export_destination_panel"]),
 			"slots": PackedStringArray([
 				HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT,
 				HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE,
@@ -1902,9 +1903,33 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 	await process_frame
 
 	var snapshot = workspace.export_screen_snapshot()
+	_assert_eq(snapshot["purpose_text"], "Export writes the current Level Document as a runtime HexMapResource handoff.", "TAB-56 Export screen states purpose")
+	_assert_true(bool(snapshot["purpose_component_present"]), "TAB-56 Export snapshot confirms purpose panel")
+	_assert_eq(snapshot["active_output_type"], "runtime_handoff_resource", "TAB-56 Export uses runtime handoff as active output")
+	var output_type = snapshot["output_type"] as Dictionary
+	_assert_eq(output_type["label"], "Runtime Handoff Resource", "TAB-56 Export names output type")
+	_assert_eq(output_type["source"], "Current Level Document", "TAB-56 Export names source")
+	_assert_eq(output_type["target_resource_class"], "HexMapResource", "TAB-56 Export names output resource")
+	_assert_true(not bool(output_type["source_ready"]), "TAB-56 Export starts with missing source")
+	_assert_true(not bool(output_type["destination_ready"]), "TAB-56 Export starts with missing destination")
+	_assert_eq(snapshot["cannot_export_reason"], "Level Document is not selected.", "TAB-56 Export explains blocked export")
+	_assert_true(not bool(snapshot["unsupported_export_buttons_visible"]), "TAB-56 unsupported export buttons are hidden")
+	_assert_true(not bool(snapshot["data_export_button_visible"]), "TAB-56 data export button is hidden")
+	_assert_true(not bool(snapshot["package_build_button_visible"]), "TAB-56 package build button is hidden")
+	_assert_true(not bool(snapshot["debug_report_export_button_visible"]), "TAB-56 debug report export button is hidden")
+	_assert_true(bool(snapshot["experimental_exports_hidden"]), "TAB-56 experimental exports are hidden")
+	var modes = snapshot["output_modes"] as Array
+	_assert_eq(_export_mode_status(modes, "runtime_handoff_resource"), "available", "TAB-56 runtime handoff is available")
+	_assert_eq(_export_mode_status(modes, "data_export_json"), "backlog", "TAB-56 data export is backlog")
+	_assert_eq(_export_mode_status(modes, "package_build"), "process", "TAB-56 package build is process")
+	_assert_eq(_export_mode_status(modes, "debug_report"), "diagnostic", "TAB-56 debug report is diagnostic")
 	_assert_true(
 		PackedStringArray(snapshot["component_ids"]).has("export_asset_panel"),
 		"Export screen exposes export asset panel"
+	)
+	_assert_true(
+		PackedStringArray(snapshot["component_ids"]).has("export_purpose_panel"),
+		"TAB-56 Export screen exposes purpose panel"
 	)
 	_assert_true(
 		PackedStringArray(snapshot["component_ids"]).has("export_destination_panel"),
@@ -1966,6 +1991,10 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 	snapshot = workspace.export_screen_snapshot()
 	_assert_true(bool(snapshot["can_export"]), "Export screen can export after document and destination are selected")
 	_assert_true(bool((snapshot["destination"] as Dictionary).get("selected", false)), "Export snapshot reports selected destination")
+	output_type = snapshot["output_type"] as Dictionary
+	_assert_true(bool(output_type["source_ready"]), "TAB-56 Export source becomes ready")
+	_assert_true(bool(output_type["destination_ready"]), "TAB-56 Export destination becomes ready")
+	_assert_eq(snapshot["cannot_export_reason"], "", "TAB-56 Export clears blocked reason when ready")
 
 	var export_result = workspace.export_selected_document_to_destination()
 	_assert_true(bool(export_result["ok"]), "Export screen writes selected document handoff")
@@ -1973,6 +2002,8 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 	var loaded = ResourceLoader.load(export_path, "", ResourceLoader.CACHE_MODE_IGNORE)
 	_assert_true(loaded is HexMapResource, "Export screen handoff loads as HexMapResource")
 	_assert_eq(export_result["resource_class"], "HexMapResource", "Export result reports HexMapResource")
+	_assert_eq(export_result["output_type"], "runtime_handoff_resource", "TAB-56 export result reports output type")
+	_assert_eq(export_result["purpose_text"], "Runtime handoff HexMapResource", "TAB-56 export result reports purpose")
 	var document_summary := HexMapDocumentAdapter.document_summary(document)
 	_assert_eq(int(export_result["cell_count"]), int(document_summary["cells"]), "Export result reports document cell count")
 	_assert_eq(String((export_result["package_handoff"] as Dictionary).get("path", "")), export_path, "Export result reports package handoff path")
@@ -7531,6 +7562,13 @@ func _validation_issue_row_for_rule(rows: Array, rule_id: String) -> Dictionary:
 		if String(row.get("rule_id", "")) == rule_id:
 			return row
 	return {}
+
+
+func _export_mode_status(modes: Array, mode_id: String) -> String:
+	for mode in modes:
+		if mode is Dictionary and String((mode as Dictionary).get("id", "")) == mode_id:
+			return String((mode as Dictionary).get("status", ""))
+	return ""
 
 
 func _validation_result_has_rule(result: HexMapValidationResult, rule_id: String) -> bool:
