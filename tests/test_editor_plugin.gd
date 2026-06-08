@@ -1635,6 +1635,11 @@ func _test_validate_asset_screen_reports_missing_project_assets_without_samples(
 	await process_frame
 
 	var snapshot = workspace.validate_screen_snapshot()
+	_assert_eq(snapshot["purpose_text"], "Validate workspace assets and the active Level Document.", "TAB-54 Validate screen states purpose")
+	_assert_true(String(snapshot["target_summary"]).contains("Level Document missing"), "TAB-54 Validate screen summarizes target readiness")
+	_assert_true(bool(snapshot["navigator_component_present"]), "TAB-54 Validate snapshot confirms issue navigator component")
+	_assert_eq(snapshot["empty_state_text"], "Run validation to list workspace issues.", "TAB-54 Validate screen has pre-run empty state")
+	_assert_true(not bool(snapshot["resource_row_validate_buttons_present"]), "TAB-54 Validate keeps row-level Validate buttons absent")
 	_assert_true(
 		PackedStringArray(snapshot["component_ids"]).has("validation_asset_panel"),
 		"Validate screen exposes validation asset panel"
@@ -1659,11 +1664,17 @@ func _test_validate_asset_screen_reports_missing_project_assets_without_samples(
 	_assert_eq(document_row["target_tab"], "Resources", "missing document points to Resources tab")
 	_assert_eq(document_row["target_component_id"], "document_asset_panel", "missing document points to document panel")
 	_assert_eq(document_row["target_slot_id"], HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "missing document points to level document slot")
+	_assert_eq(document_row["destination_tab"], "Resources", "TAB-54 missing document route selects Resources")
+	_assert_eq(document_row["focus_type"], "asset_slot", "TAB-54 missing document route focuses asset slot")
+	_assert_eq(document_row["suggested_action"], "Select or create Level Document.", "TAB-54 missing document route suggests concrete action")
 
 	var catalog_row = _validation_issue_row_for_rule(rows, "workspace.tile_catalog_missing")
 	_assert_eq(catalog_row["target_tab"], "Catalog", "missing catalog points to Catalog tab")
 	_assert_eq(catalog_row["target_component_id"], "catalog_asset_panel", "missing catalog points to catalog panel")
 	_assert_eq(catalog_row["target_slot_id"], HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, "missing catalog points to tile catalog slot")
+	_assert_eq(catalog_row["destination_tab"], "Catalog", "TAB-54 missing catalog route selects Catalog")
+	_assert_true(String(catalog_row["focus_target"]) != "", "TAB-54 missing catalog row exposes focus target")
+	_assert_true(String(catalog_row["fix_suggestion"]) != "", "TAB-54 missing catalog row exposes fix suggestion")
 
 	var object_row = _validation_issue_row_for_rule(rows, "workspace.object_database_missing")
 	_assert_eq(object_row["target_tab"], "Resources", "TAB-51 missing object database points to Resources tab")
@@ -1678,6 +1689,7 @@ func _test_validate_asset_screen_reports_missing_project_assets_without_samples(
 	var layer_row = _validation_issue_row_for_rule(rows, "workspace.layer_stack_missing")
 	_assert_eq(layer_row["target_tab"], "Layers", "missing layer stack points to Layers tab")
 	_assert_eq(layer_row["target_component_id"], "layer_stack_asset_panel", "missing layer stack points to layer stack panel")
+	_assert_eq(layer_row["destination_tab"], "Layers", "TAB-54 missing layer stack route selects Layers")
 
 	var suite_row = _validation_issue_row_for_rule(rows, "workspace.validation_suite_missing")
 	_assert_eq(suite_row["target_tab"], "Validate", "missing validation suite points to Validate tab")
@@ -1688,8 +1700,33 @@ func _test_validate_asset_screen_reports_missing_project_assets_without_samples(
 	_assert_eq(qa_row["target_component_id"], "qa_asset_panel", "missing generation profile points to QA panel")
 	_assert_eq(qa_row["target_slot_id"], HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE, "missing generation profile points to generation profile slot")
 
+	var selection = workspace.select_validate_issue(int(document_row["index"]))
+	_assert_true(bool(selection["ok"]), "TAB-54 Validate issue selection succeeds")
+	_assert_eq(selection["selected_tab"], "Resources", "TAB-54 selecting document issue moves to Resources")
+	_assert_eq((selection["navigation"] as Dictionary)["target_component_id"], "document_asset_panel", "TAB-54 selection records component target")
 	snapshot = workspace.validate_screen_snapshot()
-	_assert_eq((snapshot["issue_rows"] as Array).size(), rows.size(), "Validate screen snapshot keeps last issue rows")
+	_assert_eq((snapshot["selected_issue_row"] as Dictionary)["rule_id"], "workspace.level_document_missing", "TAB-54 snapshot stores selected issue")
+	selection = workspace.select_validate_issue(int(catalog_row["index"]))
+	_assert_eq(selection["selected_tab"], "Catalog", "TAB-54 selecting catalog issue moves to Catalog")
+	selection = workspace.select_validate_issue(int(layer_row["index"]))
+	_assert_eq(selection["selected_tab"], "Layers", "TAB-54 selecting layer issue moves to Layers")
+	var invalid_selection = workspace.select_validate_issue(999)
+	_assert_true(not bool(invalid_selection["ok"]), "TAB-54 invalid issue selection is rejected")
+
+	var cell_document := _sample_editor_document()
+	(cell_document.object_placements[0] as HexMapDocumentObjectPlacementResource).cell = Vector3i(1, 0, 0)
+	workspace.workspace_asset_context().set_level_document(cell_document)
+	var cell_validate_result = workspace.run_validate_screen()
+	var cell_rows = cell_validate_result["issue_rows"] as Array
+	var wall_row = _validation_issue_row_for_rule(cell_rows, "document.object_on_wall")
+	_assert_eq(wall_row["destination_tab"], "Paint", "TAB-54 cell-scoped issue routes to Paint")
+	_assert_eq(wall_row["focus_type"], "cell", "TAB-54 cell-scoped issue records cell focus")
+	_assert_true(String(wall_row["suggested_action"]).contains("Paint"), "TAB-54 cell-scoped issue suggests Paint inspection")
+	selection = workspace.select_validate_issue(int(wall_row["index"]))
+	_assert_eq(selection["selected_tab"], "Paint", "TAB-54 selecting cell issue moves to Paint")
+
+	snapshot = workspace.validate_screen_snapshot()
+	_assert_true((snapshot["issue_rows"] as Array).size() >= rows.size(), "Validate screen snapshot keeps last issue rows")
 	_assert_eq(workspace.workspace_asset_context().tile_catalog, null, "Validate screen does not inject sample catalog")
 	_assert_eq(workspace.generation_dock().tile_catalog(), null, "Validate screen does not inject generation sample catalog")
 	_assert_true(not session.show_bundled_samples_in_main_selectors, "Validate screen actions do not enable sample mode")

@@ -24,6 +24,7 @@ const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex
 const HexMapWorkspaceAssetPanel = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_panel.gd")
 const HexMapWorkspaceAssetResourceFactory = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_resource_factory.gd")
 const HexMapWorkspaceComponentRegistry = preload("res://addons/hex_map_kit/editor/hex_map_workspace_component_registry.gd")
+const HexMapValidationDashboard = preload("res://addons/hex_map_kit/editor/hex_map_validation_dashboard.gd")
 
 var _editor_session_state: HexMapEditorSessionState = null
 var _tabs: TabContainer
@@ -53,6 +54,13 @@ var _missing_unique_resources_save_directory := ""
 var _generation_dock: HexMapGenDock
 var _edit_tool: HexMapEditTool
 var _sample_settings_panel: HexMapSampleSettingsPanel
+var _validation_issue_navigator: VBoxContainer
+var _validation_issue_status_label: Label
+var _validation_issue_selected_label: Label
+var _validation_issue_rows_label: Label
+var _selected_validate_issue_index := -1
+var _selected_validate_issue_row: Dictionary = {}
+var _selected_validate_issue_navigation: Dictionary = {}
 var _export_destination_panel: VBoxContainer
 var _export_destination_label: Label
 var _export_recent_destinations_label: Label
@@ -628,10 +636,13 @@ func validate_level_document():
 
 func validate_screen_snapshot() -> Dictionary:
 	var context := workspace_asset_context()
+	var issue_rows := validate_screen_issue_rows(_last_workspace_validation_result)
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_VALIDATE,
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_VALIDATE),
 		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_VALIDATE),
+		"purpose_text": "Validate workspace assets and the active Level Document.",
+		"target_summary": _validate_target_summary(context),
 		"level_document": context.level_document,
 		"tile_catalog": context.tile_catalog,
 		"object_database": context.object_database,
@@ -639,18 +650,32 @@ func validate_screen_snapshot() -> Dictionary:
 		"layer_stack": context.layer_stack,
 		"validation_rule_suite": context.validation_rule_suite,
 		"generation_profile": context.generation_profile,
+		"navigator_component_present": tab_has_component(HexMapWorkspaceComponentRegistry.TAB_VALIDATE, "validation_issue_navigator"),
 		"last_result": _last_workspace_validation_result,
-		"issue_rows": validate_screen_issue_rows(_last_workspace_validation_result),
+		"issue_rows": issue_rows,
+		"issue_count": issue_rows.size(),
+		"error_count": _last_workspace_validation_result.error_count() if _last_workspace_validation_result != null else 0,
+		"warning_count": _last_workspace_validation_result.warning_count() if _last_workspace_validation_result != null else 0,
+		"selected_issue_index": _selected_validate_issue_index,
+		"selected_issue_row": _selected_validate_issue_row.duplicate(true),
+		"selected_issue_navigation": _selected_validate_issue_navigation.duplicate(true),
+		"empty_state_text": _validate_empty_state_text(issue_rows),
+		"resource_row_validate_buttons_present": false,
 		"sample_candidates_visible": _ensure_session_state().show_bundled_samples_in_main_selectors,
 	}
 
 
 func run_validate_screen() -> Dictionary:
 	_last_workspace_validation_result = validate_workspace_assets()
+	_selected_validate_issue_index = -1
+	_selected_validate_issue_row.clear()
+	_selected_validate_issue_navigation.clear()
+	var rows := validate_screen_issue_rows(_last_workspace_validation_result)
+	_refresh_validation_issue_navigator()
 	return {
 		"ok": true,
 		"result": _last_workspace_validation_result,
-		"issue_rows": validate_screen_issue_rows(_last_workspace_validation_result),
+		"issue_rows": rows,
 	}
 
 
@@ -739,20 +764,183 @@ func validate_screen_issue_rows(result: HexMapValidationResult) -> Array[Diction
 	var rows: Array[Dictionary] = []
 	if result == null:
 		return rows
+	var issue_index := 0
 	for issue in result.issues:
 		if not issue is Dictionary:
 			continue
 		var metadata = (issue as Dictionary).get("metadata", {})
 		var route: Dictionary = metadata if metadata is Dictionary else {}
-		rows.append({
+		var row := {
+			"index": issue_index,
 			"severity": String((issue as Dictionary).get("severity", "")),
+			"severity_label": HexMapValidationDashboard.issue_severity_label(issue as Dictionary),
+			"domain": HexMapValidationDashboard.issue_domain(issue as Dictionary),
 			"rule_id": String((issue as Dictionary).get("rule_id", "")),
 			"message": String((issue as Dictionary).get("message", "")),
+			"focus_target": HexMapValidationDashboard.issue_focus_target(issue as Dictionary),
+			"fix_suggestion": HexMapValidationDashboard.issue_fix_suggestion(issue as Dictionary),
 			"target_tab": String(route.get("target_tab", "")),
 			"target_component_id": String(route.get("target_component_id", "")),
 			"target_slot_id": String(route.get("target_slot_id", "")),
-		})
+		}
+		var navigation := _validate_issue_navigation(row, issue as Dictionary)
+		row["destination_tab"] = String(navigation.get("target_tab", ""))
+		row["destination_component_id"] = String(navigation.get("target_component_id", ""))
+		row["destination_slot_id"] = String(navigation.get("target_slot_id", ""))
+		row["focus_type"] = String(navigation.get("focus_type", ""))
+		row["suggested_action"] = String(navigation.get("suggested_action", ""))
+		rows.append(row)
+		issue_index += 1
 	return rows
+
+
+func select_validate_issue(index: int) -> Dictionary:
+	var rows := validate_screen_issue_rows(_last_workspace_validation_result)
+	if index < 0 or index >= rows.size():
+		_selected_validate_issue_index = -1
+		_selected_validate_issue_row.clear()
+		_selected_validate_issue_navigation.clear()
+		_refresh_validation_issue_navigator()
+		return {
+			"ok": false,
+			"error": ERR_DOES_NOT_EXIST,
+			"selected_tab": current_workspace_tab_name(),
+		}
+	var issue := _validate_issue_at_index(index)
+	var row := (rows[index] as Dictionary).duplicate(true)
+	var navigation := _validate_issue_navigation(row, issue)
+	_selected_validate_issue_index = index
+	_selected_validate_issue_row = row
+	_selected_validate_issue_navigation = navigation
+	var target_tab := String(navigation.get("target_tab", ""))
+	if target_tab != "":
+		select_workspace_tab(target_tab)
+	_refresh_validation_issue_navigator()
+	return {
+		"ok": true,
+		"error": OK,
+		"issue_row": row.duplicate(true),
+		"navigation": navigation.duplicate(true),
+		"selected_tab": current_workspace_tab_name(),
+	}
+
+
+func _validate_issue_at_index(index: int) -> Dictionary:
+	if _last_workspace_validation_result == null:
+		return {}
+	var row_index := 0
+	for issue in _last_workspace_validation_result.issues:
+		if not issue is Dictionary:
+			continue
+		if row_index == index:
+			return (issue as Dictionary).duplicate(true)
+		row_index += 1
+	return {}
+
+
+func _validate_issue_navigation(row: Dictionary, issue: Dictionary) -> Dictionary:
+	var metadata = issue.get("metadata", {})
+	var route: Dictionary = metadata if metadata is Dictionary else {}
+	var target_tab := String(row.get("target_tab", route.get("target_tab", "")))
+	var target_component_id := String(row.get("target_component_id", route.get("target_component_id", "")))
+	var target_slot_id := String(row.get("target_slot_id", route.get("target_slot_id", "")))
+	var focus_type := "asset_slot" if target_slot_id != "" else "none"
+	if target_tab == "":
+		var catalog_key := String(route.get("catalog_key", ""))
+		var entry_key := String(route.get("entry_key", ""))
+		if route.has("entry_index") or catalog_key != "" or entry_key != "":
+			target_tab = HexMapWorkspaceComponentRegistry.TAB_CATALOG
+			target_component_id = "catalog_detail_panel"
+			focus_type = "catalog_entry"
+	if target_tab == "":
+		var cell = issue.get("cell", null)
+		var scope := String(issue.get("scope", ""))
+		if cell is Vector3i or scope == "cell" or scope == "object":
+			target_tab = HexMapWorkspaceComponentRegistry.TAB_PAINT
+			target_component_id = "brush_palette"
+			focus_type = "cell"
+	if target_tab == "":
+		var dependency_path := String(issue.get("dependency_resource_path", ""))
+		var dependency_id := String(route.get("dependency_id", ""))
+		var dependency_kind := String(route.get("kind", ""))
+		if dependency_path != "" or dependency_id != "" or dependency_kind != "":
+			target_tab = _validate_dependency_target_tab(dependency_kind)
+			target_component_id = _validate_dependency_target_component(dependency_kind)
+			focus_type = "resource"
+	if target_tab == "":
+		target_tab = HexMapWorkspaceComponentRegistry.TAB_VALIDATE
+		target_component_id = "validation_issue_navigator"
+	return {
+		"target_tab": target_tab,
+		"target_component_id": target_component_id,
+		"target_slot_id": target_slot_id,
+		"focus_type": focus_type,
+		"focus_target": String(row.get("focus_target", "")),
+		"fix_suggestion": String(row.get("fix_suggestion", "")),
+		"suggested_action": _validate_issue_suggested_action(row, issue, target_tab, target_slot_id, focus_type),
+	}
+
+
+func _validate_dependency_target_tab(kind: String) -> String:
+	match kind:
+		"tile_catalog", "tile_set":
+			return HexMapWorkspaceComponentRegistry.TAB_CATALOG
+		"object_database", "scene":
+			return HexMapWorkspaceComponentRegistry.TAB_DOCUMENT
+		"layer_stack":
+			return HexMapWorkspaceComponentRegistry.TAB_LAYERS
+		"generation_profile":
+			return HexMapWorkspaceComponentRegistry.TAB_QA
+		_:
+			return HexMapWorkspaceComponentRegistry.TAB_DOCUMENT
+
+
+func _validate_dependency_target_component(kind: String) -> String:
+	match kind:
+		"tile_catalog", "tile_set":
+			return "catalog_detail_panel"
+		"layer_stack":
+			return "layer_stack_role_panel"
+		"generation_profile":
+			return "qa_asset_panel"
+		_:
+			return "document_asset_panel"
+
+
+func _validate_issue_suggested_action(
+	row: Dictionary,
+	_issue: Dictionary,
+	target_tab: String,
+	target_slot_id: String,
+	focus_type: String
+) -> String:
+	if target_slot_id != "":
+		return "Select or create %s." % _resource_group_slot_label(target_slot_id)
+	match focus_type:
+		"catalog_entry":
+			return "Open the Catalog issue target and fix the referenced entry."
+		"cell":
+			return "Open Paint and inspect the referenced cell."
+		"resource":
+			return "Open the referenced resource owner and assign the missing dependency."
+		_:
+			var fix := String(row.get("fix_suggestion", ""))
+			return fix if fix != "" else "Review this issue in %s." % target_tab
+
+
+func _validate_target_summary(context: HexMapWorkspaceAssetContext) -> String:
+	var document_text := "Level Document linked" if context.level_document != null else "Level Document missing"
+	var catalog_text := "Tile Catalog linked" if context.tile_catalog != null else "Tile Catalog missing"
+	var suite_text := "Validation Suite linked" if context.validation_rule_suite != null else "Validation Suite missing"
+	return "%s | %s | %s" % [document_text, catalog_text, suite_text]
+
+
+func _validate_empty_state_text(issue_rows: Array) -> String:
+	if _last_workspace_validation_result == null:
+		return "Run validation to list workspace issues."
+	if issue_rows.is_empty():
+		return "Validation passed."
+	return ""
 
 
 func catalog_screen_snapshot() -> Dictionary:
@@ -2038,25 +2226,31 @@ func _mount_missing_unique_resources_panel() -> void:
 
 func _mount_validation_issue_navigator() -> void:
 	var page = _tab_pages.get(HexMapWorkspaceComponentRegistry.TAB_VALIDATE, null)
-	if page == null:
+	if page == null or _validation_issue_navigator != null:
 		return
-	var navigator := VBoxContainer.new()
-	navigator.name = "Validation Issue Navigator"
-	navigator.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	navigator.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_validation_issue_navigator = VBoxContainer.new()
+	_validation_issue_navigator.name = "Validation Issue Navigator"
+	_validation_issue_navigator.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_validation_issue_navigator.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var title := Label.new()
 	title.text = "Validation Issues"
-	navigator.add_child(title)
-	var status := Label.new()
-	status.text = "No validation run selected."
-	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	navigator.add_child(status)
-	(page as Control).add_child(navigator)
+	_validation_issue_navigator.add_child(title)
+	_validation_issue_status_label = Label.new()
+	_validation_issue_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_validation_issue_navigator.add_child(_validation_issue_status_label)
+	_validation_issue_selected_label = Label.new()
+	_validation_issue_selected_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_validation_issue_navigator.add_child(_validation_issue_selected_label)
+	_validation_issue_rows_label = Label.new()
+	_validation_issue_rows_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_validation_issue_navigator.add_child(_validation_issue_rows_label)
+	(page as Control).add_child(_validation_issue_navigator)
 	_register_tab_component(
 		HexMapWorkspaceComponentRegistry.TAB_VALIDATE,
 		"validation_issue_navigator",
-		navigator
+		_validation_issue_navigator
 	)
+	_refresh_validation_issue_navigator()
 
 
 func _mount_export_destination_panel() -> void:
@@ -2964,6 +3158,49 @@ func _bool_label(value: bool) -> String:
 	return "yes" if value else "no"
 
 
+func _refresh_validation_issue_navigator() -> void:
+	if _validation_issue_navigator == null:
+		return
+	var snapshot := validate_screen_snapshot()
+	if _validation_issue_status_label != null:
+		var issue_count := int(snapshot.get("issue_count", 0))
+		var error_count := int(snapshot.get("error_count", 0))
+		var empty_text := String(snapshot.get("empty_state_text", ""))
+		_validation_issue_status_label.text = empty_text if empty_text != "" else "%s | Issues: %d | Errors: %d" % [
+			String(snapshot.get("target_summary", "")),
+			issue_count,
+			error_count,
+		]
+	if _validation_issue_selected_label != null:
+		var selected_row = snapshot.get("selected_issue_row", {}) as Dictionary
+		var navigation = snapshot.get("selected_issue_navigation", {}) as Dictionary
+		if selected_row.is_empty():
+			_validation_issue_selected_label.text = "Selected issue: none"
+		else:
+			_validation_issue_selected_label.text = "%s -> %s | %s" % [
+				String(selected_row.get("rule_id", "")),
+				String(navigation.get("target_tab", "")),
+				String(navigation.get("suggested_action", "")),
+			]
+	if _validation_issue_rows_label != null:
+		_validation_issue_rows_label.text = _validate_issue_rows_text(snapshot.get("issue_rows", []) as Array)
+
+
+func _validate_issue_rows_text(rows: Array) -> String:
+	if rows.is_empty():
+		return "No validation issues listed."
+	var parts := PackedStringArray()
+	for row in rows:
+		if not row is Dictionary:
+			continue
+		parts.append("%s %s -> %s" % [
+			String((row as Dictionary).get("severity_label", "")),
+			String((row as Dictionary).get("rule_id", "")),
+			String((row as Dictionary).get("destination_tab", "")),
+		])
+	return _join_text(parts, " | ")
+
+
 func _refresh_missing_unique_resources_panel() -> void:
 	if _missing_unique_resources_panel == null:
 		return
@@ -3259,6 +3496,7 @@ func _sync_workspace_asset_context() -> void:
 	_refresh_resources_context_panel()
 	_refresh_catalog_detail_panel()
 	_refresh_layer_stack_role_panel()
+	_refresh_validation_issue_navigator()
 	_refresh_missing_unique_resources_panel()
 
 
