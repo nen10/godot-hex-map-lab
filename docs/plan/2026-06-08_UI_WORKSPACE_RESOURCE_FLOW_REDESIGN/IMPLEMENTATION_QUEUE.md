@@ -81,7 +81,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 | `TAB-54` | `COMPLETE` | `TAB-50` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/TAB-54_VALIDATE_TAB_ISSUE_NAVIGATOR/` | Validate tab issue navigator | Validate tab/component, validation issue navigator, focus/link actions, editor tests | Validate target and purpose are clear; resource-row Validate buttons become unnecessary; clicking issues can move to cell/resource/target tab with suggested action. |
 | `TAB-55` | `COMPLETE` | `NODE-24` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/TAB-55_QA_TAB_SEED_LAB_SCREEN/` | QA tab Seed Lab screen | QA tab/component, generation profile, validation suite, score table, promotion target, tests | QA tab supports seed comparison and adoption; Generate and QA roles are distinct; promotion updates Resources tab Document relationship. |
 | `TAB-56` | `COMPLETE` | `TAB-50` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/TAB-56_EXPORT_TAB_PURPOSE_REDESIGN/` | Export tab purpose redesign | Export tab/component, export profile/destination UI, runtime handoff/debug report/package support docs/tests | Export tab states what is exported and why; output target/type are clear; unusable buttons are absent; experimental exports are hidden or backlog. |
-| `TAB-57` | `READY` | `SAMPLE-41` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/TAB-57_SETTINGS_TAB_SIMPLIFICATION/` | Settings tab simplification | Settings tab/component, sample controls, debug fallback controls, preferences UI, tests | Settings contains sample learning controls and debug/preferences only; production asset selection lives in Resources; sample actions work or are removed. |
+| `TAB-57` | `COMPLETE` | `SAMPLE-41` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/TAB-57_SETTINGS_TAB_SIMPLIFICATION/` | Settings tab simplification | Settings tab/component, sample controls, debug fallback controls, preferences UI, tests | Settings contains sample learning controls and debug/preferences only; production asset selection lives in Resources; sample actions work or are removed. |
 
 ---
 
@@ -148,7 +148,7 @@ acceptance / test path:
 
 ## 12. Current pointer
 
-Current recommended next task: `TAB-57`.
+Current recommended next task: `PERF-60`.
 
 Reason:
 
@@ -171,8 +171,9 @@ Reason:
 - `TAB-54` is complete.
 - `TAB-55` is complete.
 - `TAB-56` is complete.
-- `TAB-57` is the first READY task in queue order.
-- `PERF-60`, `INFO-70`, `INFO-71`, and `GEN-80` are also READY, but they appear later in the queue.
+- `TAB-57` is complete.
+- `PERF-60` is the first READY task in queue order.
+- `INFO-70`, `INFO-71`, and `GEN-80` are also READY, but they appear later in the queue.
 
 ---
 
@@ -493,3 +494,18 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_workspace_component_registry.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/TAB-56_TEST_RESULT_2026-06-08.md`
+
+### TAB-57 Settings tab simplification
+
+proof:
+  plan: `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/TAB-57_SETTINGS_TAB_SIMPLIFICATION/`
+  review: `docs/review/autopilot/TAB-57_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace_component_registry.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/TAB-57_TEST_RESULT_2026-06-08.md`

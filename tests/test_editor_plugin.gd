@@ -312,6 +312,11 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 		"Settings",
 		"workspace maps SampleSettingsPanel to Settings tab"
 	)
+	_assert_eq(
+		workspace.component_for_responsibility("SettingsPreferencesPanel").get("tab", ""),
+		"Settings",
+		"workspace maps SettingsPreferencesPanel to Settings tab"
+	)
 	_assert_true(workspace.generation_dock() is HexMapGenDock, "workspace mounts generation component")
 	_assert_true(workspace.edit_tool() is HexMapEditTool, "workspace mounts paint/edit component")
 	_assert_true(workspace.sample_settings_panel() is HexMapSampleSettingsPanel, "workspace mounts sample settings component")
@@ -321,14 +326,14 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 	_assert_true(workspace.tab_has_component("Layers", "layer_stack_role_panel"), "workspace mounts Layers role editor component")
 	_assert_true(workspace.tab_has_component("QA", "qa_seed_lab_panel"), "workspace mounts QA Seed Lab component")
 	_assert_true(workspace.tab_has_component("Export", "export_purpose_panel"), "workspace mounts Export purpose component")
+	_assert_true(workspace.tab_has_component("Settings", "settings_preferences_panel"), "workspace mounts Settings purpose component")
 	var asset_tab_expectations := [
-		{"tab": "Resources", "component": "document_asset_panel", "count": 5, "slot": "level_document"},
+		{"tab": "Resources", "component": "document_asset_panel", "count": 6, "slot": "movement_profile"},
 		{"tab": "Catalog", "component": "catalog_asset_panel", "count": 1, "slot": "tile_catalog"},
 		{"tab": "Layers", "component": "layer_stack_asset_panel", "count": 1, "slot": "layer_stack"},
 		{"tab": "Validate", "component": "validation_asset_panel", "count": 2, "slot": "validation_rule_suite"},
 		{"tab": "QA", "component": "qa_asset_panel", "count": 3, "slot": "generation_profile"},
 		{"tab": "Export", "component": "export_asset_panel", "count": 2, "slot": "export_profile"},
-		{"tab": "Settings", "component": "settings_project_defaults_panel", "count": 1, "slot": "movement_profile"},
 	]
 	for expectation in asset_tab_expectations:
 		var tab_name := String(expectation["tab"])
@@ -367,6 +372,8 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 	_assert_eq(workspace.tab_asset_slot_ids("Paint"), PackedStringArray(), "TAB-51 Paint tab asset slots live in Resources")
 	_assert_true(not workspace.tab_has_component("Paint", "document_asset_panel"), "Paint tab does not own Document setup component")
 	_assert_true(workspace.tab_has_component("Settings", "sample_settings_panel"), "Settings tab keeps sample settings component")
+	_assert_eq(workspace.asset_slot_count("Settings"), 0, "TAB-57 Settings tab owns no production asset slots")
+	_assert_true(not workspace.tab_asset_slot_ids("Settings").has(HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE), "TAB-57 Settings does not expose Movement Profile selection")
 
 	var layer = TileMapLayer.new()
 	layer.tile_set = TileSet.new()
@@ -693,6 +700,7 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 				HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE,
 				HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE,
 				HexMapWorkspaceAssetContext.SLOT_LAYER_STACK,
+				HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE,
 			]),
 		},
 		"Generate": {
@@ -734,8 +742,8 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 			]),
 		},
 		"Settings": {
-			"components": PackedStringArray(["settings_project_defaults_panel", "sample_settings_panel"]),
-			"slots": PackedStringArray([HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE]),
+			"components": PackedStringArray(["settings_preferences_panel", "sample_settings_panel"]),
+			"slots": PackedStringArray(),
 		},
 	}
 
@@ -1048,6 +1056,10 @@ func _test_document_asset_screen_manages_project_document_without_samples() -> v
 	_assert_true(
 		String((groups_by_id["unique"] as Dictionary)["tooltip"]).contains("Level Document"),
 		"TAB-50 UniqueResource tooltip explains resource purpose"
+	)
+	_assert_true(
+		((groups_by_id["optional"] as Dictionary)["slot_ids"] as PackedStringArray).has(HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE),
+		"TAB-57 Resources optional group includes Movement Profile"
 	)
 	_assert_eq(String(snapshot["create_missing_resources_button_text"]), "Create Missing Resources", "TAB-50 Resources screen keeps Create Missing Resources")
 	_assert_eq(workspace.workspace_asset_context().level_document, null, "Document screen starts without a sample document")
@@ -2211,6 +2223,18 @@ func _test_workspace_sample_settings_panel_controls_sample_mode_sources() -> voi
 
 	var panel = workspace.sample_settings_panel()
 	_assert_true(panel is HexMapSampleSettingsPanel, "workspace exposes sample settings panel")
+	var settings_snapshot = workspace.settings_screen_snapshot()
+	_assert_true(workspace.tab_has_component("Settings", "settings_preferences_panel"), "TAB-57 Settings exposes preferences/debug purpose panel")
+	_assert_eq(settings_snapshot["asset_slot_ids"], PackedStringArray(), "TAB-57 Settings has no production asset slot ids")
+	_assert_true(not bool(settings_snapshot["production_asset_selection_present"]), "TAB-57 Settings has no production asset selection")
+	_assert_eq(String(settings_snapshot["movement_profile_slot_owner"]), "Resources", "TAB-57 Movement Profile belongs to Resources")
+	_assert_true(
+		(settings_snapshot["resources_tab_asset_slot_ids"] as PackedStringArray).has(HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE),
+		"TAB-57 Resources exposes Movement Profile"
+	)
+	_assert_true(bool(settings_snapshot["sample_learning_controls_present"]), "TAB-57 Settings keeps sample learning controls")
+	_assert_true(bool(settings_snapshot["debug_numeric_fallback_isolated"]), "TAB-57 debug numeric fallback is isolated in Settings controls")
+	_assert_true(bool(settings_snapshot["sample_actions_work_or_removed"]), "TAB-57 sample actions are functional or removed")
 	var snapshot = panel.snapshot()
 	_assert_true(
 		not bool(snapshot["show_bundled_samples_in_main_selectors"]),
@@ -2261,9 +2285,13 @@ func _test_workspace_sample_settings_panel_controls_sample_mode_sources() -> voi
 
 	panel.set_debug_numeric_tile_fallback_enabled(true)
 	snapshot = panel.snapshot()
+	settings_snapshot = workspace.settings_screen_snapshot()
 	_assert_true(bool(snapshot["debug_numeric_tile_fallback_enabled"]), "Settings can enable explicit debug numeric fallback")
+	_assert_true(bool(settings_snapshot["debug_numeric_tile_fallback_enabled"]), "TAB-57 Settings snapshot mirrors debug numeric fallback")
 	panel.set_debug_numeric_tile_fallback_enabled(false)
+	settings_snapshot = workspace.settings_screen_snapshot()
 	_assert_true(not session.debug_numeric_tile_fallback_enabled, "Settings can disable debug numeric fallback")
+	_assert_true(not bool(settings_snapshot["debug_numeric_tile_fallback_enabled"]), "TAB-57 Settings snapshot disables debug numeric fallback")
 
 	workspace.queue_free()
 	await process_frame
@@ -2831,12 +2859,12 @@ func _test_workspace_asset_slots_use_strict_resource_type_filters() -> void:
 		{"tab": "Resources", "slot": HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE, "type": "HexObjectDatabaseResource"},
 		{"tab": "Resources", "slot": HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE, "type": "HexLabelDatabaseResource"},
 		{"tab": "Resources", "slot": HexMapWorkspaceAssetContext.SLOT_LAYER_STACK, "type": "HexLayerStackResource"},
+		{"tab": "Resources", "slot": HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE, "type": "HexMovementProfileResource"},
 		{"tab": "Catalog", "slot": HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, "type": "HexTileCatalogResource"},
 		{"tab": "Layers", "slot": HexMapWorkspaceAssetContext.SLOT_LAYER_STACK, "type": "HexLayerStackResource"},
 		{"tab": "Validate", "slot": HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "type": "HexMapDocumentResource"},
 		{"tab": "QA", "slot": HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "type": "HexMapDocumentResource"},
 		{"tab": "Export", "slot": HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "type": "HexMapDocumentResource"},
-		{"tab": "Settings", "slot": HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE, "type": "HexMovementProfileResource"},
 	]
 	for expectation in typed_expectations:
 		var tab_name := String(expectation["tab"])

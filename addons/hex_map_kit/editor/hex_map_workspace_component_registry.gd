@@ -46,6 +46,7 @@ static func component_rows() -> Array[Dictionary]:
 				HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE,
 				HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE,
 				HexMapWorkspaceAssetContext.SLOT_LAYER_STACK,
+				HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE,
 			])
 		),
 		_component(
@@ -113,14 +114,7 @@ static func component_rows() -> Array[Dictionary]:
 			])
 		),
 		_component(TAB_EXPORT, "export_destination_panel", "VBoxContainer", "ExportDestinationPanel", "export"),
-		_component(
-			TAB_SETTINGS,
-			"settings_project_defaults_panel",
-			"HexMapWorkspaceAssetPanel",
-			"ProjectDefaultsPanel",
-			"settings",
-			PackedStringArray([HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE])
-		),
+		_component(TAB_SETTINGS, "settings_preferences_panel", "VBoxContainer", "SettingsPreferencesPanel", "settings"),
 		_component(TAB_SETTINGS, "sample_settings_panel", "HexMapSampleSettingsPanel", "SampleSettingsPanel", "settings"),
 	]
 

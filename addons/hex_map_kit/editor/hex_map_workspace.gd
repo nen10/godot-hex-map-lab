@@ -77,6 +77,10 @@ var _export_recent_destinations_label: Label
 var _export_choose_destination_button: Button
 var _export_use_recent_button: Button
 var _export_run_button: Button
+var _settings_preferences_panel: VBoxContainer
+var _settings_preferences_status_label: Label
+var _settings_preferences_debug_label: Label
+var _settings_preferences_resource_label: Label
 var _asset_panels: Dictionary = {}
 var _tab_components: Dictionary = {}
 var _tab_pages: Dictionary = {}
@@ -135,6 +139,29 @@ func edit_tool() -> HexMapEditTool:
 
 func sample_settings_panel() -> HexMapSampleSettingsPanel:
 	return _sample_settings_panel
+
+
+func settings_screen_snapshot() -> Dictionary:
+	var sample_snapshot := {}
+	if _sample_settings_panel != null:
+		sample_snapshot = _sample_settings_panel.snapshot()
+	var settings_slot_ids := tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_SETTINGS)
+	var resources_slot_ids := tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_DOCUMENT)
+	return {
+		"tab": HexMapWorkspaceComponentRegistry.TAB_SETTINGS,
+		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_SETTINGS),
+		"asset_slot_ids": settings_slot_ids,
+		"purpose_text": _settings_purpose_text(),
+		"sample_learning_controls_present": _sample_settings_panel != null,
+		"sample_asset_count": (sample_snapshot.get("sample_assets", []) as Array).size(),
+		"sample_actions_work_or_removed": _settings_sample_actions_work_or_removed(sample_snapshot),
+		"debug_numeric_fallback_isolated": _sample_settings_panel != null and settings_slot_ids.is_empty(),
+		"debug_numeric_tile_fallback_enabled": bool(sample_snapshot.get("debug_numeric_tile_fallback_enabled", false)),
+		"production_asset_selection_present": not settings_slot_ids.is_empty(),
+		"movement_profile_slot_owner": HexMapWorkspaceComponentRegistry.TAB_DOCUMENT \
+			if resources_slot_ids.has(HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE) else "",
+		"resources_tab_asset_slot_ids": resources_slot_ids,
+	}
 
 
 func current_workspace_tab_name() -> String:
@@ -555,6 +582,7 @@ func resources_screen_snapshot() -> Dictionary:
 			HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE,
 			HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE,
 			HexMapWorkspaceAssetContext.SLOT_LAYER_STACK,
+			HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE,
 		]),
 		"level_document": document,
 		"document_slot": document_slot,
@@ -594,8 +622,9 @@ func resource_group_rows() -> Array[Dictionary]:
 			PackedStringArray([
 				HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE,
 				HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE,
+				HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE,
 			]),
-			"Project assets used when object or label workflows are enabled."
+			"Project assets used when object, label, or movement-validation workflows are enabled."
 		),
 	]
 
@@ -2140,6 +2169,7 @@ func _mount_workspace_asset_panels() -> void:
 			_slot_row(HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE, "Object Database", false),
 			_slot_row(HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE, "Label Database", false),
 			_slot_row(HexMapWorkspaceAssetContext.SLOT_LAYER_STACK, "Layer Stack", false),
+			_slot_row(HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE, "Movement Profile", false),
 		]
 	)
 	_mount_missing_unique_resources_panel()
@@ -2191,14 +2221,7 @@ func _mount_workspace_asset_panels() -> void:
 			_slot_row(HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE, "Export Profile", false),
 		]
 	)
-	_mount_asset_panel(
-		HexMapWorkspaceComponentRegistry.TAB_SETTINGS,
-		"settings_project_defaults_panel",
-		"Project Defaults",
-		[
-			_slot_row(HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE, "Movement Profile", false),
-		]
-	)
+	_mount_settings_preferences_panel()
 
 
 func _mount_resources_context_panel() -> void:
@@ -2511,6 +2534,39 @@ func _mount_export_destination_panel() -> void:
 	_refresh_export_destination_panel()
 
 
+func _mount_settings_preferences_panel() -> void:
+	var page = _tab_pages.get(HexMapWorkspaceComponentRegistry.TAB_SETTINGS, null)
+	if page == null or _settings_preferences_panel != null:
+		return
+	_settings_preferences_panel = VBoxContainer.new()
+	_settings_preferences_panel.name = "Settings Preferences Panel"
+	_settings_preferences_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var title := Label.new()
+	title.text = "Settings"
+	_settings_preferences_panel.add_child(title)
+
+	_settings_preferences_status_label = Label.new()
+	_settings_preferences_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_settings_preferences_panel.add_child(_settings_preferences_status_label)
+
+	_settings_preferences_debug_label = Label.new()
+	_settings_preferences_debug_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_settings_preferences_panel.add_child(_settings_preferences_debug_label)
+
+	_settings_preferences_resource_label = Label.new()
+	_settings_preferences_resource_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_settings_preferences_panel.add_child(_settings_preferences_resource_label)
+
+	(page as Control).add_child(_settings_preferences_panel)
+	_register_tab_component(
+		HexMapWorkspaceComponentRegistry.TAB_SETTINGS,
+		"settings_preferences_panel",
+		_settings_preferences_panel
+	)
+	_refresh_settings_preferences_panel()
+
+
 func _slot_row(slot_id: String, display_name: String, required: bool = true) -> Dictionary:
 	return {
 		"slot_id": slot_id,
@@ -2559,6 +2615,8 @@ func _resource_group_slot_label(slot_id: String) -> String:
 			return "Object Database"
 		HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE:
 			return "Label Database"
+		HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE:
+			return "Movement Profile"
 		_:
 			return slot_id.capitalize()
 
@@ -3186,6 +3244,7 @@ func _mount_sample_settings_panel() -> void:
 	_sample_settings_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	(page as Control).add_child(_sample_settings_panel)
 	_register_tab_component(HexMapWorkspaceComponentRegistry.TAB_SETTINGS, "sample_settings_panel", _sample_settings_panel)
+	_refresh_settings_preferences_panel()
 
 
 func _refresh_export_destination_panel() -> void:
@@ -3289,7 +3348,8 @@ func _apply_workspace_asset_change_to_selected_node(slot_id: String, reason: Str
 	match slot_id:
 		HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, \
 		HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE, \
-		HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE:
+		HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE, \
+		HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE:
 			return _writeback_result(true, OK, slot_id, "shared_context", "Shared project context", "")
 	var snapshot := selected_hex_tile_map_writeback_snapshot()
 	if not bool(snapshot.get("can_writeback", false)):
@@ -3523,6 +3583,40 @@ func _qa_seed_lab_rows_text(rows: Array) -> String:
 	return _join_text(parts, " | ")
 
 
+func _refresh_settings_preferences_panel() -> void:
+	if _settings_preferences_panel == null:
+		return
+	var snapshot := settings_screen_snapshot()
+	if _settings_preferences_status_label != null:
+		_settings_preferences_status_label.text = String(snapshot.get("purpose_text", _settings_purpose_text()))
+	if _settings_preferences_debug_label != null:
+		_settings_preferences_debug_label.text = "Debug numeric fallback: %s" % (
+			"enabled" if bool(snapshot.get("debug_numeric_tile_fallback_enabled", false)) else "disabled"
+		)
+	if _settings_preferences_resource_label != null:
+		_settings_preferences_resource_label.text = "Production asset selection: Resources"
+
+
+func _settings_purpose_text() -> String:
+	return "Sample learning controls, explicit debug opt-ins, and editor preferences."
+
+
+func _settings_sample_actions_work_or_removed(sample_snapshot: Dictionary) -> bool:
+	if sample_snapshot.is_empty():
+		return false
+	var action_rows = sample_snapshot.get("sample_action_rows", []) as Array
+	var catalog_duplicate_available := false
+	for row in action_rows:
+		if not row is Dictionary:
+			continue
+		var action_texts = (row as Dictionary).get("action_button_texts", PackedStringArray()) as PackedStringArray
+		if action_texts.has("Open"):
+			return false
+		if String((row as Dictionary).get("id", "")) == HexMapSampleSettingsPanel.SAMPLE_CATALOG_ID:
+			catalog_duplicate_available = action_texts.has("Duplicate To Project")
+	return catalog_duplicate_available
+
+
 func _refresh_export_purpose_panel() -> void:
 	if _export_purpose_panel == null:
 		return
@@ -3708,7 +3802,8 @@ func _writeback_policy_for_slot(slot_id: String) -> String:
 			return "node_owned"
 		HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, \
 		HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE, \
-		HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE:
+		HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE, \
+		HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE:
 			return "shared_context"
 	return "unsupported"
 
@@ -3853,6 +3948,7 @@ func _sync_workspace_asset_context() -> void:
 	_refresh_validation_issue_navigator()
 	_refresh_qa_seed_lab_panel()
 	_refresh_export_purpose_panel()
+	_refresh_settings_preferences_panel()
 	_refresh_missing_unique_resources_panel()
 
 
@@ -3892,3 +3988,4 @@ func _on_session_state_changed(_key: String) -> void:
 		_refresh_selected_hex_tile_map_context()
 	_refresh_sample_learning_cta()
 	_refresh_export_destination_panel()
+	_refresh_settings_preferences_panel()
