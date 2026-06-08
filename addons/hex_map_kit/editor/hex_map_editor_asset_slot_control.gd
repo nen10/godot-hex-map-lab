@@ -116,6 +116,7 @@ func slot_layout_snapshot() -> Dictionary:
 		"resource_picker_base_type": _resource_picker.base_type if _resource_picker != null else "",
 		"resource_picker_tooltip": _resource_picker.tooltip_text if _resource_picker != null else "",
 		"actions_visible": _actions_container != null and _actions_container.visible,
+		"action_button_texts": _visible_action_button_texts(),
 	}
 
 
@@ -203,30 +204,10 @@ func _build_ui() -> void:
 	_actions_container = HBoxContainer.new()
 	add_child(_actions_container)
 
-	_select_button = Button.new()
-	_select_button.text = "Select..."
-	_select_button.pressed.connect(_on_select_pressed)
-	_actions_container.add_child(_select_button)
-
 	_create_button = Button.new()
 	_create_button.text = "Create New..."
 	_create_button.pressed.connect(_on_create_pressed)
 	_actions_container.add_child(_create_button)
-
-	_open_button = Button.new()
-	_open_button.text = "Open"
-	_open_button.pressed.connect(_on_open_pressed)
-	_actions_container.add_child(_open_button)
-
-	_clear_button = Button.new()
-	_clear_button.text = "Clear"
-	_clear_button.pressed.connect(_on_clear_pressed)
-	_actions_container.add_child(_clear_button)
-
-	_validate_button = Button.new()
-	_validate_button.text = "Validate"
-	_validate_button.pressed.connect(_on_validate_pressed)
-	_actions_container.add_child(_validate_button)
 
 	_sample_button = Button.new()
 	_sample_button.text = "Learn With Sample"
@@ -251,12 +232,17 @@ func _refresh() -> void:
 	if _resource_picker != null:
 		_resource_picker.base_type = String(snapshot.get("picker_base_type", "Resource"))
 		_resource_picker.tooltip_text = detail_text
-	_open_button.disabled = not bool(snapshot.get("selected", false))
-	_clear_button.disabled = not bool(snapshot.get("selected", false))
-	_create_button.visible = bool(snapshot.get("allows_create_new", false))
-	_sample_button.visible = bool(snapshot.get("allows_sample", false)) and bool(snapshot.get("sample_available", false))
-	if _sample_button.visible:
-		_sample_button.text = String(snapshot.get("sample_display", "Learn With Sample"))
+	if _open_button != null:
+		_open_button.disabled = not bool(snapshot.get("selected", false))
+	if _clear_button != null:
+		_clear_button.disabled = not bool(snapshot.get("selected", false))
+	if _create_button != null:
+		_create_button.visible = bool(snapshot.get("allows_create_new", false))
+	if _sample_button != null:
+		_sample_button.visible = bool(snapshot.get("allows_sample", false)) and bool(snapshot.get("sample_available", false))
+		if _sample_button.visible:
+			_sample_button.text = String(snapshot.get("sample_display", "Learn With Sample"))
+	_refresh_actions_visibility()
 	slot_state_changed.emit(snapshot)
 
 
@@ -349,3 +335,19 @@ func _detail_text(snapshot: Dictionary) -> String:
 		if text != "":
 			lines.append(text)
 	return "\n".join(lines)
+
+
+func _visible_action_button_texts() -> PackedStringArray:
+	var result := PackedStringArray()
+	if _actions_container == null:
+		return result
+	for child in _actions_container.get_children():
+		if child is Button and (child as Button).visible:
+			result.append((child as Button).text)
+	return result
+
+
+func _refresh_actions_visibility() -> void:
+	if _actions_container == null:
+		return
+	_actions_container.visible = not _visible_action_button_texts().is_empty()

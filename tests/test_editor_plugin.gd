@@ -136,6 +136,7 @@ func _run() -> void:
 	await _test_asset_slot_state_model_contract_covers_sample_visibility_and_project_duplicates()
 	await _test_asset_slot_control_exposes_state_snapshot_contract()
 	await _test_workspace_asset_slots_use_strict_resource_type_filters()
+	await _test_workspace_asset_slot_actions_remove_redundant_buttons()
 	_test_asset_resource_factory_creates_project_resources_and_assigns_context()
 	await _test_map_edit_tool_builds_dock_controls()
 	await _test_plugin_handles_canvas_item_when_map_edit_ready()
@@ -2449,6 +2450,17 @@ func _test_asset_slot_control_exposes_state_snapshot_contract() -> void:
 	_assert_true(String(layout["status_tooltip"]).contains("Pick: HexObjectDatabaseResource"), "ASSET-30 asset slot tooltip says what type to pick")
 	if bool(layout["resource_picker_visible"]):
 		_assert_eq(String(layout["resource_picker_base_type"]), "HexObjectDatabaseResource", "ASSET-30 EditorResourcePicker uses strict base type")
+	var action_texts = layout["action_button_texts"] as PackedStringArray
+	_assert_true(action_texts.has("Create New..."), "ASSET-31 asset slot keeps implemented Create New action")
+	_assert_true(action_texts.has("Sample Object DB"), "ASSET-31 asset slot keeps explicit sample action")
+	_assert_true(not action_texts.has("Select..."), "ASSET-31 asset slot removes redundant Select button")
+	_assert_true(not action_texts.has("Open"), "ASSET-31 asset slot removes unimplemented Open button")
+	_assert_true(not action_texts.has("Clear"), "ASSET-31 asset slot delegates Clear to ResourcePicker")
+	_assert_true(not action_texts.has("Validate"), "ASSET-31 asset slot removes row-level Validate button")
+	_assert_true(not _has_button_text(control, "Select..."), "ASSET-31 visible Select button is absent")
+	_assert_true(not _has_button_text(control, "Open"), "ASSET-31 visible Open button is absent")
+	_assert_true(not _has_button_text(control, "Clear"), "ASSET-31 visible Clear button is absent")
+	_assert_true(not _has_button_text(control, "Validate"), "ASSET-31 visible Validate button is absent")
 	_assert_true(String(layout["current_detail_text"]).contains("Current: Not selected"), "asset slot details keep current selection text")
 
 	var database = HexObjectDatabaseResource.new()
@@ -2550,6 +2562,27 @@ func _test_workspace_asset_slots_use_strict_resource_type_filters() -> void:
 		_assert_true(bool(snapshot["generic_resource_filter_allowed"]), "ASSET-30 %s/%s documents why generic Resource is allowed" % [tab_name, slot_id])
 		_assert_true(String(snapshot["type_filter_reason"]).contains("no concrete"), "ASSET-30 %s/%s flexible reason is explicit" % [tab_name, slot_id])
 		_assert_true(String(layout["status_tooltip"]).contains("Flexible Resource slot"), "ASSET-30 %s/%s tooltip carries flexible reason" % [tab_name, slot_id])
+
+	workspace.queue_free()
+	await process_frame
+
+
+func _test_workspace_asset_slot_actions_remove_redundant_buttons() -> void:
+	var session = HexMapEditorSessionState.new()
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	for tab_name in workspace.workspace_tab_names():
+		for slot_id in workspace.tab_asset_slot_ids(tab_name):
+			var layout = workspace.tab_asset_slot_layout_snapshot(tab_name, String(slot_id))
+			var action_texts = layout.get("action_button_texts", PackedStringArray()) as PackedStringArray
+			_assert_true(not action_texts.has("Select..."), "ASSET-31 %s/%s removes Select action" % [tab_name, slot_id])
+			_assert_true(not action_texts.has("Open"), "ASSET-31 %s/%s removes Open action" % [tab_name, slot_id])
+			_assert_true(not action_texts.has("Clear"), "ASSET-31 %s/%s removes Clear action" % [tab_name, slot_id])
+			_assert_true(not action_texts.has("Validate"), "ASSET-31 %s/%s removes Validate action" % [tab_name, slot_id])
+			_assert_true(action_texts.has("Create New..."), "ASSET-31 %s/%s keeps Create New action" % [tab_name, slot_id])
 
 	workspace.queue_free()
 	await process_frame
