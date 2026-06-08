@@ -91,7 +91,7 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 |---|---|---|---|---|---|---|
 | `PERF-60` | `COMPLETE` | `UIR-01` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/PERF-60_GENERATE_GLOBAL_UPDATE_PROFILE/` | Generate/global update performance profile | `docs/review/roadmap/GENERATE_UPDATE_PERFORMANCE_PROFILE_2026-06-08.md`, Generate/apply/validation profiling notes | Heavy operations are classified as redraw/generation/apply/validation; UI freeze causes are identified; improvement candidates are prioritized. |
 | `PERF-61` | `COMPLETE` | `PERF-60` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/PERF-61_PROGRESS_AND_BUSY_UI/` | Progress and busy UI | Generate/apply/validation UI, busy overlay/progress helpers, tests | Long operations show start/progress/completion through ProgressBar/busy overlay/current step text; UX is not distorted for progress reporting. |
-| `PERF-62` | `READY` | `PERF-60` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/PERF-62_INCREMENTAL_UPDATE_AND_DEBOUNCE/` | Incremental update and debounce | Generate/apply/redraw update paths, debounce/cache helpers, performance tests | Continuous changes avoid repeated heavy full updates; visible wait time drops; behavior stays consistent with progress UI. |
+| `PERF-62` | `COMPLETE` | `PERF-60` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/PERF-62_INCREMENTAL_UPDATE_AND_DEBOUNCE/` | Incremental update and debounce | Generate/apply/redraw update paths, debounce/cache helpers, performance tests | Continuous changes avoid repeated heavy full updates; visible wait time drops; behavior stays consistent with progress UI. |
 
 ---
 
@@ -148,7 +148,7 @@ acceptance / test path:
 
 ## 12. Current pointer
 
-Current recommended next task: `PERF-62`.
+Current recommended next task: `INFO-70`.
 
 Reason:
 
@@ -174,8 +174,10 @@ Reason:
 - `TAB-57` is complete.
 - `PERF-60` is complete.
 - `PERF-61` is complete.
-- `PERF-62` is the first READY task in queue order.
-- `INFO-70`, `INFO-71`, and `GEN-80` are also READY, but they appear later in the queue.
+- `PERF-62` is complete.
+- Phase U6 has no remaining READY task.
+- `INFO-70` is the first READY task in queue order.
+- `INFO-71` and `GEN-80` are also READY, but they appear later in the queue.
 
 ---
 
@@ -539,3 +541,17 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_gen_dock.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/PERF-61_TEST_RESULT_2026-06-08.md`
+
+### PERF-62 Incremental update and debounce
+
+proof:
+  plan: `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/PERF-62_INCREMENTAL_UPDATE_AND_DEBOUNCE/`
+  review: `docs/review/autopilot/PERF-62_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_gen_dock.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/PERF-62_TEST_RESULT_2026-06-08.md`

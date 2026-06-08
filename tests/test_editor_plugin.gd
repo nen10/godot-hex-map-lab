@@ -5600,6 +5600,28 @@ func _test_generation_dock_tracks_generation_progress_state() -> void:
 	_assert_true(not bool(progress_snapshot["cancel_available"]), "PERF-61 tile setting apply is not cancellable")
 	_assert_eq(_window_child_count(dock), 0, "PERF-61 tile setting apply does not create modal busy window")
 
+	var apply_count_before := int(dock.tile_settings_apply_debounce_snapshot()["apply_count"])
+	dock._tile_settings_apply_debounce_sec = 0.01
+	dock._on_tile_setting_changed(66.0)
+	dock._on_tile_setting_changed(67.0)
+	var debounce_snapshot = dock.tile_settings_apply_debounce_snapshot()
+	_assert_true(bool(debounce_snapshot["pending"]), "PERF-62 repeated tile setting changes leave one pending apply")
+	_assert_eq(int(debounce_snapshot["apply_count"]), apply_count_before, "PERF-62 pending debounced apply does not run immediately")
+	_assert_eq(
+		String((debounce_snapshot["progress"] as Dictionary)["status"]),
+		"Tile settings update queued",
+		"PERF-62 pending debounced apply reports queued progress"
+	)
+	await _wait_for_tile_settings_apply_count(dock, apply_count_before + 1, "PERF-62 debounced tile settings")
+	debounce_snapshot = dock.tile_settings_apply_debounce_snapshot()
+	_assert_true(not bool(debounce_snapshot["pending"]), "PERF-62 debounced tile setting apply clears pending state")
+	_assert_eq(int(debounce_snapshot["apply_count"]), apply_count_before + 1, "PERF-62 repeated tile settings coalesce to one apply")
+	_assert_eq(
+		String((debounce_snapshot["progress"] as Dictionary)["status"]),
+		"Tile settings applied",
+		"PERF-62 debounced apply finishes through progress UI"
+	)
+
 	layer.queue_free()
 	dock.queue_free()
 	await process_frame
@@ -6114,8 +6136,12 @@ func _test_generation_dock_lists_and_auto_applies_selected_tile_layer() -> void:
 	dock._on_sample_tiles_pressed()
 	_assert_eq(first_layer.tile_set, null, "sample tile setup ignores Target and does not touch unselected TileMapLayer")
 	_assert_true(second_layer.tile_set != null, "sample tile setup uses editor-selected TileMapLayer")
+	dock._tile_settings_apply_debounce_sec = 0.01
+	var apply_count_before := int(dock.tile_settings_apply_debounce_snapshot()["apply_count"])
 	dock._floor_atlas_x_spin.value = 1
 	dock._wall_atlas_x_spin.value = 0
+	_assert_true(bool(dock.tile_settings_apply_debounce_snapshot()["pending"]), "PERF-62 SpinBox changes queue debounced tile apply")
+	await _wait_for_tile_settings_apply_count(dock, apply_count_before + 1, "target TileMapLayer debounced SpinBox apply")
 
 	_assert_eq(first_layer.get_used_cells().size(), 0, "tile setting auto apply ignores Target and does not touch unselected TileMapLayer")
 	_assert_eq(second_layer.get_cell_atlas_coords(Vector2i.ZERO), Vector2i(1, 0), "floor SpinBox change reapplies editor-selected TileMapLayer")
@@ -6206,8 +6232,11 @@ func _test_generation_dock_duplicates_shared_tileset_for_selected_layer() -> voi
 	dock._tile_layer_option.select(1)
 	dock._set_editor_selected_tile_map_layer_for_test(second_layer)
 	dock._current_data = HexMapData.rectangle(1, 1)
+	dock._tile_settings_apply_debounce_sec = 0.01
+	var apply_count_before := int(dock.tile_settings_apply_debounce_snapshot()["apply_count"])
 	dock._tile_width_spin.value = 96
-	await process_frame
+	_assert_true(bool(dock.tile_settings_apply_debounce_snapshot()["pending"]), "PERF-62 TileSet size change queues debounced tile apply")
+	await _wait_for_tile_settings_apply_count(dock, apply_count_before + 1, "shared TileSet debounced size apply")
 
 	_assert_eq(first_layer.tile_set, shared_tile_set, "tile setting auto apply leaves unselected shared TileSet owner untouched")
 	_assert_true(second_layer.tile_set != shared_tile_set, "tile setting auto apply duplicates shared TileSet for selected layer")
@@ -7470,6 +7499,18 @@ func _wait_for_progress_status(dock: HexMapGenDock, expected_status: String, mes
 		await process_frame
 		guard += 1
 	_assert_eq(String(dock.generation_progress_snapshot()["status"]), expected_status, "%s reaches progress status" % message)
+
+
+func _wait_for_tile_settings_apply_count(dock: HexMapGenDock, expected_count: int, message: String) -> void:
+	var guard := 0
+	while int(dock.tile_settings_apply_debounce_snapshot()["apply_count"]) < expected_count and guard < 240:
+		await process_frame
+		guard += 1
+	_assert_eq(
+		int(dock.tile_settings_apply_debounce_snapshot()["apply_count"]),
+		expected_count,
+		"%s reaches expected apply count" % message
+	)
 
 
 func _generation_operation_active(dock: HexMapGenDock) -> bool:

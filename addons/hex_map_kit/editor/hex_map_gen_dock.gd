@@ -62,6 +62,7 @@ const PROGRESS_STEP_TILE_SETTINGS := "tile_settings"
 const PROGRESS_STEP_COMPLETE := "complete"
 const PROGRESS_STEP_CANCELLED := "cancelled"
 const PROGRESS_STEP_BLOCKED := "blocked"
+const TILE_SETTINGS_APPLY_DEBOUNCE_SEC := 0.12
 const TILE_TARGET_AUTO_INDEX := 0
 const TILE_TARGET_LAYER_INDEX_OFFSET := 1
 const TILE_TARGET_AUTO_LABEL := "Auto: Selected / first scene layer"
@@ -269,6 +270,11 @@ var _generation_progress_scheduled_hide_token := 0
 var _generation_progress_visible_started_msec := 0
 var _generation_progress_hide_after_msec := 0
 var _generation_progress_step := PROGRESS_STEP_IDLE
+var _tile_settings_apply_debounce_sec := TILE_SETTINGS_APPLY_DEBOUNCE_SEC
+var _tile_settings_apply_debounce_token := 0
+var _tile_settings_apply_pending := false
+var _tile_settings_apply_count := 0
+var _tile_settings_last_apply_result := false
 var _suppress_tile_settings_apply := false
 var _current_overlay_data = null
 var _editor_session_state: HexMapEditorSessionState = null
@@ -2406,13 +2412,13 @@ func _on_tile_orientation_changed(_index: int) -> void:
 	if previous_orientation != _current_orientation:
 		_swap_tile_size_controls()
 		_refresh_all_query_offset_panels()
-	_apply_tile_settings_to_current_layer()
+	_schedule_tile_settings_apply("orientation")
 
 
 func _on_tile_setting_changed(_value: float) -> void:
 	if _suppress_tile_settings_apply:
 		return
-	_apply_tile_settings_to_current_layer()
+	_schedule_tile_settings_apply("tile_setting")
 
 
 func _on_floor_catalog_selected(index: int) -> void:
@@ -2425,7 +2431,7 @@ func _on_floor_catalog_selected(index: int) -> void:
 		_floor_atlas_x_spin,
 		_floor_atlas_y_spin
 	):
-		_apply_tile_settings_to_current_layer()
+		_schedule_tile_settings_apply("floor_catalog")
 
 
 func _on_wall_catalog_selected(index: int) -> void:
@@ -2438,7 +2444,7 @@ func _on_wall_catalog_selected(index: int) -> void:
 		_wall_atlas_x_spin,
 		_wall_atlas_y_spin
 	):
-		_apply_tile_settings_to_current_layer()
+		_schedule_tile_settings_apply("wall_catalog")
 
 
 func _on_generate_pressed() -> void:
@@ -2447,6 +2453,35 @@ func _on_generate_pressed() -> void:
 
 func _on_cancel_generation_pressed() -> void:
 	request_generation_cancel()
+
+
+func _schedule_tile_settings_apply(_reason: String = "tile_settings") -> bool:
+	if _overlay_mode_enabled() and _current_overlay_data == null:
+		return false
+	if not _overlay_mode_enabled() and _current_data == null:
+		return false
+	if _find_editor_selected_tile_map_layer() == null:
+		return false
+	_tile_settings_apply_debounce_token += 1
+	var token := _tile_settings_apply_debounce_token
+	_tile_settings_apply_pending = true
+	_show_busy_progress_step(
+		PROGRESS_STEP_TILE_SETTINGS,
+		GENERATION_PROGRESS_START,
+		"Tile settings update queued",
+		false,
+		true
+	)
+	_run_debounced_tile_settings_apply(token)
+	return true
+
+
+func _run_debounced_tile_settings_apply(token: int) -> void:
+	await get_tree().create_timer(_tile_settings_apply_debounce_sec).timeout
+	if token != _tile_settings_apply_debounce_token or not _tile_settings_apply_pending:
+		return
+	_tile_settings_apply_pending = false
+	_apply_tile_settings_to_current_layer()
 
 
 func _on_sample_tiles_pressed() -> void:
@@ -2537,6 +2572,8 @@ func _on_apply_layer_pressed() -> void:
 
 
 func _apply_tile_settings_to_current_layer() -> bool:
+	_tile_settings_apply_debounce_token += 1
+	_tile_settings_apply_pending = false
 	if _overlay_mode_enabled() and _current_overlay_data == null:
 		return false
 	if not _overlay_mode_enabled() and _current_data == null:
@@ -2544,6 +2581,7 @@ func _apply_tile_settings_to_current_layer() -> bool:
 	var layer = _find_editor_selected_tile_map_layer()
 	if layer == null:
 		return false
+	_tile_settings_apply_count += 1
 	_show_busy_progress_step(
 		PROGRESS_STEP_TILE_SETTINGS,
 		GENERATION_PROGRESS_UPDATE,
@@ -2556,6 +2594,7 @@ func _apply_tile_settings_to_current_layer() -> bool:
 		ok = apply_current_overlay_data_to_tile_map_layer(layer)
 	else:
 		ok = apply_current_data_to_tile_map_layer(layer)
+	_tile_settings_last_apply_result = ok
 	_finish_generation_progress_controls_success("Tile settings applied" if ok else "Failed")
 	return ok
 
@@ -2792,6 +2831,17 @@ func generation_progress_snapshot() -> Dictionary:
 		"cancel_available": _generation_progress_cancel_button != null \
 			and not _generation_progress_cancel_button.disabled,
 		"modal_window_count": 0,
+	}
+
+
+func tile_settings_apply_debounce_snapshot() -> Dictionary:
+	return {
+		"pending": _tile_settings_apply_pending,
+		"token": _tile_settings_apply_debounce_token,
+		"debounce_sec": _tile_settings_apply_debounce_sec,
+		"apply_count": _tile_settings_apply_count,
+		"last_apply_result": _tile_settings_last_apply_result,
+		"progress": generation_progress_snapshot(),
 	}
 
 
@@ -4837,6 +4887,8 @@ func _progress_step_for_status(status: String) -> String:
 		return PROGRESS_STEP_VALIDATING
 	if status == "Applying generated result" or status == "Applying tile settings":
 		return PROGRESS_STEP_APPLYING
+	if status == "Tile settings update queued":
+		return PROGRESS_STEP_TILE_SETTINGS
 	if status == "Tile settings applied":
 		return PROGRESS_STEP_COMPLETE
 	if status == "Cancelled" or status == "Cancel requested":
