@@ -279,7 +279,7 @@ func editor_session_state() -> HexMapEditorSessionState:
 
 func set_workspace_asset_context(context: HexMapWorkspaceAssetContext) -> void:
 	_workspace_asset_context = context
-	set_tile_catalog(_workspace_asset_context.tile_catalog if _workspace_asset_context != null else null, false)
+	set_tile_catalog(_execution_tile_catalog_from_context(_workspace_asset_context), false)
 	set_object_database(_workspace_asset_context.object_database if _workspace_asset_context != null else null, false)
 	set_label_database(_workspace_asset_context.label_database if _workspace_asset_context != null else null, false)
 	set_layer_stack_resource(_workspace_asset_context.layer_stack if _workspace_asset_context != null else null, false)
@@ -4601,6 +4601,10 @@ func _new_catalog_option(tag: String, selected_key: String = "") -> OptionButton
 func _ensure_tile_catalog() -> HexTileCatalogResource:
 	var context := workspace_asset_context()
 	if context != null and context.tile_catalog != null:
+		if _is_bundled_sample_catalog(context.tile_catalog):
+			if _tile_catalog == context.tile_catalog:
+				_tile_catalog = null
+			return null
 		_tile_catalog = context.tile_catalog
 		return _tile_catalog
 	if _tile_catalog == null and _sample_catalog_fallback_enabled():
@@ -4610,7 +4614,7 @@ func _ensure_tile_catalog() -> HexTileCatalogResource:
 
 func _sample_catalog_fallback_enabled() -> bool:
 	if _editor_session_state != null:
-		return _editor_session_state.bundled_samples_visible_in_main_selectors()
+		return false
 	return true
 
 
@@ -4626,6 +4630,18 @@ func _clear_sample_catalog_if_hidden() -> void:
 		return
 	if _tile_catalog != null and _tile_catalog.resource_path == SAMPLE_TILE_CATALOG_PATH:
 		_tile_catalog = null
+
+
+func _is_bundled_sample_catalog(catalog: HexTileCatalogResource) -> bool:
+	return catalog != null and catalog.resource_path == SAMPLE_TILE_CATALOG_PATH
+
+
+func _execution_tile_catalog_from_context(context: HexMapWorkspaceAssetContext) -> HexTileCatalogResource:
+	if context == null or context.tile_catalog == null:
+		return null
+	if _is_bundled_sample_catalog(context.tile_catalog):
+		return null
+	return context.tile_catalog
 
 
 func _refresh_catalog_options() -> void:

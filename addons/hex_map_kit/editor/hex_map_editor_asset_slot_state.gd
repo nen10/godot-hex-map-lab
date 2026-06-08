@@ -12,6 +12,7 @@ const STATUS_WARNING := "warning"
 const SOURCE_NONE := "none"
 const SOURCE_PROJECT := "project"
 const SOURCE_SAMPLE := "sample"
+const BUNDLED_SAMPLE_PATH_PREFIX := "res://addons/hex_map_kit/assets/"
 
 var slot_id := ""
 var display_name := ""
@@ -61,7 +62,8 @@ func set_selected_resource(resource: Resource, path: String = "", source: String
 	current_path = path
 	if current_path == "" and current_resource != null:
 		current_path = current_resource.resource_path
-	current_source = source if current_resource != null or current_path != "" else SOURCE_NONE
+	var actual_source := _classified_source(current_resource, current_path, source)
+	current_source = actual_source if current_resource != null or current_path != "" else SOURCE_NONE
 	_recompute_status()
 	changed.emit()
 
@@ -224,6 +226,12 @@ func _recompute_status() -> void:
 			]
 		)
 		return
+	if current_source == SOURCE_SAMPLE and _is_bundled_sample_path(current_path):
+		validation_status = STATUS_WARNING
+		validation_messages.append(
+			"%s is a bundled sample. Duplicate it to a project asset before production use." % _display_name_or_slot_id()
+		)
+		return
 	validation_status = STATUS_SELECTED
 
 
@@ -256,6 +264,18 @@ func _resource_type_label(resource: Resource) -> String:
 
 func _display_name_or_slot_id() -> String:
 	return display_name if display_name != "" else slot_id
+
+
+func _classified_source(resource: Resource, path: String, source: String) -> String:
+	if resource == null and path == "":
+		return SOURCE_NONE
+	if _is_bundled_sample_path(path):
+		return SOURCE_SAMPLE
+	return source
+
+
+func _is_bundled_sample_path(path: String) -> bool:
+	return path.begins_with(BUNDLED_SAMPLE_PATH_PREFIX)
 
 
 func _normalized_status(status: String) -> String:

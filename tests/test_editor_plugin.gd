@@ -1946,20 +1946,9 @@ func _test_workspace_sample_settings_panel_controls_sample_mode_sources() -> voi
 	panel.set_show_bundled_samples_in_main_selectors(true)
 	snapshot = panel.snapshot()
 	_assert_true(bool(snapshot["show_bundled_samples_in_main_selectors"]), "sample setting can enable sample selector visibility")
-	var generation_sample_catalog = workspace.generation_dock().tile_catalog()
-	var paint_sample_catalog = workspace.edit_tool().tile_catalog()
-	_assert_true(generation_sample_catalog is HexTileCatalogResource, "sample mode ON exposes generation sample catalog fallback")
-	_assert_true(paint_sample_catalog is HexTileCatalogResource, "sample mode ON exposes paint sample catalog fallback")
-	_assert_eq(
-		generation_sample_catalog.resource_path,
-		"res://addons/hex_map_kit/assets/sample_hex_tile_catalog.tres",
-		"generation sample fallback is the bundled sample catalog"
-	)
-	_assert_eq(
-		paint_sample_catalog.resource_path,
-		"res://addons/hex_map_kit/assets/sample_hex_tile_catalog.tres",
-		"paint sample fallback is the bundled sample catalog"
-	)
+	_assert_true(bool(workspace.catalog_screen_snapshot()["sample_candidates_visible"]), "sample mode ON exposes Catalog learning candidates")
+	_assert_eq(workspace.generation_dock().tile_catalog(), null, "SAMPLE-41 sample mode ON does not inject Generate sample catalog")
+	_assert_eq(workspace.edit_tool().tile_catalog(), null, "SAMPLE-41 sample mode ON does not inject Paint sample catalog")
 
 	var project_catalog = HexTileCatalogResource.new()
 	session.set_workspace_asset(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, project_catalog, "test.project_catalog")
@@ -2029,12 +2018,8 @@ func _test_sample_learning_package_contract_keeps_bundled_assets_opt_in() -> voi
 
 	panel.set_show_bundled_samples_in_main_selectors(true)
 	_assert_true(bool(workspace.catalog_screen_snapshot()["sample_candidates_visible"]), "PKG-70 sample mode ON exposes Catalog learning candidates")
-	var generation_catalog = workspace.generation_dock().tile_catalog() as HexTileCatalogResource
-	var paint_catalog = workspace.edit_tool().tile_catalog() as HexTileCatalogResource
-	_assert_true(generation_catalog is HexTileCatalogResource, "PKG-70 sample mode ON exposes Generate sample catalog")
-	_assert_true(paint_catalog is HexTileCatalogResource, "PKG-70 sample mode ON exposes Paint sample catalog")
-	_assert_eq(generation_catalog.resource_path, sample_catalog_path, "PKG-70 Generate sample catalog path is packaged sample")
-	_assert_eq(paint_catalog.resource_path, sample_catalog_path, "PKG-70 Paint sample catalog path is packaged sample")
+	_assert_eq(workspace.generation_dock().tile_catalog(), null, "SAMPLE-41 PKG-70 sample mode ON does not inject Generate sample catalog")
+	_assert_eq(workspace.edit_tool().tile_catalog(), null, "SAMPLE-41 PKG-70 sample mode ON does not inject Paint sample catalog")
 
 	var project_catalog = HexTileCatalogResource.new()
 	session.set_workspace_asset(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, project_catalog, "pkg70.project_catalog")
@@ -2341,7 +2326,7 @@ func _test_asset_slot_state_model_reports_selection_validation_and_sample_source
 	snapshot = slot.snapshot()
 	_assert_eq(snapshot["current_source"], HexMapEditorAssetSlotState.SOURCE_SAMPLE, "explicit sample application marks sample source")
 	_assert_eq(snapshot["current_resource"], sample_catalog, "explicit sample application selects sample resource")
-	_assert_eq(snapshot["status"], HexMapEditorAssetSlotState.STATUS_SELECTED, "explicit sample application can produce selected state")
+	_assert_eq(snapshot["status"], HexMapEditorAssetSlotState.STATUS_WARNING, "SAMPLE-41 explicit sample application warns before production use")
 
 
 func _test_asset_slot_state_model_contract_covers_sample_visibility_and_project_duplicates() -> void:
@@ -2401,8 +2386,24 @@ func _test_asset_slot_state_model_contract_covers_sample_visibility_and_project_
 	_assert_true(bool(workspace.validate_screen_snapshot()["sample_candidates_visible"]), "TEST-42 sample mode ON shows Validate learning candidates")
 	_assert_true(bool(workspace.qa_screen_snapshot()["sample_candidates_visible"]), "TEST-42 sample mode ON shows QA learning candidates")
 	_assert_true(bool(workspace.export_screen_snapshot()["sample_candidates_visible"]), "TEST-42 sample mode ON shows Export learning candidates")
-	_assert_true(workspace.generation_dock().tile_catalog() is HexTileCatalogResource, "TEST-42 sample mode ON shows Generate sample fallback")
-	_assert_true(workspace.edit_tool().tile_catalog() is HexTileCatalogResource, "TEST-42 sample mode ON shows Paint sample fallback")
+	_assert_eq(workspace.generation_dock().tile_catalog(), null, "SAMPLE-41 sample mode ON does not auto-use Generate sample fallback")
+	_assert_eq(workspace.edit_tool().tile_catalog(), null, "SAMPLE-41 sample mode ON does not auto-use Paint sample fallback")
+
+	var direct_sample_catalog = ResourceLoader.load(
+		"res://addons/hex_map_kit/assets/sample_hex_tile_catalog.tres",
+		"HexTileCatalogResource",
+		ResourceLoader.CACHE_MODE_IGNORE
+	) as HexTileCatalogResource
+	session.set_workspace_asset(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, direct_sample_catalog, "test.direct_sample_catalog")
+	var direct_sample_slot = workspace.tab_asset_slot_snapshot("Catalog", HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG)
+	_assert_eq(String(direct_sample_slot["current_source"]), HexMapEditorAssetSlotState.SOURCE_SAMPLE, "SAMPLE-41 direct bundled sample selection is SOURCE_SAMPLE")
+	_assert_eq(String(direct_sample_slot["status"]), HexMapEditorAssetSlotState.STATUS_WARNING, "SAMPLE-41 direct bundled sample selection warns")
+	_assert_true(
+		String((direct_sample_slot["validation_messages"] as Array)[0]).contains("Duplicate"),
+		"SAMPLE-41 direct bundled sample warning points to project duplicate"
+	)
+	_assert_eq(workspace.generation_dock().tile_catalog(), null, "SAMPLE-41 direct bundled sample selection is not Generate source")
+	_assert_eq(workspace.edit_tool().tile_catalog(), null, "SAMPLE-41 direct bundled sample selection is not Paint source")
 
 	var output_dir = _test_resource_dir("test42_asset_slot_state")
 	var catalog_path = "%s/duplicated_sample_catalog.tres" % output_dir
@@ -2502,7 +2503,7 @@ func _test_asset_slot_control_exposes_state_snapshot_contract() -> void:
 	_assert_eq(snapshot["current_source"], HexMapEditorAssetSlotState.SOURCE_SAMPLE, "asset slot control records explicit sample source")
 	_assert_eq(snapshot["current_path"], "res://addons/hex_map_kit/assets/sample_object_db.tres", "asset slot control records sample path after explicit action")
 	layout = control.slot_layout_snapshot()
-	_assert_eq(layout["status_text"], "OK", "asset slot compact row returns to OK after explicit sample selection")
+	_assert_eq(layout["status_text"], "Warn", "SAMPLE-41 asset slot compact row warns after explicit sample selection")
 	_assert_true(String(layout["status_tooltip"]).contains("Source: sample"), "asset slot compact tooltip records sample source")
 
 	var create_recorder = AssetCreatePathRecorder.new()
