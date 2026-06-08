@@ -999,6 +999,7 @@ func catalog_screen_snapshot() -> Dictionary:
 		"catalog_slot": catalog_slot,
 		"tile_set": catalog.tile_set if catalog != null else null,
 		"tile_set_present": catalog != null and catalog.tile_set != null,
+		"tile_set_tooltip": _catalog_tile_set_tooltip(),
 		"detail_component_present": tab_has_component(HexMapWorkspaceComponentRegistry.TAB_CATALOG, "catalog_detail_panel"),
 		"entry_count": catalog.entries.size() if catalog != null else 0,
 		"entry_keys": catalog.keys() if catalog != null else PackedStringArray(),
@@ -3427,6 +3428,7 @@ func _refresh_catalog_detail_panel() -> void:
 			"Linked" if bool(snapshot.get("tile_set_present", false)) else "Missing",
 			int(snapshot.get("entry_count", 0)),
 		]
+		_catalog_detail_status_label.tooltip_text = String(snapshot.get("tile_set_tooltip", _catalog_tile_set_tooltip()))
 	if _catalog_detail_entry_label != null:
 		if bool(entry_detail.get("present", false)):
 			var preview_text := String(entry_detail.get("preview_text", ""))
@@ -3439,6 +3441,10 @@ func _refresh_catalog_detail_panel() -> void:
 			]
 		else:
 			_catalog_detail_entry_label.text = String(entry_detail.get("preview_unavailable_reason", "No catalog entry selected."))
+
+
+func _catalog_tile_set_tooltip() -> String:
+	return "Pick: TileSet\nType: TileSet\nPurpose: %s" % HexMapWorkspaceAssetResourceFactory.tile_set_purpose()
 
 
 func _refresh_layer_stack_role_panel() -> void:

@@ -143,6 +143,7 @@ func _run() -> void:
 	await _test_asset_slot_state_model_contract_covers_sample_visibility_and_project_duplicates()
 	await _test_asset_slot_control_exposes_state_snapshot_contract()
 	await _test_workspace_asset_slots_use_strict_resource_type_filters()
+	await _test_workspace_resource_purpose_tooltips_cover_resource_rows()
 	await _test_workspace_asset_slot_actions_remove_redundant_buttons()
 	await _test_workspace_asset_remaining_actions_are_wired_or_deleted()
 	await _test_sample_settings_duplicate_button_creates_project_catalog()
@@ -2895,6 +2896,52 @@ func _test_workspace_asset_slots_use_strict_resource_type_filters() -> void:
 		_assert_true(bool(snapshot["generic_resource_filter_allowed"]), "ASSET-30 %s/%s documents why generic Resource is allowed" % [tab_name, slot_id])
 		_assert_true(String(snapshot["type_filter_reason"]).contains("no concrete"), "ASSET-30 %s/%s flexible reason is explicit" % [tab_name, slot_id])
 		_assert_true(String(layout["status_tooltip"]).contains("Flexible Resource slot"), "ASSET-30 %s/%s tooltip carries flexible reason" % [tab_name, slot_id])
+
+	workspace.queue_free()
+	await process_frame
+
+
+func _test_workspace_resource_purpose_tooltips_cover_resource_rows() -> void:
+	var session = HexMapEditorSessionState.new()
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	var expectations: Array[Dictionary] = [
+		{"tab": "Resources", "slot": HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT},
+		{"tab": "Catalog", "slot": HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG},
+		{"tab": "Layers", "slot": HexMapWorkspaceAssetContext.SLOT_LAYER_STACK},
+		{"tab": "Resources", "slot": HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE},
+		{"tab": "Resources", "slot": HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE},
+		{"tab": "Resources", "slot": HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE},
+		{"tab": "QA", "slot": HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE},
+		{"tab": "Validate", "slot": HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE},
+		{"tab": "Export", "slot": HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE},
+	]
+	for expectation in expectations:
+		var tab_name := String(expectation["tab"])
+		var slot_id := String(expectation["slot"])
+		var layout = workspace.tab_asset_slot_layout_snapshot(tab_name, slot_id)
+		var tooltip := String(layout["status_tooltip"])
+		var purpose := HexMapWorkspaceAssetResourceFactory.resource_purpose(slot_id)
+		var expected_type := HexMapWorkspaceAssetResourceFactory.resource_type_name(slot_id)
+		_assert_true(tooltip.contains("Pick: %s" % expected_type), "INFO-70 %s/%s tooltip explains pick type" % [tab_name, slot_id])
+		_assert_true(tooltip.contains("Type: %s" % expected_type), "INFO-70 %s/%s tooltip includes type" % [tab_name, slot_id])
+		_assert_true(tooltip.contains("Purpose: %s" % purpose), "INFO-70 %s/%s tooltip includes purpose" % [tab_name, slot_id])
+		_assert_true(not String(layout["status_text"]).contains(purpose), "INFO-70 %s/%s keeps long purpose out of visible row text" % [tab_name, slot_id])
+		var filter_reason := HexMapWorkspaceAssetResourceFactory.type_filter_reason(slot_id)
+		if filter_reason != "":
+			_assert_true(tooltip.contains("Filter: %s" % filter_reason), "INFO-70 %s/%s tooltip includes flexible filter reason" % [tab_name, slot_id])
+
+	var catalog_snapshot = workspace.catalog_screen_snapshot()
+	var tile_set_tooltip := String(catalog_snapshot["tile_set_tooltip"])
+	_assert_true(tile_set_tooltip.contains("Pick: TileSet"), "INFO-70 Catalog TileSet tooltip explains pick type")
+	_assert_true(tile_set_tooltip.contains("Type: TileSet"), "INFO-70 Catalog TileSet tooltip includes type")
+	_assert_true(
+		tile_set_tooltip.contains("Purpose: %s" % HexMapWorkspaceAssetResourceFactory.tile_set_purpose()),
+		"INFO-70 Catalog TileSet tooltip includes purpose"
+	)
 
 	workspace.queue_free()
 	await process_frame

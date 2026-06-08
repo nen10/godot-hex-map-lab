@@ -99,9 +99,9 @@ Autopilot process: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `INFO-70` | `READY` | `LAYOUT-11` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/INFO-70_RESOURCE_PURPOSE_TOOLTIPS/` | Resource purpose tooltips | resource rows, asset slot controls, docs/tests | Level Document, TileSet, Catalog, Layer Stack, Object DB, Label DB, Movement Profile, Generation Profile, Validation Suite, Export Profile have concise purpose/type tooltips. |
+| `INFO-70` | `COMPLETE` | `LAYOUT-11` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/INFO-70_RESOURCE_PURPOSE_TOOLTIPS/` | Resource purpose tooltips | resource rows, asset slot controls, docs/tests | Level Document, TileSet, Catalog, Layer Stack, Object DB, Label DB, Movement Profile, Generation Profile, Validation Suite, Export Profile have concise purpose/type tooltips. |
 | `INFO-71` | `READY` | `TAB-50` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/INFO-71_TAB_PURPOSE_EMPTY_STATES/` | Tab purpose and empty states | workspace tabs/components, empty-state copy, tests | Empty states do not use sample to fill gaps; next action is one or two clear choices; detailed help moves to tooltip/help link. |
-| `INFO-72` | `BACKLOG` | `TAB-56` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/INFO-72_EXPORT_TERMINOLOGY_DECISION/` | Export terminology decision | `docs/review/roadmap/EXPORT_TERMINOLOGY_DECISION_2026-06-08.md`, Export tab/manual docs | Save Document, Runtime Handoff, Data Export, Package Build, Debug Report are classified; Export tab contents and manual terms are unified. |
+| `INFO-72` | `READY` | `TAB-56` | `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/INFO-72_EXPORT_TERMINOLOGY_DECISION/` | Export terminology decision | `docs/review/roadmap/EXPORT_TERMINOLOGY_DECISION_2026-06-08.md`, Export tab/manual docs | Save Document, Runtime Handoff, Data Export, Package Build, Debug Report are classified; Export tab contents and manual terms are unified. |
 
 ---
 
@@ -148,7 +148,7 @@ acceptance / test path:
 
 ## 12. Current pointer
 
-Current recommended next task: `INFO-70`.
+Current recommended next task: `INFO-71`.
 
 Reason:
 
@@ -176,8 +176,10 @@ Reason:
 - `PERF-61` is complete.
 - `PERF-62` is complete.
 - Phase U6 has no remaining READY task.
-- `INFO-70` is the first READY task in queue order.
-- `INFO-71` and `GEN-80` are also READY, but they appear later in the queue.
+- `INFO-70` is complete.
+- `INFO-72` was promoted to READY because `TAB-56` is complete.
+- `INFO-71` is the first READY task in queue order.
+- `INFO-72` and `GEN-80` are also READY, but they appear later in the queue.
 
 ---
 
@@ -555,3 +557,18 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_gen_dock.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/PERF-62_TEST_RESULT_2026-06-08.md`
+
+### INFO-70 Resource purpose tooltips
+
+proof:
+  plan: `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/INFO-70_RESOURCE_PURPOSE_TOOLTIPS/`
+  review: `docs/review/autopilot/INFO-70_SELF_REVIEW_2026-06-08.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace_asset_resource_factory.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/INFO-70_TEST_RESULT_2026-06-08.md`

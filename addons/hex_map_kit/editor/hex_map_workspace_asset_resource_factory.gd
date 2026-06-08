@@ -124,6 +124,10 @@ static func resource_purpose(slot_id: String) -> String:
 	return ""
 
 
+static func tile_set_purpose() -> String:
+	return "Provides atlas and scene tile sources used by Tile Catalog entries."
+
+
 static func type_filter_reason(slot_id: String) -> String:
 	match slot_id:
 		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE:
