@@ -11,6 +11,7 @@ const HexOverlayResource = preload("res://addons/hex_map_kit/adapter/hex_overlay
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
 const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
+const HexMapDocumentDependencyService = preload("res://addons/hex_map_kit/adapter/hex_map_document_dependency_service.gd")
 const HexMapDocumentValidator = preload("res://addons/hex_map_kit/adapter/hex_map_document_validator.gd")
 const HexMapDocumentLabelPlacementResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_label_placement_resource.gd")
 const HexMapDocumentObjectPlacementResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_object_placement_resource.gd")
@@ -126,6 +127,7 @@ func _run() -> void:
 	await _test_workspace_tab_content_query_contract_lists_expected_components_and_slots()
 	await _test_workspace_first_run_learning_cta_routes_to_settings_without_sample_defaults()
 	await _test_workspace_asset_context_is_shared_by_workspace_generate_and_paint()
+	await _test_workspace_hydrates_asset_context_from_document_dependencies()
 	await _test_document_asset_screen_manages_project_document_without_samples()
 	await _test_catalog_asset_screen_manages_project_catalog_without_samples()
 	await _test_layer_stack_asset_screen_manages_project_stack_without_samples()
@@ -1042,6 +1044,114 @@ func _test_workspace_asset_context_is_shared_by_workspace_generate_and_paint() -
 		workspace.tab_asset_slot_snapshot("Catalog", HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG).get("current_resource", null),
 		paint_catalog,
 		"Catalog tab asset slot tracks paint-selected project catalog through context"
+	)
+
+	workspace.queue_free()
+	await process_frame
+
+
+func _test_workspace_hydrates_asset_context_from_document_dependencies() -> void:
+	var session = HexMapEditorSessionState.new()
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	var document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	var catalog = HexTileCatalogResource.new()
+	var object_database = HexObjectDatabaseResource.new()
+	var label_database = HexLabelDatabaseResource.new()
+	var movement_profile = HexMovementProfileResource.new()
+	var validation_suite = Resource.new()
+	var generation_profile = Resource.new()
+	var export_profile = Resource.new()
+	HexMapDocumentDependencyService.set_shared_dependency(document, HexMapDocumentDependencyService.KEY_TILE_CATALOG, catalog)
+	HexMapDocumentDependencyService.set_shared_dependency(document, HexMapDocumentDependencyService.KEY_OBJECT_DATABASE, object_database)
+	HexMapDocumentDependencyService.set_shared_dependency(document, HexMapDocumentDependencyService.KEY_LABEL_DATABASE, label_database)
+	HexMapDocumentDependencyService.set_shared_dependency(document, HexMapDocumentDependencyService.KEY_MOVEMENT_PROFILE, movement_profile)
+	HexMapDocumentDependencyService.set_shared_dependency(document, HexMapDocumentDependencyService.KEY_VALIDATION_RULE_SUITE, validation_suite)
+	HexMapDocumentDependencyService.set_shared_dependency(document, HexMapDocumentDependencyService.KEY_GENERATION_PROFILE, generation_profile)
+	HexMapDocumentDependencyService.set_shared_dependency(document, HexMapDocumentDependencyService.KEY_EXPORT_PROFILE, export_profile)
+
+	var context := workspace.workspace_asset_context()
+	context.set_level_document(document)
+	await process_frame
+
+	_assert_eq(context.tile_catalog, catalog, "RES-11 document dependency hydrates Tile Catalog")
+	_assert_eq(context.object_database, object_database, "RES-11 document dependency hydrates Object Database")
+	_assert_eq(context.label_database, label_database, "RES-11 document dependency hydrates Label Database")
+	_assert_eq(context.movement_profile, movement_profile, "RES-11 document dependency hydrates Movement Profile")
+	_assert_eq(context.validation_rule_suite, validation_suite, "RES-11 document dependency hydrates Validation Rule Suite")
+	_assert_eq(context.generation_profile, generation_profile, "RES-11 document dependency hydrates Generation Profile")
+	_assert_eq(context.export_profile, export_profile, "RES-11 document dependency hydrates Export Profile")
+	_assert_eq(workspace.generation_dock().tile_catalog(), catalog, "RES-11 Generate consumes hydrated Tile Catalog")
+	_assert_eq(workspace.edit_tool().tile_catalog(), catalog, "RES-11 Paint consumes hydrated Tile Catalog")
+	_assert_eq(workspace.edit_tool().object_database(), object_database, "RES-11 Paint consumes hydrated Object Database")
+	_assert_eq(workspace.edit_tool().label_database(), label_database, "RES-11 Paint consumes hydrated Label Database")
+
+	var catalog_slot = workspace.tab_asset_slot_snapshot("Catalog", HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG)
+	_assert_eq(
+		String(catalog_slot.get("current_source", "")),
+		HexMapEditorAssetSlotState.SOURCE_DOCUMENT_DEPENDENCY,
+		"RES-11 Catalog row source records document dependency"
+	)
+	_assert_eq(
+		String(catalog_slot.get("current_source_badge", "")),
+		HexMapDocumentDependencyService.SOURCE_BADGE_DOCUMENT_DEPENDENCY,
+		"RES-11 Catalog row shows Document Dependency badge"
+	)
+	var resources_snapshot = workspace.resources_screen_snapshot()
+	var source_snapshot = resources_snapshot["asset_source_snapshot"] as Dictionary
+	_assert_eq(
+		String((source_snapshot[HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE] as Dictionary)["source_badge"]),
+		HexMapDocumentDependencyService.SOURCE_BADGE_DOCUMENT_DEPENDENCY,
+		"RES-11 Resources source snapshot records Object Database dependency badge"
+	)
+
+	var partial_document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	var partial_catalog = HexTileCatalogResource.new()
+	HexMapDocumentDependencyService.set_shared_dependency(partial_document, HexMapDocumentDependencyService.KEY_TILE_CATALOG, partial_catalog)
+	context.set_level_document(partial_document)
+	await process_frame
+
+	_assert_eq(context.tile_catalog, partial_catalog, "RES-11 second document hydrates replacement Tile Catalog")
+	_assert_eq(context.object_database, null, "RES-11 missing Object Database dependency stays missing")
+	_assert_eq(context.label_database, null, "RES-11 missing Label Database dependency stays missing")
+	_assert_eq(context.movement_profile, null, "RES-11 missing Movement Profile dependency stays missing")
+	_assert_eq(context.validation_rule_suite, null, "RES-11 missing Validation Suite dependency stays missing")
+	_assert_eq(context.generation_profile, null, "RES-11 missing Generation Profile dependency stays missing")
+	_assert_eq(context.export_profile, null, "RES-11 missing Export Profile dependency stays missing")
+	_assert_true(
+		not session.show_bundled_samples_in_main_selectors,
+		"RES-11 missing dependency hydration does not enable bundled samples"
+	)
+	var validation_result = workspace.validate_workspace_assets()
+	var missing_rules := PackedStringArray()
+	for issue in validation_result.issues:
+		if issue is Dictionary:
+			missing_rules.append(String((issue as Dictionary).get("rule_id", "")))
+	_assert_true(
+		missing_rules.has("workspace.object_database_missing"),
+		"RES-11 validation still reports missing Object Database after partial dependency hydration"
+	)
+
+	var manual_catalog = HexTileCatalogResource.new()
+	context.set_tile_catalog(manual_catalog)
+	await process_frame
+	var override_result = workspace.hydrate_workspace_context_from_document_dependencies(partial_document)
+	_assert_eq(context.tile_catalog, manual_catalog, "RES-11 manual catalog override supersedes dependency hydration")
+	_assert_eq(
+		String(workspace.tab_asset_slot_snapshot("Catalog", HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG).get("current_source", "")),
+		HexMapEditorAssetSlotState.SOURCE_PROJECT,
+		"RES-11 manual override row returns to project source"
+	)
+	_assert_true(
+		(override_result["skipped_manual_override_slot_ids"] as PackedStringArray).has(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG),
+		"RES-11 hydration result records skipped manual override"
 	)
 
 	workspace.queue_free()
@@ -2898,7 +3008,7 @@ func _test_asset_slot_control_exposes_state_snapshot_contract() -> void:
 	_assert_eq(snapshot["current_path"], "res://addons/hex_map_kit/assets/sample_object_db.tres", "asset slot control records sample path after explicit action")
 	layout = control.slot_layout_snapshot()
 	_assert_eq(layout["status_text"], "Warn", "SAMPLE-41 asset slot compact row warns after explicit sample selection")
-	_assert_true(String(layout["status_tooltip"]).contains("Source: sample"), "asset slot compact tooltip records sample source")
+	_assert_true(String(layout["status_tooltip"]).contains("Source: Sample Learning"), "asset slot compact tooltip records sample source badge")
 
 	var create_recorder = AssetCreatePathRecorder.new()
 	control.create_path_selected.connect(Callable(create_recorder, "record"))

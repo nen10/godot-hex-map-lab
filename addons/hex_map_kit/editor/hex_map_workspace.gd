@@ -4,6 +4,7 @@ extends VBoxContainer
 
 const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
 const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
+const HexMapDocumentDependencyService = preload("res://addons/hex_map_kit/adapter/hex_map_document_dependency_service.gd")
 const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
 const HexMapDocumentValidator = preload("res://addons/hex_map_kit/adapter/hex_map_document_validator.gd")
 const HexMapValidationResult = preload("res://addons/hex_map_kit/adapter/hex_map_validation_result.gd")
@@ -86,6 +87,8 @@ var _tab_components: Dictionary = {}
 var _tab_pages: Dictionary = {}
 var _tab_scroll_roots: Dictionary = {}
 var _last_workspace_validation_result: HexMapValidationResult = null
+var _hydrating_document_dependencies := false
+var _last_document_dependency_hydration := {}
 
 
 func _ready() -> void:
@@ -120,6 +123,10 @@ func set_workspace_asset_context(context: HexMapWorkspaceAssetContext) -> void:
 
 func workspace_asset_context() -> HexMapWorkspaceAssetContext:
 	return _ensure_session_state().current_workspace_asset_context()
+
+
+func hydrate_workspace_context_from_document_dependencies(document: HexMapDocumentResource = null) -> Dictionary:
+	return _hydrate_workspace_context_from_document_dependencies(document)
 
 
 func workspace_asset_context_for_tab(tab_name: String) -> HexMapWorkspaceAssetContext:
@@ -827,6 +834,9 @@ func resources_screen_snapshot() -> Dictionary:
 		"saved_path": document.resource_path if document != null else "",
 		"saved_status": "saved" if document != null and document.resource_path != "" else "unsaved",
 		"dirty": false,
+		"asset_source_snapshot": context.source_snapshot(),
+		"dependency_hydration": _document_dependency_hydration_snapshot(document),
+		"last_dependency_hydration": _last_document_dependency_hydration.duplicate(true),
 		"selected_hex_tile_map": selected_hex_tile_map_snapshot(),
 		"resource_groups": resource_group_rows(),
 		"create_missing_resources_available": _missing_unique_resources_create_button != null,
@@ -900,6 +910,7 @@ func clear_level_document() -> Dictionary:
 	var result := panel.clear_asset_slot(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT)
 	_ensure_session_state().set_document(null, "", "", "workspace.document.clear")
 	_ensure_session_state().set_document_saved_path("", "workspace.document.clear")
+	_hydrate_workspace_context_from_document_dependencies(null)
 	return result
 
 
@@ -2921,6 +2932,96 @@ func _sync_session_document_from_result(result: Dictionary, reason: String) -> v
 	var path := String(result.get("path", document.resource_path))
 	_ensure_session_state().set_document(document, "workspace.document_asset_screen", path, reason)
 	_ensure_session_state().set_document_saved_path(path, reason)
+	_hydrate_workspace_context_from_document_dependencies(document)
+
+
+func _hydrate_workspace_context_from_document_dependencies(document: HexMapDocumentResource = null) -> Dictionary:
+	if _hydrating_document_dependencies:
+		return _last_document_dependency_hydration.duplicate(true)
+	var context := workspace_asset_context()
+	var actual_document := document if document != null else context.level_document
+	var result := {
+		"ok": true,
+		"document": actual_document,
+		"source": HexMapWorkspaceAssetContext.SOURCE_DOCUMENT_DEPENDENCY,
+		"source_badge": HexMapDocumentDependencyService.SOURCE_BADGE_DOCUMENT_DEPENDENCY,
+		"hydrated": {},
+		"applied_slot_ids": PackedStringArray(),
+		"missing_dependency_slot_ids": PackedStringArray(),
+		"cleared_dependency_slot_ids": PackedStringArray(),
+		"skipped_manual_override_slot_ids": PackedStringArray(),
+	}
+	_hydrating_document_dependencies = true
+	var hydrated := HexMapDocumentDependencyService.hydrate_dependency_map(actual_document)
+	result["hydrated"] = hydrated
+	var applied := PackedStringArray()
+	var missing := PackedStringArray()
+	var cleared := PackedStringArray()
+	var skipped := PackedStringArray()
+	for key in HexMapDocumentDependencyService.shared_dependency_keys():
+		var slot_id := _document_dependency_slot_id(String(key))
+		if slot_id == "":
+			continue
+		var entry = hydrated.get(key, {}) as Dictionary
+		var dependency_resource = entry.get("resource", null) as Resource
+		var current_resource := context.asset_for_slot(slot_id)
+		var current_source := context.asset_source(slot_id)
+		if dependency_resource == null:
+			missing.append(slot_id)
+			if current_source == HexMapWorkspaceAssetContext.SOURCE_DOCUMENT_DEPENDENCY:
+				context.set_asset(slot_id, null)
+				cleared.append(slot_id)
+			elif current_resource != null:
+				skipped.append(slot_id)
+			continue
+		if current_resource == null or current_source == HexMapWorkspaceAssetContext.SOURCE_DOCUMENT_DEPENDENCY:
+			context.set_asset(
+				slot_id,
+				dependency_resource,
+				HexMapWorkspaceAssetContext.SOURCE_DOCUMENT_DEPENDENCY,
+				String(entry.get("source_badge", HexMapDocumentDependencyService.SOURCE_BADGE_DOCUMENT_DEPENDENCY))
+			)
+			applied.append(slot_id)
+		else:
+			skipped.append(slot_id)
+	result["applied_slot_ids"] = applied
+	result["missing_dependency_slot_ids"] = missing
+	result["cleared_dependency_slot_ids"] = cleared
+	result["skipped_manual_override_slot_ids"] = skipped
+	result["asset_source_snapshot"] = context.source_snapshot()
+	_hydrating_document_dependencies = false
+	_last_document_dependency_hydration = result.duplicate(true)
+	_sync_workspace_asset_context()
+	return _last_document_dependency_hydration.duplicate(true)
+
+
+func _document_dependency_hydration_snapshot(document: HexMapDocumentResource = null) -> Dictionary:
+	var actual_document := document if document != null else workspace_asset_context().level_document
+	return {
+		"document": actual_document,
+		"hydrated": HexMapDocumentDependencyService.hydrate_dependency_map(actual_document),
+		"asset_source_snapshot": workspace_asset_context().source_snapshot(),
+		"last_result": _last_document_dependency_hydration.duplicate(true),
+	}
+
+
+func _document_dependency_slot_id(key: String) -> String:
+	match key:
+		HexMapDocumentDependencyService.KEY_TILE_CATALOG:
+			return HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG
+		HexMapDocumentDependencyService.KEY_OBJECT_DATABASE:
+			return HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE
+		HexMapDocumentDependencyService.KEY_LABEL_DATABASE:
+			return HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE
+		HexMapDocumentDependencyService.KEY_MOVEMENT_PROFILE:
+			return HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE
+		HexMapDocumentDependencyService.KEY_VALIDATION_RULE_SUITE:
+			return HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE
+		HexMapDocumentDependencyService.KEY_GENERATION_PROFILE:
+			return HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE
+		HexMapDocumentDependencyService.KEY_EXPORT_PROFILE:
+			return HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE
+	return ""
 
 
 func _sync_layer_stack_from_result(result: Dictionary) -> void:
@@ -4341,6 +4442,8 @@ func _on_session_state_changed(_key: String) -> void:
 		_refresh_selected_hex_tile_map_context()
 	elif _key.begins_with("workspace_asset_context."):
 		var slot_id := _key.trim_prefix("workspace_asset_context.")
+		if slot_id == HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT and not _hydrating_document_dependencies:
+			_hydrate_workspace_context_from_document_dependencies(workspace_asset_context().level_document)
 		_apply_workspace_asset_change_to_selected_node(slot_id, "workspace.asset_context.changed")
 		_refresh_selected_hex_tile_map_context()
 	_refresh_sample_learning_cta()

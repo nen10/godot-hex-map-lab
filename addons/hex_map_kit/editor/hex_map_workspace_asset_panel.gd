@@ -191,7 +191,7 @@ func _sync_slots_from_context() -> void:
 		if resource == null:
 			control.clear_selection()
 		else:
-			control.set_selected_resource(resource, resource.resource_path)
+			control.set_selected_resource(resource, resource.resource_path, _context.asset_source(slot_id))
 	_syncing = false
 
 

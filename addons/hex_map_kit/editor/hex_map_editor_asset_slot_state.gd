@@ -12,7 +12,12 @@ const STATUS_WARNING := "warning"
 const SOURCE_NONE := "none"
 const SOURCE_PROJECT := "project"
 const SOURCE_SAMPLE := "sample"
+const SOURCE_DOCUMENT_DEPENDENCY := "document_dependency"
 const BUNDLED_SAMPLE_PATH_PREFIX := "res://addons/hex_map_kit/assets/"
+const SOURCE_BADGE_NONE := "Missing"
+const SOURCE_BADGE_PROJECT := "Project"
+const SOURCE_BADGE_SAMPLE := "Sample Learning"
+const SOURCE_BADGE_DOCUMENT_DEPENDENCY := "Document Dependency"
 
 var slot_id := ""
 var display_name := ""
@@ -176,6 +181,7 @@ func snapshot() -> Dictionary:
 		"current_resource": current_resource,
 		"current_path": current_path,
 		"current_source": current_source,
+		"current_source_badge": current_source_badge(),
 		"is_required": is_required,
 		"status": validation_status,
 		"status_label": status_label(),
@@ -196,6 +202,17 @@ func snapshot() -> Dictionary:
 func expected_type_name() -> String:
 	var text := String(required_type)
 	return text if text != "" else "Resource"
+
+
+func current_source_badge() -> String:
+	match current_source:
+		SOURCE_PROJECT:
+			return SOURCE_BADGE_PROJECT
+		SOURCE_SAMPLE:
+			return SOURCE_BADGE_SAMPLE
+		SOURCE_DOCUMENT_DEPENDENCY:
+			return SOURCE_BADGE_DOCUMENT_DEPENDENCY
+	return SOURCE_BADGE_NONE
 
 
 func picker_base_type() -> String:

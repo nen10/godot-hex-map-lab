@@ -71,8 +71,12 @@ func configure(
 	_refresh()
 
 
-func set_selected_resource(resource: Resource, path: String = "") -> void:
-	_state.set_selected_resource(resource, path)
+func set_selected_resource(
+	resource: Resource,
+	path: String = "",
+	source: String = HexMapEditorAssetSlotState.SOURCE_PROJECT
+) -> void:
+	_state.set_selected_resource(resource, path, source)
 	_sync_picker()
 
 
@@ -361,7 +365,7 @@ func _detail_text(snapshot: Dictionary) -> String:
 		"Current: %s" % String(snapshot.get("current_display", "Not selected")),
 		"Type: %s" % String(snapshot.get("expected_type", "Resource")),
 		"Status: %s" % String(snapshot.get("status_label", "")),
-		"Source: %s" % String(snapshot.get("current_source", "")),
+		"Source: %s" % String(snapshot.get("current_source_badge", snapshot.get("current_source", ""))),
 	]
 	var purpose := String(snapshot.get("purpose", ""))
 	if purpose != "":
