@@ -61,8 +61,8 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 |---|---|---|---|---|---|---|
 | `STATE-00` | `COMPLETE` | `FB-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-00_UI_FLAG_INVENTORY_AND_CONTRACT/` | UI flag inventory and state machine priority contract | `docs/review/roadmap/UI_FLAG_INVENTORY_2026-06-10.md`, workspace/gen/edit source notes | Generate, asset slots, workspace binding, paint, validation, export, sample, and dialog flags are inventoried; P0/P1/P2 state-machine priorities and old-test disposition are recorded; `./tools/test.sh` passed. |
 | `STATE-10` | `COMPLETE` | `STATE-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-10_GENERATION_RUN_STATE_MACHINE/` | Generation run state machine | `hex_map_gen_dock.gd`, generation state helpers, workspace Generate tab, tests | Progress/cancel/debounce/apply/dirty/error state is derived from one generation run state; Generate tab renders from ViewState; heavy orientation/global updates enter the state model. |
-| `STATE-20` | `READY` | `STATE-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-20_ASSET_SLOT_CONFIG_RUNTIME_SPLIT/` | Asset slot config/runtime/result state split | `hex_map_editor_asset_slot_state.gd`, `hex_map_editor_asset_slot_control.gd`, workspace asset panel, tests | Slot definition, current selection, validation result, sample availability, and operation result are separate structures; OK/Missing/Optional labels become ViewState/icon+tooltip. |
-| `STATE-30` | `BACKLOG` | `NODE-20`, `STATE-20` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-30_WORKSPACE_SELECTION_BINDING_STATE/` | Workspace selection and writeback state machine | binding service, `HexMapEditorSessionState`, `HexMapWorkspace`, editor tests | No target, selected node without document, hydrated dependencies, manual override, pending writeback, applied writeback, and conflict are explicit states; auto-link works without a manual link button. |
+| `STATE-20` | `COMPLETE` | `STATE-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-20_ASSET_SLOT_CONFIG_RUNTIME_SPLIT/` | Asset slot config/runtime/result state split | `hex_map_editor_asset_slot_state.gd`, `hex_map_editor_asset_slot_control.gd`, workspace asset panel, tests | Slot definition, current selection, validation result, sample availability, and operation result are separate structures; OK/Missing/Optional labels become ViewState/icon+tooltip. |
+| `STATE-30` | `READY` | `NODE-20`, `STATE-20` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-30_WORKSPACE_SELECTION_BINDING_STATE/` | Workspace selection and writeback state machine | binding service, `HexMapEditorSessionState`, `HexMapWorkspace`, editor tests | No target, selected node without document, hydrated dependencies, manual override, pending writeback, applied writeback, and conflict are explicit states; auto-link works without a manual link button. |
 | `STATE-40` | `BACKLOG` | `STATE-30` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-40_PAINT_INTERACTION_STATE_MACHINE/` | Paint interaction state machine | `hex_map_edit_tool.gd`, viewport input adapter, workspace Paint tab, editor tests | Paint state covers target/document/brush/viewport hover/apply/dirty/validation focus/missing asset; selected cell, active brush, and layer target render from state. |
 | `STATE-50` | `BACKLOG` | `STATE-30` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-50_VALIDATION_EXPORT_SAMPLE_DIALOG_STATES/` | Validation, Export, Sample, and Dialog state models | workspace tabs, validation dashboard, sample settings, dist/export UI, dialog lifecycle helpers, tests | Validation, export, sample learning, and dialog lifecycle have explicit state transitions and ViewState output; tests cover transitions, not private widget shapes. |
 | `STATE-60` | `BACKLOG` | `STATE-10`, `STATE-20`, `STATE-30`, `STATE-40`, `STATE-50` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-60_ROOT_DISPATCHER_AND_VIEWSTATE_INTEGRATION/` | Root dispatcher and ViewState integration | workspace root state/dispatcher helpers, tab renderers, debug report code, tests | Screens receive ViewState instead of recombining flags; root events dispatch through reducer/dispatcher boundaries; debug reports can be generated from state snapshots. |
@@ -148,7 +148,7 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `STATE-20`.
+Current recommended next task: `STATE-30`.
 
 Reason:
 
@@ -164,8 +164,9 @@ Reason:
 - `PROFILE-31` is complete.
 - `STATE-00` is complete.
 - `STATE-10` is complete.
-- `STATE-20`, `UI-00`, `SCREEN-24`, `ARCH-50`, and `PERF-60` are READY.
-- `STATE-20` is first in queue order after completed `STATE-10`.
+- `STATE-20` is complete.
+- `STATE-30`, `UI-00`, `SCREEN-24`, `ARCH-50`, and `PERF-60` are READY.
+- `STATE-30` is first in queue order after completed `STATE-20`.
 
 ---
 
@@ -375,3 +376,22 @@ proof:
     - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-10_GENERATION_RUN_STATE_MACHINE/POLICY.md`
     - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-10_GENERATION_RUN_STATE_MACHINE/IMPLEMENTATION_PLAN.md`
     - `docs/review/autopilot/STATE-10_TEST_RESULT_2026-06-10.md`
+
+### STATE-20 Asset slot config/runtime/result state split
+
+proof:
+  plan: `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-20_ASSET_SLOT_CONFIG_RUNTIME_SPLIT/`
+  review: `docs/review/autopilot/STATE-20_SELF_REVIEW_2026-06-10.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_editor_asset_slot_state.gd`
+    - `addons/hex_map_kit/editor/hex_map_editor_asset_slot_control.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-20_ASSET_SLOT_CONFIG_RUNTIME_SPLIT/SUB_TASKS.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-20_ASSET_SLOT_CONFIG_RUNTIME_SPLIT/UX.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-20_ASSET_SLOT_CONFIG_RUNTIME_SPLIT/POLICY.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-20_ASSET_SLOT_CONFIG_RUNTIME_SPLIT/IMPLEMENTATION_PLAN.md`
+    - `docs/review/autopilot/STATE-20_TEST_RESULT_2026-06-10.md`

@@ -2964,6 +2964,26 @@ func _test_asset_slot_state_model_reports_selection_validation_and_sample_source
 	_assert_eq(snapshot["status"], HexMapEditorAssetSlotState.STATUS_NOT_SELECTED, "asset slot starts not selected")
 	_assert_true(not bool(snapshot["selected"]), "asset slot starts without current selection")
 	_assert_true(String(snapshot["validation_messages"][0]).contains("required"), "required slot reports missing selection")
+	var config = snapshot["config"] as Dictionary
+	var runtime = snapshot["runtime"] as Dictionary
+	var validation = snapshot["validation"] as Dictionary
+	var sample = snapshot["sample"] as Dictionary
+	var operation = snapshot["operation"] as Dictionary
+	var view_state = snapshot["view_state"] as Dictionary
+	_assert_eq(String(config["slot_id"]), "tile_catalog", "STATE-20 config keeps slot definition separate")
+	_assert_true(not bool(runtime["selected"]), "STATE-20 runtime starts without selection")
+	_assert_eq(String(validation["status"]), HexMapEditorAssetSlotState.STATUS_NOT_SELECTED, "STATE-20 validation stores missing status separately")
+	_assert_eq(String(validation["status_kind"]), HexMapEditorAssetSlotState.STATUS_KIND_MISSING, "STATE-20 required missing status has missing kind")
+	_assert_true(not bool(sample["available"]), "STATE-20 sample section starts unavailable")
+	_assert_true(not bool(operation["present"]), "STATE-20 operation result starts empty")
+	_assert_eq(String(view_state["state_source"]), "HexMapEditorAssetSlotState", "STATE-20 ViewState reports state source")
+	_assert_eq(String(view_state["status_text"]), "Missing", "STATE-20 ViewState renders missing status text")
+
+	var optional_slot = HexMapEditorAssetSlotState.new()
+	optional_slot.configure("movement_profile", "Movement Profile", &"HexMovementProfileResource", false)
+	view_state = optional_slot.snapshot()["view_state"] as Dictionary
+	_assert_eq(String(view_state["status_kind"]), HexMapEditorAssetSlotState.STATUS_KIND_OPTIONAL, "STATE-20 optional missing slot has optional status kind")
+	_assert_eq(String(view_state["status_text"]), "Optional", "STATE-20 optional missing slot renders Optional")
 
 	var sample_catalog = HexTileCatalogResource.new()
 	slot.set_sample_source(
@@ -2975,11 +2995,19 @@ func _test_asset_slot_state_model_reports_selection_validation_and_sample_source
 	_assert_true(bool(snapshot["sample_available"]), "asset slot records optional sample source")
 	_assert_true(not bool(snapshot["selected"]), "sample source is not selected by default")
 	_assert_eq(snapshot["current_source"], HexMapEditorAssetSlotState.SOURCE_NONE, "sample source does not become current source")
+	sample = snapshot["sample"] as Dictionary
+	runtime = snapshot["runtime"] as Dictionary
+	_assert_true(bool(sample["available"]), "STATE-20 sample availability is separate from runtime selection")
+	_assert_eq(String(runtime["current_source"]), HexMapEditorAssetSlotState.SOURCE_NONE, "STATE-20 runtime source remains none before explicit sample action")
 
 	slot.set_selected_resource(HexMapDocumentResource.new(), "res://project/document.tres")
 	snapshot = slot.snapshot()
 	_assert_eq(snapshot["status"], HexMapEditorAssetSlotState.STATUS_INVALID, "asset slot detects type mismatch")
 	_assert_true(not bool(snapshot["type_matches"]), "asset slot exposes failed type match")
+	validation = snapshot["validation"] as Dictionary
+	runtime = snapshot["runtime"] as Dictionary
+	_assert_eq(String(validation["status_kind"]), HexMapEditorAssetSlotState.STATUS_KIND_ERROR, "STATE-20 invalid type is validation error")
+	_assert_true(bool(runtime["selected"]), "STATE-20 invalid resource is still a runtime selection")
 	_assert_true(
 		String(snapshot["validation_messages"][0]).contains("Expected HexTileCatalogResource"),
 		"asset slot mismatch message names expected type"
@@ -2992,11 +3020,15 @@ func _test_asset_slot_state_model_reports_selection_validation_and_sample_source
 	_assert_true(bool(snapshot["type_matches"]), "asset slot exposes successful type match")
 	_assert_eq(snapshot["current_source"], HexMapEditorAssetSlotState.SOURCE_PROJECT, "project resource is current source")
 	_assert_eq(snapshot["current_path"], "res://project/catalog.tres", "asset slot stores selected project path")
+	view_state = snapshot["view_state"] as Dictionary
+	_assert_eq(String(view_state["status_kind"]), HexMapEditorAssetSlotState.STATUS_KIND_OK, "STATE-20 selected project resource has OK ViewState kind")
 
 	slot.mark_warning(["TileSet missing."])
 	snapshot = slot.snapshot()
 	_assert_eq(snapshot["status"], HexMapEditorAssetSlotState.STATUS_WARNING, "asset slot represents warning state")
 	_assert_eq(snapshot["validation_messages"][0], "TileSet missing.", "asset slot stores warning messages")
+	validation = snapshot["validation"] as Dictionary
+	_assert_eq(String(validation["status_kind"]), HexMapEditorAssetSlotState.STATUS_KIND_WARNING, "STATE-20 warning status stays in validation section")
 
 	slot.clear_selection()
 	snapshot = slot.snapshot()
@@ -3008,6 +3040,9 @@ func _test_asset_slot_state_model_reports_selection_validation_and_sample_source
 	_assert_eq(snapshot["current_source"], HexMapEditorAssetSlotState.SOURCE_SAMPLE, "explicit sample application marks sample source")
 	_assert_eq(snapshot["current_resource"], sample_catalog, "explicit sample application selects sample resource")
 	_assert_eq(snapshot["status"], HexMapEditorAssetSlotState.STATUS_WARNING, "SAMPLE-41 explicit sample application warns before production use")
+	operation = snapshot["operation"] as Dictionary
+	_assert_true(bool(operation["present"]), "STATE-20 sample action records operation result separately")
+	_assert_eq(String(operation["action_id"]), "apply_sample", "STATE-20 operation records sample action id")
 
 
 func _test_asset_slot_state_model_contract_covers_sample_visibility_and_project_duplicates() -> void:
@@ -3133,9 +3168,16 @@ func _test_asset_slot_control_exposes_state_snapshot_contract() -> void:
 	_assert_true(not bool(snapshot["selected"]), "asset slot control does not auto-select sample source")
 	_assert_eq(String(snapshot["picker_base_type"]), "HexObjectDatabaseResource", "ASSET-30 asset slot state exposes strict picker base type")
 	_assert_true(not bool(snapshot["uses_generic_resource_filter"]), "ASSET-30 typed asset slot does not use generic Resource filter")
+	var view_state = snapshot["view_state"] as Dictionary
+	_assert_eq(String(view_state["status_kind"]), HexMapEditorAssetSlotState.STATUS_KIND_MISSING, "STATE-20 control snapshot exposes missing ViewState kind")
+	_assert_eq(String((snapshot["config"] as Dictionary)["required_type"]), "HexObjectDatabaseResource", "STATE-20 control snapshot separates config")
+	_assert_true(not bool((snapshot["runtime"] as Dictionary)["selected"]), "STATE-20 control snapshot separates runtime")
+	_assert_true(bool((snapshot["sample"] as Dictionary)["available"]), "STATE-20 control snapshot separates sample availability")
 	var layout = control.slot_layout_snapshot()
 	_assert_true(bool(layout["compact_row"]), "asset slot control uses compact row layout")
 	_assert_eq(layout["status_text"], "Missing", "asset slot compact row keeps missing state visible")
+	_assert_eq(String(layout["status_kind"]), HexMapEditorAssetSlotState.STATUS_KIND_MISSING, "STATE-20 layout exposes ViewState status kind")
+	_assert_eq(String(layout["status_icon"]), "missing", "STATE-20 layout exposes status icon id")
 	_assert_true(not bool(layout["details_visible"]), "asset slot details start collapsed")
 	_assert_eq(String(layout["details_button_text"]), "", "FB-02 asset slot removes visible Details button text")
 	_assert_true(not bool(layout["details_button_visible"]), "FB-02 asset slot Details button is not visible")
@@ -3165,6 +3207,7 @@ func _test_asset_slot_control_exposes_state_snapshot_contract() -> void:
 	_assert_eq(snapshot["current_path"], "res://project/object_database.tres", "asset slot control records selected path")
 	layout = control.slot_layout_snapshot()
 	_assert_eq(layout["status_text"], "OK", "asset slot compact row reports selected state")
+	_assert_eq(String(layout["status_kind"]), HexMapEditorAssetSlotState.STATUS_KIND_OK, "STATE-20 selected layout status comes from ViewState")
 	_assert_true(String(layout["status_tooltip"]).contains("res://project/object_database.tres"), "asset slot compact tooltip carries selected path")
 
 	control.mark_invalid(["Object database is missing required definitions."])
@@ -3177,6 +3220,7 @@ func _test_asset_slot_control_exposes_state_snapshot_contract() -> void:
 	)
 	layout = control.slot_layout_snapshot()
 	_assert_eq(layout["status_text"], "Invalid", "asset slot compact row reports invalid state")
+	_assert_eq(String(layout["status_kind"]), HexMapEditorAssetSlotState.STATUS_KIND_ERROR, "STATE-20 invalid layout status comes from ViewState")
 	_assert_true(String(layout["message_detail_text"]).contains("Object database is missing"), "asset slot details keep validation messages")
 	control.set_details_visible(true)
 	layout = control.slot_layout_snapshot()
@@ -3186,8 +3230,10 @@ func _test_asset_slot_control_exposes_state_snapshot_contract() -> void:
 	snapshot = control.slot_state_snapshot()
 	_assert_eq(snapshot["current_source"], HexMapEditorAssetSlotState.SOURCE_SAMPLE, "asset slot control records explicit sample source")
 	_assert_eq(snapshot["current_path"], "res://addons/hex_map_kit/assets/sample_object_db.tres", "asset slot control records sample path after explicit action")
+	_assert_eq(String((snapshot["operation"] as Dictionary)["action_id"]), "apply_sample", "STATE-20 control snapshot records sample operation separately")
 	layout = control.slot_layout_snapshot()
 	_assert_eq(layout["status_text"], "Warn", "SAMPLE-41 asset slot compact row warns after explicit sample selection")
+	_assert_eq(String(layout["status_kind"]), HexMapEditorAssetSlotState.STATUS_KIND_WARNING, "STATE-20 sample warning layout status comes from ViewState")
 	_assert_true(String(layout["status_tooltip"]).contains("Source: Sample Learning"), "asset slot compact tooltip records sample source badge")
 
 	var create_recorder = AssetCreatePathRecorder.new()
@@ -3447,6 +3493,8 @@ func _test_workspace_asset_remaining_actions_are_wired_or_deleted() -> void:
 	_assert_eq(after_create["current_resource"], created_catalog, "ASSET-32 Create New button path refreshes row state")
 	_assert_eq(String(after_create["current_source"]), HexMapEditorAssetSlotState.SOURCE_PROJECT, "ASSET-32 Create New button path records project source")
 	_assert_eq(String(after_create["current_path"]), catalog_path, "ASSET-32 Create New button path records selected path")
+	_assert_eq(String((after_create["operation"] as Dictionary)["action_id"]), HexMapEditorAssetSlotControl.ACTION_CREATE_NEW, "STATE-20 Create New action records operation result")
+	_assert_true(bool((after_create["operation"] as Dictionary)["ok"]), "STATE-20 Create New operation result records success separately")
 
 	var panel = workspace.sample_settings_panel()
 	_assert_true(not _has_button_text(panel, "Open"), "ASSET-32 Settings sample Open action is removed until functional")
@@ -3470,6 +3518,7 @@ func _test_workspace_asset_remaining_actions_are_wired_or_deleted() -> void:
 	var after_sample = sample_result["after"] as Dictionary
 	_assert_eq(after_sample["current_resource"], sample_catalog, "ASSET-32 sample action button path selects sample resource")
 	_assert_eq(String(after_sample["current_source"]), HexMapEditorAssetSlotState.SOURCE_SAMPLE, "ASSET-32 sample action button path records sample source")
+	_assert_eq(String((after_sample["operation"] as Dictionary)["action_id"]), HexMapEditorAssetSlotControl.ACTION_APPLY_SAMPLE, "STATE-20 sample action records operation result")
 
 	sample_control.queue_free()
 	workspace.queue_free()

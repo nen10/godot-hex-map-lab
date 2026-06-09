@@ -8,6 +8,11 @@ const STATUS_NOT_SELECTED := "not_selected"
 const STATUS_SELECTED := "selected"
 const STATUS_INVALID := "invalid"
 const STATUS_WARNING := "warning"
+const STATUS_KIND_OK := "ok"
+const STATUS_KIND_MISSING := "missing"
+const STATUS_KIND_OPTIONAL := "optional"
+const STATUS_KIND_WARNING := "warning"
+const STATUS_KIND_ERROR := "error"
 
 const SOURCE_NONE := "none"
 const SOURCE_PROJECT := "project"
@@ -35,6 +40,7 @@ var allows_sample := false
 var sample_resource: Resource = null
 var sample_path := ""
 var sample_label := ""
+var _last_operation_result: Dictionary = {}
 
 
 func configure(
@@ -117,9 +123,39 @@ func clear_sample_source() -> void:
 
 func apply_sample_source() -> bool:
 	if not has_sample_source():
+		record_operation_result(
+			"apply_sample",
+			false,
+			ERR_UNAVAILABLE,
+			"No sample source is available."
+		)
 		return false
 	set_selected_resource(sample_resource, sample_path, SOURCE_SAMPLE)
+	record_operation_result(
+		"apply_sample",
+		true,
+		OK,
+		"Sample source selected.",
+		sample_path
+	)
 	return true
+
+
+func record_operation_result(
+	action_id: String,
+	ok: bool,
+	error: int = OK,
+	message: String = "",
+	path: String = ""
+) -> void:
+	_last_operation_result = {
+		"action_id": action_id,
+		"ok": ok,
+		"error": error,
+		"message": message,
+		"path": path,
+	}
+	changed.emit()
 
 
 func has_current_selection() -> bool:
@@ -167,7 +203,120 @@ func sample_display_text() -> String:
 	return "(embedded sample)"
 
 
+func config_snapshot() -> Dictionary:
+	return {
+		"slot_id": slot_id,
+		"display_name": display_name,
+		"required_type": String(required_type),
+		"expected_type": expected_type_name(),
+		"picker_base_type": picker_base_type(),
+		"uses_generic_resource_filter": uses_generic_resource_filter(),
+		"generic_resource_filter_allowed": generic_resource_filter_allowed(),
+		"type_filter_reason": type_filter_reason,
+		"purpose": purpose,
+		"is_required": is_required,
+		"allows_create_new": allows_create_new,
+		"allows_sample": allows_sample,
+	}
+
+
+func runtime_snapshot() -> Dictionary:
+	return {
+		"current_resource": current_resource,
+		"current_path": current_path,
+		"current_source": current_source,
+		"current_source_badge": current_source_badge(),
+		"selected": has_current_selection(),
+		"current_display": current_display_text(),
+	}
+
+
+func validation_snapshot() -> Dictionary:
+	return {
+		"status": validation_status,
+		"status_label": status_label(),
+		"status_kind": status_kind(),
+		"messages": validation_messages.duplicate(),
+		"type_matches": type_matches(),
+		"selected": has_current_selection(),
+		"required": is_required,
+	}
+
+
+func sample_snapshot() -> Dictionary:
+	return {
+		"available": has_sample_source(),
+		"allowed": allows_sample,
+		"resource": sample_resource,
+		"path": sample_path,
+		"label": sample_label,
+		"display": sample_display_text(),
+	}
+
+
+func operation_snapshot() -> Dictionary:
+	if _last_operation_result.is_empty():
+		return {
+			"present": false,
+			"action_id": "",
+			"ok": false,
+			"error": OK,
+			"message": "",
+			"path": "",
+		}
+	var result := _last_operation_result.duplicate(true)
+	result["present"] = true
+	return result
+
+
+func view_state() -> Dictionary:
+	var detail_text := detail_tooltip_text()
+	var status_kind_value := status_kind()
+	var create_visible := allows_create_new
+	var sample_visible := allows_sample and has_sample_source()
+	var actions := {
+		"create_new": {
+			"visible": create_visible,
+			"enabled": create_visible,
+			"text": "Create New...",
+			"tooltip": "Create a project %s resource." % expected_type_name(),
+		},
+		"apply_sample": {
+			"visible": sample_visible,
+			"enabled": sample_visible,
+			"text": sample_display_text() if sample_visible else "Learn With Sample",
+			"tooltip": "Use this bundled sample as a learning source.",
+		},
+	}
+	return {
+		"state_source": "HexMapEditorAssetSlotState",
+		"slot_id": slot_id,
+		"title_text": display_name,
+		"title_tooltip": detail_text,
+		"status_kind": status_kind_value,
+		"status_icon": status_icon(status_kind_value),
+		"status_text": status_text(status_kind_value),
+		"status_tooltip": detail_text,
+		"current_detail_text": "Current: %s" % current_display_text(),
+		"type_detail_text": "Type: %s" % expected_type_name(),
+		"message_detail_text": "\n".join(validation_messages),
+		"resource_picker_base_type": picker_base_type(),
+		"resource_picker_tooltip": detail_text,
+		"actions": actions,
+		"actions_visible": create_visible or sample_visible,
+		"selected": has_current_selection(),
+		"sample_available": has_sample_source(),
+		"operation": operation_snapshot(),
+	}
+
+
 func snapshot() -> Dictionary:
+	var config := config_snapshot()
+	var runtime := runtime_snapshot()
+	var validation := validation_snapshot()
+	var sample := sample_snapshot()
+	var operation := operation_snapshot()
+	var view := view_state()
 	return {
 		"slot_id": slot_id,
 		"display_name": display_name,
@@ -196,6 +345,12 @@ func snapshot() -> Dictionary:
 		"selected": has_current_selection(),
 		"current_display": current_display_text(),
 		"sample_display": sample_display_text(),
+		"config": config,
+		"runtime": runtime,
+		"validation": validation,
+		"sample": sample,
+		"operation": operation,
+		"view_state": view,
 	}
 
 
@@ -213,6 +368,67 @@ func current_source_badge() -> String:
 		SOURCE_DOCUMENT_DEPENDENCY:
 			return SOURCE_BADGE_DOCUMENT_DEPENDENCY
 	return SOURCE_BADGE_NONE
+
+
+func status_kind() -> String:
+	match validation_status:
+		STATUS_SELECTED:
+			return STATUS_KIND_OK
+		STATUS_INVALID:
+			return STATUS_KIND_ERROR
+		STATUS_WARNING:
+			return STATUS_KIND_WARNING
+		_:
+			return STATUS_KIND_MISSING if is_required else STATUS_KIND_OPTIONAL
+
+
+func status_text(kind: String = "") -> String:
+	var actual_kind := kind if kind != "" else status_kind()
+	match actual_kind:
+		STATUS_KIND_OK:
+			return "OK"
+		STATUS_KIND_ERROR:
+			return "Invalid"
+		STATUS_KIND_WARNING:
+			return "Warn"
+		STATUS_KIND_OPTIONAL:
+			return "Optional"
+		_:
+			return "Missing"
+
+
+func status_icon(kind: String = "") -> String:
+	var actual_kind := kind if kind != "" else status_kind()
+	match actual_kind:
+		STATUS_KIND_OK:
+			return "check"
+		STATUS_KIND_ERROR:
+			return "alert"
+		STATUS_KIND_WARNING:
+			return "warning"
+		STATUS_KIND_OPTIONAL:
+			return "optional"
+		_:
+			return "missing"
+
+
+func detail_tooltip_text() -> String:
+	var lines: Array[String] = [
+		"Pick: %s" % expected_type_name(),
+		"Current: %s" % current_display_text(),
+		"Type: %s" % expected_type_name(),
+		"Status: %s" % status_label(),
+		"Source: %s" % current_source_badge(),
+	]
+	if purpose != "":
+		lines.append("Purpose: %s" % purpose)
+	if type_filter_reason != "":
+		lines.append("Filter: %s" % type_filter_reason)
+	for message in validation_messages:
+		var text := String(message)
+		if text != "":
+			lines.append(text)
+	return "\n".join(lines)
 
 
 func picker_base_type() -> String:
