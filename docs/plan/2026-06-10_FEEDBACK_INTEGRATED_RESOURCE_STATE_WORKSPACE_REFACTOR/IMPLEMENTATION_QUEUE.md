@@ -28,9 +28,9 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `FB-00` | `READY` | none | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/FB-00_ADOPT_ALL_FEEDBACKS/` | Feedback adoption proof and execution source-of-truth reset | `ROADMAP.md`, feedback docs, queue/proof docs | 4 feedback sources are adopted in the roadmap; priority order, analog-test deferral, and final-only dist rule are recorded; `./tools/test.sh` if environment supports Godot. |
-| `FB-01` | `BACKLOG` | `FB-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/FB-01_FIX_FILE_DIALOG_POPUP_PATHS/` | Unified FileDialog lifecycle for workspace/editor dialogs | `addons/hex_map_kit/editor/hex_map_workspace.gd`, `hex_map_editor_path_selector.gd`, `hex_map_editor_asset_slot_control.gd`, `hex_map_sample_settings_panel.gd`, `hex_dist_editor.gd`, editor tests | Dialog popup paths use one lifecycle utility; no double `add_child()` / reparent path remains; open/commit/cancel is represented by callback or dialog state; tests cover lifecycle contract without depending on actual popup. |
-| `FB-02` | `BACKLOG` | `FB-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/FB-02_VISIBLE_NO_OP_CONTROL_REPAIR/` | Visible no-op and placeholder control removal | workspace tabs, asset slot controls, sample settings, editor tests | No visible Select/Open/Validate/Details/Link/Node/Sample action remains without a real state change; disabled controls explain conditions via tooltip; `./tools/test.sh` plus targeted editor UI tests. |
+| `FB-00` | `COMPLETE` | none | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/FB-00_ADOPT_ALL_FEEDBACKS/` | Feedback adoption proof and execution source-of-truth reset | `ROADMAP.md`, feedback docs, queue/proof docs | 4 feedback sources are adopted in the roadmap; priority order, analog-test deferral, and final-only dist rule are recorded; `./tools/test.sh` passed. |
+| `FB-01` | `READY` | `FB-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/FB-01_FIX_FILE_DIALOG_POPUP_PATHS/` | Unified FileDialog lifecycle for workspace/editor dialogs | `addons/hex_map_kit/editor/hex_map_workspace.gd`, `hex_map_editor_path_selector.gd`, `hex_map_editor_asset_slot_control.gd`, `hex_map_sample_settings_panel.gd`, `hex_dist_editor.gd`, editor tests | Dialog popup paths use one lifecycle utility; no double `add_child()` / reparent path remains; open/commit/cancel is represented by callback or dialog state; tests cover lifecycle contract without depending on actual popup. |
+| `FB-02` | `READY` | `FB-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/FB-02_VISIBLE_NO_OP_CONTROL_REPAIR/` | Visible no-op and placeholder control removal | workspace tabs, asset slot controls, sample settings, editor tests | No visible Select/Open/Validate/Details/Link/Node/Sample action remains without a real state change; disabled controls explain conditions via tooltip; `./tools/test.sh` plus targeted editor UI tests. |
 
 ---
 
@@ -38,7 +38,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `RES-10` | `BACKLOG` | `FB-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/RES-10_DOCUMENT_DEPENDENCY_SERVICE/` | Document dependency service for shared project resources | `addons/hex_map_kit/adapter/hex_map_document_dependency_resource.gd`, new `hex_map_document_dependency_service.gd`, adapter tests | Tile Catalog, Object DB, Label DB, Movement Profile, Validation Suite, Generation Profile, and Export Profile can be add/find/update/remove/hydrated from `HexMapDocumentResource.dependencies`; tests cover dependency CRUD and validation. |
+| `RES-10` | `READY` | `FB-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/RES-10_DOCUMENT_DEPENDENCY_SERVICE/` | Document dependency service for shared project resources | `addons/hex_map_kit/adapter/hex_map_document_dependency_resource.gd`, new `hex_map_document_dependency_service.gd`, adapter tests | Tile Catalog, Object DB, Label DB, Movement Profile, Validation Suite, Generation Profile, and Export Profile can be add/find/update/remove/hydrated from `HexMapDocumentResource.dependencies`; tests cover dependency CRUD and validation. |
 | `RES-11` | `BACKLOG` | `RES-10` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/RES-11_DOCUMENT_DEPENDENCY_HYDRATION/` | Workspace context hydration from selected document dependencies | `HexMapWorkspaceAssetContext`, `HexMapWorkspace`, dependency service, editor tests | Document selection hydrates shared resources into workspace context with `Document Dependency` source badge; manual override can temporarily supersede it; missing dependencies stay missing instead of silently using samples. |
 | `NODE-20` | `BACKLOG` | `RES-11` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/NODE-20_HEX_TILE_MAP_RESOURCE_BINDING_SERVICE/` | Selected HexTileMap read/write binding service | new `addons/hex_map_kit/editor/hex_map_workspace_binding_service.gd`, `HexTileMapLayer`, `HexMapWorkspace`, editor tests | Scene selection resolves `HexTileMapLayer`; node-owned Level Document / Layer Stack are read and written on node exports; shared resources are read/written through document dependencies. |
 | `NODE-21` | `BACKLOG` | `NODE-20` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/NODE-21_HEX_MAP_RESOURCE_ROLE_CLARIFICATION/` | Clear role decision for `HexTileMapLayer.hex_map` | `addons/hex_map_kit/adapter/hex_tile_map_layer.gd`, document adapter, workspace UI/docs/tests | `hex_map` is no longer implied as authoring source of truth; UI/docs/tests treat Level Document as canonical authoring; no ambiguous compatibility-only display remains. |
@@ -59,7 +59,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `STATE-00` | `BACKLOG` | `FB-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-00_UI_FLAG_INVENTORY_AND_CONTRACT/` | UI flag inventory and state machine priority contract | `docs/review/roadmap/UI_FLAG_INVENTORY_2026-06-10.md`, workspace/gen/edit source notes | Generate, asset slots, workspace binding, paint, validation, export, sample, and dialog flags are inventoried; P0/P1/P2 state-machine priorities and old-test disposition are recorded. |
+| `STATE-00` | `READY` | `FB-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-00_UI_FLAG_INVENTORY_AND_CONTRACT/` | UI flag inventory and state machine priority contract | `docs/review/roadmap/UI_FLAG_INVENTORY_2026-06-10.md`, workspace/gen/edit source notes | Generate, asset slots, workspace binding, paint, validation, export, sample, and dialog flags are inventoried; P0/P1/P2 state-machine priorities and old-test disposition are recorded. |
 | `STATE-10` | `BACKLOG` | `STATE-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-10_GENERATION_RUN_STATE_MACHINE/` | Generation run state machine | `hex_map_gen_dock.gd`, generation state helpers, workspace Generate tab, tests | Progress/cancel/debounce/apply/dirty/error state is derived from one generation run state; Generate tab renders from ViewState; heavy orientation/global updates enter the state model. |
 | `STATE-20` | `BACKLOG` | `STATE-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-20_ASSET_SLOT_CONFIG_RUNTIME_SPLIT/` | Asset slot config/runtime/result state split | `hex_map_editor_asset_slot_state.gd`, `hex_map_editor_asset_slot_control.gd`, workspace asset panel, tests | Slot definition, current selection, validation result, sample availability, and operation result are separate structures; OK/Missing/Optional labels become ViewState/icon+tooltip. |
 | `STATE-30` | `BACKLOG` | `NODE-20`, `STATE-20` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-30_WORKSPACE_SELECTION_BINDING_STATE/` | Workspace selection and writeback state machine | binding service, `HexMapEditorSessionState`, `HexMapWorkspace`, editor tests | No target, selected node without document, hydrated dependencies, manual override, pending writeback, applied writeback, and conflict are explicit states; auto-link works without a manual link button. |
@@ -148,16 +148,31 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `FB-00`.
+Current recommended next task: `FB-01`.
 
 Reason:
 
-- `FB-00` is the only initial `READY` task.
-- It establishes the feedback adoption proof and execution rules before safety repair and Resource ownership work.
-- `FB-01` and `FB-02` should become `READY` after `FB-00` completes.
+- `FB-00` is complete.
+- Dependency sweep promoted `FB-01`, `FB-02`, `RES-10`, and `STATE-00`.
+- `FB-01` is first in queue order and fixes the FileDialog lifecycle safety issue before broader Resource/state work.
 
 ---
 
 ## 12. Completed task proof log
 
-No tasks have been completed in this queue yet.
+### FB-00 Adopt all feedbacks
+
+proof:
+  plan: `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/FB-00_ADOPT_ALL_FEEDBACKS/`
+  review: `docs/review/autopilot/FB-00_SELF_REVIEW_2026-06-10.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ROADMAP.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/IMPLEMENTATION_QUEUE.md`
+  major files:
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/FB-00_ADOPT_ALL_FEEDBACKS/SUB_TASKS.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/FB-00_ADOPT_ALL_FEEDBACKS/UX.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/FB-00_ADOPT_ALL_FEEDBACKS/POLICY.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/FB-00_ADOPT_ALL_FEEDBACKS/IMPLEMENTATION_PLAN.md`
+    - `docs/review/autopilot/FB-00_TEST_RESULT_2026-06-10.md`
