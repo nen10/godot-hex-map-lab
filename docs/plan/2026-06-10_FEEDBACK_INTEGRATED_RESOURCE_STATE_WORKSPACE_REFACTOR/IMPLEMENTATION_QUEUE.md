@@ -38,8 +38,8 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `RES-10` | `READY` | `FB-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/RES-10_DOCUMENT_DEPENDENCY_SERVICE/` | Document dependency service for shared project resources | `addons/hex_map_kit/adapter/hex_map_document_dependency_resource.gd`, new `hex_map_document_dependency_service.gd`, adapter tests | Tile Catalog, Object DB, Label DB, Movement Profile, Validation Suite, Generation Profile, and Export Profile can be add/find/update/remove/hydrated from `HexMapDocumentResource.dependencies`; tests cover dependency CRUD and validation. |
-| `RES-11` | `BACKLOG` | `RES-10` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/RES-11_DOCUMENT_DEPENDENCY_HYDRATION/` | Workspace context hydration from selected document dependencies | `HexMapWorkspaceAssetContext`, `HexMapWorkspace`, dependency service, editor tests | Document selection hydrates shared resources into workspace context with `Document Dependency` source badge; manual override can temporarily supersede it; missing dependencies stay missing instead of silently using samples. |
+| `RES-10` | `COMPLETE` | `FB-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/RES-10_DOCUMENT_DEPENDENCY_SERVICE/` | Document dependency service for shared project resources | `addons/hex_map_kit/adapter/hex_map_document_dependency_resource.gd`, new `hex_map_document_dependency_service.gd`, adapter tests | Tile Catalog, Object DB, Label DB, Movement Profile, Validation Suite, Generation Profile, and Export Profile can be add/find/update/remove/hydrated from `HexMapDocumentResource.dependencies`; tests cover dependency CRUD and validation. |
+| `RES-11` | `READY` | `RES-10` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/RES-11_DOCUMENT_DEPENDENCY_HYDRATION/` | Workspace context hydration from selected document dependencies | `HexMapWorkspaceAssetContext`, `HexMapWorkspace`, dependency service, editor tests | Document selection hydrates shared resources into workspace context with `Document Dependency` source badge; manual override can temporarily supersede it; missing dependencies stay missing instead of silently using samples. |
 | `NODE-20` | `BACKLOG` | `RES-11` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/NODE-20_HEX_TILE_MAP_RESOURCE_BINDING_SERVICE/` | Selected HexTileMap read/write binding service | new `addons/hex_map_kit/editor/hex_map_workspace_binding_service.gd`, `HexTileMapLayer`, `HexMapWorkspace`, editor tests | Scene selection resolves `HexTileMapLayer`; node-owned Level Document / Layer Stack are read and written on node exports; shared resources are read/written through document dependencies. |
 | `NODE-21` | `BACKLOG` | `NODE-20` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/NODE-21_HEX_MAP_RESOURCE_ROLE_CLARIFICATION/` | Clear role decision for `HexTileMapLayer.hex_map` | `addons/hex_map_kit/adapter/hex_tile_map_layer.gd`, document adapter, workspace UI/docs/tests | `hex_map` is no longer implied as authoring source of truth; UI/docs/tests treat Level Document as canonical authoring; no ambiguous compatibility-only display remains. |
 | `NODE-22` | `BACKLOG` | `NODE-20` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/NODE-22_MISSING_NODE_RESOURCE_BULK_CREATE_REVIEW/` | Missing Resource create flow aligned with node/document/dependency ownership | `HexMapWorkspace`, `HexMapWorkspaceAssetResourceFactory`, asset panel, binding/dependency services, editor tests | Node-owned and shared resources are not mixed in one opaque bulk create path; shared resources require create or select existing; node export, document dependency, and workspace context match after creation. |
@@ -50,7 +50,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `PROFILE-30` | `BACKLOG` | `RES-10` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/PROFILE-30_CONCRETE_PROFILE_RESOURCES/` | Concrete profile Resource classes and picker filters | adapter resource files, asset slot definitions, resource picker filters, tests/docs | Validation Rule Suite, Generation Profile, and Export Profile use concrete Resource classes; picker filters are typed; docs/manual can explain each profile purpose; no sample-only placeholder is completion proof. |
+| `PROFILE-30` | `READY` | `RES-10` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/PROFILE-30_CONCRETE_PROFILE_RESOURCES/` | Concrete profile Resource classes and picker filters | adapter resource files, asset slot definitions, resource picker filters, tests/docs | Validation Rule Suite, Generation Profile, and Export Profile use concrete Resource classes; picker filters are typed; docs/manual can explain each profile purpose; no sample-only placeholder is completion proof. |
 | `PROFILE-31` | `BACKLOG` | `PROFILE-30`, `RES-11` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/PROFILE-31_PROFILE_DEPENDENCY_INTEGRATION/` | Profile resources integrated with dependencies and workspace tabs | dependency service, `HexMapWorkspaceAssetContext`, QA/Validate/Export tabs, editor tests | Concrete profiles hydrate from document dependencies; QA/Validate/Export tabs show concrete resources instead of generic `Resource`; missing profiles have optional/missing state. |
 
 ---
@@ -148,15 +148,16 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `RES-10`.
+Current recommended next task: `RES-11`.
 
 Reason:
 
 - `FB-00` is complete.
 - `FB-01` is complete.
 - `FB-02` is complete.
-- `RES-10` and `STATE-00` are READY.
-- `RES-10` is first in queue order and starts the Resource ownership / dependency hydration lane.
+- `RES-10` is complete.
+- `RES-11`, `PROFILE-30`, and `STATE-00` are READY.
+- `RES-11` is first in queue order and connects the new dependency service to Workspace context hydration.
 
 ---
 
@@ -210,3 +211,19 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_workspace.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/FB-02_TEST_RESULT_2026-06-10.md`
+
+### RES-10 Document dependency service
+
+proof:
+  plan: `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/RES-10_DOCUMENT_DEPENDENCY_SERVICE/`
+  review: `docs/review/autopilot/RES-10_SELF_REVIEW_2026-06-10.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/adapter/hex_map_document_dependency_resource.gd`
+    - `addons/hex_map_kit/adapter/hex_map_document_dependency_service.gd`
+    - `addons/hex_map_kit/adapter/hex_map_document_validator.gd`
+    - `tests/test_hex_adapter.gd`
+    - `docs/review/autopilot/RES-10_TEST_RESULT_2026-06-10.md`

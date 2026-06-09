@@ -8,6 +8,7 @@ const HexMapValidationResultScript = preload("res://addons/hex_map_kit/adapter/h
 const HexTileCatalogResourceScript = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd")
 const HexObjectDatabaseResourceScript = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
 const HexLabelDatabaseResourceScript = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
+const HexMovementProfileResourceScript = preload("res://addons/hex_map_kit/adapter/hex_movement_profile_resource.gd")
 const HexTileCatalogEntryScript = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd")
 const HexGridScript = preload("res://addons/hex_map_kit/core/hex_grid.gd")
 const HexVectorScript = preload("res://addons/hex_map_kit/core/hex_vector.gd")
@@ -371,6 +372,12 @@ static func _dependency_kind_matches(kind: String, resource: Resource) -> bool:
 			return resource is HexObjectDatabaseResourceScript
 		HexMapDocumentDependencyResourceScript.KIND_LABEL_DATABASE:
 			return resource is HexLabelDatabaseResourceScript
+		HexMapDocumentDependencyResourceScript.KIND_MOVEMENT_PROFILE:
+			return resource is HexMovementProfileResourceScript
+		HexMapDocumentDependencyResourceScript.KIND_VALIDATION_RULE_SUITE, \
+		HexMapDocumentDependencyResourceScript.KIND_GENERATION_PROFILE, \
+		HexMapDocumentDependencyResourceScript.KIND_EXPORT_PROFILE:
+			return resource is Resource
 		HexMapDocumentDependencyResourceScript.KIND_SCENE:
 			return resource is PackedScene
 		HexMapDocumentDependencyResourceScript.KIND_SCRIPT:

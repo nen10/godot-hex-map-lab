@@ -9,6 +9,7 @@ const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resourc
 const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
 const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
 const HexMapDocumentDependencyResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_dependency_resource.gd")
+const HexMapDocumentDependencyService = preload("res://addons/hex_map_kit/adapter/hex_map_document_dependency_service.gd")
 const HexMapDocumentLabelPlacementResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_label_placement_resource.gd")
 const HexMapDocumentObjectPlacementResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_object_placement_resource.gd")
 const HexMapDocumentOverlayLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_overlay_layer_resource.gd")
@@ -63,6 +64,7 @@ func _run() -> void:
 	_test_hex_label_database_definitions_roundtrip_resources()
 	_test_hex_map_document_schema_roundtrips_canonical_resources()
 	_test_clean_resource_api_contract_covers_canonical_paths()
+	_test_hex_map_document_dependency_service_crud_hydrates_and_validates()
 	_test_hex_map_document_summary_reports_canonical_counts()
 	_test_hex_map_validation_result_serializes_summary_and_warnings()
 	_test_hex_map_document_validator_reports_core_rules()
@@ -749,6 +751,236 @@ func _test_clean_resource_api_contract_covers_canonical_paths() -> void:
 		"clean resource API reports missing catalog assignment"
 	)
 	layer.free()
+
+
+func _test_hex_map_document_dependency_service_crud_hydrates_and_validates() -> void:
+	var document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	var catalog = _test_tile_catalog()
+	var object_database = HexObjectDatabaseResource.new()
+	var label_database = HexLabelDatabaseResource.new()
+	var movement_profile = HexMovementProfileResource.new()
+	var validation_suite = Resource.new()
+	var generation_profile = Resource.new()
+	var export_profile = Resource.new()
+
+	var keys = HexMapDocumentDependencyService.shared_dependency_keys()
+	_assert_eq(keys.has(HexMapDocumentDependencyService.KEY_TILE_CATALOG), true, "RES-10 shared dependency keys include Tile Catalog")
+	_assert_eq(keys.has(HexMapDocumentDependencyService.KEY_OBJECT_DATABASE), true, "RES-10 shared dependency keys include Object DB")
+	_assert_eq(keys.has(HexMapDocumentDependencyService.KEY_LABEL_DATABASE), true, "RES-10 shared dependency keys include Label DB")
+	_assert_eq(keys.has(HexMapDocumentDependencyService.KEY_MOVEMENT_PROFILE), true, "RES-10 shared dependency keys include Movement Profile")
+	_assert_eq(keys.has(HexMapDocumentDependencyService.KEY_VALIDATION_RULE_SUITE), true, "RES-10 shared dependency keys include Validation Suite")
+	_assert_eq(keys.has(HexMapDocumentDependencyService.KEY_GENERATION_PROFILE), true, "RES-10 shared dependency keys include Generation Profile")
+	_assert_eq(keys.has(HexMapDocumentDependencyService.KEY_EXPORT_PROFILE), true, "RES-10 shared dependency keys include Export Profile")
+
+	var catalog_dependency = HexMapDocumentDependencyService.set_shared_dependency(
+		document,
+		HexMapDocumentDependencyService.KEY_TILE_CATALOG,
+		catalog,
+		true,
+		{"purpose": "terrain"}
+	)
+	_assert_eq(document.dependencies.size(), 1, "RES-10 set shared dependency appends first dependency")
+	_assert_eq(
+		catalog_dependency.kind,
+		HexMapDocumentDependencyResource.KIND_TILE_CATALOG,
+		"RES-10 Tile Catalog dependency uses centralized kind"
+	)
+	_assert_eq(catalog_dependency.resource, catalog, "RES-10 set shared dependency stores resource")
+	_assert_eq(catalog_dependency.metadata["purpose"], "terrain", "RES-10 set dependency preserves metadata")
+	_assert_eq(
+		catalog_dependency.metadata["source_badge"],
+		HexMapDocumentDependencyService.SOURCE_BADGE_DOCUMENT_DEPENDENCY,
+		"RES-10 dependency metadata carries source badge"
+	)
+	_assert_eq(
+		HexMapDocumentDependencyService.find_shared_dependency(
+			document,
+			HexMapDocumentDependencyService.KEY_TILE_CATALOG
+		),
+		catalog_dependency,
+		"RES-10 find shared dependency returns existing entry"
+	)
+
+	var replacement_catalog = HexTileCatalogResource.new()
+	var updated_catalog_dependency = HexMapDocumentDependencyService.set_shared_dependency(
+		document,
+		HexMapDocumentDependencyService.KEY_TILE_CATALOG,
+		replacement_catalog,
+		false
+	)
+	_assert_eq(updated_catalog_dependency, catalog_dependency, "RES-10 set shared dependency updates existing kind/role")
+	_assert_eq(document.dependencies.size(), 1, "RES-10 update does not duplicate dependency")
+	_assert_eq(updated_catalog_dependency.resource, replacement_catalog, "RES-10 update replaces dependency resource")
+	_assert_eq(updated_catalog_dependency.required, false, "RES-10 update stores required flag")
+
+	var role_dependency = HexMapDocumentDependencyService.set_dependency(
+		document,
+		HexMapDocumentDependencyResource.KIND_TILE_CATALOG,
+		replacement_catalog,
+		"terrain",
+		true
+	)
+	_assert_eq(role_dependency.dependency_id, "tile_catalog:terrain", "RES-10 role dependency id includes role")
+	_assert_eq(
+		HexMapDocumentDependencyService.find_dependency(
+			document,
+			HexMapDocumentDependencyResource.KIND_TILE_CATALOG,
+			"terrain"
+		),
+		role_dependency,
+		"RES-10 role dependency lookup uses kind and role"
+	)
+	_assert_eq(
+		HexMapDocumentDependencyService.remove_dependency(
+			document,
+			HexMapDocumentDependencyResource.KIND_TILE_CATALOG,
+			"terrain"
+		),
+		true,
+		"RES-10 remove dependency removes role-specific entry"
+	)
+	_assert_eq(document.dependencies.size(), 1, "RES-10 role-specific remove leaves shared dependency")
+
+	HexMapDocumentDependencyService.set_shared_dependency(
+		document,
+		HexMapDocumentDependencyService.KEY_OBJECT_DATABASE,
+		object_database
+	)
+	HexMapDocumentDependencyService.set_shared_dependency(
+		document,
+		HexMapDocumentDependencyService.KEY_LABEL_DATABASE,
+		label_database
+	)
+	HexMapDocumentDependencyService.set_shared_dependency(
+		document,
+		HexMapDocumentDependencyService.KEY_MOVEMENT_PROFILE,
+		movement_profile
+	)
+	HexMapDocumentDependencyService.set_shared_dependency(
+		document,
+		HexMapDocumentDependencyService.KEY_VALIDATION_RULE_SUITE,
+		validation_suite
+	)
+	HexMapDocumentDependencyService.set_shared_dependency(
+		document,
+		HexMapDocumentDependencyService.KEY_GENERATION_PROFILE,
+		generation_profile
+	)
+	HexMapDocumentDependencyService.set_shared_dependency(
+		document,
+		HexMapDocumentDependencyService.KEY_EXPORT_PROFILE,
+		export_profile
+	)
+
+	var hydrated = HexMapDocumentDependencyService.hydrate_dependency_map(document)
+	_assert_eq(
+		(hydrated[HexMapDocumentDependencyService.KEY_TILE_CATALOG] as Dictionary)["resource"],
+		replacement_catalog,
+		"RES-10 hydrate returns Tile Catalog resource"
+	)
+	_assert_eq(
+		(hydrated[HexMapDocumentDependencyService.KEY_OBJECT_DATABASE] as Dictionary)["resource"],
+		object_database,
+		"RES-10 hydrate returns Object DB resource"
+	)
+	_assert_eq(
+		(hydrated[HexMapDocumentDependencyService.KEY_LABEL_DATABASE] as Dictionary)["resource"],
+		label_database,
+		"RES-10 hydrate returns Label DB resource"
+	)
+	_assert_eq(
+		(hydrated[HexMapDocumentDependencyService.KEY_MOVEMENT_PROFILE] as Dictionary)["resource"],
+		movement_profile,
+		"RES-10 hydrate returns Movement Profile resource"
+	)
+	_assert_eq(
+		(hydrated[HexMapDocumentDependencyService.KEY_VALIDATION_RULE_SUITE] as Dictionary)["resource"],
+		validation_suite,
+		"RES-10 hydrate returns Validation Suite resource"
+	)
+	_assert_eq(
+		(hydrated[HexMapDocumentDependencyService.KEY_GENERATION_PROFILE] as Dictionary)["resource"],
+		generation_profile,
+		"RES-10 hydrate returns Generation Profile resource"
+	)
+	_assert_eq(
+		(hydrated[HexMapDocumentDependencyService.KEY_EXPORT_PROFILE] as Dictionary)["resource"],
+		export_profile,
+		"RES-10 hydrate returns Export Profile resource"
+	)
+	_assert_eq(
+		String((hydrated[HexMapDocumentDependencyService.KEY_EXPORT_PROFILE] as Dictionary)["source_badge"]),
+		HexMapDocumentDependencyService.SOURCE_BADGE_DOCUMENT_DEPENDENCY,
+		"RES-10 hydrate preserves Document Dependency source badge"
+	)
+	_assert_no_issue(
+		HexMapDocumentDependencyService.validate_dependencies(document),
+		HexMapDocumentValidator.RULE_DEPENDENCY_TYPE_MISMATCH,
+		"RES-10 service validation accepts matching shared dependency resources"
+	)
+
+	_assert_eq(
+		HexMapDocumentDependencyService.remove_shared_dependency(
+			document,
+			HexMapDocumentDependencyService.KEY_TILE_CATALOG
+		),
+		true,
+		"RES-10 remove shared dependency returns true"
+	)
+	_assert_eq(
+		HexMapDocumentDependencyService.find_shared_dependency(
+			document,
+			HexMapDocumentDependencyService.KEY_TILE_CATALOG
+		),
+		null,
+		"RES-10 removed shared dependency is not found"
+	)
+	hydrated = HexMapDocumentDependencyService.hydrate_dependency_map(document)
+	_assert_eq(
+		bool((hydrated[HexMapDocumentDependencyService.KEY_TILE_CATALOG] as Dictionary)["selected"]),
+		false,
+		"RES-10 hydrate reports removed dependency as unselected"
+	)
+
+	var required_document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	HexMapDocumentDependencyService.set_dependency(
+		required_document,
+		HexMapDocumentDependencyResource.KIND_TILE_CATALOG,
+		null,
+		"terrain",
+		true
+	)
+	_assert_has_issue(
+		HexMapDocumentDependencyService.validate_dependencies(required_document),
+		HexMapDocumentValidator.RULE_DEPENDENCY_MISSING,
+		"RES-10 service validation reports missing required dependency"
+	)
+	HexMapDocumentDependencyService.set_dependency(
+		required_document,
+		HexMapDocumentDependencyResource.KIND_TILE_CATALOG,
+		null,
+		"terrain",
+		false
+	)
+	_assert_no_issue(
+		HexMapDocumentDependencyService.validate_dependencies(required_document),
+		HexMapDocumentValidator.RULE_DEPENDENCY_MISSING,
+		"RES-10 service validation accepts missing optional dependency"
+	)
+	HexMapDocumentDependencyService.set_shared_dependency(
+		required_document,
+		HexMapDocumentDependencyService.KEY_MOVEMENT_PROFILE,
+		HexLabelDatabaseResource.new()
+	)
+	_assert_has_issue(
+		HexMapDocumentDependencyService.validate_dependencies(required_document),
+		HexMapDocumentValidator.RULE_DEPENDENCY_TYPE_MISMATCH,
+		"RES-10 service validation reports Movement Profile type mismatch"
+	)
 
 
 func _test_hex_map_document_summary_reports_canonical_counts() -> void:
