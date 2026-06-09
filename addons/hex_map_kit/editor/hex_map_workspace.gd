@@ -351,6 +351,7 @@ func missing_unique_resources_snapshot(save_directory: String = "", resource_pre
 		prefix = _missing_unique_resources_prefix()
 	var missing_ids := _missing_unique_resource_ids(hex_layer)
 	var paths := _missing_unique_resource_paths(directory, prefix)
+	var can_create := selected and directory != "" and prefix != "" and not missing_ids.is_empty()
 	return {
 		"selected": selected,
 		"selected_node": hex_layer,
@@ -359,7 +360,9 @@ func missing_unique_resources_snapshot(save_directory: String = "", resource_pre
 		"resource_prefix": prefix,
 		"missing_resource_ids": missing_ids,
 		"missing_count": missing_ids.size(),
-		"can_create": selected and directory != "" and prefix != "" and not missing_ids.is_empty(),
+		"can_create": can_create,
+		"choose_directory_button_tooltip": _missing_unique_resources_choose_directory_button_tooltip(selected),
+		"create_button_tooltip": _missing_unique_resources_create_button_tooltip(selected, directory, prefix, missing_ids),
 		"paths": paths,
 		"dialog_config": missing_unique_resources_dialog_config(),
 		"shared_resources_created": false,
@@ -2180,11 +2183,13 @@ func duplicate_validation_rule_suite_preset_to_project(preset_id: String, path: 
 
 
 func export_screen_snapshot() -> Dictionary:
+	var session := _ensure_session_state()
 	var context := workspace_asset_context()
 	var destination := _export_destination_context()
 	var output_type := _export_output_type_context(context, destination)
 	var empty_state := _export_tab_empty_state(context, destination)
 	var output_modes := _export_output_modes()
+	var can_export := context.level_document != null and session.export_saved_path != ""
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_EXPORT,
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_EXPORT),
@@ -2210,16 +2215,20 @@ func export_screen_snapshot() -> Dictionary:
 		),
 		"destination": destination,
 		"destination_dialog_config": export_destination_dialog_config(),
-		"can_export": context.level_document != null and _ensure_session_state().export_saved_path != "",
+		"can_export": can_export,
 		"cannot_export_reason": _export_cannot_export_reason(context, destination),
-		"package_handoff": _export_handoff_context(_ensure_session_state().export_saved_path, null),
-		"runtime_handoff": _export_handoff_context(_ensure_session_state().export_saved_path, null),
+		"use_recent_button_disabled": session.recent_export_destinations.is_empty(),
+		"use_recent_button_tooltip": _export_use_recent_button_tooltip(session),
+		"run_button_disabled": not can_export,
+		"run_button_tooltip": _export_run_button_tooltip(context, destination),
+		"package_handoff": _export_handoff_context(session.export_saved_path, null),
+		"runtime_handoff": _export_handoff_context(session.export_saved_path, null),
 		"unsupported_export_buttons_visible": false,
 		"data_export_button_visible": false,
 		"package_build_button_visible": false,
 		"debug_report_export_button_visible": false,
 		"experimental_exports_hidden": true,
-		"sample_candidates_visible": _ensure_session_state().show_bundled_samples_in_main_selectors,
+		"sample_candidates_visible": session.show_bundled_samples_in_main_selectors,
 		"sample_destination_available": false,
 		"editable_destination_path_visible": false,
 	}
@@ -3413,6 +3422,19 @@ func _export_visible_output_mode_labels(modes: Array) -> PackedStringArray:
 	return labels
 
 
+func _export_use_recent_button_tooltip(session) -> String:
+	if session == null or session.recent_export_destinations.is_empty():
+		return "No recent Runtime Handoff destinations."
+	return "Use recent Runtime Handoff destination: %s" % String(session.recent_export_destinations[0])
+
+
+func _export_run_button_tooltip(context: HexMapWorkspaceAssetContext, destination: Dictionary) -> String:
+	var reason := _export_cannot_export_reason(context, destination)
+	if reason != "":
+		return reason
+	return "Create a Runtime Handoff HexMapResource at the selected destination."
+
+
 func _export_cannot_export_reason(context: HexMapWorkspaceAssetContext, destination: Dictionary) -> String:
 	if context.level_document == null:
 		return "Level Document is not selected."
@@ -3533,8 +3555,10 @@ func _refresh_export_destination_panel() -> void:
 	if _export_destination_panel == null:
 		return
 	var session := _ensure_session_state()
+	var context := workspace_asset_context()
 	var destination := session.export_saved_path
-	var empty_state := _export_tab_empty_state()
+	var destination_context := _export_destination_context()
+	var empty_state := _export_tab_empty_state(context, destination_context)
 	if _export_destination_label != null:
 		_export_destination_label.text = _empty_state_inline_text(empty_state) \
 			if bool(empty_state.get("visible", false)) else "Destination: %s" % destination
@@ -3543,8 +3567,10 @@ func _refresh_export_destination_panel() -> void:
 		_export_recent_destinations_label.text = "Recent destinations: %d" % session.recent_export_destinations.size()
 	if _export_use_recent_button != null:
 		_export_use_recent_button.disabled = session.recent_export_destinations.is_empty()
+		_export_use_recent_button.tooltip_text = _export_use_recent_button_tooltip(session)
 	if _export_run_button != null:
-		_export_run_button.disabled = workspace_asset_context().level_document == null or destination == ""
+		_export_run_button.disabled = context.level_document == null or destination == ""
+		_export_run_button.tooltip_text = _export_run_button_tooltip(context, destination_context)
 
 
 func _popup_export_destination_dialog() -> bool:
@@ -3955,6 +3981,29 @@ func _export_backlog_modes_text(modes: Array) -> String:
 	return _join_text(parts, " | ")
 
 
+func _missing_unique_resources_choose_directory_button_tooltip(selected: bool) -> String:
+	if not selected:
+		return "Select a HexTileMap node before choosing a save directory."
+	return "Choose a project directory for the selected HexTileMap resources."
+
+
+func _missing_unique_resources_create_button_tooltip(
+	selected: bool,
+	directory: String,
+	prefix: String,
+	missing_ids: PackedStringArray
+) -> String:
+	if not selected:
+		return "Select a HexTileMap node before creating missing resources."
+	if missing_ids.is_empty():
+		return "Selected HexTileMap unique resources are already configured."
+	if directory == "":
+		return "Choose a save directory before creating missing resources."
+	if prefix == "":
+		return "Enter a resource prefix before creating missing resources."
+	return "Create Level Document and Layer Stack resources in the selected directory."
+
+
 func _refresh_missing_unique_resources_panel() -> void:
 	if _missing_unique_resources_panel == null:
 		return
@@ -3981,8 +4030,10 @@ func _refresh_missing_unique_resources_panel() -> void:
 		_missing_unique_resources_save_directory_label.text = "Save directory: %s" % ("Not selected" if directory == "" else directory)
 	if _missing_unique_resources_choose_directory_button != null:
 		_missing_unique_resources_choose_directory_button.disabled = not selected
+		_missing_unique_resources_choose_directory_button.tooltip_text = String(snapshot.get("choose_directory_button_tooltip", ""))
 	if _missing_unique_resources_create_button != null:
 		_missing_unique_resources_create_button.disabled = not bool(snapshot.get("can_create", false))
+		_missing_unique_resources_create_button.tooltip_text = String(snapshot.get("create_button_tooltip", ""))
 
 
 func _selected_hex_tile_map_status_text(layer: Node) -> String:

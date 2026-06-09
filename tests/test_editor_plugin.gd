@@ -496,6 +496,19 @@ func _test_workspace_create_missing_unique_resources_for_selected_hex_tile_map()
 	root.add_child(workspace)
 	await process_frame
 
+	var empty_missing_snapshot = workspace.missing_unique_resources_snapshot()
+	_assert_true(not bool(empty_missing_snapshot["can_create"]), "FB-02 missing resource create is disabled before HexTileMap selection")
+	_assert_eq(
+		String(empty_missing_snapshot["choose_directory_button_tooltip"]),
+		"Select a HexTileMap node before choosing a save directory.",
+		"FB-02 disabled missing resource directory action explains missing selection"
+	)
+	_assert_eq(
+		String(empty_missing_snapshot["create_button_tooltip"]),
+		"Select a HexTileMap node before creating missing resources.",
+		"FB-02 disabled missing resource create action explains missing selection"
+	)
+
 	var scene_root = Node2D.new()
 	scene_root.name = "MissingResourcesScene"
 	root.add_child(scene_root)
@@ -508,6 +521,16 @@ func _test_workspace_create_missing_unique_resources_for_selected_hex_tile_map()
 	workspace.set_selected_hex_tile_map_node(selected_layer, "test.node22.select")
 	var missing_snapshot = workspace.missing_unique_resources_snapshot()
 	_assert_true(not bool(missing_snapshot["can_create"]), "NODE-22 create is unavailable without save directory")
+	_assert_eq(
+		String(missing_snapshot["choose_directory_button_tooltip"]),
+		"Choose a project directory for the selected HexTileMap resources.",
+		"FB-02 enabled missing resource directory action names its state change"
+	)
+	_assert_eq(
+		String(missing_snapshot["create_button_tooltip"]),
+		"Choose a save directory before creating missing resources.",
+		"FB-02 disabled missing resource create action explains missing directory"
+	)
 	_assert_eq(int(missing_snapshot["missing_count"]), 2, "NODE-22 selected node reports missing unique resources")
 	_assert_true(
 		(missing_snapshot["missing_resource_ids"] as PackedStringArray).has(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT),
@@ -526,6 +549,11 @@ func _test_workspace_create_missing_unique_resources_for_selected_hex_tile_map()
 
 	var save_dir = _test_resource_dir("node22_missing_unique_resources")
 	var planned_snapshot = workspace.missing_unique_resources_snapshot(save_dir)
+	_assert_eq(
+		String(planned_snapshot["create_button_tooltip"]),
+		"Create Level Document and Layer Stack resources in the selected directory.",
+		"FB-02 ready missing resource create action names its state change"
+	)
 	var planned_paths = planned_snapshot["paths"] as Dictionary
 	_assert_eq(
 		String(planned_paths[HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT]),
@@ -1930,6 +1958,18 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 	_assert_true(not bool(output_type["source_ready"]), "TAB-56 Export starts with missing source")
 	_assert_true(not bool(output_type["destination_ready"]), "TAB-56 Export starts with missing destination")
 	_assert_eq(snapshot["cannot_export_reason"], "Level Document is not selected.", "TAB-56 Export explains blocked export")
+	_assert_true(bool(snapshot["use_recent_button_disabled"]), "FB-02 Export use-recent action starts disabled without recent destination")
+	_assert_eq(
+		String(snapshot["use_recent_button_tooltip"]),
+		"No recent Runtime Handoff destinations.",
+		"FB-02 disabled Export use-recent action explains missing recent destination"
+	)
+	_assert_true(bool(snapshot["run_button_disabled"]), "FB-02 Export run action starts disabled")
+	_assert_eq(
+		String(snapshot["run_button_tooltip"]),
+		"Level Document is not selected.",
+		"FB-02 disabled Export run action explains missing Level Document"
+	)
 	_assert_true(not bool(snapshot["unsupported_export_buttons_visible"]), "TAB-56 unsupported export buttons are hidden")
 	_assert_true(not bool(snapshot["data_export_button_visible"]), "TAB-56 data export button is hidden")
 	_assert_true(not bool(snapshot["package_build_button_visible"]), "TAB-56 package build button is hidden")
@@ -2008,6 +2048,13 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 
 	var document := _sample_editor_document()
 	workspace.workspace_asset_context().set_level_document(document)
+	snapshot = workspace.export_screen_snapshot()
+	_assert_true(bool(snapshot["run_button_disabled"]), "FB-02 Export run remains disabled without destination")
+	_assert_eq(
+		String(snapshot["run_button_tooltip"]),
+		"Export destination is not selected.",
+		"FB-02 disabled Export run action explains missing destination after document selection"
+	)
 	var export_path = "%s/runtime_handoff_map.tres" % output_dir
 	var destination_result = workspace.select_export_destination(export_path)
 	_assert_true(bool(destination_result["ok"]), "Export screen accepts user-selected destination")
@@ -2017,6 +2064,10 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 
 	snapshot = workspace.export_screen_snapshot()
 	_assert_true(bool(snapshot["can_export"]), "Export screen can export after document and destination are selected")
+	_assert_true(not bool(snapshot["run_button_disabled"]), "FB-02 Export run action enables after document and destination")
+	_assert_true(String(snapshot["run_button_tooltip"]).contains("Runtime Handoff"), "FB-02 enabled Export run action names its state change")
+	_assert_true(not bool(snapshot["use_recent_button_disabled"]), "FB-02 Export use-recent action enables after destination history exists")
+	_assert_true(String(snapshot["use_recent_button_tooltip"]).contains(export_path), "FB-02 enabled Export use-recent action names recent destination")
 	_assert_true(bool((snapshot["destination"] as Dictionary).get("selected", false)), "Export snapshot reports selected destination")
 	output_type = snapshot["output_type"] as Dictionary
 	_assert_true(bool(output_type["source_ready"]), "TAB-56 Export source becomes ready")
@@ -2796,6 +2847,8 @@ func _test_asset_slot_control_exposes_state_snapshot_contract() -> void:
 	_assert_true(bool(layout["compact_row"]), "asset slot control uses compact row layout")
 	_assert_eq(layout["status_text"], "Missing", "asset slot compact row keeps missing state visible")
 	_assert_true(not bool(layout["details_visible"]), "asset slot details start collapsed")
+	_assert_eq(String(layout["details_button_text"]), "", "FB-02 asset slot removes visible Details button text")
+	_assert_true(not bool(layout["details_button_visible"]), "FB-02 asset slot Details button is not visible")
 	_assert_true(String(layout["status_tooltip"]).contains("Type: HexObjectDatabaseResource"), "asset slot compact status tooltip includes type")
 	_assert_true(String(layout["status_tooltip"]).contains("Pick: HexObjectDatabaseResource"), "ASSET-30 asset slot tooltip says what type to pick")
 	if bool(layout["resource_picker_visible"]):
@@ -2811,6 +2864,7 @@ func _test_asset_slot_control_exposes_state_snapshot_contract() -> void:
 	_assert_true(not _has_button_text(control, "Open"), "ASSET-31 visible Open button is absent")
 	_assert_true(not _has_button_text(control, "Clear"), "ASSET-31 visible Clear button is absent")
 	_assert_true(not _has_button_text(control, "Validate"), "ASSET-31 visible Validate button is absent")
+	_assert_true(not _has_button_text(control, "Details"), "FB-02 visible Details button is absent")
 	_assert_true(String(layout["current_detail_text"]).contains("Current: Not selected"), "asset slot details keep current selection text")
 
 	var database = HexObjectDatabaseResource.new()
@@ -3084,6 +3138,8 @@ func _test_workspace_asset_slot_actions_remove_redundant_buttons() -> void:
 			_assert_true(not action_texts.has("Clear"), "ASSET-31 %s/%s removes Clear action" % [tab_name, slot_id])
 			_assert_true(not action_texts.has("Validate"), "ASSET-31 %s/%s removes Validate action" % [tab_name, slot_id])
 			_assert_true(action_texts.has("Create New..."), "ASSET-31 %s/%s keeps Create New action" % [tab_name, slot_id])
+			_assert_eq(String(layout.get("details_button_text", "")), "", "FB-02 %s/%s removes Details button text" % [tab_name, slot_id])
+			_assert_true(not bool(layout.get("details_button_visible", false)), "FB-02 %s/%s hides Details button" % [tab_name, slot_id])
 
 	workspace.queue_free()
 	await process_frame

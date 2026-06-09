@@ -108,6 +108,7 @@ func slot_layout_snapshot() -> Dictionary:
 		"compact_row": _compact_row != null,
 		"details_visible": _details_container != null and _details_container.visible,
 		"details_button_text": _details_button.text if _details_button != null else "",
+		"details_button_visible": _details_button != null and _details_button.visible,
 		"status_text": _status_label.text if _status_label != null else "",
 		"status_tooltip": _status_label.tooltip_text if _status_label != null else "",
 		"title_text": _title_label.text if _title_label != null else "",
@@ -228,12 +229,6 @@ func _build_ui() -> void:
 	_status_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_compact_row.add_child(_status_label)
 
-	_details_button = Button.new()
-	_details_button.text = "Details"
-	_details_button.toggle_mode = true
-	_details_button.toggled.connect(_on_details_toggled)
-	_compact_row.add_child(_details_button)
-
 	_details_container = VBoxContainer.new()
 	_details_container.visible = false
 	add_child(_details_container)
@@ -276,7 +271,6 @@ func _refresh() -> void:
 	_status_label.tooltip_text = detail_text
 	_messages_label.text = "\n".join(snapshot.get("validation_messages", []))
 	_messages_label.visible = _messages_label.text != ""
-	_details_button.tooltip_text = detail_text
 	if _resource_picker != null:
 		_resource_picker.base_type = String(snapshot.get("picker_base_type", "Resource"))
 		_resource_picker.tooltip_text = detail_text
