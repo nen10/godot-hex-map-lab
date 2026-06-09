@@ -34,7 +34,7 @@ The tab names are the stable task map for the editor UI. Production work starts 
 5. In `Paint`, choose terrain/object/label brushes from the project resources already selected in `Resources` and `Catalog`.
 6. In `Layers`, inspect the selected `HexTileMap`, create role layers, and apply the document by role.
 7. In `Validate` and `QA`, inspect issues, compare seeds, and promote a selected result to the project Level Document.
-8. In `Export`, select a project Export Profile and choose an explicit Runtime Handoff destination with the FileDialog.
+8. In `Export`, select a project `HexExportProfileResource` and choose an explicit Runtime Handoff destination with the FileDialog.
 9. In `Settings`, use Samples only for learning or duplicating bundled assets into project-owned resources.
 
 ## 2. Manage Resources And Level Document
@@ -186,7 +186,7 @@ Current Export tab terms:
 - `Runtime Handoff Resource`: active output type.
 - `Current Level Document`: source.
 - `HexMapResource`: target resource class.
-- `Export Profile`: optional project resource for handoff settings.
+- `Export Profile`: optional `HexExportProfileResource` project resource for handoff settings.
 - destination: explicit FileDialog path chosen by the user.
 
 The Export tab does not save the authoring document. Use Resources/document save actions for `HexMapDocumentResource` persistence. Package Build is a developer process (`tools/package_addon.sh`), and Debug Report is a support/diagnostic action.

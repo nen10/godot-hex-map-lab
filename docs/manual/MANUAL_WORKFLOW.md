@@ -25,8 +25,8 @@ For production authoring, prepare project assets in the workspace:
 - a project `TileSet`
 - project Object and Label databases
 - a project Layer Stack and optional Movement Profile
-- project Validation Rule Suite and Generation Profile resources
-- an explicit Runtime Handoff destination
+- project `HexValidationRuleSuiteResource` and `HexGenerationProfileResource` assets
+- a project `HexExportProfileResource` and explicit Runtime Handoff destination
 
 For display, prepare a `TileMapLayer` or `HexTileMapLayer` with a project hex `TileSet`.
 
@@ -72,8 +72,8 @@ Project asset first pass:
 2. Create or select the Level Document and missing node-owned unique resources in `Resources`.
 3. Create or select the Tile Catalog and assign its TileSet in `Catalog`.
 4. Create or select Object and Label databases, Layer Stack, and optional Movement Profile in `Resources`.
-5. Create or select Validation Rule Suite and Generation Profile resources in `Validate` and `QA`.
-6. Choose an Export Profile and Runtime Handoff destination in `Export`.
+5. Create or select `HexValidationRuleSuiteResource` and `HexGenerationProfileResource` assets in `Validate` and `QA`.
+6. Choose a `HexExportProfileResource` and Runtime Handoff destination in `Export`.
 
 `Resources` auto-links the selected `HexTileMap` while auto-link is on. If no node is selected, the tab shows `No HexTileMap selected` and keeps production asset selection visible instead of filling the workspace with samples.
 
@@ -86,6 +86,8 @@ Generate output target:
 3. If no `HexTileMap`, Level Document, or generated preview is available, the apply action stays blocked with a visible reason.
 
 QA Seed Lab promotion follows the same ownership model: promoted seeds update the project Level Document relationship in `Resources` and remain unsaved until the document save workflow writes the resource.
+
+Profile assets are concrete project resources: `HexValidationRuleSuiteResource` stores validation rule enablement and severity policy, `HexGenerationProfileResource` stores generator defaults and parameters, and `HexExportProfileResource` stores Runtime Handoff output options.
 
 Sample onboarding is optional and separate from this first pass. Use it to inspect or duplicate bundled assets, then return to project asset slots for production work.
 
@@ -199,7 +201,7 @@ Use the editor `Export` tab when runtime code needs a saved `HexMapResource` gen
 The current Export tab workflow is:
 
 1. Select the Level Document.
-2. Optionally select an Export Profile.
+2. Optionally select a `HexExportProfileResource`.
 3. Choose a Runtime Handoff destination with the FileDialog.
 4. Run the handoff to write a `HexMapResource`.
 

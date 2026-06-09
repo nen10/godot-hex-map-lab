@@ -4,12 +4,15 @@ extends RefCounted
 
 const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
 const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
+const HexGenerationProfileResource = preload("res://addons/hex_map_kit/adapter/hex_generation_profile_resource.gd")
 const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
 const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
 const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
 const HexMovementProfileResource = preload("res://addons/hex_map_kit/adapter/hex_movement_profile_resource.gd")
 const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
+const HexExportProfileResource = preload("res://addons/hex_map_kit/adapter/hex_export_profile_resource.gd")
 const HexTileCatalogResource = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd")
+const HexValidationRuleSuiteResource = preload("res://addons/hex_map_kit/adapter/hex_validation_rule_suite_resource.gd")
 
 
 static func create_resource_for_slot(slot_id: String) -> Resource:
@@ -41,15 +44,15 @@ static func create_resource_for_slot(slot_id: String) -> Resource:
 			movement_profile.display_name = "Project Movement"
 			return movement_profile
 		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE:
-			var validation_suite = Resource.new()
+			var validation_suite = HexValidationRuleSuiteResource.new()
 			validation_suite.resource_name = "Project Validation Suite"
 			return validation_suite
 		HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE:
-			var generation_profile = Resource.new()
+			var generation_profile = HexGenerationProfileResource.new()
 			generation_profile.resource_name = "Project Generation Profile"
 			return generation_profile
 		HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE:
-			var export_profile = Resource.new()
+			var export_profile = HexExportProfileResource.new()
 			export_profile.resource_name = "Project Export Profile"
 			return export_profile
 	return null
@@ -93,11 +96,11 @@ static func resource_type_name(slot_id: String) -> String:
 		HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE:
 			return "HexMovementProfileResource"
 		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE:
-			return "Resource"
+			return "HexValidationRuleSuiteResource"
 		HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE:
-			return "Resource"
+			return "HexGenerationProfileResource"
 		HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE:
-			return "Resource"
+			return "HexExportProfileResource"
 	return ""
 
 
@@ -116,11 +119,11 @@ static func resource_purpose(slot_id: String) -> String:
 		HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE:
 			return "Defines traversal costs, passability, and movement validation behavior."
 		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE:
-			return "Stores project validation preset data until a dedicated Validation Rule Suite class exists."
+			return "Stores project validation rule enablement, severity overrides, and validation metadata."
 		HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE:
-			return "Stores project generation preset data until a dedicated Generation Profile class exists."
+			return "Stores project generation defaults, generator id, parameter values, and preset metadata."
 		HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE:
-			return "Stores project export preset data until a dedicated Export Profile class exists."
+			return "Stores project export output type, handoff options, and export metadata."
 	return ""
 
 
@@ -129,13 +132,6 @@ static func tile_set_purpose() -> String:
 
 
 static func type_filter_reason(slot_id: String) -> String:
-	match slot_id:
-		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE:
-			return "Flexible Resource slot: no concrete Validation Rule Suite Resource class exists yet."
-		HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE:
-			return "Flexible Resource slot: no concrete Generation Profile Resource class exists yet."
-		HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE:
-			return "Flexible Resource slot: no concrete Export Profile Resource class exists yet."
 	return ""
 
 

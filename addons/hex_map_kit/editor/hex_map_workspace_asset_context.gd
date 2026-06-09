@@ -4,10 +4,13 @@ extends Resource
 
 const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
 const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
+const HexGenerationProfileResource = preload("res://addons/hex_map_kit/adapter/hex_generation_profile_resource.gd")
 const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
 const HexMovementProfileResource = preload("res://addons/hex_map_kit/adapter/hex_movement_profile_resource.gd")
 const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
+const HexExportProfileResource = preload("res://addons/hex_map_kit/adapter/hex_export_profile_resource.gd")
 const HexTileCatalogResource = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd")
+const HexValidationRuleSuiteResource = preload("res://addons/hex_map_kit/adapter/hex_validation_rule_suite_resource.gd")
 
 signal asset_changed(slot_id: String)
 
@@ -37,9 +40,9 @@ const SOURCE_BADGE_DOCUMENT_DEPENDENCY := "Document Dependency"
 @export var object_database: HexObjectDatabaseResource
 @export var label_database: HexLabelDatabaseResource
 @export var movement_profile: HexMovementProfileResource
-@export var validation_rule_suite: Resource
-@export var generation_profile: Resource
-@export var export_profile: Resource
+@export var validation_rule_suite: HexValidationRuleSuiteResource
+@export var generation_profile: HexGenerationProfileResource
+@export var export_profile: HexExportProfileResource
 
 var _asset_sources := {}
 var _asset_source_badges := {}
@@ -83,15 +86,15 @@ func set_movement_profile(resource: HexMovementProfileResource, source: String =
 	_assign_asset(SLOT_MOVEMENT_PROFILE, resource, source, source_badge)
 
 
-func set_validation_rule_suite(resource: Resource, source: String = SOURCE_PROJECT, source_badge: String = "") -> void:
+func set_validation_rule_suite(resource: HexValidationRuleSuiteResource, source: String = SOURCE_PROJECT, source_badge: String = "") -> void:
 	_assign_asset(SLOT_VALIDATION_RULE_SUITE, resource, source, source_badge)
 
 
-func set_generation_profile(resource: Resource, source: String = SOURCE_PROJECT, source_badge: String = "") -> void:
+func set_generation_profile(resource: HexGenerationProfileResource, source: String = SOURCE_PROJECT, source_badge: String = "") -> void:
 	_assign_asset(SLOT_GENERATION_PROFILE, resource, source, source_badge)
 
 
-func set_export_profile(resource: Resource, source: String = SOURCE_PROJECT, source_badge: String = "") -> void:
+func set_export_profile(resource: HexExportProfileResource, source: String = SOURCE_PROJECT, source_badge: String = "") -> void:
 	_assign_asset(SLOT_EXPORT_PROFILE, resource, source, source_badge)
 
 
@@ -110,11 +113,11 @@ func set_asset(slot_id: String, resource: Resource, source: String = SOURCE_PROJ
 		SLOT_MOVEMENT_PROFILE:
 			set_movement_profile(resource as HexMovementProfileResource, source, source_badge)
 		SLOT_VALIDATION_RULE_SUITE:
-			set_validation_rule_suite(resource, source, source_badge)
+			set_validation_rule_suite(resource as HexValidationRuleSuiteResource, source, source_badge)
 		SLOT_GENERATION_PROFILE:
-			set_generation_profile(resource, source, source_badge)
+			set_generation_profile(resource as HexGenerationProfileResource, source, source_badge)
 		SLOT_EXPORT_PROFILE:
-			set_export_profile(resource, source, source_badge)
+			set_export_profile(resource as HexExportProfileResource, source, source_badge)
 
 
 func asset_for_slot(slot_id: String) -> Resource:

@@ -21,9 +21,11 @@ const HexMapValidationResult = preload("res://addons/hex_map_kit/adapter/hex_map
 const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
 const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
 const HexObjectDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_object_definition_resource.gd")
+const HexGenerationProfileResource = preload("res://addons/hex_map_kit/adapter/hex_generation_profile_resource.gd")
 const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
 const HexLabelDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_label_definition_resource.gd")
 const HexMovementProfileResource = preload("res://addons/hex_map_kit/adapter/hex_movement_profile_resource.gd")
+const HexExportProfileResource = preload("res://addons/hex_map_kit/adapter/hex_export_profile_resource.gd")
 const HexMapGenDock = preload("res://addons/hex_map_kit/editor/hex_map_gen_dock.gd")
 const HexMapGenStateEvaluator = preload("res://addons/hex_map_kit/editor/hex_map_gen_state_evaluator.gd")
 const HexMapEditTool = preload("res://addons/hex_map_kit/editor/hex_map_edit_tool.gd")
@@ -47,6 +49,7 @@ const HexTileCatalogEntry = preload("res://addons/hex_map_kit/adapter/hex_tile_c
 const HexTileCatalogResource = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd")
 const HexTileCatalogValidator = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_validator.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
+const HexValidationRuleSuiteResource = preload("res://addons/hex_map_kit/adapter/hex_validation_rule_suite_resource.gd")
 
 class FakeTileLayer:
 	var cleared := false
@@ -719,9 +722,9 @@ func _test_workspace_asset_selection_writes_back_to_selected_hex_tile_map() -> v
 	var object_database = HexObjectDatabaseResource.new()
 	var label_database = HexLabelDatabaseResource.new()
 	var movement_profile = HexMovementProfileResource.new()
-	var validation_suite = Resource.new()
-	var generation_profile = Resource.new()
-	var export_profile = Resource.new()
+	var validation_suite = HexValidationRuleSuiteResource.new()
+	var generation_profile = HexGenerationProfileResource.new()
+	var export_profile = HexExportProfileResource.new()
 	workspace.workspace_asset_context().set_tile_catalog(catalog)
 	workspace.workspace_asset_context().set_object_database(object_database)
 	workspace.workspace_asset_context().set_label_database(label_database)
@@ -1015,9 +1018,9 @@ func _test_workspace_asset_context_is_shared_by_workspace_generate_and_paint() -
 	var label_database = HexLabelDatabaseResource.new()
 	var layer_stack = HexLayerStackResource.minimal_runtime_template()
 	var movement_profile = HexMovementProfileResource.new()
-	var validation_suite = Resource.new()
-	var generation_profile = Resource.new()
-	var export_profile = Resource.new()
+	var validation_suite = HexValidationRuleSuiteResource.new()
+	var generation_profile = HexGenerationProfileResource.new()
+	var export_profile = HexExportProfileResource.new()
 
 	context.set_level_document(document)
 	context.set_tile_catalog(catalog)
@@ -1158,9 +1161,9 @@ func _test_workspace_hydrates_asset_context_from_document_dependencies() -> void
 	var object_database = HexObjectDatabaseResource.new()
 	var label_database = HexLabelDatabaseResource.new()
 	var movement_profile = HexMovementProfileResource.new()
-	var validation_suite = Resource.new()
-	var generation_profile = Resource.new()
-	var export_profile = Resource.new()
+	var validation_suite = HexValidationRuleSuiteResource.new()
+	var generation_profile = HexGenerationProfileResource.new()
+	var export_profile = HexExportProfileResource.new()
 	HexMapDocumentDependencyService.set_shared_dependency(document, HexMapDocumentDependencyService.KEY_TILE_CATALOG, catalog)
 	HexMapDocumentDependencyService.set_shared_dependency(document, HexMapDocumentDependencyService.KEY_OBJECT_DATABASE, object_database)
 	HexMapDocumentDependencyService.set_shared_dependency(document, HexMapDocumentDependencyService.KEY_LABEL_DATABASE, label_database)
@@ -2020,8 +2023,8 @@ func _test_qa_asset_screen_manages_profiles_and_score_context_without_samples() 
 	var profile_result = workspace.create_generation_profile(profile_path)
 	_assert_true(bool(profile_result["ok"]), "QA screen creates project Generation Profile")
 	_assert_true(FileAccess.file_exists(profile_path), "QA screen writes project Generation Profile")
-	var profile = profile_result["resource"] as Resource
-	_assert_true(profile is Resource, "QA screen create returns generation profile resource")
+	var profile = profile_result["resource"] as HexGenerationProfileResource
+	_assert_true(profile is HexGenerationProfileResource, "QA screen create returns generation profile resource")
 	_assert_eq(workspace.workspace_asset_context().generation_profile, profile, "created generation profile enters workspace context")
 	_assert_eq(
 		workspace.tab_asset_slot_snapshot("QA", HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE).get("current_source", ""),
@@ -2033,8 +2036,8 @@ func _test_qa_asset_screen_manages_profiles_and_score_context_without_samples() 
 	var suite_result = workspace.create_validation_rule_suite(suite_path)
 	_assert_true(bool(suite_result["ok"]), "QA screen creates project Validation Rule Suite")
 	_assert_true(FileAccess.file_exists(suite_path), "QA screen writes project Validation Rule Suite")
-	var suite = suite_result["resource"] as Resource
-	_assert_true(suite is Resource, "QA screen create returns validation suite resource")
+	var suite = suite_result["resource"] as HexValidationRuleSuiteResource
+	_assert_true(suite is HexValidationRuleSuiteResource, "QA screen create returns validation suite resource")
 	_assert_eq(workspace.workspace_asset_context().validation_rule_suite, suite, "created validation suite enters workspace context")
 
 	var score_context = workspace.qa_score_table_context()
@@ -2070,6 +2073,7 @@ func _test_qa_asset_screen_manages_profiles_and_score_context_without_samples() 
 	_assert_true(bool(preset_profile["ok"]), "QA screen duplicates generation preset to project")
 	_assert_true(FileAccess.file_exists(preset_profile_path), "QA screen writes duplicated generation preset")
 	var duplicated_profile = preset_profile["resource"] as Resource
+	_assert_true(duplicated_profile is HexGenerationProfileResource, "PROFILE-30 duplicated generation profile uses concrete resource")
 	_assert_eq(String(duplicated_profile.get_meta("preset_source", "")), "balanced", "duplicated generation profile records preset source")
 	_assert_eq(workspace.workspace_asset_context().generation_profile, duplicated_profile, "duplicated generation profile enters workspace context")
 
@@ -2078,6 +2082,7 @@ func _test_qa_asset_screen_manages_profiles_and_score_context_without_samples() 
 	_assert_true(bool(preset_suite["ok"]), "QA screen duplicates validation suite preset to project")
 	_assert_true(FileAccess.file_exists(preset_suite_path), "QA screen writes duplicated validation suite preset")
 	var duplicated_suite = preset_suite["resource"] as Resource
+	_assert_true(duplicated_suite is HexValidationRuleSuiteResource, "PROFILE-30 duplicated validation suite uses concrete resource")
 	_assert_eq(String(duplicated_suite.get_meta("preset_source", "")), "standard", "duplicated validation suite records preset source")
 	_assert_eq(workspace.workspace_asset_context().validation_rule_suite, duplicated_suite, "duplicated validation suite enters workspace context")
 
@@ -2230,8 +2235,8 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 	var profile_result = workspace.create_export_profile(profile_path)
 	_assert_true(bool(profile_result["ok"]), "Export screen creates project Export Profile")
 	_assert_true(FileAccess.file_exists(profile_path), "Export screen writes project Export Profile")
-	var export_profile = profile_result["resource"] as Resource
-	_assert_true(export_profile is Resource, "Export screen create returns export profile resource")
+	var export_profile = profile_result["resource"] as HexExportProfileResource
+	_assert_true(export_profile is HexExportProfileResource, "Export screen create returns export profile resource")
 	_assert_eq(workspace.workspace_asset_context().export_profile, export_profile, "created export profile enters workspace context")
 	_assert_eq(
 		workspace.tab_asset_slot_snapshot("Export", HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE).get("current_source", ""),
@@ -2356,20 +2361,20 @@ func _test_feature_screen_completion_contract_uses_project_assets_with_sample_mo
 	var validation_suite_path = "%s/validation_suite.tres" % output_dir
 	var validation_suite_result = workspace.create_validation_rule_suite(validation_suite_path)
 	_assert_true(bool(validation_suite_result["ok"]), "TEST-40 creates project Validation Rule Suite")
-	var validation_suite = validation_suite_result["resource"] as Resource
-	_assert_true(validation_suite is Resource, "TEST-40 Validation Rule Suite uses Resource")
+	var validation_suite = validation_suite_result["resource"] as HexValidationRuleSuiteResource
+	_assert_true(validation_suite is HexValidationRuleSuiteResource, "TEST-40 Validation Rule Suite uses concrete resource")
 
 	var generation_profile_path = "%s/generation_profile.tres" % output_dir
 	var generation_profile_result = workspace.create_generation_profile(generation_profile_path)
 	_assert_true(bool(generation_profile_result["ok"]), "TEST-40 creates project Generation Profile")
-	var generation_profile = generation_profile_result["resource"] as Resource
-	_assert_true(generation_profile is Resource, "TEST-40 Generation Profile uses Resource")
+	var generation_profile = generation_profile_result["resource"] as HexGenerationProfileResource
+	_assert_true(generation_profile is HexGenerationProfileResource, "TEST-40 Generation Profile uses concrete resource")
 
 	var export_profile_path = "%s/export_profile.tres" % output_dir
 	var export_profile_result = workspace.create_export_profile(export_profile_path)
 	_assert_true(bool(export_profile_result["ok"]), "TEST-40 creates project Export Profile")
-	var export_profile = export_profile_result["resource"] as Resource
-	_assert_true(export_profile is Resource, "TEST-40 Export Profile uses Resource")
+	var export_profile = export_profile_result["resource"] as HexExportProfileResource
+	_assert_true(export_profile is HexExportProfileResource, "TEST-40 Export Profile uses concrete resource")
 
 	_assert_project_asset_slot(
 		workspace,
@@ -3176,8 +3181,12 @@ func _test_workspace_asset_slots_use_strict_resource_type_filters() -> void:
 		{"tab": "Catalog", "slot": HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, "type": "HexTileCatalogResource"},
 		{"tab": "Layers", "slot": HexMapWorkspaceAssetContext.SLOT_LAYER_STACK, "type": "HexLayerStackResource"},
 		{"tab": "Validate", "slot": HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "type": "HexMapDocumentResource"},
+		{"tab": "Validate", "slot": HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE, "type": "HexValidationRuleSuiteResource"},
 		{"tab": "QA", "slot": HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "type": "HexMapDocumentResource"},
+		{"tab": "QA", "slot": HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE, "type": "HexGenerationProfileResource"},
+		{"tab": "QA", "slot": HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE, "type": "HexValidationRuleSuiteResource"},
 		{"tab": "Export", "slot": HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "type": "HexMapDocumentResource"},
+		{"tab": "Export", "slot": HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE, "type": "HexExportProfileResource"},
 	]
 	for expectation in typed_expectations:
 		var tab_name := String(expectation["tab"])
@@ -3191,23 +3200,6 @@ func _test_workspace_asset_slots_use_strict_resource_type_filters() -> void:
 		_assert_true(String(layout["status_tooltip"]).contains("Pick: %s" % expected_type), "ASSET-30 %s/%s tooltip says what to pick" % [tab_name, slot_id])
 		if bool(layout.get("resource_picker_visible", false)):
 			_assert_eq(String(layout["resource_picker_base_type"]), expected_type, "ASSET-30 %s/%s EditorResourcePicker base type is strict" % [tab_name, slot_id])
-
-	var flexible_expectations: Array[Dictionary] = [
-		{"tab": "Validate", "slot": HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE},
-		{"tab": "QA", "slot": HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE},
-		{"tab": "QA", "slot": HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE},
-		{"tab": "Export", "slot": HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE},
-	]
-	for expectation in flexible_expectations:
-		var tab_name := String(expectation["tab"])
-		var slot_id := String(expectation["slot"])
-		var snapshot = workspace.tab_asset_slot_snapshot(tab_name, slot_id)
-		var layout = workspace.tab_asset_slot_layout_snapshot(tab_name, slot_id)
-		_assert_eq(String(snapshot["required_type"]), "Resource", "ASSET-30 %s/%s remains flexible Resource by policy" % [tab_name, slot_id])
-		_assert_true(bool(snapshot["uses_generic_resource_filter"]), "ASSET-30 %s/%s reports generic Resource filter" % [tab_name, slot_id])
-		_assert_true(bool(snapshot["generic_resource_filter_allowed"]), "ASSET-30 %s/%s documents why generic Resource is allowed" % [tab_name, slot_id])
-		_assert_true(String(snapshot["type_filter_reason"]).contains("no concrete"), "ASSET-30 %s/%s flexible reason is explicit" % [tab_name, slot_id])
-		_assert_true(String(layout["status_tooltip"]).contains("Flexible Resource slot"), "ASSET-30 %s/%s tooltip carries flexible reason" % [tab_name, slot_id])
 
 	workspace.queue_free()
 	await process_frame
@@ -3479,9 +3471,9 @@ func _test_asset_resource_factory_creates_project_resources_and_assigns_context(
 		HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE: "HexLabelDatabaseResource",
 		HexMapWorkspaceAssetContext.SLOT_LAYER_STACK: "HexLayerStackResource",
 		HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE: "HexMovementProfileResource",
-		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE: "Resource",
-		HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE: "Resource",
-		HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE: "Resource",
+		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE: "HexValidationRuleSuiteResource",
+		HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE: "HexGenerationProfileResource",
+		HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE: "HexExportProfileResource",
 	}
 
 	for slot_id in HexMapWorkspaceAssetContext.asset_slot_ids():
@@ -8162,8 +8154,12 @@ func _assert_created_asset_resource_type(slot_id: String, resource: Resource) ->
 			_assert_true(resource is HexLayerStackResource, "create-new layer stack has layer stack type")
 		HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE:
 			_assert_true(resource is HexMovementProfileResource, "create-new movement profile has movement profile type")
-		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE, HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE, HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE:
-			_assert_true(resource is Resource, "create-new generic profile has resource type")
+		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE:
+			_assert_true(resource is HexValidationRuleSuiteResource, "create-new validation suite has validation suite type")
+		HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE:
+			_assert_true(resource is HexGenerationProfileResource, "create-new generation profile has generation profile type")
+		HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE:
+			_assert_true(resource is HexExportProfileResource, "create-new export profile has export profile type")
 
 
 func _assert_created_asset_has_no_sample_payload(slot_id: String, resource: Resource) -> void:
@@ -8188,8 +8184,15 @@ func _assert_created_asset_has_no_sample_payload(slot_id: String, resource: Reso
 		HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE:
 			var movement_profile := resource as HexMovementProfileResource
 			_assert_true(not movement_profile.profile_id.contains("sample"), "create-new movement profile is not sample-named")
-		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE, HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE, HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE:
-			_assert_true(not resource.resource_name.to_lower().contains("sample"), "create-new generic profile is not sample-named")
+		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE:
+			var validation_suite := resource as HexValidationRuleSuiteResource
+			_assert_true(not validation_suite.suite_id.contains("sample"), "create-new validation suite is not sample-named")
+		HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE:
+			var generation_profile := resource as HexGenerationProfileResource
+			_assert_true(not generation_profile.profile_id.contains("sample"), "create-new generation profile is not sample-named")
+		HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE:
+			var export_profile := resource as HexExportProfileResource
+			_assert_true(not export_profile.profile_id.contains("sample"), "create-new export profile is not sample-named")
 
 
 func _assert_true(value: bool, message: String) -> void:

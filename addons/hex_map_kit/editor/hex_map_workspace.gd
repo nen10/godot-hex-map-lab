@@ -11,11 +11,14 @@ const HexMapValidationResult = preload("res://addons/hex_map_kit/adapter/hex_map
 const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
 const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
 const HexLabelDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_label_definition_resource.gd")
+const HexGenerationProfileResource = preload("res://addons/hex_map_kit/adapter/hex_generation_profile_resource.gd")
 const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
 const HexObjectDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_object_definition_resource.gd")
+const HexExportProfileResource = preload("res://addons/hex_map_kit/adapter/hex_export_profile_resource.gd")
 const HexTileCatalogEntry = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd")
 const HexTileCatalogResource = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd")
 const HexTileCatalogValidator = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_validator.gd")
+const HexValidationRuleSuiteResource = preload("res://addons/hex_map_kit/adapter/hex_validation_rule_suite_resource.gd")
 const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 const HexMapGenDock = preload("res://addons/hex_map_kit/editor/hex_map_gen_dock.gd")
@@ -3020,7 +3023,7 @@ func _sync_label_database_from_result(result: Dictionary) -> void:
 func _sync_generation_profile_from_result(result: Dictionary) -> void:
 	if not bool(result.get("ok", false)):
 		return
-	var resource = result.get("resource", null) as Resource
+	var resource = result.get("resource", null) as HexGenerationProfileResource
 	if resource == null:
 		return
 	workspace_asset_context().set_generation_profile(resource)
@@ -3030,7 +3033,7 @@ func _sync_generation_profile_from_result(result: Dictionary) -> void:
 func _sync_validation_suite_from_result(result: Dictionary) -> void:
 	if not bool(result.get("ok", false)):
 		return
-	var resource = result.get("resource", null) as Resource
+	var resource = result.get("resource", null) as HexValidationRuleSuiteResource
 	if resource == null:
 		return
 	workspace_asset_context().set_validation_rule_suite(resource)
@@ -3040,7 +3043,7 @@ func _sync_validation_suite_from_result(result: Dictionary) -> void:
 func _sync_export_profile_from_result(result: Dictionary) -> void:
 	if not bool(result.get("ok", false)):
 		return
-	var resource = result.get("resource", null) as Resource
+	var resource = result.get("resource", null) as HexExportProfileResource
 	if resource == null:
 		return
 	workspace_asset_context().set_export_profile(resource)
@@ -3374,11 +3377,15 @@ func _qa_resource_context(resource: Resource) -> Dictionary:
 			"resource_path": "",
 			"preset_source": "",
 		}
+	var metadata = resource.get("metadata") if resource != null else {}
+	var metadata_preset_source := ""
+	if metadata is Dictionary:
+		metadata_preset_source = String((metadata as Dictionary).get("preset_source", ""))
 	return {
 		"selected": true,
 		"resource_name": resource.resource_name,
 		"resource_path": resource.resource_path,
-		"preset_source": String(resource.get_meta("preset_source", "")),
+		"preset_source": metadata_preset_source if metadata_preset_source != "" else String(resource.get_meta("preset_source", "")),
 	}
 
 
@@ -3516,8 +3523,14 @@ func _generation_profile_preset(preset_id: String) -> Resource:
 	var id := preset_id.strip_edges().to_lower()
 	if not ["balanced", "sparse", "dense"].has(id):
 		return null
-	var profile := Resource.new()
+	var profile := HexGenerationProfileResource.new()
+	profile.profile_id = id
+	profile.display_name = "%s Generation Profile" % id.capitalize()
 	profile.resource_name = "%s Generation Profile" % id.capitalize()
+	profile.metadata = {
+		"preset_source": id,
+		"profile_kind": "generation",
+	}
 	profile.set_meta("preset_source", id)
 	profile.set_meta("profile_kind", "generation")
 	return profile
@@ -3527,8 +3540,14 @@ func _validation_rule_suite_preset(preset_id: String) -> Resource:
 	var id := preset_id.strip_edges().to_lower()
 	if id != "standard":
 		return null
-	var suite := Resource.new()
+	var suite := HexValidationRuleSuiteResource.new()
+	suite.suite_id = id
+	suite.display_name = "Standard Validation Rule Suite"
 	suite.resource_name = "Standard Validation Rule Suite"
+	suite.metadata = {
+		"preset_source": id,
+		"profile_kind": "validation",
+	}
 	suite.set_meta("preset_source", id)
 	suite.set_meta("profile_kind", "validation")
 	return suite

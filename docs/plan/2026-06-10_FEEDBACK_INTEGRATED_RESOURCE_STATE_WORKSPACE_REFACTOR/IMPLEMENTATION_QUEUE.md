@@ -50,8 +50,8 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `PROFILE-30` | `READY` | `RES-10` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/PROFILE-30_CONCRETE_PROFILE_RESOURCES/` | Concrete profile Resource classes and picker filters | adapter resource files, asset slot definitions, resource picker filters, tests/docs | Validation Rule Suite, Generation Profile, and Export Profile use concrete Resource classes; picker filters are typed; docs/manual can explain each profile purpose; no sample-only placeholder is completion proof. |
-| `PROFILE-31` | `BACKLOG` | `PROFILE-30`, `RES-11` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/PROFILE-31_PROFILE_DEPENDENCY_INTEGRATION/` | Profile resources integrated with dependencies and workspace tabs | dependency service, `HexMapWorkspaceAssetContext`, QA/Validate/Export tabs, editor tests | Concrete profiles hydrate from document dependencies; QA/Validate/Export tabs show concrete resources instead of generic `Resource`; missing profiles have optional/missing state. |
+| `PROFILE-30` | `COMPLETE` | `RES-10` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/PROFILE-30_CONCRETE_PROFILE_RESOURCES/` | Concrete profile Resource classes and picker filters | adapter resource files, asset slot definitions, resource picker filters, tests/docs | Validation Rule Suite, Generation Profile, and Export Profile use concrete Resource classes; picker filters are typed; docs/manual explain each profile purpose; no sample-only placeholder is completion proof; `./tools/test.sh` passed. |
+| `PROFILE-31` | `READY` | `PROFILE-30`, `RES-11` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/PROFILE-31_PROFILE_DEPENDENCY_INTEGRATION/` | Profile resources integrated with dependencies and workspace tabs | dependency service, `HexMapWorkspaceAssetContext`, QA/Validate/Export tabs, editor tests | Concrete profiles hydrate from document dependencies; QA/Validate/Export tabs show concrete resources instead of generic `Resource`; missing profiles have optional/missing state. |
 
 ---
 
@@ -148,7 +148,7 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `PROFILE-30`.
+Current recommended next task: `PROFILE-31`.
 
 Reason:
 
@@ -160,8 +160,9 @@ Reason:
 - `NODE-20` is complete.
 - `NODE-21` is complete.
 - `NODE-22` is complete.
-- `PROFILE-30`, `STATE-00`, and `ARCH-50` are READY.
-- `PROFILE-30` is first in queue order and creates concrete profile Resource classes.
+- `PROFILE-30` is complete.
+- `PROFILE-31`, `STATE-00`, and `ARCH-50` are READY.
+- `PROFILE-31` is first in queue order and integrates concrete profiles with dependencies and tabs.
 
 ---
 
@@ -294,3 +295,24 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_workspace.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/NODE-22_TEST_RESULT_2026-06-10.md`
+
+### PROFILE-30 Concrete profile resources
+
+proof:
+  plan: `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/PROFILE-30_CONCRETE_PROFILE_RESOURCES/`
+  review: `docs/review/autopilot/PROFILE-30_SELF_REVIEW_2026-06-10.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+    - `docs/manual/MANUAL_WORKFLOW.md`
+    - `docs/manual/MANUAL_EDITOR_PLUGIN.md`
+  major files:
+    - `addons/hex_map_kit/adapter/hex_validation_rule_suite_resource.gd`
+    - `addons/hex_map_kit/adapter/hex_generation_profile_resource.gd`
+    - `addons/hex_map_kit/adapter/hex_export_profile_resource.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace_asset_resource_factory.gd`
+    - `tests/test_editor_plugin.gd`
+    - `tests/test_hex_adapter.gd`
+    - `docs/review/autopilot/PROFILE-30_TEST_RESULT_2026-06-10.md`
