@@ -87,11 +87,12 @@ func duplicate_sample_dialog(sample_id: String = SAMPLE_CATALOG_ID) -> EditorFil
 	if not _sample_supports_duplicate(sample_id):
 		return null
 	var config := duplicate_dialog_config()
-	var dialog := EditorFileDialog.new()
-	dialog.file_mode = int(config.get("file_mode", EditorFileDialog.FILE_MODE_SAVE_FILE))
-	dialog.access = int(config.get("access", EditorFileDialog.ACCESS_RESOURCES))
-	for filter in config.get("filters", []):
-		dialog.add_filter(String(filter))
+	var dialog := HexMapEditorPathSelector.new_dialog(
+		int(config.get("file_mode", EditorFileDialog.FILE_MODE_SAVE_FILE)),
+		config.get("filters", [])
+	)
+	if dialog == null:
+		return null
 	dialog.current_file = String(config.get("current_file", HexMapSampleAssetDuplicator.default_catalog_file_name()))
 	dialog.file_selected.connect(_on_duplicate_file_selected.bind(sample_id))
 	return dialog

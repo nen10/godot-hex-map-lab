@@ -29,7 +29,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
 | `FB-00` | `COMPLETE` | none | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/FB-00_ADOPT_ALL_FEEDBACKS/` | Feedback adoption proof and execution source-of-truth reset | `ROADMAP.md`, feedback docs, queue/proof docs | 4 feedback sources are adopted in the roadmap; priority order, analog-test deferral, and final-only dist rule are recorded; `./tools/test.sh` passed. |
-| `FB-01` | `READY` | `FB-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/FB-01_FIX_FILE_DIALOG_POPUP_PATHS/` | Unified FileDialog lifecycle for workspace/editor dialogs | `addons/hex_map_kit/editor/hex_map_workspace.gd`, `hex_map_editor_path_selector.gd`, `hex_map_editor_asset_slot_control.gd`, `hex_map_sample_settings_panel.gd`, `hex_dist_editor.gd`, editor tests | Dialog popup paths use one lifecycle utility; no double `add_child()` / reparent path remains; open/commit/cancel is represented by callback or dialog state; tests cover lifecycle contract without depending on actual popup. |
+| `FB-01` | `COMPLETE` | `FB-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/FB-01_FIX_FILE_DIALOG_POPUP_PATHS/` | Unified FileDialog lifecycle for workspace/editor dialogs | `addons/hex_map_kit/editor/hex_map_workspace.gd`, `hex_map_editor_path_selector.gd`, `hex_map_editor_asset_slot_control.gd`, `hex_map_sample_settings_panel.gd`, `hex_dist_editor.gd`, editor tests | Dialog popup paths use one lifecycle utility; double `add_child()` / reparent paths are removed; open/commit/cancel remains callback-testable; `./tools/test.sh` passed. |
 | `FB-02` | `READY` | `FB-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/FB-02_VISIBLE_NO_OP_CONTROL_REPAIR/` | Visible no-op and placeholder control removal | workspace tabs, asset slot controls, sample settings, editor tests | No visible Select/Open/Validate/Details/Link/Node/Sample action remains without a real state change; disabled controls explain conditions via tooltip; `./tools/test.sh` plus targeted editor UI tests. |
 
 ---
@@ -148,13 +148,14 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `FB-01`.
+Current recommended next task: `FB-02`.
 
 Reason:
 
 - `FB-00` is complete.
-- Dependency sweep promoted `FB-01`, `FB-02`, `RES-10`, and `STATE-00`.
-- `FB-01` is first in queue order and fixes the FileDialog lifecycle safety issue before broader Resource/state work.
+- `FB-01` is complete.
+- `FB-02`, `RES-10`, and `STATE-00` are READY.
+- `FB-02` is first in queue order and removes visible no-op controls before broader Resource/state work.
 
 ---
 
@@ -176,3 +177,20 @@ proof:
     - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/FB-00_ADOPT_ALL_FEEDBACKS/POLICY.md`
     - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/FB-00_ADOPT_ALL_FEEDBACKS/IMPLEMENTATION_PLAN.md`
     - `docs/review/autopilot/FB-00_TEST_RESULT_2026-06-10.md`
+
+### FB-01 Fix FileDialog popup paths
+
+proof:
+  plan: `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/FB-01_FIX_FILE_DIALOG_POPUP_PATHS/`
+  review: `docs/review/autopilot/FB-01_SELF_REVIEW_2026-06-10.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_editor_path_selector.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `addons/hex_map_kit/editor/hex_map_sample_settings_panel.gd`
+    - `addons/hex_map_kit/editor/hex_dist_editor.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/FB-01_TEST_RESULT_2026-06-10.md`

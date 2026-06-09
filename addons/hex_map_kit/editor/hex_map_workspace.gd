@@ -3556,7 +3556,6 @@ func _popup_export_destination_dialog() -> bool:
 	)
 	dialog.current_file = "hex_map_export.tres"
 	dialog.file_selected.connect(_on_export_destination_file_selected)
-	add_child(dialog)
 	return HexMapEditorPathSelector.popup_dialog(dialog)
 
 
@@ -3587,7 +3586,6 @@ func _popup_missing_unique_resources_directory_dialog() -> bool:
 		[]
 	)
 	dialog.dir_selected.connect(_on_missing_unique_resources_directory_selected)
-	add_child(dialog)
 	return HexMapEditorPathSelector.popup_dialog(dialog)
 
 

@@ -5,6 +5,7 @@ extends Window
 const HexRandomizer = preload("res://addons/hex_map_kit/core/hex_randomizer.gd")
 const HexDistribution = preload("res://addons/hex_map_kit/adapter/hex_distribution.gd")
 const HexCellButtonLayout = preload("res://addons/hex_map_kit/editor/hex_cell_button_layout.gd")
+const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 
 var root: VBoxContainer
@@ -31,6 +32,25 @@ var _save_new_button: Button
 var _duplicate_preset_button: Button
 var _save_button: Button
 var _editing_path: String = ""
+
+
+func save_new_dialog_config() -> Dictionary:
+	return {
+		"uses_file_dialog": true,
+		"file_mode": EditorFileDialog.FILE_MODE_SAVE_FILE,
+		"access": EditorFileDialog.ACCESS_RESOURCES,
+		"filters": PackedStringArray(["*.tres ; Hex Distribution"]),
+		"current_file": "hex_dist.tres",
+	}
+
+
+func load_dialog_config() -> Dictionary:
+	return {
+		"uses_file_dialog": true,
+		"file_mode": EditorFileDialog.FILE_MODE_OPEN_FILE,
+		"access": EditorFileDialog.ACCESS_RESOURCES,
+		"filters": PackedStringArray(["*.tres ; Hex Distribution"]),
+	}
 
 
 func _init(
@@ -415,29 +435,49 @@ func _on_duplicate_preset_pressed() -> void:
 	_on_save_new_pressed()
 
 
-func _on_save_new_pressed() -> void:
-	var dialog = EditorFileDialog.new()
-	dialog.file_mode = EditorFileDialog.FILE_MODE_SAVE_FILE
-	dialog.access = EditorFileDialog.ACCESS_RESOURCES
-	dialog.add_filter("*.tres", "Hex Distribution")
-	dialog.current_file = "hex_dist.tres"
+func save_new_dialog() -> EditorFileDialog:
+	var config := save_new_dialog_config()
+	var dialog := HexMapEditorPathSelector.new_dialog(
+		int(config["file_mode"]),
+		config["filters"]
+	)
+	if dialog == null:
+		return null
+	dialog.current_file = String(config["current_file"])
 	dialog.file_selected.connect(_on_save_new_file_selected)
-	EditorInterface.get_base_control().add_child(dialog)
-	dialog.popup_centered_ratio(0.5)
+	return dialog
+
+
+func popup_save_new_dialog() -> bool:
+	return HexMapEditorPathSelector.popup_dialog(save_new_dialog())
+
+
+func _on_save_new_pressed() -> void:
+	popup_save_new_dialog()
 
 
 func _on_save_new_file_selected(path: String) -> void:
 	save_current_distribution_as(path)
 
 
-func _on_load_pressed() -> void:
-	var dialog = EditorFileDialog.new()
-	dialog.file_mode = EditorFileDialog.FILE_MODE_OPEN_FILE
-	dialog.access = EditorFileDialog.ACCESS_RESOURCES
-	dialog.add_filter("*.tres", "Hex Distribution")
+func load_dialog() -> EditorFileDialog:
+	var config := load_dialog_config()
+	var dialog := HexMapEditorPathSelector.new_dialog(
+		int(config["file_mode"]),
+		config["filters"]
+	)
+	if dialog == null:
+		return null
 	dialog.file_selected.connect(_load_from_file)
-	EditorInterface.get_base_control().add_child(dialog)
-	dialog.popup_centered_ratio(0.5)
+	return dialog
+
+
+func popup_load_dialog() -> bool:
+	return HexMapEditorPathSelector.popup_dialog(load_dialog())
+
+
+func _on_load_pressed() -> void:
+	popup_load_dialog()
 
 
 func _on_recent_selected(index: int) -> void:

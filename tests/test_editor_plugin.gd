@@ -32,6 +32,7 @@ const HexMapDocumentInspector = preload("res://addons/hex_map_kit/editor/hex_map
 const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
 const HexMapEditorAssetSlotState = preload("res://addons/hex_map_kit/editor/hex_map_editor_asset_slot_state.gd")
 const HexMapEditorAssetSlotControl = preload("res://addons/hex_map_kit/editor/hex_map_editor_asset_slot_control.gd")
+const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
 const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
 const HexMapWorkspaceAssetResourceFactory = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_resource_factory.gd")
 const HexMapSampleAssetDuplicator = preload("res://addons/hex_map_kit/editor/hex_map_sample_asset_duplicator.gd")
@@ -142,6 +143,7 @@ func _run() -> void:
 	_test_asset_slot_state_model_reports_selection_validation_and_sample_source()
 	await _test_asset_slot_state_model_contract_covers_sample_visibility_and_project_duplicates()
 	await _test_asset_slot_control_exposes_state_snapshot_contract()
+	await _test_file_dialog_lifecycle_helper_attaches_without_reparenting()
 	await _test_workspace_asset_slots_use_strict_resource_type_filters()
 	await _test_workspace_resource_purpose_tooltips_cover_resource_rows()
 	await _test_workspace_tab_purpose_empty_states_route_to_project_actions()
@@ -203,6 +205,7 @@ func _run() -> void:
 	await _test_distribution_editor_uses_hex_cell_layout_for_patterns()
 	await _test_distribution_editor_pattern_redraw_uses_layout_entries()
 	await _test_distribution_editor_close_button_uses_cancel_flow()
+	await _test_distribution_editor_file_dialogs_use_lifecycle_helper_contract()
 	await _test_distribution_editor_manages_recent_custom_and_duplicate_preset()
 	await _test_adjacency_rule_editor_applies_rule_text()
 	_test_generation_dock_state_evaluator_splits_control_logic()
@@ -2858,6 +2861,46 @@ func _test_asset_slot_control_exposes_state_snapshot_contract() -> void:
 	await process_frame
 
 
+func _test_file_dialog_lifecycle_helper_attaches_without_reparenting() -> void:
+	var first_parent := Control.new()
+	first_parent.name = "DialogParentA"
+	var second_parent := Control.new()
+	second_parent.name = "DialogParentB"
+	root.add_child(first_parent)
+	root.add_child(second_parent)
+	await process_frame
+
+	var dialog := Control.new()
+	dialog.name = "DialogLifecycleSubject"
+	var initial_snapshot = HexMapEditorPathSelector.dialog_lifecycle_snapshot(dialog)
+	_assert_true(bool(initial_snapshot["valid"]), "FileDialog lifecycle snapshot accepts a dialog node")
+	_assert_true(not bool(initial_snapshot["has_parent"]), "new dialog node starts without a parent")
+
+	_assert_true(
+		HexMapEditorPathSelector.attach_dialog(dialog, first_parent),
+		"FileDialog lifecycle helper attaches unparented dialog node"
+	)
+	var attached_snapshot = HexMapEditorPathSelector.dialog_lifecycle_snapshot(dialog)
+	_assert_true(bool(attached_snapshot["has_parent"]), "FileDialog lifecycle snapshot records attached parent")
+	_assert_eq(attached_snapshot["parent"], first_parent, "FileDialog lifecycle helper uses the requested parent")
+	_assert_true(bool(attached_snapshot["inside_tree"]), "attached dialog node is inside the test scene tree")
+	_assert_eq(first_parent.get_child_count(), 1, "FileDialog attach adds the dialog node once")
+
+	_assert_true(
+		HexMapEditorPathSelector.attach_dialog(dialog, second_parent),
+		"FileDialog lifecycle helper accepts already attached dialog node without reparenting"
+	)
+	var reattach_snapshot = HexMapEditorPathSelector.dialog_lifecycle_snapshot(dialog)
+	_assert_eq(reattach_snapshot["parent"], first_parent, "FileDialog lifecycle helper does not reparent an attached dialog node")
+	_assert_eq(first_parent.get_child_count(), 1, "FileDialog lifecycle helper does not double-add dialog node to original parent")
+	_assert_eq(second_parent.get_child_count(), 0, "FileDialog lifecycle helper does not add attached dialog node to second parent")
+
+	dialog.queue_free()
+	first_parent.queue_free()
+	second_parent.queue_free()
+	await process_frame
+
+
 func _test_workspace_asset_slots_use_strict_resource_type_filters() -> void:
 	var session = HexMapEditorSessionState.new()
 	var workspace = HexMapWorkspace.new()
@@ -5300,6 +5343,28 @@ func _test_distribution_editor_close_button_uses_cancel_flow() -> void:
 	await process_frame
 
 	_assert_eq(state["count"], 1, "distribution editor window close calls cancel callback")
+
+
+func _test_distribution_editor_file_dialogs_use_lifecycle_helper_contract() -> void:
+	var editor = HexDistEditor.new()
+	root.add_child(editor)
+	await process_frame
+
+	var save_config := editor.save_new_dialog_config()
+	_assert_true(bool(save_config.get("uses_file_dialog", false)), "distribution Save New uses FileDialog contract")
+	_assert_eq(int(save_config["file_mode"]), EditorFileDialog.FILE_MODE_SAVE_FILE, "distribution Save New dialog uses Save File mode")
+	_assert_eq(String(save_config["current_file"]), "hex_dist.tres", "distribution Save New dialog uses default .tres file name")
+	_assert_true(PackedStringArray(save_config["filters"]).has("*.tres ; Hex Distribution"), "distribution Save New dialog filters Hex Distribution resources")
+
+	var load_config := editor.load_dialog_config()
+	_assert_true(bool(load_config.get("uses_file_dialog", false)), "distribution Load uses FileDialog contract")
+	_assert_eq(int(load_config["file_mode"]), EditorFileDialog.FILE_MODE_OPEN_FILE, "distribution Load dialog uses Open File mode")
+	_assert_true(PackedStringArray(load_config["filters"]).has("*.tres ; Hex Distribution"), "distribution Load dialog filters Hex Distribution resources")
+
+	_assert_eq(editor.save_new_dialog(), null, "distribution Save New dialog is not instantiated outside editor popup context")
+	_assert_eq(editor.load_dialog(), null, "distribution Load dialog is not instantiated outside editor popup context")
+	editor.queue_free()
+	await process_frame
 
 
 func _test_distribution_editor_manages_recent_custom_and_duplicate_preset() -> void:
