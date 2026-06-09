@@ -958,6 +958,14 @@ func validate_screen_snapshot() -> Dictionary:
 		"label_database": context.label_database,
 		"layer_stack": context.layer_stack,
 		"validation_rule_suite": context.validation_rule_suite,
+		"validation_rule_suite_context": _profile_resource_context(
+			context,
+			HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE
+		),
+		"validation_rule_suite_slot": tab_asset_slot_snapshot(
+			HexMapWorkspaceComponentRegistry.TAB_VALIDATE,
+			HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE
+		),
 		"generation_profile": context.generation_profile,
 		"navigator_component_present": tab_has_component(HexMapWorkspaceComponentRegistry.TAB_VALIDATE, "validation_issue_navigator"),
 		"last_result": _last_workspace_validation_result,
@@ -992,7 +1000,7 @@ func validate_workspace_assets() -> HexMapValidationResult:
 	var context := workspace_asset_context()
 	var result := HexMapValidationResult.new()
 	result.summary = {
-		"workspace_assets": 7,
+		"workspace_assets": 5,
 		"errors": 0,
 		"warnings": 0,
 		"infos": 0,
@@ -1041,24 +1049,6 @@ func validate_workspace_assets() -> HexMapValidationResult:
 		HexMapWorkspaceComponentRegistry.TAB_LAYERS,
 		"layer_stack_asset_panel",
 		HexMapWorkspaceAssetContext.SLOT_LAYER_STACK
-	)
-	_add_missing_asset_issue(
-		result,
-		context.validation_rule_suite == null,
-		"workspace.validation_suite_missing",
-		"Validation Rule Suite is not selected.",
-		HexMapWorkspaceComponentRegistry.TAB_VALIDATE,
-		"validation_asset_panel",
-		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE
-	)
-	_add_missing_asset_issue(
-		result,
-		context.generation_profile == null,
-		"workspace.generation_profile_missing",
-		"Generation Profile is not selected.",
-		HexMapWorkspaceComponentRegistry.TAB_QA,
-		"qa_asset_panel",
-		HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE
 	)
 	if context.level_document != null:
 		var document_result = HexMapDocumentValidator.validate_document(context.level_document, _document_validation_options())
@@ -1994,7 +1984,15 @@ func qa_screen_snapshot() -> Dictionary:
 		"generate_role_text": "Generate previews one candidate; QA compares seed batches and adopts a winner.",
 		"seed_lab_component_present": tab_has_component(HexMapWorkspaceComponentRegistry.TAB_QA, "qa_seed_lab_panel"),
 		"generation_profile": context.generation_profile,
+		"generation_profile_context": _profile_resource_context(
+			context,
+			HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE
+		),
 		"validation_rule_suite": context.validation_rule_suite,
+		"validation_rule_suite_context": _profile_resource_context(
+			context,
+			HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE
+		),
 		"promotion_target_document": context.level_document,
 		"generation_profile_slot": tab_asset_slot_snapshot(
 			HexMapWorkspaceComponentRegistry.TAB_QA,
@@ -2017,8 +2015,14 @@ func qa_screen_snapshot() -> Dictionary:
 func qa_score_table_context() -> Dictionary:
 	var context := workspace_asset_context()
 	return {
-		"generation_profile": _qa_resource_context(context.generation_profile),
-		"validation_rule_suite": _qa_resource_context(context.validation_rule_suite),
+		"generation_profile": _profile_resource_context(
+			context,
+			HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE
+		),
+		"validation_rule_suite": _profile_resource_context(
+			context,
+			HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE
+		),
 		"score_rows": _qa_score_rows(),
 	}
 
@@ -2027,8 +2031,14 @@ func qa_seed_lab_context() -> Dictionary:
 	var context := workspace_asset_context()
 	var score_rows := _qa_score_rows()
 	return {
-		"generation_profile": _qa_resource_context(context.generation_profile),
-		"validation_rule_suite": _qa_resource_context(context.validation_rule_suite),
+		"generation_profile": _profile_resource_context(
+			context,
+			HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE
+		),
+		"validation_rule_suite": _profile_resource_context(
+			context,
+			HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE
+		),
 		"score_rows": score_rows,
 		"score_row_count": score_rows.size(),
 		"selected_seed_row": _qa_selected_seed_row.duplicate(true),
@@ -2241,6 +2251,10 @@ func export_screen_snapshot() -> Dictionary:
 		"visible_output_mode_labels": _export_visible_output_mode_labels(output_modes),
 		"level_document": context.level_document,
 		"export_profile": context.export_profile,
+		"export_profile_context": _profile_resource_context(
+			context,
+			HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE
+		),
 		"level_document_slot": tab_asset_slot_snapshot(
 			HexMapWorkspaceComponentRegistry.TAB_EXPORT,
 			HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT
@@ -2500,7 +2514,7 @@ func _mount_workspace_asset_panels() -> void:
 		"Validation Assets",
 		[
 			_slot_row(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "Level Document"),
-			_slot_row(HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE, "Validation Rule Suite"),
+			_slot_row(HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE, "Validation Rule Suite", false),
 		]
 	)
 	_mount_qa_seed_lab_panel()
@@ -2509,8 +2523,8 @@ func _mount_workspace_asset_panels() -> void:
 		"qa_asset_panel",
 		"QA Assets",
 		[
-			_slot_row(HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE, "Generation Profile"),
-			_slot_row(HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE, "Validation Rule Suite"),
+			_slot_row(HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE, "Generation Profile", false),
+			_slot_row(HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE, "Validation Rule Suite", false),
 			_slot_row(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "Promotion Target Document", false),
 		]
 	)
@@ -3369,12 +3383,22 @@ func _export_action_result(ok: bool, error: int, path: String) -> Dictionary:
 	}
 
 
-func _qa_resource_context(resource: Resource) -> Dictionary:
+func _profile_resource_context(context: HexMapWorkspaceAssetContext, slot_id: String) -> Dictionary:
+	var resource := context.asset_for_slot(slot_id) if context != null else null
+	var required_type := HexMapWorkspaceAssetResourceFactory.resource_type_name(slot_id)
+	var source := context.asset_source(slot_id) if context != null else HexMapWorkspaceAssetContext.SOURCE_NONE
+	var source_badge := context.asset_source_badge(slot_id) if context != null else HexMapWorkspaceAssetContext.SOURCE_BADGE_NONE
 	if resource == null:
 		return {
 			"selected": false,
 			"resource_name": "",
 			"resource_path": "",
+			"resource_class": "",
+			"required_type": required_type,
+			"source": source,
+			"source_badge": source_badge,
+			"status": "optional_missing" if _profile_slot_is_optional(slot_id) else "missing",
+			"missing_state": "optional" if _profile_slot_is_optional(slot_id) else "required",
 			"preset_source": "",
 		}
 	var metadata = resource.get("metadata") if resource != null else {}
@@ -3385,8 +3409,31 @@ func _qa_resource_context(resource: Resource) -> Dictionary:
 		"selected": true,
 		"resource_name": resource.resource_name,
 		"resource_path": resource.resource_path,
+		"resource_class": _resource_class_name(resource),
+		"required_type": required_type,
+		"source": source,
+		"source_badge": source_badge,
+		"status": "selected",
+		"missing_state": "",
 		"preset_source": metadata_preset_source if metadata_preset_source != "" else String(resource.get_meta("preset_source", "")),
 	}
+
+
+func _profile_slot_is_optional(slot_id: String) -> bool:
+	return slot_id == HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE \
+		or slot_id == HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE \
+		or slot_id == HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE
+
+
+func _resource_class_name(resource: Resource) -> String:
+	if resource == null:
+		return ""
+	var script = resource.get_script()
+	if script != null and script.has_method("get_global_name"):
+		var global_name = String(script.call("get_global_name"))
+		if global_name != "":
+			return global_name
+	return resource.get_class()
 
 
 func _qa_promotion_target_context(context: HexMapWorkspaceAssetContext) -> Dictionary:

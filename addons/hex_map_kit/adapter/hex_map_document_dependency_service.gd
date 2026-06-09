@@ -64,15 +64,16 @@ static func set_shared_dependency(
 	document,
 	key: String,
 	resource: Resource,
-	required: bool = true,
+	required: Variant = null,
 	metadata: Dictionary = {}
 ):
+	var actual_required := bool(required) if required != null else shared_dependency_required_default(key)
 	return set_dependency(
 		document,
 		shared_dependency_kind(key),
 		resource,
 		shared_dependency_role(key),
-		required,
+		actual_required,
 		metadata
 	)
 
@@ -157,13 +158,20 @@ static func dependency_snapshot(dependency, key: String = "") -> Dictionary:
 		"dependency_id": String(dependency.get("dependency_id")) if dependency is Resource else dependency_id_for(kind, role),
 		"kind": kind,
 		"role": role,
-		"required": bool(dependency.get("required")) if dependency is Resource else true,
+		"required": bool(dependency.get("required")) if dependency is Resource else shared_dependency_required_default(key),
 		"resource": resource,
 		"resource_path": resource.resource_path if resource is Resource else "",
 		"selected": resource is Resource,
 		"source_badge": source_badge,
 		"metadata": (metadata as Dictionary).duplicate(true),
 	}
+
+
+static func shared_dependency_required_default(key: String) -> bool:
+	match key:
+		KEY_VALIDATION_RULE_SUITE, KEY_GENERATION_PROFILE, KEY_EXPORT_PROFILE:
+			return false
+	return true
 
 
 static func validate_dependencies(document):

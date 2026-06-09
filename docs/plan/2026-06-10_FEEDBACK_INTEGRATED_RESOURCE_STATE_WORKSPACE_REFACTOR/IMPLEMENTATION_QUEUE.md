@@ -51,7 +51,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
 | `PROFILE-30` | `COMPLETE` | `RES-10` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/PROFILE-30_CONCRETE_PROFILE_RESOURCES/` | Concrete profile Resource classes and picker filters | adapter resource files, asset slot definitions, resource picker filters, tests/docs | Validation Rule Suite, Generation Profile, and Export Profile use concrete Resource classes; picker filters are typed; docs/manual explain each profile purpose; no sample-only placeholder is completion proof; `./tools/test.sh` passed. |
-| `PROFILE-31` | `READY` | `PROFILE-30`, `RES-11` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/PROFILE-31_PROFILE_DEPENDENCY_INTEGRATION/` | Profile resources integrated with dependencies and workspace tabs | dependency service, `HexMapWorkspaceAssetContext`, QA/Validate/Export tabs, editor tests | Concrete profiles hydrate from document dependencies; QA/Validate/Export tabs show concrete resources instead of generic `Resource`; missing profiles have optional/missing state. |
+| `PROFILE-31` | `COMPLETE` | `PROFILE-30`, `RES-11` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/PROFILE-31_PROFILE_DEPENDENCY_INTEGRATION/` | Profile resources integrated with dependencies and workspace tabs | dependency service, `HexMapWorkspaceAssetContext`, QA/Validate/Export tabs, editor tests | Concrete profiles hydrate from document dependencies; QA/Validate/Export tabs show concrete resources instead of generic `Resource`; missing profiles have optional/missing state; `./tools/test.sh` passed. |
 
 ---
 
@@ -148,7 +148,7 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `PROFILE-31`.
+Current recommended next task: `STATE-00`.
 
 Reason:
 
@@ -161,8 +161,9 @@ Reason:
 - `NODE-21` is complete.
 - `NODE-22` is complete.
 - `PROFILE-30` is complete.
-- `PROFILE-31`, `STATE-00`, and `ARCH-50` are READY.
-- `PROFILE-31` is first in queue order and integrates concrete profiles with dependencies and tabs.
+- `PROFILE-31` is complete.
+- `STATE-00` and `ARCH-50` are READY.
+- `STATE-00` is first in queue order after completed Phase M2 tasks.
 
 ---
 
@@ -316,3 +317,21 @@ proof:
     - `tests/test_editor_plugin.gd`
     - `tests/test_hex_adapter.gd`
     - `docs/review/autopilot/PROFILE-30_TEST_RESULT_2026-06-10.md`
+
+### PROFILE-31 Profile dependency integration
+
+proof:
+  plan: `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/PROFILE-31_PROFILE_DEPENDENCY_INTEGRATION/`
+  review: `docs/review/autopilot/PROFILE-31_SELF_REVIEW_2026-06-10.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/adapter/hex_map_document_dependency_service.gd`
+    - `addons/hex_map_kit/adapter/hex_map_document_validator.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace_binding_service.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `tests/test_editor_plugin.gd`
+    - `tests/test_hex_adapter.gd`
+    - `docs/review/autopilot/PROFILE-31_TEST_RESULT_2026-06-10.md`

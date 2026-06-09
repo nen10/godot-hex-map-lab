@@ -4,8 +4,15 @@ extends RefCounted
 
 const HexMapDocumentDependencyService = preload("res://addons/hex_map_kit/adapter/hex_map_document_dependency_service.gd")
 const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
+const HexExportProfileResource = preload("res://addons/hex_map_kit/adapter/hex_export_profile_resource.gd")
+const HexGenerationProfileResource = preload("res://addons/hex_map_kit/adapter/hex_generation_profile_resource.gd")
+const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
+const HexMovementProfileResource = preload("res://addons/hex_map_kit/adapter/hex_movement_profile_resource.gd")
+const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
+const HexTileCatalogResource = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd")
 const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
+const HexValidationRuleSuiteResource = preload("res://addons/hex_map_kit/adapter/hex_validation_rule_suite_resource.gd")
 
 const POLICY_NODE_OWNED := "node_owned"
 const POLICY_DOCUMENT_DEPENDENCY := "document_dependency"
@@ -89,6 +96,7 @@ static func hydrate_context_from_document_dependencies(
 		"applied_slot_ids": PackedStringArray(),
 		"missing_dependency_slot_ids": PackedStringArray(),
 		"cleared_dependency_slot_ids": PackedStringArray(),
+		"invalid_dependency_slot_ids": PackedStringArray(),
 		"skipped_manual_override_slot_ids": PackedStringArray(),
 		"asset_source_snapshot": {},
 	}
@@ -99,6 +107,7 @@ static func hydrate_context_from_document_dependencies(
 	var applied := PackedStringArray()
 	var missing := PackedStringArray()
 	var cleared := PackedStringArray()
+	var invalid := PackedStringArray()
 	var skipped := PackedStringArray()
 	for slot_id in shared_dependency_slot_ids():
 		var key := dependency_key_for_slot(String(slot_id))
@@ -110,6 +119,14 @@ static func hydrate_context_from_document_dependencies(
 		var current_source := context.asset_source(String(slot_id))
 		if dependency_resource == null:
 			missing.append(String(slot_id))
+			if current_source == HexMapWorkspaceAssetContext.SOURCE_DOCUMENT_DEPENDENCY:
+				context.set_asset(String(slot_id), null)
+				cleared.append(String(slot_id))
+			elif current_resource != null:
+				skipped.append(String(slot_id))
+			continue
+		if not _dependency_resource_matches_slot(String(slot_id), dependency_resource):
+			invalid.append(String(slot_id))
 			if current_source == HexMapWorkspaceAssetContext.SOURCE_DOCUMENT_DEPENDENCY:
 				context.set_asset(String(slot_id), null)
 				cleared.append(String(slot_id))
@@ -129,6 +146,7 @@ static func hydrate_context_from_document_dependencies(
 	result["applied_slot_ids"] = applied
 	result["missing_dependency_slot_ids"] = missing
 	result["cleared_dependency_slot_ids"] = cleared
+	result["invalid_dependency_slot_ids"] = invalid
 	result["skipped_manual_override_slot_ids"] = skipped
 	result["asset_source_snapshot"] = context.source_snapshot()
 	return result
@@ -279,6 +297,25 @@ static func _dependency_resource_for_slot(document: HexMapDocumentResource, slot
 		return null
 	var dependency = HexMapDocumentDependencyService.find_shared_dependency(document, key)
 	return dependency.get("resource") if dependency is Resource else null
+
+
+static func _dependency_resource_matches_slot(slot_id: String, resource: Resource) -> bool:
+	match slot_id:
+		HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG:
+			return resource is HexTileCatalogResource
+		HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE:
+			return resource is HexObjectDatabaseResource
+		HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE:
+			return resource is HexLabelDatabaseResource
+		HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE:
+			return resource is HexMovementProfileResource
+		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE:
+			return resource is HexValidationRuleSuiteResource
+		HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE:
+			return resource is HexGenerationProfileResource
+		HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE:
+			return resource is HexExportProfileResource
+	return false
 
 
 static func _is_hex_tile_map_internal_layer(node: Node) -> bool:

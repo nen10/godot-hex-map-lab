@@ -1199,6 +1199,63 @@ func _test_workspace_hydrates_asset_context_from_document_dependencies() -> void
 		HexMapDocumentDependencyService.SOURCE_BADGE_DOCUMENT_DEPENDENCY,
 		"RES-11 Catalog row shows Document Dependency badge"
 	)
+	var validate_snapshot = workspace.validate_screen_snapshot()
+	var validation_suite_slot = validate_snapshot["validation_rule_suite_slot"] as Dictionary
+	_assert_eq(
+		validation_suite_slot.get("current_resource", null),
+		validation_suite,
+		"PROFILE-31 Validate tab shows hydrated concrete Validation Rule Suite"
+	)
+	_assert_eq(
+		String(validation_suite_slot.get("required_type", "")),
+		"HexValidationRuleSuiteResource",
+		"PROFILE-31 Validate tab uses concrete Validation Rule Suite type"
+	)
+	_assert_eq(
+		String(validation_suite_slot.get("current_source_badge", "")),
+		HexMapDocumentDependencyService.SOURCE_BADGE_DOCUMENT_DEPENDENCY,
+		"PROFILE-31 Validate tab shows Validation Rule Suite document dependency badge"
+	)
+	var validation_suite_context = validate_snapshot["validation_rule_suite_context"] as Dictionary
+	_assert_eq(
+		String(validation_suite_context.get("resource_class", "")),
+		"HexValidationRuleSuiteResource",
+		"PROFILE-31 Validate profile context reports concrete class"
+	)
+	var qa_snapshot = workspace.qa_screen_snapshot()
+	var generation_profile_slot = qa_snapshot["generation_profile_slot"] as Dictionary
+	_assert_eq(
+		generation_profile_slot.get("current_resource", null),
+		generation_profile,
+		"PROFILE-31 QA tab shows hydrated concrete Generation Profile"
+	)
+	_assert_eq(
+		String(generation_profile_slot.get("required_type", "")),
+		"HexGenerationProfileResource",
+		"PROFILE-31 QA tab uses concrete Generation Profile type"
+	)
+	_assert_eq(
+		String((qa_snapshot["generation_profile_context"] as Dictionary).get("source_badge", "")),
+		HexMapDocumentDependencyService.SOURCE_BADGE_DOCUMENT_DEPENDENCY,
+		"PROFILE-31 QA profile context reports document dependency source"
+	)
+	var export_snapshot = workspace.export_screen_snapshot()
+	var export_profile_slot = export_snapshot["export_profile_slot"] as Dictionary
+	_assert_eq(
+		export_profile_slot.get("current_resource", null),
+		export_profile,
+		"PROFILE-31 Export tab shows hydrated concrete Export Profile"
+	)
+	_assert_eq(
+		String(export_profile_slot.get("required_type", "")),
+		"HexExportProfileResource",
+		"PROFILE-31 Export tab uses concrete Export Profile type"
+	)
+	_assert_eq(
+		String((export_snapshot["export_profile_context"] as Dictionary).get("resource_class", "")),
+		"HexExportProfileResource",
+		"PROFILE-31 Export profile context reports concrete class"
+	)
 	var resources_snapshot = workspace.resources_screen_snapshot()
 	var source_snapshot = resources_snapshot["asset_source_snapshot"] as Dictionary
 	_assert_eq(
@@ -1222,6 +1279,13 @@ func _test_workspace_hydrates_asset_context_from_document_dependencies() -> void
 	_assert_eq(context.validation_rule_suite, null, "RES-11 missing Validation Suite dependency stays missing")
 	_assert_eq(context.generation_profile, null, "RES-11 missing Generation Profile dependency stays missing")
 	_assert_eq(context.export_profile, null, "RES-11 missing Export Profile dependency stays missing")
+	var missing_validation_slot = workspace.tab_asset_slot_snapshot("Validate", HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE)
+	_assert_eq(bool(missing_validation_slot.get("is_required", true)), false, "PROFILE-31 missing Validation Suite is optional")
+	_assert_eq(String(missing_validation_slot.get("status", "")), HexMapEditorAssetSlotState.STATUS_NOT_SELECTED, "PROFILE-31 missing Validation Suite is visible missing state")
+	var missing_qa_slot = workspace.tab_asset_slot_snapshot("QA", HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE)
+	_assert_eq(bool(missing_qa_slot.get("is_required", true)), false, "PROFILE-31 missing Generation Profile is optional")
+	var missing_export_slot = workspace.tab_asset_slot_snapshot("Export", HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE)
+	_assert_eq(bool(missing_export_slot.get("is_required", true)), false, "PROFILE-31 missing Export Profile is optional")
 	_assert_true(
 		not session.show_bundled_samples_in_main_selectors,
 		"RES-11 missing dependency hydration does not enable bundled samples"
@@ -1234,6 +1298,10 @@ func _test_workspace_hydrates_asset_context_from_document_dependencies() -> void
 	_assert_true(
 		missing_rules.has("workspace.object_database_missing"),
 		"RES-11 validation still reports missing Object Database after partial dependency hydration"
+	)
+	_assert_true(
+		not missing_rules.has("workspace.validation_suite_missing") and not missing_rules.has("workspace.generation_profile_missing"),
+		"PROFILE-31 workspace validation does not treat missing profiles as blocking issues"
 	)
 
 	var manual_catalog = HexTileCatalogResource.new()
@@ -1912,7 +1980,7 @@ func _test_validate_asset_screen_reports_missing_project_assets_without_samples(
 	_assert_true(bool(validate_result["ok"]), "Validate screen runs workspace validation")
 	var result = validate_result["result"] as HexMapValidationResult
 	_assert_true(result is HexMapValidationResult, "Validate screen returns validation result")
-	_assert_eq(result.error_count(), 7, "Validate screen reports missing project assets as errors")
+	_assert_eq(result.error_count(), 5, "Validate screen reports required missing project assets as errors")
 	var rows = validate_result["issue_rows"] as Array
 	var document_row = _validation_issue_row_for_rule(rows, "workspace.level_document_missing")
 	_assert_eq(document_row["target_tab"], "Resources", "missing document points to Resources tab")
@@ -1945,14 +2013,26 @@ func _test_validate_asset_screen_reports_missing_project_assets_without_samples(
 	_assert_eq(layer_row["target_component_id"], "layer_stack_asset_panel", "missing layer stack points to layer stack panel")
 	_assert_eq(layer_row["destination_tab"], "Layers", "TAB-54 missing layer stack route selects Layers")
 
-	var suite_row = _validation_issue_row_for_rule(rows, "workspace.validation_suite_missing")
-	_assert_eq(suite_row["target_tab"], "Validate", "missing validation suite points to Validate tab")
-	_assert_eq(suite_row["target_slot_id"], HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE, "missing validation suite points to validation suite slot")
-
-	var qa_row = _validation_issue_row_for_rule(rows, "workspace.generation_profile_missing")
-	_assert_eq(qa_row["target_tab"], "QA", "missing generation profile points to QA tab")
-	_assert_eq(qa_row["target_component_id"], "qa_asset_panel", "missing generation profile points to QA panel")
-	_assert_eq(qa_row["target_slot_id"], HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE, "missing generation profile points to generation profile slot")
+	var validation_suite_slot = snapshot["validation_rule_suite_slot"] as Dictionary
+	_assert_eq(bool(validation_suite_slot.get("is_required", true)), false, "PROFILE-31 Validate missing Validation Suite is optional")
+	_assert_eq(String(validation_suite_slot.get("required_type", "")), "HexValidationRuleSuiteResource", "PROFILE-31 Validate missing slot keeps concrete type")
+	_assert_eq(
+		String((snapshot["validation_rule_suite_context"] as Dictionary).get("status", "")),
+		"optional_missing",
+		"PROFILE-31 Validate profile context reports optional missing state"
+	)
+	var qa_missing_snapshot = workspace.qa_screen_snapshot()
+	_assert_eq(
+		String((qa_missing_snapshot["generation_profile_context"] as Dictionary).get("status", "")),
+		"optional_missing",
+		"PROFILE-31 QA profile context reports optional missing state"
+	)
+	var export_missing_snapshot = workspace.export_screen_snapshot()
+	_assert_eq(
+		String((export_missing_snapshot["export_profile_context"] as Dictionary).get("status", "")),
+		"optional_missing",
+		"PROFILE-31 Export profile context reports optional missing state"
+	)
 
 	var selection = workspace.select_validate_issue(int(document_row["index"]))
 	_assert_true(bool(selection["ok"]), "TAB-54 Validate issue selection succeeds")

@@ -984,6 +984,40 @@ func _test_hex_map_document_dependency_service_crud_hydrates_and_validates() -> 
 		HexMapDocumentValidator.RULE_DEPENDENCY_TYPE_MISMATCH,
 		"RES-10 service validation reports Movement Profile type mismatch"
 	)
+	var profile_optional_document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	var optional_profile_dependency = HexMapDocumentDependencyService.set_shared_dependency(
+		profile_optional_document,
+		HexMapDocumentDependencyService.KEY_GENERATION_PROFILE,
+		null
+	)
+	_assert_eq(optional_profile_dependency.required, false, "PROFILE-31 Generation Profile dependency defaults to optional")
+	_assert_no_issue(
+		HexMapDocumentDependencyService.validate_dependencies(profile_optional_document),
+		HexMapDocumentValidator.RULE_DEPENDENCY_MISSING,
+		"PROFILE-31 service validation accepts missing optional Generation Profile"
+	)
+	HexMapDocumentDependencyService.set_shared_dependency(
+		profile_optional_document,
+		HexMapDocumentDependencyService.KEY_VALIDATION_RULE_SUITE,
+		Resource.new()
+	)
+	HexMapDocumentDependencyService.set_shared_dependency(
+		profile_optional_document,
+		HexMapDocumentDependencyService.KEY_GENERATION_PROFILE,
+		Resource.new()
+	)
+	HexMapDocumentDependencyService.set_shared_dependency(
+		profile_optional_document,
+		HexMapDocumentDependencyService.KEY_EXPORT_PROFILE,
+		Resource.new()
+	)
+	_assert_has_issue(
+		HexMapDocumentDependencyService.validate_dependencies(profile_optional_document),
+		HexMapDocumentValidator.RULE_DEPENDENCY_TYPE_MISMATCH,
+		"PROFILE-31 service validation rejects generic Resource profile dependencies"
+	)
 
 
 func _test_hex_map_document_summary_reports_canonical_counts() -> void:
