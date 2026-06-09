@@ -59,9 +59,9 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `STATE-00` | `READY` | `FB-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-00_UI_FLAG_INVENTORY_AND_CONTRACT/` | UI flag inventory and state machine priority contract | `docs/review/roadmap/UI_FLAG_INVENTORY_2026-06-10.md`, workspace/gen/edit source notes | Generate, asset slots, workspace binding, paint, validation, export, sample, and dialog flags are inventoried; P0/P1/P2 state-machine priorities and old-test disposition are recorded. |
-| `STATE-10` | `BACKLOG` | `STATE-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-10_GENERATION_RUN_STATE_MACHINE/` | Generation run state machine | `hex_map_gen_dock.gd`, generation state helpers, workspace Generate tab, tests | Progress/cancel/debounce/apply/dirty/error state is derived from one generation run state; Generate tab renders from ViewState; heavy orientation/global updates enter the state model. |
-| `STATE-20` | `BACKLOG` | `STATE-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-20_ASSET_SLOT_CONFIG_RUNTIME_SPLIT/` | Asset slot config/runtime/result state split | `hex_map_editor_asset_slot_state.gd`, `hex_map_editor_asset_slot_control.gd`, workspace asset panel, tests | Slot definition, current selection, validation result, sample availability, and operation result are separate structures; OK/Missing/Optional labels become ViewState/icon+tooltip. |
+| `STATE-00` | `COMPLETE` | `FB-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-00_UI_FLAG_INVENTORY_AND_CONTRACT/` | UI flag inventory and state machine priority contract | `docs/review/roadmap/UI_FLAG_INVENTORY_2026-06-10.md`, workspace/gen/edit source notes | Generate, asset slots, workspace binding, paint, validation, export, sample, and dialog flags are inventoried; P0/P1/P2 state-machine priorities and old-test disposition are recorded; `./tools/test.sh` passed. |
+| `STATE-10` | `READY` | `STATE-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-10_GENERATION_RUN_STATE_MACHINE/` | Generation run state machine | `hex_map_gen_dock.gd`, generation state helpers, workspace Generate tab, tests | Progress/cancel/debounce/apply/dirty/error state is derived from one generation run state; Generate tab renders from ViewState; heavy orientation/global updates enter the state model. |
+| `STATE-20` | `READY` | `STATE-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-20_ASSET_SLOT_CONFIG_RUNTIME_SPLIT/` | Asset slot config/runtime/result state split | `hex_map_editor_asset_slot_state.gd`, `hex_map_editor_asset_slot_control.gd`, workspace asset panel, tests | Slot definition, current selection, validation result, sample availability, and operation result are separate structures; OK/Missing/Optional labels become ViewState/icon+tooltip. |
 | `STATE-30` | `BACKLOG` | `NODE-20`, `STATE-20` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-30_WORKSPACE_SELECTION_BINDING_STATE/` | Workspace selection and writeback state machine | binding service, `HexMapEditorSessionState`, `HexMapWorkspace`, editor tests | No target, selected node without document, hydrated dependencies, manual override, pending writeback, applied writeback, and conflict are explicit states; auto-link works without a manual link button. |
 | `STATE-40` | `BACKLOG` | `STATE-30` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-40_PAINT_INTERACTION_STATE_MACHINE/` | Paint interaction state machine | `hex_map_edit_tool.gd`, viewport input adapter, workspace Paint tab, editor tests | Paint state covers target/document/brush/viewport hover/apply/dirty/validation focus/missing asset; selected cell, active brush, and layer target render from state. |
 | `STATE-50` | `BACKLOG` | `STATE-30` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-50_VALIDATION_EXPORT_SAMPLE_DIALOG_STATES/` | Validation, Export, Sample, and Dialog state models | workspace tabs, validation dashboard, sample settings, dist/export UI, dialog lifecycle helpers, tests | Validation, export, sample learning, and dialog lifecycle have explicit state transitions and ViewState output; tests cover transitions, not private widget shapes. |
@@ -73,7 +73,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `UI-00` | `BACKLOG` | `STATE-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-00_CREATE_WORKSPACE_UI_CONTRACTS/` | Workspace UI visible contracts | `WORKSPACE_SCREEN_CONTRACT.md`, `WORKSPACE_STATE_MACHINE.md`, `VISIBLE_CONTROL_INVENTORY.md`, `RESOURCE_ROW_SPEC.md`, `DEBUG_LABEL_POLICY.md` | Each tab separates always-visible information from tooltip/debug detail; debug/filepath/internal state are not normal UI; Generate tab caution is documented before changes. |
+| `UI-00` | `READY` | `STATE-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-00_CREATE_WORKSPACE_UI_CONTRACTS/` | Workspace UI visible contracts | `WORKSPACE_SCREEN_CONTRACT.md`, `WORKSPACE_STATE_MACHINE.md`, `VISIBLE_CONTROL_INVENTORY.md`, `RESOURCE_ROW_SPEC.md`, `DEBUG_LABEL_POLICY.md` | Each tab separates always-visible information from tooltip/debug detail; debug/filepath/internal state are not normal UI; Generate tab caution is documented before changes. |
 | `UI-01` | `BACKLOG` | `STATE-20`, `UI-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-01_RESOURCE_ROW_REDESIGN/` | Compact/adaptive Resource row redesign | asset slot control/state, workspace asset panel, row tests | Resource rows work as compact one-line or narrow adaptive two-line controls; status text moves to icon+tooltip; filepath/node path/debug state are hidden by default; Details button is removed unless replaced by a real detail surface. |
 | `UI-02` | `BACKLOG` | `UI-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-02_SETTINGS_LABEL_SIMPLIFICATION/` | Settings label and debug text simplification | `HexMapWorkspace`, `HexMapSampleSettingsPanel`, settings/debug UI, editor tests | Boolean state is represented by checkbox/toggle controls, not always-on true/false text; debug payload moves to copy/debug report flow. |
 | `UI-03` | `BACKLOG` | `STATE-10`, `UI-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-03_GENERATE_EMPTY_AREA_AND_STATUS_REPAIR/` | Generate empty-area and result-status repair | `hex_map_gen_dock.gd`, workspace Generate tab, generation state/tests | Generate screen no longer contains unexplained dead space; preview/apply/document/save result state is visible; any reload action has a clear state purpose. |
@@ -148,7 +148,7 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `STATE-00`.
+Current recommended next task: `STATE-10`.
 
 Reason:
 
@@ -162,8 +162,9 @@ Reason:
 - `NODE-22` is complete.
 - `PROFILE-30` is complete.
 - `PROFILE-31` is complete.
-- `STATE-00` and `ARCH-50` are READY.
-- `STATE-00` is first in queue order after completed Phase M2 tasks.
+- `STATE-00` is complete.
+- `STATE-10`, `STATE-20`, `UI-00`, and `ARCH-50` are READY.
+- `STATE-10` is first in queue order after completed `STATE-00`.
 
 ---
 
@@ -335,3 +336,21 @@ proof:
     - `tests/test_editor_plugin.gd`
     - `tests/test_hex_adapter.gd`
     - `docs/review/autopilot/PROFILE-31_TEST_RESULT_2026-06-10.md`
+
+### STATE-00 UI flag inventory and contract
+
+proof:
+  plan: `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-00_UI_FLAG_INVENTORY_AND_CONTRACT/`
+  review: `docs/review/autopilot/STATE-00_SELF_REVIEW_2026-06-10.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/review/roadmap/UI_FLAG_INVENTORY_2026-06-10.md`
+    - `docs/TEST.md`
+  major files:
+    - `docs/review/roadmap/UI_FLAG_INVENTORY_2026-06-10.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-00_UI_FLAG_INVENTORY_AND_CONTRACT/SUB_TASKS.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-00_UI_FLAG_INVENTORY_AND_CONTRACT/UX.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-00_UI_FLAG_INVENTORY_AND_CONTRACT/POLICY.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-00_UI_FLAG_INVENTORY_AND_CONTRACT/IMPLEMENTATION_PLAN.md`
+    - `docs/review/autopilot/STATE-00_TEST_RESULT_2026-06-10.md`
