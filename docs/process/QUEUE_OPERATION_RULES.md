@@ -23,7 +23,16 @@ Queue の作成方針は `docs/policy/IMPLEMENTATION_QUEUE_DESIGN_POLICY.md`、�
 
 ## Completion proof
 
-Task 完了時は queue または proof log に以下を残す。
+Task 完了処理:
+
+### 1. Scheduled task の追加
+
+Task 実行中に作成された `SUB_TASK.md` 内のすべての Scheduled task について、割り込んだ位置に追加する。
+- 通常の task と同様に `IMPLEMENTATION_QUEUE_DESIGN_POLICY.md` 記載の table format に従う。
+- Scheduled task の追加は、既存task の依存関係を妨害しない。
+- Scheduled task に紐づく依存関係は、未実施の他 task / Phase との依存を評価して、1つまで追加することができる。
+
+### 2. Proof log の記載
 
 ```text
 proof:

@@ -34,6 +34,7 @@ Commit しない状態:
 
 ## Before commit
 
+- task 実行中に作成した Scheduled task が `IMPLEMENTATION_QUEUE.md` に追加済み。
 - queue status が commit 可能状態である。
 - self-review がある。
 - test result または environment-blocking result がある。
