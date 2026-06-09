@@ -460,7 +460,10 @@ func _test_workspace_selected_hex_tile_map_auto_binding() -> void:
 	_assert_eq(workspace.workspace_asset_context().level_document, null, "NODE-21 runtime map is not mislabeled as Level Document")
 	_assert_eq(String(selected_snapshot["level_document_status"]), "Missing", "NODE-21 missing unique document is visible")
 	_assert_eq(String(selected_snapshot["layer_stack_status"]), "Linked", "NODE-21 selected node layer stack is visible")
-	_assert_true(bool(selected_snapshot["runtime_initial_map_present"]), "NODE-21 runtime initial map is visible as node state")
+	_assert_eq(String(selected_snapshot["authoring_source"]), "Level Document", "NODE-21 Level Document is the authoring source")
+	_assert_true(not bool(selected_snapshot["hex_map_is_authoring_source"]), "NODE-21 hex_map is not the authoring source")
+	_assert_true(bool(selected_snapshot["runtime_display_snapshot_present"]), "NODE-21 runtime display snapshot is visible as node state")
+	_assert_eq(String(selected_snapshot["runtime_display_snapshot_role"]), "Runtime display snapshot", "NODE-21 runtime map role is explicit")
 	_assert_eq(String(selected_snapshot["display_tile_set_status"]), "Linked", "NODE-21 selected node display TileSet is visible")
 	_assert_eq(String(selected_snapshot["tile_catalog_status"]), "No Tile Catalog linked to node", "NODE-21 missing shared catalog is not silently filled")
 	_assert_eq(
@@ -3924,6 +3927,14 @@ func _test_map_edit_tool_initializes_document_from_hex_target() -> void:
 	_assert_true(tool.document() != null, "map edit tool creates a document from selected HexTileMapLayer target")
 	_assert_eq(tool._document_source, HexMapEditTool.DOCUMENT_SOURCE_TARGET, "target document source is recorded")
 	_assert_eq(HexMapDocumentAdapter.to_map_resource(tool.document()).orientation, HexMapResource.ORIENTATION_POINTY_TOP, "target document preserves target map orientation")
+	var readiness = tool.target_readiness_status()
+	_assert_eq(String(readiness["authoring_source"]), "Level Document", "NODE-21 target readiness names Level Document as authoring source")
+	_assert_true(not bool(readiness["target_hex_map_is_authoring_source"]), "NODE-21 target hex_map is not authoring source")
+	_assert_true(bool(readiness["target_runtime_display_snapshot_present"]), "NODE-21 target readiness reports runtime display snapshot")
+	_assert_true(
+		tool._target_status_label.text.contains("authoring=Level Document") and tool._target_status_label.text.contains("runtime_snapshot=yes"),
+		"NODE-21 target status text separates authoring source from runtime display snapshot"
+	)
 	_assert_true(tool.viewport_input_enabled(), "target-derived document enables viewport input")
 	var origin_local = hex_layer._tile_map.position + hex_layer.hex_to_display_local(HexVector.zero())
 	_assert_true(tool.apply_local_position(origin_local), "target-derived document accepts viewport edit")

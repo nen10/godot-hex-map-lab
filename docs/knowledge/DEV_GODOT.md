@@ -9,7 +9,7 @@ Godotでの開発ノウハウを随時追加します。
 - addon専用のmanual edit targetを作る場合、plain `TileMapLayer` を直接選択対象にするより、`Node2D` wrapperを選択対象にして内部 `TileMapLayer` を表示実装として隠す方が入力責務を分けやすい。
 - `TileMapLayer.set_cell()` はsource id、atlas coords、alternative tileで表示tileを決める。cellを書いても、対応する `TileSet` source / atlas tileが存在しなければEditor viewport上では表示確認できない。
 - `@tool` nodeでresourceをready前に受け取る場合、setterではresourceを保持し、`_ready()` でinternal child作成後にredrawする。redraw時にはTileSet shapeだけでなくvisible atlas sourceの存在も確認する。
-- `HexTileMapLayer.apply_map()` は表示用にmap dataを反映するhelperであり、`hex_map` export propertyを必ず更新する入口ではない。Editor DockなどがTarget resourceとして `HexTileMapLayer.hex_map` を読む場合、fixtureや実装では `hex_layer.hex_map = resource` を使う。
+- `HexTileMapLayer.apply_map()` は表示用にmap dataを反映するhelperであり、`hex_map` export propertyを必ず更新する入口ではない。Editor Dockなどが `HexTileMapLayer.hex_map` を読む場合も、これはruntime/display snapshotであり、Level Document authoring sourceとして扱わない。fixtureや実装でtarget snapshotが必要な場合は `hex_layer.hex_map = resource` を使う。
 - `Node.add_child(..., INTERNAL_MODE_BACK)` で作るinternal childを後で再検出する場合、`get_children(true)` を使う。defaultの `get_children()` だけだとinternal childを走査できない。
 - `INTERNAL_MODE_BACK` / `INTERNAL_MODE_FRONT` で作る内部 `TileMapLayer` のresource状態をscene保存へ依存させる場合、wrapper node側にもexport resourceを持たせて同期する方が安定する。`PackedScene.pack()` / instantiateで、内部childの `tile_set` だけでなくwrapperのexport propertyから復元できることをheadless testにする。
 
@@ -29,7 +29,7 @@ Godotでの開発ノウハウを随時追加します。
 - `CanvasItem` の親 `_draw()` はchild `TileMapLayer` の背面に出る。TileMap上のhighlightやmarkerを確実に見せたい場合、親 `_draw()` ではなく前面overlay child、z index、またはchild orderを使う。
 - `HexTileMapLayer` の表示tileはGodot `TileMapLayer` / `TileSet.tile_size` に従い、click hitやhighlightは `hex_size` に従う。両者を別々に更新すると、見えているcellとhit対象がずれる。display tile size変更時は `hex_size` を同期するか、hit / overlayの中心座標を内部 `TileMapLayer.map_to_local()` から取得する。
 - `TileMapLayer.map_to_local()` / `local_to_map()` によるhex表示座標をテストする場合、対象 `TileMapLayer.tile_set` に `TILE_SHAPE_HEXAGON`、`TILE_LAYOUT_STACKED`、orientationに合った `tile_offset_axis` と `tile_size` を先に設定する。TileSet未設定時は独自helperのfallback値とGodot側変換値を同列に比較しない。
-- `Hex Map Edit` のviewport入力はTargetだけでなく編集対象documentにも依存する。`HexTileMapLayer` が `hex_map` を持ってreadyでも、Edit Dock側の `_document` が空ならviewport editは始まらない。Target Reloadを編集開始操作にする場合、選択中 `HexTileMapLayer.hex_map` から未保存 `HexMapDocumentResource` を作る入口が必要。
+- `Hex Map Edit` のviewport入力はTargetだけでなく編集対象documentにも依存する。`HexTileMapLayer` が `hex_map` を持ってreadyでも、Edit Dock側の `_document` が空ならviewport editは始まらない。Target Reloadを編集開始操作にする場合、選択中 `HexTileMapLayer.hex_map` から未保存 `HexMapDocumentResource` を作る入口が必要だが、これは一時的なtarget snapshot変換であり、継続編集や保存の主語はLevel Documentに戻す。
 - `TileMapLayer.local_to_map()` / `map_to_local()` はGodot側のmap cellとlocal座標の基準APIである。`TileSet.tile_shape = HEXAGON`、`TILE_LAYOUT_STACKED`、`tile_offset_axis`、`tile_size` を使う表示では、独自hex数式だけをhit / overlay中心の根拠にすると遠端cellでずれが蓄積しやすい。Editor上で見えているcell操作は内部 `TileMapLayer` の変換APIに寄せる。
 - `HexMapDocumentResource` を1clickごとにbefore / after全量複製し、さらに `HexTileMapLayer.apply_document()` で全量redrawすると、大きいmapではEditor操作が重くなる。`Wall / Floor` やtile overrideのような単一cell変更は、document state更新と内部 `TileMapLayer.set_cell()` のincremental applyを優先する。
 - `HexTileMapLayer` の通常manual edit経路は、`HexMapDocumentResource` 全体を表示transportにせず、Target側のcommand before / after stateを `apply_edit_command()` へ渡す方が安定する。Undo / Redoもdocument全量snapshotではなくcommand / inverse commandにすると、loop duplicateやoverlay表示をcell単位で戻せる。

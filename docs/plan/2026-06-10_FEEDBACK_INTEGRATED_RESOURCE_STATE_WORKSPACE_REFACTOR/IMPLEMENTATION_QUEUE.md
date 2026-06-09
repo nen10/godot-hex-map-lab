@@ -41,7 +41,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | `RES-10` | `COMPLETE` | `FB-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/RES-10_DOCUMENT_DEPENDENCY_SERVICE/` | Document dependency service for shared project resources | `addons/hex_map_kit/adapter/hex_map_document_dependency_resource.gd`, new `hex_map_document_dependency_service.gd`, adapter tests | Tile Catalog, Object DB, Label DB, Movement Profile, Validation Suite, Generation Profile, and Export Profile can be add/find/update/remove/hydrated from `HexMapDocumentResource.dependencies`; tests cover dependency CRUD and validation. |
 | `RES-11` | `COMPLETE` | `RES-10` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/RES-11_DOCUMENT_DEPENDENCY_HYDRATION/` | Workspace context hydration from selected document dependencies | `HexMapWorkspaceAssetContext`, `HexMapWorkspace`, dependency service, editor tests | Document selection hydrates shared resources into workspace context with `Document Dependency` source badge; manual override can temporarily supersede it; missing dependencies stay missing instead of silently using samples. |
 | `NODE-20` | `COMPLETE` | `RES-11` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/NODE-20_HEX_TILE_MAP_RESOURCE_BINDING_SERVICE/` | Selected HexTileMap read/write binding service | new `addons/hex_map_kit/editor/hex_map_workspace_binding_service.gd`, `HexTileMapLayer`, `HexMapWorkspace`, editor tests | Scene selection resolves `HexTileMapLayer`; node-owned Level Document / Layer Stack are read and written on node exports; shared resources are read/written through document dependencies. |
-| `NODE-21` | `READY` | `NODE-20` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/NODE-21_HEX_MAP_RESOURCE_ROLE_CLARIFICATION/` | Clear role decision for `HexTileMapLayer.hex_map` | `addons/hex_map_kit/adapter/hex_tile_map_layer.gd`, document adapter, workspace UI/docs/tests | `hex_map` is no longer implied as authoring source of truth; UI/docs/tests treat Level Document as canonical authoring; no ambiguous compatibility-only display remains. |
+| `NODE-21` | `COMPLETE` | `NODE-20` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/NODE-21_HEX_MAP_RESOURCE_ROLE_CLARIFICATION/` | Clear role decision for `HexTileMapLayer.hex_map` | `HexMapWorkspace`, `HexMapEditTool`, workspace UI/docs/tests | `hex_map` is no longer implied as authoring source of truth; UI/docs/tests treat Level Document as canonical authoring; no ambiguous compatibility-only display remains; `./tools/test.sh` passed. |
 | `NODE-22` | `READY` | `NODE-20` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/NODE-22_MISSING_NODE_RESOURCE_BULK_CREATE_REVIEW/` | Missing Resource create flow aligned with node/document/dependency ownership | `HexMapWorkspace`, `HexMapWorkspaceAssetResourceFactory`, asset panel, binding/dependency services, editor tests | Node-owned and shared resources are not mixed in one opaque bulk create path; shared resources require create or select existing; node export, document dependency, and workspace context match after creation. |
 
 ---
@@ -100,7 +100,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 |---|---|---|---|---|---|---|
 | `ARCH-40` | `BACKLOG` | `NODE-20`, `STATE-30` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-40_WORKSPACE_CONTEXT_HYDRATOR_WRITER_EXTRACTION/` | Workspace context hydrator/writer extraction | `HexMapWorkspace`, binding/dependency services, asset context, tests | `hex_map_workspace.gd` no longer directly assembles node/document/dependency context; hydration/writeback service is testable; UI only renders resulting state. |
 | `ARCH-41` | `BACKLOG` | `SCREEN-20`, `SCREEN-21`, `SCREEN-22` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-41_SCREEN_COMPONENT_EXTRACTION_BY_UX_ROLE/` | Workspace/EditTool/GenDock component extraction by UX role | new per-screen scripts, `HexMapWorkspace`, `hex_map_edit_tool.gd`, `hex_map_gen_dock.gd`, tests | Extraction is justified by user task ownership, not line count; each screen script maps to a tab/workflow; Paint no longer carries Catalog/Layer/Export/Document responsibility. |
-| `ARCH-50` | `BACKLOG` | `NODE-20`, `NODE-21` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-50_HEX_TILE_MAP_LAYER_RESPONSIBILITY_SPLIT/` | HexTileMapLayer responsibility split | `addons/hex_map_kit/adapter/hex_tile_map_layer.gd`, new adapter helpers, runtime/editor tests | `HexTileMapLayer` moves toward coordinator role; resource binding, document apply, layer stack apply, object display, gameplay query, and debug overlay responsibilities are separated without losing runtime helper value. |
+| `ARCH-50` | `READY` | `NODE-20`, `NODE-21` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-50_HEX_TILE_MAP_LAYER_RESPONSIBILITY_SPLIT/` | HexTileMapLayer responsibility split | `addons/hex_map_kit/adapter/hex_tile_map_layer.gd`, new adapter helpers, runtime/editor tests | `HexTileMapLayer` moves toward coordinator role; resource binding, document apply, layer stack apply, object display, gameplay query, and debug overlay responsibilities are separated without losing runtime helper value. |
 
 ---
 
@@ -148,7 +148,7 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `NODE-21`.
+Current recommended next task: `NODE-22`.
 
 Reason:
 
@@ -158,8 +158,9 @@ Reason:
 - `RES-10` is complete.
 - `RES-11` is complete.
 - `NODE-20` is complete.
-- `NODE-21`, `NODE-22`, `PROFILE-30`, and `STATE-00` are READY.
-- `NODE-21` is first in queue order and clarifies `HexTileMapLayer.hex_map` after binding service extraction.
+- `NODE-21` is complete.
+- `NODE-22`, `PROFILE-30`, `STATE-00`, and `ARCH-50` are READY.
+- `NODE-22` is first in queue order and reviews missing node resource creation after binding service extraction.
 
 ---
 
@@ -261,3 +262,20 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_workspace.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/NODE-20_TEST_RESULT_2026-06-10.md`
+
+### NODE-21 Hex map resource role clarification
+
+proof:
+  plan: `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/NODE-21_HEX_MAP_RESOURCE_ROLE_CLARIFICATION/`
+  review: `docs/review/autopilot/NODE-21_SELF_REVIEW_2026-06-10.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+    - `docs/manual/MANUAL_WORKFLOW.md`
+    - `docs/knowledge/DEV_GODOT.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `addons/hex_map_kit/editor/hex_map_edit_tool.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/NODE-21_TEST_RESULT_2026-06-10.md`

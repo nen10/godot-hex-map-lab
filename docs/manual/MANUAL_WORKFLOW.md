@@ -53,7 +53,7 @@ More setup details: `docs/manual/MANUAL_SETUP.md`.
 
 Open **Hex Map Workspace** and work from the authoring goal:
 
-- Resources: select the `HexTileMap` context, create or select the Level Document, create missing node-owned resources, and manage shared Object, Label, Layer Stack, and Movement Profile resources.
+- Resources: select the `HexTileMap` context, create or select the Level Document, create missing node-owned resources, and manage shared project resources through the Level Document dependency slots.
 - Generate: choose generator shape, seed, catalog keys, target, orientation, tile size, and output target.
 - QA: run Seed Lab batch comparison and promote a selected seed to a document.
 - Catalog: select a `HexTileCatalogResource`, catalog `TileSet`, and scene-entry `PackedScene`; validate catalog status.
@@ -76,6 +76,8 @@ Project asset first pass:
 6. Choose an Export Profile and Runtime Handoff destination in `Export`.
 
 `Resources` auto-links the selected `HexTileMap` while auto-link is on. If no node is selected, the tab shows `No HexTileMap selected` and keeps production asset selection visible instead of filling the workspace with samples.
+
+The selected Level Document is the canonical authoring source. `HexTileMapLayer.hex_map` is runtime/display snapshot data for preview, target import, or Runtime Handoff output; it does not replace the Level Document as the map you save, validate, or continue editing.
 
 Generate output target:
 
@@ -115,7 +117,7 @@ var document = HexEditorWorkflowExample.build_authoring_document()
 var info = HexEditorWorkflowExample.workflow_summary(document)
 ```
 
-In the editor, create or select the Level Document from `Resources`. With auto-link on, selecting or creating the Level Document writes the resource relationship back to the selected `HexTileMap`; shared project resources remain in the Workspace asset context for Generate, Paint, Validate, QA, and Export.
+In the editor, create or select the Level Document from `Resources`. With auto-link on, selecting or creating the Level Document writes the resource relationship back to the selected `HexTileMap`; shared project resources write to that document's dependencies and hydrate back into the Workspace context for Generate, Paint, Validate, QA, and Export.
 
 ## 4. Use Catalog Keys
 

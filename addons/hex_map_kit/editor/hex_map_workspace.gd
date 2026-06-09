@@ -244,7 +244,7 @@ func selected_hex_tile_map_snapshot() -> Dictionary:
 	var context := workspace_asset_context()
 	var level_document := hex_layer.level_document_resource if selected else context.level_document
 	var layer_stack := hex_layer.layer_stack_resource if selected else null
-	var runtime_map := hex_layer.hex_map if selected else null
+	var runtime_display_snapshot := hex_layer.hex_map if selected else null
 	var display_tile_set := hex_layer.display_tile_set_resource if selected else null
 	if selected and display_tile_set == null:
 		display_tile_set = hex_layer.display_tile_set()
@@ -260,8 +260,12 @@ func selected_hex_tile_map_snapshot() -> Dictionary:
 		"target_matches_selected": selected and session.current_target_layer() == hex_layer,
 		"level_document": level_document,
 		"level_document_status": "Missing" if selected and level_document == null else ("Linked" if level_document != null else "Unavailable"),
-		"runtime_initial_map": runtime_map,
-		"runtime_initial_map_present": runtime_map != null,
+		"authoring_source": "Level Document",
+		"authoring_source_resource": level_document,
+		"hex_map_is_authoring_source": false,
+		"runtime_display_snapshot": runtime_display_snapshot,
+		"runtime_display_snapshot_present": runtime_display_snapshot != null,
+		"runtime_display_snapshot_role": "Runtime display snapshot",
 		"layer_stack": layer_stack,
 		"layer_stack_status": "Linked" if layer_stack != null else ("Missing" if selected else "Unavailable"),
 		"display_tile_set": display_tile_set,
@@ -4092,11 +4096,13 @@ func _selected_hex_tile_map_tooltip(snapshot: Dictionary) -> String:
 	var writeback = snapshot.get("writeback", {}) as Dictionary
 	var blocked_reason := String(writeback.get("blocked_reason", ""))
 	var writeback_text := "Write-back: On" if blocked_reason == "" else "Write-back blocked: %s" % blocked_reason
-	return "Node: %s\n%s\n%s\nLevel Document: %s\nLayer Stack: %s\nTile Catalog: %s" % [
+	return "Node: %s\n%s\n%s\nAuthoring: %s\nLevel Document: %s\nRuntime snapshot: %s\nLayer Stack: %s\nTile Catalog: %s" % [
 		String(snapshot.get("node_path", "")),
 		String(snapshot.get("auto_link_text", "")),
 		writeback_text,
+		String(snapshot.get("authoring_source", "Level Document")),
 		String(snapshot.get("level_document_status", "")),
+		"Present" if bool(snapshot.get("runtime_display_snapshot_present", false)) else "Missing",
 		String(snapshot.get("layer_stack_status", "")),
 		String(snapshot.get("tile_catalog_status", "")),
 	]

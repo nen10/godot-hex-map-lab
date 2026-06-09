@@ -3262,7 +3262,7 @@ func _document_state_text() -> String:
 		DOCUMENT_SOURCE_IMPORT:
 			return "converted"
 		DOCUMENT_SOURCE_TARGET:
-			return "from target"
+			return "target snapshot"
 		DOCUMENT_SOURCE_SAVE:
 			return "saved"
 		DOCUMENT_SOURCE_PROVIDED:
@@ -3938,7 +3938,9 @@ func _build_target_readiness_status() -> Dictionary:
 		"document_source": _document_source,
 		"document_path": _document_path,
 		"document_unsaved_target": _document_source == DOCUMENT_SOURCE_TARGET,
-		"target_hex_map_present": false,
+		"authoring_source": "Level Document",
+		"target_hex_map_is_authoring_source": false,
+		"target_runtime_display_snapshot_present": false,
 		"tile_set_present": false,
 		"tile_set_resource_path": "",
 		"tile_set_source_count": 0,
@@ -3968,7 +3970,7 @@ func _build_target_readiness_status() -> Dictionary:
 	if _target_layer is HexTileMapLayer:
 		var hex_layer := _target_layer as HexTileMapLayer
 		var layer_status := hex_layer.display_layer_status()
-		status["target_hex_map_present"] = hex_layer.hex_map != null
+		status["target_runtime_display_snapshot_present"] = hex_layer.hex_map != null
 		status["tile_set_present"] = hex_layer.display_tile_set_present()
 		status["tile_set_resource_path"] = String(layer_status.get("tile_set_resource_path", ""))
 		status["tile_set_source_count"] = int(layer_status.get("tile_set_source_count", 0))
@@ -4005,7 +4007,7 @@ func _build_target_readiness_status() -> Dictionary:
 		return status
 	status["ready"] = bool(status["tile_set_present"])
 	status["message"] = "ready" if bool(status["ready"]) else "TileSet missing."
-	if _document == null and _target_layer is HexTileMapLayer and not bool(status["target_hex_map_present"]):
+	if _document == null and _target_layer is HexTileMapLayer and not bool(status["target_runtime_display_snapshot_present"]):
 		status["message"] = "No document selected."
 	return status
 
@@ -4179,9 +4181,11 @@ func _format_target_status_detail(status: Dictionary) -> String:
 	var loop_text = ""
 	if bool(status.get("is_hex_tile_map_layer", false)):
 		loop_text = " loop=%s" % _loop_mode_name(int(status.get("loop_display_mode", 0)))
-	return "%s %s document=%s:%s:%s tiles=%s path=%s sources=%d size=%s floor=%d:%s:%d wall=%d:%s:%d overlay=%s:%d:%s:%d ov_visible=%s/%s used=%d%s %s %s" % [
+	return "%s %s authoring=%s runtime_snapshot=%s document=%s:%s:%s tiles=%s path=%s sources=%d size=%s floor=%d:%s:%d wall=%d:%s:%d overlay=%s:%d:%s:%d ov_visible=%s/%s used=%d%s %s %s" % [
 		String(status.get("target_class", "")),
 		String(status.get("target_path", "")),
+		String(status.get("authoring_source", "Level Document")),
+		_bool_text(bool(status.get("target_runtime_display_snapshot_present", false))),
 		"yes" if bool(status.get("document_present", false)) else "no",
 		String(status.get("document_source", DOCUMENT_SOURCE_NONE)),
 		String(status.get("document_path", "")) if String(status.get("document_path", "")) != "" else ("unsaved-target" if bool(status.get("document_unsaved_target", false)) else "unsaved"),
