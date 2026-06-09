@@ -39,6 +39,7 @@ const HexMapEditorAssetSlotControl = preload("res://addons/hex_map_kit/editor/he
 const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
 const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
 const HexMapWorkspaceAssetResourceFactory = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_resource_factory.gd")
+const HexMapWorkspaceBindingService = preload("res://addons/hex_map_kit/editor/hex_map_workspace_binding_service.gd")
 const HexMapSampleAssetDuplicator = preload("res://addons/hex_map_kit/editor/hex_map_sample_asset_duplicator.gd")
 const HexMapSampleSettingsPanel = preload("res://addons/hex_map_kit/editor/hex_map_sample_settings_panel.gd")
 const HexMapWorkspace = preload("res://addons/hex_map_kit/editor/hex_map_workspace.gd")
@@ -440,6 +441,10 @@ func _test_workspace_selected_hex_tile_map_auto_binding() -> void:
 	_assert_eq(String(empty_snapshot["status_text"]), "No HexTileMap selected", "NODE-21 empty state text is visible")
 	_assert_true(bool(empty_snapshot["auto_link"]), "NODE-21 workspace snapshot exposes auto-link ON")
 	_assert_eq(String(empty_snapshot["auto_link_text"]), "Auto-link: On", "NODE-21 auto-link status is informational")
+	var binding_state = empty_snapshot["binding_state"] as Dictionary
+	_assert_eq(String(binding_state["state_source"]), "HexMapWorkspaceBindingService", "STATE-30 binding state has explicit source")
+	_assert_eq(String(binding_state["state_id"]), HexMapWorkspaceBindingService.STATE_NO_TARGET, "STATE-30 no-target state is explicit")
+	_assert_true((binding_state["active_state_ids"] as PackedStringArray).has(HexMapWorkspaceBindingService.STATE_NO_TARGET), "STATE-30 active states include no target")
 
 	var scene_root = Node2D.new()
 	scene_root.name = "SelectionScene"
@@ -463,6 +468,9 @@ func _test_workspace_selected_hex_tile_map_auto_binding() -> void:
 	_assert_eq(workspace.workspace_asset_context().layer_stack, selected_stack, "NODE-21 selected node layer stack enters workspace context")
 	_assert_eq(workspace.workspace_asset_context().level_document, null, "NODE-21 runtime map is not mislabeled as Level Document")
 	_assert_eq(String(selected_snapshot["level_document_status"]), "Missing", "NODE-21 missing unique document is visible")
+	binding_state = selected_snapshot["binding_state"] as Dictionary
+	_assert_eq(String(binding_state["state_id"]), HexMapWorkspaceBindingService.STATE_SELECTED_NODE_WITHOUT_DOCUMENT, "STATE-30 selected node without document is explicit")
+	_assert_true((binding_state["active_state_ids"] as PackedStringArray).has(HexMapWorkspaceBindingService.STATE_APPLIED_WRITEBACK), "STATE-30 linked Layer Stack is explicit applied writeback state")
 	_assert_eq(String(selected_snapshot["layer_stack_status"]), "Linked", "NODE-21 selected node layer stack is visible")
 	_assert_eq(String(selected_snapshot["authoring_source"]), "Level Document", "NODE-21 Level Document is the authoring source")
 	_assert_true(not bool(selected_snapshot["hex_map_is_authoring_source"]), "NODE-21 hex_map is not the authoring source")
@@ -495,6 +503,9 @@ func _test_workspace_selected_hex_tile_map_auto_binding() -> void:
 	workspace.set_selected_hex_tile_map_node(selected_layer, "test.selected_hex_tile_map.dependencies")
 	_assert_eq(workspace.workspace_asset_context().level_document, dependency_document, "NODE-20 selected node Level Document enters workspace context")
 	_assert_eq(workspace.workspace_asset_context().tile_catalog, dependency_catalog, "NODE-20 selected node document dependencies hydrate shared context")
+	binding_state = workspace.selected_hex_tile_map_binding_state_snapshot()
+	_assert_true((binding_state["active_state_ids"] as PackedStringArray).has(HexMapWorkspaceBindingService.STATE_HYDRATED_DEPENDENCIES), "STATE-30 document dependency hydration state is explicit")
+	_assert_true((binding_state["hydrated_dependency_slot_ids"] as PackedStringArray).has(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG), "STATE-30 hydrated dependency records Tile Catalog slot")
 
 	var invalid_node = Node2D.new()
 	invalid_node.name = "NotAHexTileMap"
@@ -502,6 +513,8 @@ func _test_workspace_selected_hex_tile_map_auto_binding() -> void:
 	var cleared_snapshot = workspace.set_selected_hex_tile_map_node(invalid_node, "test.invalid_selection")
 	_assert_true(not bool(cleared_snapshot["selected"]), "NODE-21 non-HexTileMap selection clears selected node")
 	_assert_eq(String(cleared_snapshot["status_text"]), "No HexTileMap selected", "NODE-21 clear state keeps exact empty text")
+	binding_state = cleared_snapshot["binding_state"] as Dictionary
+	_assert_eq(String(binding_state["state_id"]), HexMapWorkspaceBindingService.STATE_NO_TARGET, "STATE-30 clear returns to no-target state")
 	_assert_eq(session.current_selected_hex_tile_map_layer(), null, "NODE-21 session clears selected node")
 	_assert_eq(session.current_target_layer(), null, "NODE-21 auto-link clears target when no HexTileMap is selected")
 	_assert_eq(workspace.edit_tool().target_layer(), null, "NODE-21 edit target clears with no selected HexTileMap")
@@ -709,6 +722,8 @@ func _test_workspace_asset_selection_writes_back_to_selected_hex_tile_map() -> v
 	var document_relationship = relationships[HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT] as Dictionary
 	_assert_eq(String(document_relationship["status"]), "linked", "NODE-23 Document relationship is visible as linked")
 	_assert_true(bool(document_relationship["matches"]), "NODE-23 Document relationship reports node/workspace match")
+	var binding_state = workspace.selected_hex_tile_map_binding_state_snapshot()
+	_assert_true((binding_state["active_state_ids"] as PackedStringArray).has(HexMapWorkspaceBindingService.STATE_APPLIED_WRITEBACK), "STATE-30 document writeback records applied writeback state")
 
 	var stack = HexLayerStackResource.minimal_runtime_template()
 	workspace.workspace_asset_context().set_layer_stack(stack)
@@ -782,6 +797,9 @@ func _test_workspace_asset_selection_writes_back_to_selected_hex_tile_map() -> v
 		export_profile,
 		"NODE-20 Export Profile writes to selected document dependency"
 	)
+	binding_state = workspace.selected_hex_tile_map_binding_state_snapshot()
+	_assert_true((binding_state["active_state_ids"] as PackedStringArray).has(HexMapWorkspaceBindingService.STATE_MANUAL_OVERRIDE), "STATE-30 project resource selections are explicit manual override state")
+	_assert_true((binding_state["active_state_ids"] as PackedStringArray).has(HexMapWorkspaceBindingService.STATE_APPLIED_WRITEBACK), "STATE-30 shared dependency writeback remains explicit applied state")
 
 	session.set_auto_link_selected_hex_tile_map(false, "test.node23.disable_auto_link")
 	var blocked_document = HexMapDocumentAdapter.from_map_resource(
@@ -792,6 +810,21 @@ func _test_workspace_asset_selection_writes_back_to_selected_hex_tile_map() -> v
 	writeback = workspace.selected_hex_tile_map_writeback_snapshot()
 	_assert_true(not bool(writeback["can_writeback"]), "NODE-23 write-back snapshot blocks when auto-link is OFF")
 	_assert_eq(String(writeback["blocked_reason"]), "Auto-link is off.", "NODE-23 auto-link OFF reason is visible")
+	binding_state = workspace.selected_hex_tile_map_binding_state_snapshot(writeback)
+	_assert_true((binding_state["active_state_ids"] as PackedStringArray).has(HexMapWorkspaceBindingService.STATE_CONFLICT), "STATE-30 conflicting workspace/node document state is explicit")
+
+	var pending_layer = HexTileMapLayer.new()
+	pending_layer.name = "PendingWritebackHexTileMap"
+	scene_root.add_child(pending_layer)
+	await process_frame
+	workspace.set_selected_hex_tile_map_node(pending_layer, "test.node23.pending_select")
+	var pending_document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(3, 1))
+	)
+	workspace.workspace_asset_context().set_level_document(pending_document)
+	binding_state = workspace.selected_hex_tile_map_binding_state_snapshot()
+	_assert_true((binding_state["active_state_ids"] as PackedStringArray).has(HexMapWorkspaceBindingService.STATE_PENDING_WRITEBACK), "STATE-30 pending writeback state is explicit")
+	_assert_true((binding_state["pending_writeback_slot_ids"] as PackedStringArray).has(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT), "STATE-30 pending writeback records Level Document slot")
 
 	workspace.clear_selected_hex_tile_map_layer("test.node23.clear")
 	var no_selection_result = workspace.apply_workspace_asset_context_to_selected_hex_tile_map(

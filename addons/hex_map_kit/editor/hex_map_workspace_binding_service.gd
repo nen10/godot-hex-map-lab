@@ -17,6 +17,14 @@ const HexValidationRuleSuiteResource = preload("res://addons/hex_map_kit/adapter
 const POLICY_NODE_OWNED := "node_owned"
 const POLICY_DOCUMENT_DEPENDENCY := "document_dependency"
 const POLICY_UNSUPPORTED := "unsupported"
+const STATE_NO_TARGET := "no_target"
+const STATE_SELECTED_NODE_WITHOUT_DOCUMENT := "selected_node_without_document"
+const STATE_HYDRATED_DEPENDENCIES := "hydrated_dependencies"
+const STATE_MANUAL_OVERRIDE := "manual_override"
+const STATE_PENDING_WRITEBACK := "pending_writeback"
+const STATE_APPLIED_WRITEBACK := "applied_writeback"
+const STATE_CONFLICT := "conflict"
+const STATE_READY := "ready"
 
 
 static func node_owned_slot_ids() -> PackedStringArray:
@@ -216,6 +224,114 @@ static func relationship_for_slot(
 	}
 
 
+static func selection_binding_state(
+	layer: HexTileMapLayer,
+	target_layer: Node,
+	auto_link: bool,
+	context: HexMapWorkspaceAssetContext,
+	writeback_snapshot: Dictionary = {},
+	hydration_result: Dictionary = {}
+) -> Dictionary:
+	var selected := layer != null and is_instance_valid(layer)
+	var relationships = writeback_snapshot.get("relationships", {}) as Dictionary
+	if relationships == null:
+		relationships = {}
+	var source_snapshot := context.source_snapshot() if context != null else {}
+	var active_states := PackedStringArray()
+	var pending_slot_ids := PackedStringArray()
+	var applied_slot_ids := PackedStringArray()
+	var conflict_slot_ids := PackedStringArray()
+	var manual_override_slot_ids := PackedStringArray()
+	var hydrated_slot_ids := PackedStringArray()
+
+	if not selected:
+		active_states.append(STATE_NO_TARGET)
+	elif layer.level_document_resource == null:
+		active_states.append(STATE_SELECTED_NODE_WITHOUT_DOCUMENT)
+
+	for slot_id in relationships.keys():
+		var relationship = relationships[slot_id] as Dictionary
+		if relationship == null:
+			continue
+		var status := String(relationship.get("status", ""))
+		if status.begins_with("workspace_pending"):
+			pending_slot_ids.append(String(slot_id))
+		elif status == "linked":
+			var workspace_resource = relationship.get("workspace_resource", null)
+			if workspace_resource != null:
+				applied_slot_ids.append(String(slot_id))
+		elif status == "different":
+			conflict_slot_ids.append(String(slot_id))
+
+	for slot_id in shared_dependency_slot_ids():
+		var source = source_snapshot.get(String(slot_id), {}) as Dictionary
+		if source == null:
+			continue
+		var source_id := String(source.get("source", ""))
+		var resource = context.asset_for_slot(String(slot_id)) if context != null else null
+		if resource != null and source_id == HexMapWorkspaceAssetContext.SOURCE_DOCUMENT_DEPENDENCY:
+			hydrated_slot_ids.append(String(slot_id))
+		elif resource != null and source_id != "" and source_id != HexMapWorkspaceAssetContext.SOURCE_NONE:
+			manual_override_slot_ids.append(String(slot_id))
+
+	var hydration_applied = hydration_result.get("applied_slot_ids", PackedStringArray()) as PackedStringArray
+	if hydration_applied != null:
+		for slot_id in hydration_applied:
+			if not hydrated_slot_ids.has(String(slot_id)):
+				hydrated_slot_ids.append(String(slot_id))
+	var hydration_skipped = hydration_result.get("skipped_manual_override_slot_ids", PackedStringArray()) as PackedStringArray
+	if hydration_skipped != null:
+		for slot_id in hydration_skipped:
+			if not manual_override_slot_ids.has(String(slot_id)):
+				manual_override_slot_ids.append(String(slot_id))
+
+	if not conflict_slot_ids.is_empty():
+		active_states.append(STATE_CONFLICT)
+	if not pending_slot_ids.is_empty():
+		active_states.append(STATE_PENDING_WRITEBACK)
+	if not applied_slot_ids.is_empty():
+		active_states.append(STATE_APPLIED_WRITEBACK)
+	if not hydrated_slot_ids.is_empty():
+		active_states.append(STATE_HYDRATED_DEPENDENCIES)
+	if not manual_override_slot_ids.is_empty():
+		active_states.append(STATE_MANUAL_OVERRIDE)
+	if active_states.is_empty():
+		active_states.append(STATE_READY)
+
+	var state_id := _primary_selection_binding_state(active_states)
+	var view_state := {
+		"state_source": "HexMapWorkspaceBindingService",
+		"state_id": state_id,
+		"active_state_ids": active_states.duplicate(),
+		"status_text": _selection_binding_status_text(state_id, layer),
+		"auto_link": auto_link,
+		"target_matches_selected": selected and target_layer == layer,
+		"can_writeback": bool(writeback_snapshot.get("can_writeback", false)),
+		"pending_writeback_slot_ids": pending_slot_ids.duplicate(),
+		"applied_writeback_slot_ids": applied_slot_ids.duplicate(),
+		"conflict_slot_ids": conflict_slot_ids.duplicate(),
+		"manual_override_slot_ids": manual_override_slot_ids.duplicate(),
+		"hydrated_dependency_slot_ids": hydrated_slot_ids.duplicate(),
+	}
+	return {
+		"state_id": state_id,
+		"state_source": "HexMapWorkspaceBindingService",
+		"active_state_ids": active_states,
+		"selected_node": layer,
+		"target_layer": target_layer,
+		"auto_link": auto_link,
+		"target_matches_selected": selected and target_layer == layer,
+		"pending_writeback_slot_ids": pending_slot_ids,
+		"applied_writeback_slot_ids": applied_slot_ids,
+		"conflict_slot_ids": conflict_slot_ids,
+		"manual_override_slot_ids": manual_override_slot_ids,
+		"hydrated_dependency_slot_ids": hydrated_slot_ids,
+		"writeback": writeback_snapshot,
+		"last_hydration": hydration_result.duplicate(true),
+		"view_state": view_state,
+	}
+
+
 static func writeback_policy_for_slot(slot_id: String) -> String:
 	if node_owned_slot_ids().has(slot_id):
 		return POLICY_NODE_OWNED
@@ -347,3 +463,38 @@ static func _writeback_result(
 		"resource": resource,
 		"dependency": dependency,
 	}
+
+
+static func _primary_selection_binding_state(active_states: PackedStringArray) -> String:
+	for state in [
+		STATE_NO_TARGET,
+		STATE_CONFLICT,
+		STATE_SELECTED_NODE_WITHOUT_DOCUMENT,
+		STATE_PENDING_WRITEBACK,
+		STATE_MANUAL_OVERRIDE,
+		STATE_HYDRATED_DEPENDENCIES,
+		STATE_APPLIED_WRITEBACK,
+	]:
+		if active_states.has(state):
+			return state
+	return STATE_READY
+
+
+static func _selection_binding_status_text(state_id: String, layer: HexTileMapLayer) -> String:
+	match state_id:
+		STATE_NO_TARGET:
+			return "No HexTileMap selected"
+		STATE_CONFLICT:
+			return "Selected HexTileMap has conflicting workspace resources"
+		STATE_SELECTED_NODE_WITHOUT_DOCUMENT:
+			return "Selected HexTileMap has no Level Document"
+		STATE_PENDING_WRITEBACK:
+			return "Workspace resources are pending write-back"
+		STATE_MANUAL_OVERRIDE:
+			return "Workspace has manual resource overrides"
+		STATE_HYDRATED_DEPENDENCIES:
+			return "Workspace hydrated document dependencies"
+		STATE_APPLIED_WRITEBACK:
+			return "Workspace resources are linked"
+		_:
+			return "Selected HexTileMap: %s" % (layer.name if layer != null else "")

@@ -251,6 +251,8 @@ func selected_hex_tile_map_snapshot() -> Dictionary:
 	var display_tile_set := hex_layer.display_tile_set_resource if selected else null
 	if selected and display_tile_set == null:
 		display_tile_set = hex_layer.display_tile_set()
+	var writeback := selected_hex_tile_map_writeback_snapshot()
+	var binding_state := selected_hex_tile_map_binding_state_snapshot(writeback)
 	return {
 		"selected": selected,
 		"selected_node": hex_layer,
@@ -275,8 +277,25 @@ func selected_hex_tile_map_snapshot() -> Dictionary:
 		"display_tile_set_status": "Linked" if display_tile_set != null else ("Missing" if selected else "Unavailable"),
 		"tile_catalog": context.tile_catalog,
 		"tile_catalog_status": "Shared project resource" if context.tile_catalog != null else "No Tile Catalog linked to node",
-		"writeback": selected_hex_tile_map_writeback_snapshot(),
+		"writeback": writeback,
+		"binding_state": binding_state,
 	}
+
+
+func selected_hex_tile_map_binding_state_snapshot(writeback_snapshot: Dictionary = {}) -> Dictionary:
+	var session := _ensure_session_state()
+	var layer := session.current_selected_hex_tile_map_layer() as HexTileMapLayer
+	var writeback := writeback_snapshot
+	if writeback.is_empty():
+		writeback = selected_hex_tile_map_writeback_snapshot()
+	return HexMapWorkspaceBindingService.selection_binding_state(
+		layer,
+		session.current_target_layer(),
+		session.selected_hex_tile_map_auto_link_enabled(),
+		workspace_asset_context(),
+		writeback,
+		_last_document_dependency_hydration
+	)
 
 
 func selected_hex_tile_map_writeback_snapshot() -> Dictionary:
