@@ -24,6 +24,7 @@ const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_ma
 const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
 const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
 const HexMapGenStateEvaluator = preload("res://addons/hex_map_kit/editor/hex_map_gen_state_evaluator.gd")
+const HexMapGenerationRunState = preload("res://addons/hex_map_kit/editor/hex_map_generation_run_state.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const HexToricCoordinate = preload("res://addons/hex_map_kit/core/hex_toric_coordinate.gd")
 const HexRandomizer = preload("res://addons/hex_map_kit/core/hex_randomizer.gd")
@@ -276,6 +277,7 @@ var _tile_settings_apply_pending := false
 var _tile_settings_apply_count := 0
 var _tile_settings_last_apply_result := false
 var _suppress_tile_settings_apply := false
+var _generation_run_state: HexMapGenerationRunState = HexMapGenerationRunState.new()
 var _current_overlay_data = null
 var _editor_session_state: HexMapEditorSessionState = null
 var _workspace_asset_context: HexMapWorkspaceAssetContext = null
@@ -2465,6 +2467,7 @@ func _schedule_tile_settings_apply(_reason: String = "tile_settings") -> bool:
 	_tile_settings_apply_debounce_token += 1
 	var token := _tile_settings_apply_debounce_token
 	_tile_settings_apply_pending = true
+	_sync_generation_run_state(_reason)
 	_show_busy_progress_step(
 		PROGRESS_STEP_TILE_SETTINGS,
 		GENERATION_PROGRESS_START,
@@ -2481,6 +2484,7 @@ func _run_debounced_tile_settings_apply(token: int) -> void:
 	if token != _tile_settings_apply_debounce_token or not _tile_settings_apply_pending:
 		return
 	_tile_settings_apply_pending = false
+	_sync_generation_run_state()
 	_apply_tile_settings_to_current_layer()
 
 
@@ -2574,6 +2578,7 @@ func _on_apply_layer_pressed() -> void:
 func _apply_tile_settings_to_current_layer() -> bool:
 	_tile_settings_apply_debounce_token += 1
 	_tile_settings_apply_pending = false
+	_sync_generation_run_state()
 	if _overlay_mode_enabled() and _current_overlay_data == null:
 		return false
 	if not _overlay_mode_enabled() and _current_data == null:
@@ -2596,6 +2601,7 @@ func _apply_tile_settings_to_current_layer() -> bool:
 		ok = apply_current_data_to_tile_map_layer(layer)
 	_tile_settings_last_apply_result = ok
 	_finish_generation_progress_controls_success("Tile settings applied" if ok else "Failed")
+	_sync_generation_run_state()
 	return ok
 
 
@@ -2804,45 +2810,70 @@ func _publish_session_target(reason: String) -> void:
 
 
 func generation_status() -> Dictionary:
-	return {
-		"running": _generation_running,
-		"cancel_requested": _is_generation_cancel_requested(),
-		"progress": _generation_progress,
-		"status": _generation_status,
-		"step": _generation_progress_step,
-		"visible": _generation_progress_container != null and _generation_progress_container.visible,
-		"cancel_available": _generation_progress_cancel_button != null \
-			and not _generation_progress_cancel_button.disabled,
-	}
+	_sync_generation_run_state()
+	return _generation_run_state.to_status_snapshot()
 
 
 func generation_progress_snapshot() -> Dictionary:
-	return {
+	_sync_generation_run_state()
+	return _generation_run_state.to_progress_snapshot(_generation_current_step_text())
+
+
+func generation_run_view_state() -> Dictionary:
+	_sync_generation_run_state()
+	return _generation_run_state.to_view_state(_generation_current_step_text())
+
+
+func tile_settings_apply_debounce_snapshot() -> Dictionary:
+	_sync_generation_run_state()
+	var snapshot := _generation_run_state.tile_settings_snapshot(_generation_current_step_text())
+	snapshot["debounce_sec"] = _tile_settings_apply_debounce_sec
+	return snapshot
+
+
+func _generation_current_step_text() -> String:
+	return _generation_progress_status_label.text if _generation_progress_status_label != null else _generation_status
+
+
+func _sync_generation_run_state(heavy_update_reason: String = "") -> void:
+	if _generation_run_state == null:
+		return
+	var block_reason := ""
+	if not _generation_running:
+		block_reason = _current_generation_block_reason()
+	var failure_reason := "Generation failed." if _generation_status == "Failed" else ""
+	var output_snapshot := output_target_snapshot()
+	var last_apply := output_snapshot.get("last_apply", {}) as Dictionary
+	var tile_size := Vector2i.ZERO
+	if _tile_width_spin != null and _tile_height_spin != null:
+		tile_size = _tile_settings_tile_size()
+	var context := {
 		"running": _generation_running,
 		"cancel_requested": _is_generation_cancel_requested(),
 		"progress": _generation_progress,
 		"status": _generation_status,
 		"step": _generation_progress_step,
-		"current_step_text": _generation_progress_status_label.text \
-			if _generation_progress_status_label != null else _generation_status,
 		"visible": _generation_progress_container != null and _generation_progress_container.visible,
 		"progress_bar_visible": _generation_progress_bar != null and _generation_progress_container != null \
 			and _generation_progress_container.visible,
 		"cancel_available": _generation_progress_cancel_button != null \
 			and not _generation_progress_cancel_button.disabled,
 		"modal_window_count": 0,
+		"tile_settings_pending": _tile_settings_apply_pending,
+		"tile_settings_token": _tile_settings_apply_debounce_token,
+		"tile_settings_apply_count": _tile_settings_apply_count,
+		"tile_settings_last_apply_result": _tile_settings_last_apply_result,
+		"generated_preview_present": _generated_output_present(),
+		"output_target_mode": _output_target_mode,
+		"dirty_document": bool(last_apply.get("ok", false)),
+		"block_reason": block_reason,
+		"failure_reason": failure_reason,
+		"orientation": _current_orientation,
+		"tile_size": tile_size,
 	}
-
-
-func tile_settings_apply_debounce_snapshot() -> Dictionary:
-	return {
-		"pending": _tile_settings_apply_pending,
-		"token": _tile_settings_apply_debounce_token,
-		"debounce_sec": _tile_settings_apply_debounce_sec,
-		"apply_count": _tile_settings_apply_count,
-		"last_apply_result": _tile_settings_last_apply_result,
-		"progress": generation_progress_snapshot(),
-	}
+	if heavy_update_reason != "":
+		context["heavy_update_reason"] = heavy_update_reason
+	_generation_run_state.update_from_context(context)
 
 
 func generation_validation_summary() -> Dictionary:
@@ -3916,10 +3947,11 @@ func _tile_set_is_used_by_another_layer_recursive(node: Node, layer: TileMapLaye
 
 
 func _refresh_controls() -> void:
+	var run_view_state := generation_run_view_state()
 	var control_state = HexMapGenStateEvaluator.evaluate_control_state({
 		"symmetric": _uses_symmetric_generation(),
 		"overlay": _overlay_mode_enabled(),
-		"generation_running": _generation_running,
+		"generation_running": bool(run_view_state.get("running", false)),
 		"overlay_adjacency_enabled": _overlay_adjacency_enabled(),
 		"overlay_item_limit_enabled": _overlay_item_limit_check != null and _overlay_item_limit_check.button_pressed,
 		"simple_shape": _shape_option_simple.selected if _shape_option_simple != null else SHAPE_HEXAGON,
@@ -4063,16 +4095,19 @@ func _is_generation_block_status(status: String) -> bool:
 func _refresh_generation_block_state() -> void:
 	if _generate_button == null:
 		return
-	if _generation_running:
-		_generate_button.disabled = true
+	var run_view_state := generation_run_view_state()
+	if bool(run_view_state.get("running", false)):
+		_generate_button.disabled = bool(run_view_state.get("generate_button_disabled", true))
+		_generate_button.tooltip_text = ""
 		return
 	var reason = _current_generation_block_reason()
-	_generate_button.disabled = reason != ""
-	_generate_button.tooltip_text = reason
 	if reason != "":
 		_set_generation_progress(0.0, _generation_block_status(reason))
 	elif _is_generation_block_status(_generation_status):
 		_set_generation_progress(0.0, "Ready")
+	run_view_state = generation_run_view_state()
+	_generate_button.disabled = bool(run_view_state.get("generate_button_disabled", false))
+	_generate_button.tooltip_text = String(run_view_state.get("generate_button_tooltip", ""))
 
 
 func _generate_map(show_progress: bool = false) -> bool:
@@ -4826,6 +4861,7 @@ func _begin_generation(_generation_id_from_snapshot: int, show_progress: bool = 
 	_generation_event_order = 0
 	_last_generation_validation_capture_order = 0
 	_last_generation_apply_order = 0
+	_sync_generation_run_state()
 	_set_generation_controls_disabled(true)
 	_set_generation_progress(0.0, "Preparing")
 	if show_progress:
@@ -4843,6 +4879,7 @@ func _finish_generation(cancelled: bool) -> void:
 		_set_generation_progress(1.0, "Ready")
 	_set_generation_cancel_requested(false)
 	_set_generation_controls_disabled(false)
+	_sync_generation_run_state()
 	if _generation_progress_container != null and _generation_progress_container.visible:
 		if cancelled:
 			_hide_generation_progress_controls()
@@ -4864,6 +4901,7 @@ func _show_busy_progress_step(
 	_set_generation_progress_cancel_enabled(cancel_available)
 	_set_generation_progress(progress, status)
 	_generation_progress_step = step
+	_sync_generation_run_state()
 
 
 func _set_generation_progress(progress: float, status: String) -> void:
@@ -4874,6 +4912,7 @@ func _set_generation_progress(progress: float, status: String) -> void:
 		_generation_progress_bar.value = _generation_progress
 	if _generation_progress_status_label != null:
 		_generation_progress_status_label.text = _generation_status
+	_sync_generation_run_state()
 
 
 func _progress_step_for_status(status: String) -> String:
@@ -4904,6 +4943,7 @@ func _set_generation_cancel_requested(requested: bool) -> void:
 	_generation_mutex.lock()
 	_generation_cancel_requested = requested
 	_generation_mutex.unlock()
+	_sync_generation_run_state()
 
 
 func _is_generation_cancel_requested() -> bool:
@@ -4922,6 +4962,7 @@ func _show_generation_progress_controls() -> void:
 	_generation_progress_visible_started_msec = Time.get_ticks_msec()
 	_set_generation_progress_cancel_enabled(true)
 	_set_generation_progress(_generation_progress, _generation_status)
+	_sync_generation_run_state()
 
 
 func _finish_generation_progress_controls_success(status: String = "Ready") -> void:
@@ -4965,11 +5006,13 @@ func _hide_generation_progress_controls() -> void:
 	if _generation_progress_container != null:
 		_generation_progress_container.visible = false
 	_set_generation_progress_cancel_enabled(false)
+	_sync_generation_run_state()
 
 
 func _set_generation_progress_cancel_enabled(enabled: bool) -> void:
 	if _generation_progress_cancel_button != null:
 		_generation_progress_cancel_button.disabled = not enabled
+	_sync_generation_run_state()
 
 
 func _set_generation_controls_disabled(disabled: bool) -> void:

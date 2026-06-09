@@ -28,6 +28,7 @@ const HexMovementProfileResource = preload("res://addons/hex_map_kit/adapter/hex
 const HexExportProfileResource = preload("res://addons/hex_map_kit/adapter/hex_export_profile_resource.gd")
 const HexMapGenDock = preload("res://addons/hex_map_kit/editor/hex_map_gen_dock.gd")
 const HexMapGenStateEvaluator = preload("res://addons/hex_map_kit/editor/hex_map_gen_state_evaluator.gd")
+const HexMapGenerationRunState = preload("res://addons/hex_map_kit/editor/hex_map_generation_run_state.gd")
 const HexMapEditTool = preload("res://addons/hex_map_kit/editor/hex_map_edit_tool.gd")
 const HexMapEditMutationBuilder = preload("res://addons/hex_map_kit/editor/hex_map_edit_mutation_builder.gd")
 const HexMapEditViewportInputAdapter = preload("res://addons/hex_map_kit/editor/hex_map_edit_viewport_input_adapter.gd")
@@ -6060,6 +6061,11 @@ func _test_generation_dock_tracks_generation_progress_state() -> void:
 	_assert_true(not idle_status["cancel_requested"], "generation dock has no cancel request before Generate")
 	_assert_eq(idle_status["progress"], 0.0, "generation dock starts with zero progress")
 	_assert_eq(idle_status["status"], "Ready", "generation dock starts ready")
+	_assert_eq(String(idle_status["state_source"]), "HexMapGenerationRunState", "STATE-10 status comes from generation run state")
+	_assert_eq(String(idle_status["state_id"]), HexMapGenerationRunState.STATE_IDLE, "STATE-10 generation dock starts in idle run state")
+	var idle_view_state = dock.generation_run_view_state()
+	_assert_eq(String(idle_view_state["state_source"]), "HexMapGenerationRunState", "STATE-10 view state comes from generation run state")
+	_assert_true(not bool(idle_view_state["generate_button_disabled"]), "STATE-10 idle view state allows Generate")
 	_assert_eq(dock._generation_id, 0, "generation dock does not auto generate on creation")
 	_assert_eq(dock._current_data, null, "generation dock starts without generated data")
 	_assert_true(_progress_controls_hidden(dock), "generation dock does not show progress on creation")
@@ -6076,9 +6082,11 @@ func _test_generation_dock_tracks_generation_progress_state() -> void:
 	_assert_eq(ready_status["progress"], 1.0, "generation dock reports completed progress")
 	_assert_eq(ready_status["status"], "Ready", "generation dock reports ready status")
 	_assert_eq(String(ready_status["step"]), HexMapGenDock.PROGRESS_STEP_COMPLETE, "PERF-61 generation status exposes complete step")
+	_assert_eq(String(ready_status["state_id"]), HexMapGenerationRunState.STATE_GENERATED_PREVIEW, "STATE-10 completed generation exposes generated preview state")
 	var progress_snapshot = dock.generation_progress_snapshot()
 	_assert_eq(String(progress_snapshot["current_step_text"]), "Ready", "PERF-61 progress snapshot exposes current step text")
 	_assert_true(bool(progress_snapshot["progress_bar_visible"]), "PERF-61 progress snapshot exposes visible ProgressBar")
+	_assert_eq(String(progress_snapshot["state_source"]), "HexMapGenerationRunState", "STATE-10 progress snapshot comes from generation run state")
 	_assert_true(not bool(progress_snapshot["cancel_available"]), "PERF-61 cancel is unavailable after synchronous apply/finalize")
 	_assert_true(_progress_controls_visible(dock), "generation dock keeps Generate progress visible after fast generation")
 	_assert_true(dock._generation_progress_cancel_button.disabled, "generation dock disables progress cancel after Generate finish")
@@ -6088,6 +6096,9 @@ func _test_generation_dock_tracks_generation_progress_state() -> void:
 
 	_begin_manual_generation(dock, true)
 	await _wait_for_progress_controls(dock, "manual successful generation")
+	var running_view_state = dock.generation_run_view_state()
+	_assert_eq(String(running_view_state["state_id"]), HexMapGenerationRunState.STATE_PREPARING, "STATE-10 manual begin enters preparing state")
+	_assert_true(bool(running_view_state["controls_disabled"]), "STATE-10 running view state disables generation controls")
 	_assert_true(not dock._generation_progress_cancel_button.disabled, "generation dock enables progress cancel while running")
 	dock._generation_progress_visible_started_msec = Time.get_ticks_msec()
 	dock._finish_generation(false)
@@ -6106,6 +6117,7 @@ func _test_generation_dock_tracks_generation_progress_state() -> void:
 	_assert_true(cancel_status["running"], "generation dock keeps running state after cancel request")
 	_assert_true(cancel_status["cancel_requested"], "generation dock stores cancel request state")
 	_assert_eq(cancel_status["status"], "Cancel requested", "generation dock reports cancel request status")
+	_assert_eq(String(cancel_status["state_id"]), HexMapGenerationRunState.STATE_CANCELLING, "STATE-10 cancel request enters cancelling state")
 	_assert_true(dock._generation_progress_cancel_button.disabled, "generation dock disables progress cancel after cancel request")
 
 	dock._finish_generation(true)
@@ -6113,6 +6125,7 @@ func _test_generation_dock_tracks_generation_progress_state() -> void:
 	_assert_true(not cancelled_status["running"], "generation dock clears running state after cancelled finish")
 	_assert_true(not cancelled_status["cancel_requested"], "generation dock clears cancel request after cancelled finish")
 	_assert_eq(cancelled_status["status"], "Cancelled", "generation dock reports cancelled status")
+	_assert_eq(String(cancelled_status["state_id"]), HexMapGenerationRunState.STATE_CANCELLED, "STATE-10 cancelled finish exposes cancelled state")
 	_assert_true(_progress_controls_hidden(dock), "generation dock hides progress after cancellation")
 
 	var layer = TileMapLayer.new()
@@ -6127,6 +6140,7 @@ func _test_generation_dock_tracks_generation_progress_state() -> void:
 	_assert_true(bool(progress_snapshot["visible"]), "PERF-61 tile setting apply shows inline progress")
 	_assert_eq(String(progress_snapshot["status"]), "Tile settings applied", "PERF-61 tile setting apply reports completion")
 	_assert_eq(String(progress_snapshot["step"]), HexMapGenDock.PROGRESS_STEP_COMPLETE, "PERF-61 tile setting completion uses complete step")
+	_assert_eq(String(progress_snapshot["state_id"]), HexMapGenerationRunState.STATE_APPLIED_TILE_SETTINGS, "STATE-10 tile setting apply exposes applied state")
 	_assert_true(not bool(progress_snapshot["cancel_available"]), "PERF-61 tile setting apply is not cancellable")
 	_assert_eq(_window_child_count(dock), 0, "PERF-61 tile setting apply does not create modal busy window")
 
@@ -6136,6 +6150,8 @@ func _test_generation_dock_tracks_generation_progress_state() -> void:
 	dock._on_tile_setting_changed(67.0)
 	var debounce_snapshot = dock.tile_settings_apply_debounce_snapshot()
 	_assert_true(bool(debounce_snapshot["pending"]), "PERF-62 repeated tile setting changes leave one pending apply")
+	_assert_eq(String(debounce_snapshot["state_id"]), HexMapGenerationRunState.STATE_PREVIEW_QUEUED, "STATE-10 tile setting change enters queued preview state")
+	_assert_eq(String(debounce_snapshot["heavy_update_reason"]), "tile_setting", "STATE-10 tile setting change records heavy update reason")
 	_assert_eq(int(debounce_snapshot["apply_count"]), apply_count_before, "PERF-62 pending debounced apply does not run immediately")
 	_assert_eq(
 		String((debounce_snapshot["progress"] as Dictionary)["status"]),
@@ -6146,11 +6162,21 @@ func _test_generation_dock_tracks_generation_progress_state() -> void:
 	debounce_snapshot = dock.tile_settings_apply_debounce_snapshot()
 	_assert_true(not bool(debounce_snapshot["pending"]), "PERF-62 debounced tile setting apply clears pending state")
 	_assert_eq(int(debounce_snapshot["apply_count"]), apply_count_before + 1, "PERF-62 repeated tile settings coalesce to one apply")
+	_assert_eq(String(debounce_snapshot["state_id"]), HexMapGenerationRunState.STATE_APPLIED_TILE_SETTINGS, "STATE-10 debounced tile setting apply exposes applied state")
 	_assert_eq(
 		String((debounce_snapshot["progress"] as Dictionary)["status"]),
 		"Tile settings applied",
 		"PERF-62 debounced apply finishes through progress UI"
 	)
+
+	apply_count_before = int(dock.tile_settings_apply_debounce_snapshot()["apply_count"])
+	dock._tile_orientation_option.select(1)
+	dock._on_tile_orientation_changed(1)
+	debounce_snapshot = dock.tile_settings_apply_debounce_snapshot()
+	_assert_true(bool(debounce_snapshot["pending"]), "STATE-10 orientation change queues tile settings apply")
+	_assert_eq(String(debounce_snapshot["state_id"]), HexMapGenerationRunState.STATE_PREVIEW_QUEUED, "STATE-10 orientation change enters queued preview state")
+	_assert_eq(String(debounce_snapshot["heavy_update_reason"]), "orientation", "STATE-10 orientation change records heavy update reason")
+	await _wait_for_tile_settings_apply_count(dock, apply_count_before + 1, "STATE-10 debounced orientation tile settings")
 
 	layer.queue_free()
 	dock.queue_free()
