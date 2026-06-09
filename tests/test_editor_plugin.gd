@@ -585,6 +585,19 @@ func _test_workspace_create_missing_unique_resources_for_selected_hex_tile_map()
 		"NODE-22 layer stack path uses selected node prefix"
 	)
 
+	var catalog = HexTileCatalogResource.new()
+	catalog.resource_name = "Selected Project Catalog"
+	var object_database = HexObjectDatabaseResource.new()
+	object_database.resource_name = "Selected Object Database"
+	var label_database = HexLabelDatabaseResource.new()
+	label_database.resource_name = "Selected Label Database"
+	var movement_profile = HexMovementProfileResource.new()
+	movement_profile.resource_name = "Selected Movement Profile"
+	workspace.workspace_asset_context().set_tile_catalog(catalog)
+	workspace.workspace_asset_context().set_object_database(object_database)
+	workspace.workspace_asset_context().set_label_database(label_database)
+	workspace.workspace_asset_context().set_movement_profile(movement_profile)
+
 	var result = workspace.create_missing_selected_hex_tile_map_resources(save_dir)
 	_assert_true(bool(result["ok"]), "NODE-22 creates missing selected-node resources")
 	_assert_true(
@@ -606,8 +619,27 @@ func _test_workspace_create_missing_unique_resources_for_selected_hex_tile_map()
 	_assert_eq(workspace.workspace_asset_context().level_document, selected_layer.level_document_resource, "NODE-22 workspace context shows created document")
 	_assert_eq(workspace.workspace_asset_context().layer_stack, selected_layer.layer_stack_resource, "NODE-22 workspace context shows created layer stack")
 	_assert_eq(session.current_document(), selected_layer.level_document_resource, "NODE-22 session document follows created document")
-	_assert_eq(workspace.workspace_asset_context().tile_catalog, null, "NODE-22 does not silently create shared Tile Catalog")
+	_assert_eq(workspace.workspace_asset_context().tile_catalog, catalog, "NODE-22 preserves selected shared Tile Catalog")
+	_assert_eq(workspace.workspace_asset_context().object_database, object_database, "NODE-22 preserves selected shared Object Database")
+	_assert_eq(workspace.workspace_asset_context().label_database, label_database, "NODE-22 preserves selected shared Label Database")
+	_assert_eq(workspace.workspace_asset_context().movement_profile, movement_profile, "NODE-22 preserves selected shared Movement Profile")
 	_assert_true(not bool(result["shared_resources_created"]), "NODE-22 result states no shared resources were created")
+	var dependency_sync = result["shared_dependency_sync"] as Dictionary
+	_assert_true(bool(dependency_sync["ok"]), "NODE-22 shared dependency sync succeeds after document creation")
+	var dependency_slots = dependency_sync["applied_slot_ids"] as PackedStringArray
+	_assert_true(dependency_slots.has(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG), "NODE-22 writes selected Tile Catalog to document dependency")
+	_assert_true(dependency_slots.has(HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE), "NODE-22 writes selected Object Database to document dependency")
+	_assert_true(dependency_slots.has(HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE), "NODE-22 writes selected Label Database to document dependency")
+	_assert_true(dependency_slots.has(HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE), "NODE-22 writes selected Movement Profile to document dependency")
+	var created_document = selected_layer.level_document_resource
+	var catalog_dependency = HexMapDocumentDependencyService.find_shared_dependency(created_document, HexMapDocumentDependencyService.KEY_TILE_CATALOG)
+	var object_dependency = HexMapDocumentDependencyService.find_shared_dependency(created_document, HexMapDocumentDependencyService.KEY_OBJECT_DATABASE)
+	var label_dependency = HexMapDocumentDependencyService.find_shared_dependency(created_document, HexMapDocumentDependencyService.KEY_LABEL_DATABASE)
+	var movement_dependency = HexMapDocumentDependencyService.find_shared_dependency(created_document, HexMapDocumentDependencyService.KEY_MOVEMENT_PROFILE)
+	_assert_eq(catalog_dependency.get("resource"), catalog, "NODE-22 document dependency matches selected Tile Catalog")
+	_assert_eq(object_dependency.get("resource"), object_database, "NODE-22 document dependency matches selected Object Database")
+	_assert_eq(label_dependency.get("resource"), label_database, "NODE-22 document dependency matches selected Label Database")
+	_assert_eq(movement_dependency.get("resource"), movement_profile, "NODE-22 document dependency matches selected Movement Profile")
 	var after_snapshot = result["after"] as Dictionary
 	_assert_eq(int(after_snapshot["missing_count"]), 0, "NODE-22 after snapshot has no missing unique resources")
 	_assert_eq(String(workspace.selected_hex_tile_map_snapshot()["level_document_status"]), "Linked", "NODE-22 selected-node summary shows linked document")

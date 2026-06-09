@@ -42,7 +42,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | `RES-11` | `COMPLETE` | `RES-10` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/RES-11_DOCUMENT_DEPENDENCY_HYDRATION/` | Workspace context hydration from selected document dependencies | `HexMapWorkspaceAssetContext`, `HexMapWorkspace`, dependency service, editor tests | Document selection hydrates shared resources into workspace context with `Document Dependency` source badge; manual override can temporarily supersede it; missing dependencies stay missing instead of silently using samples. |
 | `NODE-20` | `COMPLETE` | `RES-11` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/NODE-20_HEX_TILE_MAP_RESOURCE_BINDING_SERVICE/` | Selected HexTileMap read/write binding service | new `addons/hex_map_kit/editor/hex_map_workspace_binding_service.gd`, `HexTileMapLayer`, `HexMapWorkspace`, editor tests | Scene selection resolves `HexTileMapLayer`; node-owned Level Document / Layer Stack are read and written on node exports; shared resources are read/written through document dependencies. |
 | `NODE-21` | `COMPLETE` | `NODE-20` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/NODE-21_HEX_MAP_RESOURCE_ROLE_CLARIFICATION/` | Clear role decision for `HexTileMapLayer.hex_map` | `HexMapWorkspace`, `HexMapEditTool`, workspace UI/docs/tests | `hex_map` is no longer implied as authoring source of truth; UI/docs/tests treat Level Document as canonical authoring; no ambiguous compatibility-only display remains; `./tools/test.sh` passed. |
-| `NODE-22` | `READY` | `NODE-20` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/NODE-22_MISSING_NODE_RESOURCE_BULK_CREATE_REVIEW/` | Missing Resource create flow aligned with node/document/dependency ownership | `HexMapWorkspace`, `HexMapWorkspaceAssetResourceFactory`, asset panel, binding/dependency services, editor tests | Node-owned and shared resources are not mixed in one opaque bulk create path; shared resources require create or select existing; node export, document dependency, and workspace context match after creation. |
+| `NODE-22` | `COMPLETE` | `NODE-20` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/NODE-22_MISSING_NODE_RESOURCE_BULK_CREATE_REVIEW/` | Missing Resource create flow aligned with node/document/dependency ownership | `HexMapWorkspace`, binding/dependency services, editor tests | Node-owned and shared resources are not mixed in one opaque bulk create path; shared resources require create or select existing; node export, document dependency, and workspace context match after creation; `./tools/test.sh` passed. |
 
 ---
 
@@ -148,7 +148,7 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `NODE-22`.
+Current recommended next task: `PROFILE-30`.
 
 Reason:
 
@@ -159,8 +159,9 @@ Reason:
 - `RES-11` is complete.
 - `NODE-20` is complete.
 - `NODE-21` is complete.
-- `NODE-22`, `PROFILE-30`, `STATE-00`, and `ARCH-50` are READY.
-- `NODE-22` is first in queue order and reviews missing node resource creation after binding service extraction.
+- `NODE-22` is complete.
+- `PROFILE-30`, `STATE-00`, and `ARCH-50` are READY.
+- `PROFILE-30` is first in queue order and creates concrete profile Resource classes.
 
 ---
 
@@ -279,3 +280,17 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_edit_tool.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/NODE-21_TEST_RESULT_2026-06-10.md`
+
+### NODE-22 Missing node resource bulk create review
+
+proof:
+  plan: `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/NODE-22_MISSING_NODE_RESOURCE_BULK_CREATE_REVIEW/`
+  review: `docs/review/autopilot/NODE-22_SELF_REVIEW_2026-06-10.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/NODE-22_TEST_RESULT_2026-06-10.md`
