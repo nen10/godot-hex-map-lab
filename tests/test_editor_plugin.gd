@@ -475,6 +475,20 @@ func _test_workspace_selected_hex_tile_map_auto_binding() -> void:
 	var internal_snapshot = workspace.set_selected_hex_tile_map_node(display_layer, "test.selected_internal_layer")
 	_assert_eq(internal_snapshot["selected_node"], selected_layer, "NODE-21 internal display layer maps back to selected HexTileMap")
 
+	var dependency_document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	var dependency_catalog = HexTileCatalogResource.new()
+	HexMapDocumentDependencyService.set_shared_dependency(
+		dependency_document,
+		HexMapDocumentDependencyService.KEY_TILE_CATALOG,
+		dependency_catalog
+	)
+	selected_layer.level_document_resource = dependency_document
+	workspace.set_selected_hex_tile_map_node(selected_layer, "test.selected_hex_tile_map.dependencies")
+	_assert_eq(workspace.workspace_asset_context().level_document, dependency_document, "NODE-20 selected node Level Document enters workspace context")
+	_assert_eq(workspace.workspace_asset_context().tile_catalog, dependency_catalog, "NODE-20 selected node document dependencies hydrate shared context")
+
 	var invalid_node = Node2D.new()
 	invalid_node.name = "NotAHexTileMap"
 	scene_root.add_child(invalid_node)
@@ -669,21 +683,66 @@ func _test_workspace_asset_selection_writes_back_to_selected_hex_tile_map() -> v
 	var catalog = HexTileCatalogResource.new()
 	var object_database = HexObjectDatabaseResource.new()
 	var label_database = HexLabelDatabaseResource.new()
+	var movement_profile = HexMovementProfileResource.new()
+	var validation_suite = Resource.new()
+	var generation_profile = Resource.new()
+	var export_profile = Resource.new()
 	workspace.workspace_asset_context().set_tile_catalog(catalog)
 	workspace.workspace_asset_context().set_object_database(object_database)
 	workspace.workspace_asset_context().set_label_database(label_database)
+	workspace.workspace_asset_context().set_movement_profile(movement_profile)
+	workspace.workspace_asset_context().set_validation_rule_suite(validation_suite)
+	workspace.workspace_asset_context().set_generation_profile(generation_profile)
+	workspace.workspace_asset_context().set_export_profile(export_profile)
 	writeback = workspace.selected_hex_tile_map_writeback_snapshot()
 	relationships = writeback["relationships"] as Dictionary
 	var catalog_relationship = relationships[HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG] as Dictionary
 	var object_relationship = relationships[HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE] as Dictionary
 	var label_relationship = relationships[HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE] as Dictionary
-	_assert_eq(String(catalog_relationship["policy"]), "shared_context", "NODE-23 Tile Catalog remains shared context")
-	_assert_eq(String(object_relationship["policy"]), "shared_context", "NODE-23 Object Database remains shared context")
-	_assert_eq(String(label_relationship["policy"]), "shared_context", "NODE-23 Label Database remains shared context")
+	_assert_eq(String(catalog_relationship["policy"]), "document_dependency", "NODE-20 Tile Catalog writes through document dependency")
+	_assert_eq(String(object_relationship["policy"]), "document_dependency", "NODE-20 Object Database writes through document dependency")
+	_assert_eq(String(label_relationship["policy"]), "document_dependency", "NODE-20 Label Database writes through document dependency")
 	_assert_eq(catalog_relationship["node_resource"], null, "NODE-23 Tile Catalog is not copied onto the node")
 	_assert_eq(object_relationship["node_resource"], null, "NODE-23 Object Database is not copied onto the node")
 	_assert_eq(label_relationship["node_resource"], null, "NODE-23 Label Database is not copied onto the node")
-	_assert_eq(selected_layer.level_document_resource.dependencies.size(), 0, "NODE-23 shared resources are not silently embedded into document dependencies")
+	_assert_eq(catalog_relationship["dependency_resource"], catalog, "NODE-20 Tile Catalog dependency matches workspace resource")
+	_assert_eq(object_relationship["dependency_resource"], object_database, "NODE-20 Object Database dependency matches workspace resource")
+	_assert_eq(label_relationship["dependency_resource"], label_database, "NODE-20 Label Database dependency matches workspace resource")
+	_assert_eq(
+		HexMapDocumentDependencyService.find_shared_dependency(document, HexMapDocumentDependencyService.KEY_TILE_CATALOG).get("resource"),
+		catalog,
+		"NODE-20 Tile Catalog writes to selected document dependency"
+	)
+	_assert_eq(
+		HexMapDocumentDependencyService.find_shared_dependency(document, HexMapDocumentDependencyService.KEY_OBJECT_DATABASE).get("resource"),
+		object_database,
+		"NODE-20 Object Database writes to selected document dependency"
+	)
+	_assert_eq(
+		HexMapDocumentDependencyService.find_shared_dependency(document, HexMapDocumentDependencyService.KEY_LABEL_DATABASE).get("resource"),
+		label_database,
+		"NODE-20 Label Database writes to selected document dependency"
+	)
+	_assert_eq(
+		HexMapDocumentDependencyService.find_shared_dependency(document, HexMapDocumentDependencyService.KEY_MOVEMENT_PROFILE).get("resource"),
+		movement_profile,
+		"NODE-20 Movement Profile writes to selected document dependency"
+	)
+	_assert_eq(
+		HexMapDocumentDependencyService.find_shared_dependency(document, HexMapDocumentDependencyService.KEY_VALIDATION_RULE_SUITE).get("resource"),
+		validation_suite,
+		"NODE-20 Validation Suite writes to selected document dependency"
+	)
+	_assert_eq(
+		HexMapDocumentDependencyService.find_shared_dependency(document, HexMapDocumentDependencyService.KEY_GENERATION_PROFILE).get("resource"),
+		generation_profile,
+		"NODE-20 Generation Profile writes to selected document dependency"
+	)
+	_assert_eq(
+		HexMapDocumentDependencyService.find_shared_dependency(document, HexMapDocumentDependencyService.KEY_EXPORT_PROFILE).get("resource"),
+		export_profile,
+		"NODE-20 Export Profile writes to selected document dependency"
+	)
 
 	session.set_auto_link_selected_hex_tile_map(false, "test.node23.disable_auto_link")
 	var blocked_document = HexMapDocumentAdapter.from_map_resource(
