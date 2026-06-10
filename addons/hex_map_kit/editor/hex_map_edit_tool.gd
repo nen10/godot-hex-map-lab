@@ -141,6 +141,7 @@ var _test_viewport_canvas_transform := Transform2D.IDENTITY
 var _paint_interaction_state: HexMapPaintInteractionState = HexMapPaintInteractionState.new()
 
 var _paint_workspace_summary_label: Label
+var _paint_affordance_label: Label
 var _document_label: Label
 var _document_inspector: HexMapDocumentInspector
 var _document_resource_picker
@@ -482,6 +483,7 @@ func paint_workspace_snapshot() -> Dictionary:
 	var last_apply_summary := String(last_apply.get("summary", "none"))
 	var last_apply_message := String(last_apply.get("message", "none"))
 	var selected_cell_present := bool(selected_cell.get("present", false))
+	var paint_affordance_board := _paint_affordance_board_snapshot(interaction_state, view_state, last_edit)
 	return {
 		"interaction_state": interaction_state,
 		"screen_role": screen_role,
@@ -506,6 +508,11 @@ func paint_workspace_snapshot() -> Dictionary:
 		"last_edit_message": last_apply_message,
 		"paint_surface_visible": _control_row_is_visible(_paint_workspace_summary_label),
 		"paint_workspace_summary_text": _paint_workspace_summary_label.text if _paint_workspace_summary_label != null else "",
+		"paint_affordance_visible": _control_row_is_visible(_paint_affordance_label),
+		"paint_affordance_board": paint_affordance_board,
+		"paint_affordance_rows": paint_affordance_board.get("rows", []),
+		"paint_affordance_rows_text": String(paint_affordance_board.get("rows_text", "")),
+		"mounted_paint_affordance_text": _paint_affordance_label.text if _paint_affordance_label != null else "",
 		"active_brush_visible": true,
 		"target_layer_summary_visible": true,
 		"selected_cell_summary_visible": true,
@@ -1211,6 +1218,8 @@ func _build_ui() -> void:
 
 	_paint_workspace_summary_label = _new_detail_label()
 	root.add_child(_wrap_labeled("Paint Workspace", _paint_workspace_summary_label))
+	_paint_affordance_label = _new_detail_label()
+	root.add_child(_wrap_labeled("Paint Affordances", _paint_affordance_label))
 
 	var document_actions_row = HBoxContainer.new()
 	_document_new_button = Button.new()
@@ -3408,6 +3417,165 @@ func _paint_last_apply_state_snapshot(trace: Dictionary) -> Dictionary:
 	}
 
 
+func _paint_affordance_board_snapshot(
+	interaction_state: Dictionary,
+	view_state: Dictionary,
+	last_edit: Dictionary
+) -> Dictionary:
+	var hovered = interaction_state.get("hovered_cell", {}) as Dictionary
+	var selected = interaction_state.get("selected_cell", {}) as Dictionary
+	var target = view_state.get("target", {}) as Dictionary
+	var brush = view_state.get("brush", {}) as Dictionary
+	var last_apply = view_state.get("last_apply", {}) as Dictionary
+	var cursor := _paint_cursor_affordance(hovered, selected, brush)
+	var mode := _paint_mode_affordance(brush, view_state)
+	var target_row := _paint_target_affordance(target)
+	var selected_row := _paint_selected_cell_affordance(selected)
+	var last_edit_row := _paint_last_edit_affordance(last_apply, last_edit)
+	var rows := [
+		_paint_affordance_row("cursor", "Cursor", String(cursor.get("status", "")), String(cursor.get("visible_text", ""))),
+		_paint_affordance_row("mode", "Mode", String(mode.get("status", "")), String(mode.get("visible_text", ""))),
+		_paint_affordance_row("target", "Target", String(target_row.get("status", "")), String(target_row.get("visible_text", ""))),
+		_paint_affordance_row("selected_cell", "Selected Cell", String(selected_row.get("status", "")), String(selected_row.get("visible_text", ""))),
+		_paint_affordance_row("last_edit", "Last Edit", String(last_edit_row.get("status", "")), String(last_edit_row.get("visible_text", ""))),
+	]
+	return {
+		"surface_id": "paint_affordance_board",
+		"visible": true,
+		"cursor": cursor,
+		"mode": mode,
+		"target": target_row,
+		"selected_cell": selected_row,
+		"last_edit": last_edit_row,
+		"rows": rows,
+		"rows_text": _paint_affordance_rows_text(rows),
+		"visible_text": _paint_affordance_rows_text(rows),
+		"primary_path_text_visible": false,
+	}
+
+
+func _paint_cursor_affordance(hovered: Dictionary, selected: Dictionary, brush: Dictionary) -> Dictionary:
+	var selected_present := bool(selected.get("present", false))
+	var hovered_present := bool(hovered.get("present", false))
+	var cursor_source := selected if selected_present else hovered
+	var status := "selected" if selected_present else ("hover" if hovered_present else "idle")
+	var cell_key := String(cursor_source.get("cell_key", ""))
+	var visual_cell_key := String(cursor_source.get("visual_cell_key", cell_key))
+	var brush_key := String(brush.get("brush_key", ""))
+	var mode_label := String(brush.get("mode_label", brush.get("mode", "")))
+	var cursor_text := "%s %s%s" % [
+		mode_label if mode_label != "" else "Brush",
+		cell_key if cell_key != "" else "none",
+		" via %s" % visual_cell_key if visual_cell_key != "" and visual_cell_key != cell_key else "",
+	]
+	if brush_key != "":
+		cursor_text = "%s %s" % [cursor_text, brush_key]
+	return {
+		"status": status,
+		"present": selected_present or hovered_present,
+		"cell_key": cell_key,
+		"visual_cell_key": visual_cell_key,
+		"brush_key": brush_key,
+		"mode": String(brush.get("mode", "")),
+		"mode_label": mode_label,
+		"source": String(cursor_source.get("source", "")),
+		"visible_text": cursor_text,
+	}
+
+
+func _paint_mode_affordance(brush: Dictionary, view_state: Dictionary) -> Dictionary:
+	var mode_id := String(brush.get("mode", view_state.get("brush_mode", "")))
+	var mode_label := String(brush.get("mode_label", view_state.get("brush_mode_label", "")))
+	var brush_key := String(brush.get("brush_key", view_state.get("brush_key", "")))
+	var ready := bool(brush.get("ready", view_state.get("brush_ready", false)))
+	return {
+		"status": "ready" if ready else "blocked",
+		"mode_id": mode_id,
+		"mode_label": mode_label,
+		"brush_key": brush_key,
+		"ready": ready,
+		"visible_text": "%s%s %s" % [
+			mode_label if mode_label != "" else mode_id,
+			" %s" % brush_key if brush_key != "" else "",
+			"ready" if ready else "blocked",
+		],
+	}
+
+
+func _paint_target_affordance(target: Dictionary) -> Dictionary:
+	var ready := bool(target.get("ready", false))
+	var name := String(target.get("name", ""))
+	var target_class := String(target.get("class", ""))
+	var message := String(target.get("message", ""))
+	return {
+		"status": "ready" if ready else "blocked",
+		"name": name,
+		"class": target_class,
+		"role": String(target.get("role", "")),
+		"ready": ready,
+		"message": message,
+		"visible_text": "%s %s" % [
+			name if name != "" else "No target",
+			"ready" if ready else (message if message != "" else "blocked"),
+		],
+	}
+
+
+func _paint_selected_cell_affordance(selected: Dictionary) -> Dictionary:
+	var present := bool(selected.get("present", false))
+	var cell_key := String(selected.get("cell_key", ""))
+	var visual_cell_key := String(selected.get("visual_cell_key", cell_key))
+	return {
+		"status": "selected" if present else "none",
+		"present": present,
+		"cell_key": cell_key,
+		"visual_cell_key": visual_cell_key,
+		"viewport_position": selected.get("viewport_position", Vector2.ZERO),
+		"local_position": selected.get("local_position", Vector2.ZERO),
+		"visible_text": "%s%s" % [
+			cell_key if cell_key != "" else "none",
+			" via %s" % visual_cell_key if visual_cell_key != "" and visual_cell_key != cell_key else "",
+		],
+	}
+
+
+func _paint_last_edit_affordance(last_apply: Dictionary, last_edit: Dictionary) -> Dictionary:
+	var present := bool(last_apply.get("present", false)) or not last_edit.is_empty()
+	var summary := String(last_apply.get("summary", "none"))
+	var payload := String(last_edit.get("payload", ""))
+	var visible_text := summary
+	if payload != "":
+		visible_text = "%s | %s" % [visible_text, payload]
+	return {
+		"status": "applied" if bool(last_apply.get("applied", false)) else ("dirty" if bool(last_apply.get("dirty", false)) else "none"),
+		"present": present,
+		"summary": summary,
+		"message": String(last_apply.get("message", "")),
+		"payload": payload,
+		"document_changed": bool(last_apply.get("document_changed", false)),
+		"target_applied": bool(last_apply.get("target_applied", false)),
+		"display_changed": bool(last_apply.get("display_changed", false)),
+		"visible_text": visible_text,
+	}
+
+
+func _paint_affordance_row(row_id: String, label: String, status: String, text: String) -> Dictionary:
+	return {
+		"id": row_id,
+		"label": label,
+		"status": status,
+		"visible_text": "%s: %s" % [label, text],
+	}
+
+
+func _paint_affordance_rows_text(rows: Array) -> String:
+	var parts := PackedStringArray()
+	for row in rows:
+		if row is Dictionary:
+			parts.append(String((row as Dictionary).get("visible_text", "")))
+	return " | ".join(parts)
+
+
 func _sync_resource_pickers() -> void:
 	if _document_resource_picker != null:
 		_document_resource_picker.edited_resource = _document
@@ -4583,6 +4751,9 @@ func _refresh_paint_workspace_summary() -> void:
 		String(view_state.get("status_text", "")),
 		String(snapshot.get("undo_hint", "")),
 	]
+	if _paint_affordance_label != null:
+		var board = snapshot.get("paint_affordance_board", {}) as Dictionary
+		_paint_affordance_label.text = String(board.get("visible_text", ""))
 
 
 func _format_last_edit_detail(trace: Dictionary) -> String:

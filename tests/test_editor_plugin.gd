@@ -2408,6 +2408,12 @@ func _test_paint_brush_asset_screen_routes_missing_assets_without_raw_controls()
 	_assert_true(not bool(paint_screen["resource_reference_only"]), "SCREEN-22 Paint screen is not resource-reference-only")
 	_assert_true(PackedStringArray(paint_screen["paint_context_sections"]).has("active_brush"), "SCREEN-22 Paint context includes active brush")
 	_assert_true(PackedStringArray(paint_screen["paint_context_sections"]).has("last_edit"), "SCREEN-22 Paint context includes last edit")
+	var paint_affordance = paint_screen["paint_affordance_board"] as Dictionary
+	_assert_eq(String(paint_affordance["surface_id"]), "paint_affordance_board", "PAINT-NEXT-10 Paint exposes affordance board")
+	_assert_true(bool(paint_screen["paint_affordance_visible"]), "PAINT-NEXT-10 mounted Paint affordance board is visible")
+	_assert_true((paint_affordance["rows"] as Array).size() >= 5, "PAINT-NEXT-10 Paint affordance board has cursor/mode/target/cell/edit rows")
+	_assert_true(not bool(paint_affordance["primary_path_text_visible"]), "PAINT-NEXT-10 Paint affordance board keeps paths out of primary text")
+	_assert_true(String(paint_screen["mounted_paint_affordance_text"]).contains("Cursor:"), "PAINT-NEXT-10 mounted Paint affordance text names cursor")
 	_assert_eq(String(paint_screen["document_workflow_owner"]), "Resources", "SCREEN-21 Paint screen routes document workflow to Resources")
 	_assert_true(not bool(paint_screen["document_management_visible"]), "SCREEN-21 Paint screen hides document management")
 	_assert_eq(String(paint_screen["layer_workflow_owner"]), "Layers", "SCREEN-21 Paint screen routes layer workflow to Layers")
@@ -2536,6 +2542,45 @@ func _test_paint_brush_asset_screen_routes_missing_assets_without_raw_controls()
 	_assert_true(not bool(zone_mode["ok"]), "Paint brush rejects zone mode until document mutation exists")
 	_assert_true(not session.show_bundled_samples_in_main_selectors, "Paint brush actions do not enable sample mode")
 
+	var paint_document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(2, 1))
+	)
+	var paint_layer = HexTileMapLayer.new()
+	paint_layer.name = "PaintAffordanceTarget"
+	root.add_child(paint_layer)
+	await process_frame
+	var edit_tool = workspace.edit_tool()
+	edit_tool.set_document(paint_document)
+	edit_tool.set_target_layer(paint_layer)
+	edit_tool.set_edit_mode(HexMapEditTool.EditMode.WALL_FLOOR)
+	edit_tool._apply_document_to_target()
+	var origin_local = paint_layer._tile_map.position + paint_layer.hex_to_display_local(HexVector.zero())
+	var press = InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.pressed = true
+	press.position = paint_layer.to_global(origin_local)
+	_assert_true(edit_tool.forward_canvas_gui_input(press), "PAINT-NEXT-10 workspace Paint viewport click is accepted")
+	paint_screen = workspace.paint_brush_screen_snapshot()
+	paint_affordance = paint_screen["paint_affordance_board"] as Dictionary
+	var cursor_feedback = paint_screen["brush_cursor_feedback"] as Dictionary
+	_assert_eq(String(cursor_feedback["status"]), "selected", "PAINT-NEXT-10 Paint cursor feedback tracks selected viewport cell")
+	_assert_eq(String(cursor_feedback["cell_key"]), HexVector.zero().key(), "PAINT-NEXT-10 Paint cursor feedback stores edited cell")
+	var mode_feedback = paint_affordance["mode"] as Dictionary
+	_assert_eq(String(mode_feedback["mode_id"]), "shape", "PAINT-NEXT-10 Paint mode feedback stores shape mode")
+	_assert_true(bool(mode_feedback["ready"]), "PAINT-NEXT-10 Paint mode feedback is ready for shape edit")
+	var target_feedback = paint_affordance["target"] as Dictionary
+	_assert_eq(String(target_feedback["name"]), "PaintAffordanceTarget", "PAINT-NEXT-10 Paint target feedback names target layer")
+	_assert_true(bool(target_feedback["ready"]), "PAINT-NEXT-10 Paint target feedback is ready")
+	var selected_feedback = paint_affordance["selected_cell"] as Dictionary
+	_assert_eq(String(selected_feedback["cell_key"]), HexVector.zero().key(), "PAINT-NEXT-10 Paint selected-cell feedback follows viewport edit")
+	var last_feedback = paint_affordance["last_edit"] as Dictionary
+	_assert_true(bool(last_feedback["document_changed"]), "PAINT-NEXT-10 Paint last-edit feedback reports document change")
+	_assert_true(bool(last_feedback["target_applied"]), "PAINT-NEXT-10 Paint last-edit feedback reports target apply")
+	_assert_true(bool(last_feedback["display_changed"]), "PAINT-NEXT-10 Paint last-edit feedback reports display change")
+	_assert_true(String(paint_screen["mounted_paint_affordance_text"]).contains(HexVector.zero().key()), "PAINT-NEXT-10 mounted affordance text follows viewport cell")
+	_assert_true(paint_layer._highlights.has(HexVector.zero().key()), "PAINT-NEXT-10 viewport highlight matches Paint selected cell")
+
+	paint_layer.queue_free()
 	workspace.queue_free()
 	await process_frame
 

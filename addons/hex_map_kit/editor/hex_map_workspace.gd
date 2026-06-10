@@ -2696,6 +2696,7 @@ func paint_brush_screen_snapshot() -> Dictionary:
 	var brush_state = view_state.get("brush", {}) as Dictionary
 	var selected_cell_state = view_state.get("selected_cell", paint_workspace.get("selected_cell", {})) as Dictionary
 	var last_apply_state = view_state.get("last_apply", {}) as Dictionary
+	var paint_affordance_board = paint_workspace.get("paint_affordance_board", {}) as Dictionary
 	var empty_state := _paint_tab_empty_state()
 	var brush_key := String(brush_state.get("brush_key", ""))
 	var brush_summary := "%s%s" % [
@@ -2741,6 +2742,12 @@ func paint_brush_screen_snapshot() -> Dictionary:
 		"paint_surface_owner": String(screen_role.get("workflow_owner", "Paint")),
 		"paint_surface_visible": bool(paint_workspace.get("paint_surface_visible", false)),
 		"paint_workspace_summary_text": String(paint_workspace.get("paint_workspace_summary_text", "")),
+		"paint_affordance_visible": bool(paint_workspace.get("paint_affordance_visible", false)),
+		"paint_affordance_board": paint_affordance_board,
+		"paint_affordance_rows": paint_workspace.get("paint_affordance_rows", []),
+		"paint_affordance_rows_text": String(paint_workspace.get("paint_affordance_rows_text", "")),
+		"mounted_paint_affordance_text": String(paint_workspace.get("mounted_paint_affordance_text", "")),
+		"brush_cursor_feedback": paint_affordance_board.get("cursor", {}),
 		"empty_state_visible": String(empty_state.get("empty_state_text", "")) != "",
 		"active_brush_visible": bool(paint_workspace.get("active_brush_visible", true)),
 		"active_brush_summary": brush_summary,
