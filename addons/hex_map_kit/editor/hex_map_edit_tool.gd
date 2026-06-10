@@ -468,6 +468,9 @@ func paint_workspace_snapshot() -> Dictionary:
 	var selected_cell = interaction_state.get("selected_cell", {}) as Dictionary
 	var last_apply = interaction_state.get("last_apply", {}) as Dictionary
 	var last_edit := last_edit_status()
+	var document_management_visible := _document_management_visible()
+	var layer_management_visible := _layer_stack_management_visible()
+	var export_management_visible := _export_management_visible()
 	return {
 		"interaction_state": interaction_state,
 		"view_state": view_state,
@@ -488,6 +491,13 @@ func paint_workspace_snapshot() -> Dictionary:
 		"last_edit_message": String(last_apply.get("message", "none")),
 		"undo_available": _undo_redo != null,
 		"undo_hint": "Use editor Undo/Redo." if _undo_redo != null else "Undo uses editor history when available.",
+		"document_workflow_owner": "Resources",
+		"document_management_visible": document_management_visible,
+		"layer_workflow_owner": "Layers",
+		"layer_management_visible": layer_management_visible,
+		"export_workflow_owner": "Export",
+		"export_management_visible": export_management_visible,
+		"paint_non_paint_management_visible": document_management_visible or layer_management_visible or export_management_visible,
 		"resource_picker_rows_visible": {
 			"object_database": _control_row_is_visible(_object_database_picker),
 			"label_database": _control_row_is_visible(_label_database_picker),
@@ -734,6 +744,37 @@ func _catalog_entry_management_visible() -> bool:
 		or _control_effectively_visible(_catalog_add_scene_button) \
 		or _control_effectively_visible(_catalog_validate_button) \
 		or _control_effectively_visible(_catalog_scene_picker)
+
+
+func _document_management_visible() -> bool:
+	return _control_effectively_visible(_document_new_button) \
+		or _control_effectively_visible(_document_open_button) \
+		or _control_effectively_visible(_document_save_button) \
+		or _control_effectively_visible(_document_save_as_button) \
+		or _control_effectively_visible(_document_validate_button) \
+		or _control_effectively_visible(_document_resource_picker) \
+		or _control_effectively_visible(_document_path_edit) \
+		or _control_effectively_visible(_document_label) \
+		or _control_effectively_visible(_document_inspector) \
+		or _control_effectively_visible(_import_map_resource_picker) \
+		or _control_effectively_visible(_import_map_browse_button) \
+		or _control_effectively_visible(_import_map_button) \
+		or _control_effectively_visible(_import_map_path_edit)
+
+
+func _layer_stack_management_visible() -> bool:
+	return _control_effectively_visible(_layer_stack_template_option) \
+		or _control_effectively_visible(_layer_stack_role_tree) \
+		or _control_effectively_visible(_layer_stack_create_missing_button) \
+		or _control_effectively_visible(_layer_stack_apply_document_button) \
+		or _control_effectively_visible(_layer_stack_clear_role_button) \
+		or _control_effectively_visible(_layer_stack_status_label)
+
+
+func _export_management_visible() -> bool:
+	return _control_effectively_visible(_export_path_edit) \
+		or _control_effectively_visible(_export_button) \
+		or _control_effectively_visible(_export_save_as_button)
 
 
 func set_layer_stack_resource(stack: HexLayerStackResource, publish_context: bool = true) -> void:
@@ -1166,19 +1207,25 @@ func _build_ui() -> void:
 	_document_validate_button.text = "Validate"
 	_document_validate_button.pressed.connect(_on_validate_document_pressed)
 	document_actions_row.add_child(_document_validate_button)
+	document_actions_row.visible = false
 	root.add_child(document_actions_row)
 
 	_document_label = Label.new()
 	_document_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_document_label.visible = false
 	root.add_child(_document_label)
 	_document_inspector = HexMapDocumentInspector.new()
+	_document_inspector.visible = false
 	root.add_child(_document_inspector)
 	if _can_use_editor_resource_picker():
 		_document_resource_picker = EditorResourcePicker.new()
 		_document_resource_picker.base_type = "HexMapDocumentResource"
 		_document_resource_picker.resource_changed.connect(_on_document_resource_changed)
-		root.add_child(_wrap_labeled("Document Resource", _document_resource_picker))
+		var document_resource_row = _wrap_labeled("Document Resource", _document_resource_picker)
+		document_resource_row.visible = false
+		root.add_child(document_resource_row)
 	var document_path_row = HBoxContainer.new()
+	document_path_row.visible = false
 	_document_path_edit = LineEdit.new()
 	_document_path_edit.placeholder_text = "Unsaved document"
 	_document_path_edit.editable = false
@@ -1188,6 +1235,7 @@ func _build_ui() -> void:
 	root.add_child(document_path_row)
 
 	var import_resource_row = HBoxContainer.new()
+	import_resource_row.visible = false
 	if _can_use_editor_resource_picker():
 		_import_map_resource_picker = EditorResourcePicker.new()
 		_import_map_resource_picker.base_type = "HexMapResource"
@@ -1212,6 +1260,7 @@ func _build_ui() -> void:
 		import_resource_row.add_child(_import_map_button)
 	root.add_child(import_resource_row)
 	var import_path_row = HBoxContainer.new()
+	import_path_row.visible = false
 	_import_map_path_edit = LineEdit.new()
 	_import_map_path_edit.placeholder_text = "No import resource selected"
 	_import_map_path_edit.editable = false
@@ -1221,6 +1270,7 @@ func _build_ui() -> void:
 	root.add_child(import_path_row)
 
 	var export_path_row = HBoxContainer.new()
+	export_path_row.visible = false
 	_export_path_edit = LineEdit.new()
 	_export_path_edit.placeholder_text = "No export destination selected"
 	_export_path_edit.editable = false
@@ -1259,6 +1309,7 @@ func _build_ui() -> void:
 
 	var layer_stack_title = Label.new()
 	layer_stack_title.text = "Layer Stack"
+	layer_stack_title.visible = false
 	root.add_child(layer_stack_title)
 	_layer_stack_template_option = OptionButton.new()
 	_layer_stack_template_option.add_item("Standard Authoring")
@@ -1266,7 +1317,9 @@ func _build_ui() -> void:
 	_layer_stack_template_option.add_item("Minimal Runtime")
 	_layer_stack_template_option.set_item_metadata(1, "minimal")
 	_layer_stack_template_option.item_selected.connect(_on_layer_stack_template_selected)
-	root.add_child(_wrap_labeled("Template", _layer_stack_template_option))
+	var layer_stack_template_row = _wrap_labeled("Template", _layer_stack_template_option)
+	layer_stack_template_row.visible = false
+	root.add_child(layer_stack_template_row)
 	_layer_stack_role_tree = Tree.new()
 	_layer_stack_role_tree.hide_root = true
 	_layer_stack_role_tree.columns = 6
@@ -1280,10 +1333,14 @@ func _build_ui() -> void:
 	_layer_stack_role_tree.custom_minimum_size = Vector2(0, 132)
 	_layer_stack_role_tree.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_layer_stack_role_tree.item_selected.connect(_on_layer_stack_role_selected)
+	_layer_stack_role_tree.visible = false
 	root.add_child(_layer_stack_role_tree)
 	_layer_stack_status_label = _new_detail_label()
-	root.add_child(_wrap_labeled("Layer Stack Status", _layer_stack_status_label))
+	var layer_stack_status_row = _wrap_labeled("Layer Stack Status", _layer_stack_status_label)
+	layer_stack_status_row.visible = false
+	root.add_child(layer_stack_status_row)
 	var layer_stack_actions = HBoxContainer.new()
+	layer_stack_actions.visible = false
 	_layer_stack_create_missing_button = Button.new()
 	_layer_stack_create_missing_button.text = "Create Missing Layers"
 	_layer_stack_create_missing_button.pressed.connect(_on_create_missing_layers_pressed)
