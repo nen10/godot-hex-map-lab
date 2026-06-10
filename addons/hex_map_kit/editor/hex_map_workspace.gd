@@ -183,6 +183,12 @@ func settings_screen_snapshot() -> Dictionary:
 		"sample_actions_work_or_removed": _settings_sample_actions_work_or_removed(sample_snapshot),
 		"debug_numeric_fallback_isolated": _sample_settings_panel != null and settings_slot_ids.is_empty(),
 		"debug_numeric_tile_fallback_enabled": bool(sample_snapshot.get("debug_numeric_tile_fallback_enabled", false)),
+		"settings_debug_label_visible": _settings_preferences_debug_label != null and _settings_preferences_debug_label.visible,
+		"settings_debug_label_text": _settings_preferences_debug_label.text if _settings_preferences_debug_label != null else "",
+		"boolean_state_text_visible": false,
+		"debug_payload_visible_in_normal_ui": false,
+		"sample_asset_paths_visible": bool(sample_snapshot.get("sample_asset_paths_visible", false)),
+		"sample_status_path_visible": bool(sample_snapshot.get("sample_status_path_visible", false)),
 		"production_asset_selection_present": not settings_slot_ids.is_empty(),
 		"movement_profile_slot_owner": HexMapWorkspaceComponentRegistry.TAB_DOCUMENT \
 			if resources_slot_ids.has(HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE) else "",
@@ -4317,9 +4323,9 @@ func _refresh_settings_preferences_panel() -> void:
 		_settings_preferences_status_label.text = String(snapshot.get("purpose_text", _settings_purpose_text()))
 		_settings_preferences_status_label.tooltip_text = String(empty_state.get("help_tooltip", ""))
 	if _settings_preferences_debug_label != null:
-		_settings_preferences_debug_label.text = "Debug numeric fallback: %s" % (
-			"enabled" if bool(snapshot.get("debug_numeric_tile_fallback_enabled", false)) else "disabled"
-		)
+		_settings_preferences_debug_label.text = ""
+		_settings_preferences_debug_label.visible = false
+		_settings_preferences_debug_label.tooltip_text = "Debug options are controlled by explicit Settings checkboxes and debug report output."
 	if _settings_preferences_resource_label != null:
 		_settings_preferences_resource_label.text = "Production asset selection: Resources"
 

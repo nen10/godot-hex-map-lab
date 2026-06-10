@@ -159,6 +159,10 @@ func snapshot() -> Dictionary:
 		"sample_action_rows": sample_action_rows_snapshot(),
 		"last_sample_action": _last_sample_action_result.duplicate(),
 		"sample_status_text": _sample_status_text(),
+		"sample_status_tooltip": _sample_status_tooltip(),
+		"sample_status_path_visible": false,
+		"sample_asset_paths_visible": false,
+		"boolean_state_text_visible": false,
 		"sample_state": sample_state,
 		"sample_view_state": sample_state.get("view_state", {}),
 	}
@@ -209,7 +213,8 @@ func _build_ui() -> void:
 		var row_control = HBoxContainer.new()
 		row_control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var label = Label.new()
-		label.text = "%s: %s" % [String(row["label"]), String(row["path"])]
+		label.text = String(row["label"])
+		label.tooltip_text = String(row["path"])
 		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		row_control.add_child(label)
@@ -217,6 +222,7 @@ func _build_ui() -> void:
 		var row_snapshot := {
 			"id": row["id"],
 			"control": row_control,
+			"label": label,
 		}
 		if bool(row.get("duplicate_available", false)):
 			var duplicate_button = Button.new()
@@ -238,6 +244,7 @@ func _refresh() -> void:
 	_debug_numeric_fallback_check.set_pressed_no_signal(_debug_numeric_tile_fallback_enabled())
 	if _sample_status_label != null:
 		_sample_status_label.text = _sample_status_text()
+		_sample_status_label.tooltip_text = _sample_status_tooltip()
 		_sample_status_label.visible = _sample_status_label.text != ""
 	sample_settings_changed.emit(snapshot())
 
@@ -274,8 +281,12 @@ func sample_action_rows_snapshot() -> Array[Dictionary]:
 		var duplicate_button = row.get("duplicate_button", null) as Button
 		if duplicate_button != null and duplicate_button.visible:
 			action_texts.append(duplicate_button.text)
+		var label = row.get("label", null) as Label
 		result.append({
 			"id": String(row.get("id", "")),
+			"visible_label_text": label.text if label != null else "",
+			"label_tooltip": label.tooltip_text if label != null else "",
+			"path_visible": false,
 			"action_button_texts": action_texts,
 		})
 	return result
@@ -318,8 +329,16 @@ func _sample_status_text() -> String:
 		return ""
 	if not bool(_last_sample_action_result.get("ok", false)):
 		return "Sample duplicate failed."
+	return "Catalog slot updated from bundled sample."
+
+
+func _sample_status_tooltip() -> String:
+	if _last_sample_action_result.is_empty():
+		return ""
+	if not bool(_last_sample_action_result.get("ok", false)):
+		return "Sample duplicate failed."
 	var path := String(_last_sample_action_result.get("catalog_path", ""))
-	return "Catalog slot updated from bundled sample: %s" % path
+	return "Project Catalog: %s" % path if path != "" else ""
 
 
 func _on_show_samples_toggled(enabled: bool) -> void:

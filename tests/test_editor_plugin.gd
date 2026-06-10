@@ -2679,6 +2679,10 @@ func _test_workspace_sample_settings_panel_controls_sample_mode_sources() -> voi
 	_assert_eq(String(settings_sample_state["state_id"]), HexMapSampleLearningState.STATE_LEARNING_AVAILABLE, "STATE-50 first-run Settings reports learning available")
 	_assert_true(bool(settings_snapshot["debug_numeric_fallback_isolated"]), "TAB-57 debug numeric fallback is isolated in Settings controls")
 	_assert_true(bool(settings_snapshot["sample_actions_work_or_removed"]), "TAB-57 sample actions are functional or removed")
+	_assert_true(not bool(settings_snapshot["settings_debug_label_visible"]), "UI-02 Settings hides redundant debug enabled/disabled label")
+	_assert_eq(String(settings_snapshot["settings_debug_label_text"]), "", "UI-02 Settings debug label has no visible boolean text")
+	_assert_true(not bool(settings_snapshot["boolean_state_text_visible"]), "UI-02 Settings booleans are represented by CheckBoxes")
+	_assert_true(not bool(settings_snapshot["debug_payload_visible_in_normal_ui"]), "UI-02 Settings debug payload is not normal UI text")
 	var snapshot = panel.snapshot()
 	var panel_sample_state = snapshot["sample_state"] as Dictionary
 	_assert_eq(String(panel_sample_state["state_id"]), HexMapSampleLearningState.STATE_OFF, "STATE-50 sample panel starts off")
@@ -2698,6 +2702,13 @@ func _test_workspace_sample_settings_panel_controls_sample_mode_sources() -> voi
 		not bool(snapshot["debug_numeric_tile_fallback_enabled"]),
 		"debug numeric fallback is off by default"
 	)
+	_assert_true(not bool(snapshot["boolean_state_text_visible"]), "UI-02 sample settings booleans are CheckBox state, not labels")
+	_assert_true(not bool(snapshot["sample_asset_paths_visible"]), "UI-02 sample paths are not visible row text")
+	var sample_rows = snapshot["sample_action_rows"] as Array
+	_assert_true(String((sample_rows[0] as Dictionary)["visible_label_text"]).contains("Bundled Sample Catalog"), "UI-02 sample row keeps learning asset label")
+	_assert_true(not String((sample_rows[0] as Dictionary)["visible_label_text"]).contains("res://"), "UI-02 sample row visible label omits path")
+	_assert_true(String((sample_rows[0] as Dictionary)["label_tooltip"]).contains("res://"), "UI-02 sample row tooltip keeps path detail")
+	_assert_true(not bool((sample_rows[0] as Dictionary)["path_visible"]), "UI-02 sample row marks path hidden")
 	_assert_eq(Array(snapshot["sample_assets"]).size(), 3, "sample settings lists bundled sample assets")
 	_assert_eq(workspace.generation_dock().tile_catalog(), null, "sample mode OFF hides generation sample catalog fallback")
 	_assert_eq(workspace.edit_tool().tile_catalog(), null, "sample mode OFF hides paint sample catalog fallback")
@@ -3762,6 +3773,8 @@ func _test_sample_settings_duplicate_button_creates_project_catalog() -> void:
 	_assert_true(not _has_button_text(panel, "Open"), "SAMPLE-40 Settings keeps Open removed without focus/preview target")
 	var row_actions = panel.sample_action_rows_snapshot()
 	_assert_eq(row_actions.size(), 3, "SAMPLE-40 sample action snapshot covers sample rows")
+	_assert_true(not String(row_actions[0]["visible_label_text"]).contains("res://"), "UI-02 sample action visible row hides path")
+	_assert_true(String(row_actions[0]["label_tooltip"]).contains("res://"), "UI-02 sample action tooltip carries path")
 	_assert_true(
 		(row_actions[0]["action_button_texts"] as PackedStringArray).has("Duplicate To Project"),
 		"SAMPLE-40 catalog row exposes duplicate action"
@@ -3812,7 +3825,9 @@ func _test_sample_settings_duplicate_button_creates_project_catalog() -> void:
 	var sample_state = snapshot["sample_state"] as Dictionary
 	_assert_eq(String(sample_state["state_id"]), HexMapSampleLearningState.STATE_DUPLICATED_TO_PROJECT, "STATE-50 sample panel reports duplicated-to-project state")
 	_assert_eq(String(last_action["slot_id"]), HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, "SAMPLE-40 panel snapshot records affected slot")
-	_assert_true(String(snapshot["sample_status_text"]).contains(catalog_path), "SAMPLE-40 panel status shows changed catalog path")
+	_assert_eq(String(snapshot["sample_status_text"]), "Catalog slot updated from bundled sample.", "UI-02 panel status shows outcome without path")
+	_assert_true(String(snapshot["sample_status_tooltip"]).contains(catalog_path), "UI-02 panel status tooltip keeps changed catalog path")
+	_assert_true(not bool(snapshot["sample_status_path_visible"]), "UI-02 panel status keeps path out of visible text")
 
 	workspace.queue_free()
 	await process_frame
