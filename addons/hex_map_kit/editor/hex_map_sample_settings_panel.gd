@@ -34,8 +34,10 @@ var _scratch_samples_check: CheckBox
 var _copy_samples_check: CheckBox
 var _debug_numeric_fallback_check: CheckBox
 var _sample_status_label: Label
+var _sample_detail_label: Label
 var _asset_rows: Array[Dictionary] = []
 var _last_sample_action_result: Dictionary = {}
+var _selected_sample_id := SAMPLE_CATALOG_ID
 
 
 func _ready() -> void:
@@ -118,6 +120,24 @@ func select_duplicate_path(path: String, sample_id: String = SAMPLE_CATALOG_ID) 
 	return press_sample_action(sample_id, ACTION_DUPLICATE_TO_PROJECT, {"path": path})
 
 
+func select_sample_detail(sample_id: String) -> Dictionary:
+	if _sample_row_for_id(sample_id).is_empty():
+		return {
+			"ok": false,
+			"error": ERR_DOES_NOT_EXIST,
+			"sample_id": sample_id,
+			"detail": sample_detail_drawer_snapshot(),
+		}
+	_selected_sample_id = sample_id
+	_refresh()
+	return {
+		"ok": true,
+		"error": OK,
+		"sample_id": sample_id,
+		"detail": sample_detail_drawer_snapshot(),
+	}
+
+
 func press_sample_action(sample_id: String, action_id: String, options: Dictionary = {}) -> Dictionary:
 	var before := snapshot()
 	var result := {
@@ -166,6 +186,10 @@ func snapshot() -> Dictionary:
 		"sample_assets": sample_asset_rows(),
 		"sample_asset_count": sample_asset_rows().size(),
 		"sample_action_rows": sample_action_rows_snapshot(),
+		"sample_detail_rows": sample_detail_rows_snapshot(),
+		"sample_detail_drawer": sample_detail_drawer_snapshot(),
+		"sample_detail_visible": true,
+		"mounted_sample_detail_text": _sample_detail_label.text if _sample_detail_label != null else "",
 		"settings_groups": settings_group_snapshot(),
 		"settings_group_ids": PackedStringArray([GROUP_SAMPLE_LEARNING, GROUP_DEBUG]),
 		"sample_learning_toggle_ids": PackedStringArray([TOGGLE_SHOW_SAMPLES, TOGGLE_SCRATCH_SAMPLES, TOGGLE_COPY_SAMPLES]),
@@ -202,6 +226,20 @@ func settings_group_snapshot() -> Array[Dictionary]:
 			"separated": true,
 		},
 	]
+
+
+func sample_detail_rows_snapshot() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for row in sample_asset_rows():
+		result.append(_sample_detail_for_row(row))
+	return result
+
+
+func sample_detail_drawer_snapshot() -> Dictionary:
+	var row := _sample_row_for_id(_selected_sample_id)
+	if row.is_empty():
+		row = sample_asset_rows()[0]
+	return _sample_detail_for_row(row)
 
 
 func boolean_controls_snapshot() -> Array[Dictionary]:
@@ -264,6 +302,10 @@ func _build_ui() -> void:
 	_sample_status_label.visible = false
 	sample_group.add_child(_sample_status_label)
 
+	_sample_detail_label = Label.new()
+	_sample_detail_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	sample_group.add_child(_sample_detail_label)
+
 	for row in sample_asset_rows():
 		var row_control = HBoxContainer.new()
 		row_control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -301,6 +343,10 @@ func _refresh() -> void:
 		_sample_status_label.text = _sample_status_text()
 		_sample_status_label.tooltip_text = _sample_status_tooltip()
 		_sample_status_label.visible = _sample_status_label.text != ""
+	if _sample_detail_label != null:
+		var detail := sample_detail_drawer_snapshot()
+		_sample_detail_label.text = String(detail.get("visible_text", ""))
+		_sample_detail_label.tooltip_text = String(detail.get("path", ""))
 	sample_settings_changed.emit(snapshot())
 
 
@@ -329,6 +375,103 @@ func _sample_row(sample_id: String, label: String, path: String, duplicate_avail
 	}
 
 
+func _sample_row_for_id(sample_id: String) -> Dictionary:
+	for row in sample_asset_rows():
+		if String(row.get("id", "")) == sample_id:
+			return row
+	return {}
+
+
+func _sample_detail_for_row(row: Dictionary) -> Dictionary:
+	if row.is_empty():
+		return {}
+	var sample_id := String(row.get("id", ""))
+	var dependencies := _sample_dependencies(sample_id)
+	var duplicate_available := bool(row.get("duplicate_available", false))
+	var duplicate_target := _sample_duplicate_target(sample_id)
+	var detail := {
+		"surface_id": "sample_detail_drawer",
+		"visible": true,
+		"sample_id": sample_id,
+		"label": String(row.get("label", "")),
+		"asset_type": _sample_asset_type(sample_id),
+		"path": String(row.get("path", "")),
+		"path_visible": false,
+		"dependencies": dependencies,
+		"dependency_count": dependencies.size(),
+		"duplicate_available": duplicate_available,
+		"duplicate_action_id": ACTION_DUPLICATE_TO_PROJECT if duplicate_available else "",
+		"duplicate_target": duplicate_target,
+		"duplicate_target_project_owned": duplicate_target != "" and not duplicate_target.begins_with("res://addons/"),
+		"learning_use": _sample_learning_use(sample_id),
+		"production_injection": false,
+		"sample_source_only": true,
+	}
+	detail["visible_text"] = _sample_detail_visible_text(detail)
+	return detail
+
+
+func _sample_asset_type(sample_id: String) -> String:
+	match sample_id:
+		SAMPLE_CATALOG_ID:
+			return "HexTileCatalogResource"
+		SAMPLE_TILE_SET_ID:
+			return "Texture2D atlas"
+		SAMPLE_OBJECT_SCENE_ID:
+			return "PackedScene"
+	return "Sample asset"
+
+
+func _sample_dependencies(sample_id: String) -> Array[Dictionary]:
+	match sample_id:
+		SAMPLE_CATALOG_ID:
+			return [
+				{"label": "Sample tile texture", "path": SAMPLE_TILE_TEXTURE_PATH},
+				{"label": "Sample object scene", "path": SAMPLE_OBJECT_SCENE_PATH},
+			]
+		SAMPLE_TILE_SET_ID:
+			return []
+		SAMPLE_OBJECT_SCENE_ID:
+			return []
+	return []
+
+
+func _sample_duplicate_target(sample_id: String) -> String:
+	if sample_id != SAMPLE_CATALOG_ID:
+		return "Included when catalog is duplicated"
+	var last_sample_id := String(_last_sample_action_result.get("sample_id", ""))
+	var path := String(_last_sample_action_result.get("catalog_path", ""))
+	if last_sample_id == SAMPLE_CATALOG_ID and path != "":
+		return path
+	return HexMapSampleAssetDuplicator.default_catalog_file_name()
+
+
+func _sample_learning_use(sample_id: String) -> String:
+	match sample_id:
+		SAMPLE_CATALOG_ID:
+			return "Learning source; duplicate to project before production use."
+		SAMPLE_TILE_SET_ID:
+			return "Catalog dependency for learning samples."
+		SAMPLE_OBJECT_SCENE_ID:
+			return "Catalog scene dependency for learning samples."
+	return "Learning source only."
+
+
+func _sample_detail_visible_text(detail: Dictionary) -> String:
+	var dependency_labels := PackedStringArray()
+	for dependency in detail.get("dependencies", []) as Array:
+		if dependency is Dictionary:
+			dependency_labels.append(String((dependency as Dictionary).get("label", "")))
+	var dependency_text := "none" if dependency_labels.is_empty() else _join_text(dependency_labels, ", ")
+	return "%s | type %s | dependencies: %s | duplicate target: %s | use: %s" % [
+		String(detail.get("label", "")),
+		String(detail.get("asset_type", "")),
+		dependency_text,
+		String(detail.get("duplicate_target", "")),
+		String(detail.get("learning_use", "")),
+	]
+
+
 func sample_action_rows_snapshot() -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for row in _asset_rows:
@@ -343,6 +486,7 @@ func sample_action_rows_snapshot() -> Array[Dictionary]:
 			"label_tooltip": label.tooltip_text if label != null else "",
 			"path_visible": false,
 			"action_button_texts": action_texts,
+			"detail": _sample_detail_for_row(_sample_row_for_id(String(row.get("id", "")))),
 		})
 	return result
 
@@ -378,6 +522,15 @@ func _boolean_controls_have_tooltips() -> bool:
 		if not bool((row as Dictionary).get("has_tooltip", false)):
 			return false
 	return true
+
+
+func _join_text(values: PackedStringArray, separator: String) -> String:
+	var result := ""
+	for index in range(values.size()):
+		if index > 0:
+			result += separator
+		result += values[index]
+	return result
 
 
 func _sample_supports_duplicate(sample_id: String) -> bool:

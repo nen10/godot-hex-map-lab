@@ -84,7 +84,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | `VAL-NEXT-10` | `COMPLETE` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/VAL-NEXT-10_VALIDATE_RICH_ISSUE_TABLE_ACTIONS/` | Rich Validate issue table and actions | Validate screen, validation dashboard, tests | Issue table has severity/domain/scope/target/suggestion columns and only real per-issue actions. |
 | `QA-NEXT-10` | `COMPLETE` | `GEN-NEXT-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/QA-NEXT-10_SCORE_TABLE_VISUAL_REDESIGN/` | QA scored table visual redesign | QA screen/table/tests | Seed rows, score columns, validation status, selected seed, preview, and promotion state are easy to compare. |
 | `SETTINGS-NEXT-10` | `COMPLETE` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/SETTINGS-NEXT-10_SETTINGS_GROUPING_TOGGLE_STYLING/` | Settings grouping and toggle styling | Settings/sample panels, tests | Sample Learning, Debug, Project Defaults, and UI Preferences are separated; booleans use toggles/checks with tooltip detail. |
-| `SAMPLE-NEXT-10` | `READY` | `SETTINGS-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/SAMPLE-NEXT-10_SAMPLE_DETAIL_DRAWER/` | Sample detail drawer | Settings sample detail UI/tests | Sample asset type, dependencies, duplicate target, and learning use are inspectable without injecting samples into production flow. |
+| `SAMPLE-NEXT-10` | `COMPLETE` | `SETTINGS-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/SAMPLE-NEXT-10_SAMPLE_DETAIL_DRAWER/` | Sample detail drawer | Settings sample detail UI/tests | Sample asset type, dependencies, duplicate target, and learning use are inspectable without injecting samples into production flow. |
 
 ---
 
@@ -140,7 +140,7 @@ acceptance / test path:
 
 ## 9. Current pointer
 
-Current recommended next task: `SAMPLE-NEXT-10`.
+Current recommended next task: `PERF-NEXT-11`.
 
 Reason:
 
@@ -173,7 +173,8 @@ Reason:
 - `VAL-NEXT-10` is complete.
 - `QA-NEXT-10` is complete.
 - `SETTINGS-NEXT-10` is complete.
-- `SAMPLE-NEXT-10` is READY because `SETTINGS-NEXT-10` is complete.
+- `SAMPLE-NEXT-10` is complete.
+- Phase M4 review is recorded at `docs/review/roadmap/UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP_M4_PHASE_REVIEW_2026-06-10.md`.
 - `PERF-NEXT-11` is READY because `PERF-NEXT-10` is complete.
 - `GENPIPE-NEXT-10` is READY because `GEN-NEXT-11` is complete.
 - `ARCH-NEXT-20` is READY because `ARCH-NEXT-10` is complete.
@@ -728,3 +729,22 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_workspace.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/SETTINGS-NEXT-10_TEST_RESULT_2026-06-10.md`
+
+### SAMPLE-NEXT-10 Sample detail drawer
+
+proof:
+  plan: `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/SAMPLE-NEXT-10_SAMPLE_DETAIL_DRAWER/`
+  review: `docs/review/autopilot/SAMPLE-NEXT-10_SELF_REVIEW_2026-06-10.md`
+  execution:
+    - `docs/review/autopilot/SAMPLE-NEXT-10_SELF_REVIEW_2026-06-10.md`
+  ui_metrics:
+    - `.godot_user/ui-metrics/20260610-205936-68440/workspace_layout_metrics.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_sample_settings_panel.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/SAMPLE-NEXT-10_TEST_RESULT_2026-06-10.md`

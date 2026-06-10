@@ -3446,6 +3446,27 @@ func _test_workspace_sample_settings_panel_controls_sample_mode_sources() -> voi
 	_assert_true(not String((sample_rows[0] as Dictionary)["visible_label_text"]).contains("res://"), "UI-02 sample row visible label omits path")
 	_assert_true(String((sample_rows[0] as Dictionary)["label_tooltip"]).contains("res://"), "UI-02 sample row tooltip keeps path detail")
 	_assert_true(not bool((sample_rows[0] as Dictionary)["path_visible"]), "UI-02 sample row marks path hidden")
+	var detail_rows = snapshot["sample_detail_rows"] as Array
+	_assert_eq(detail_rows.size(), 3, "SAMPLE-NEXT-10 sample detail rows cover bundled sample assets")
+	var catalog_detail = snapshot["sample_detail_drawer"] as Dictionary
+	_assert_eq(String(catalog_detail["surface_id"]), "sample_detail_drawer", "SAMPLE-NEXT-10 exposes sample detail drawer")
+	_assert_eq(String(catalog_detail["asset_type"]), "HexTileCatalogResource", "SAMPLE-NEXT-10 catalog detail exposes asset type")
+	_assert_eq(int(catalog_detail["dependency_count"]), 2, "SAMPLE-NEXT-10 catalog detail exposes dependencies")
+	_assert_true(bool(catalog_detail["duplicate_available"]), "SAMPLE-NEXT-10 catalog detail exposes duplicate availability")
+	_assert_true(String(catalog_detail["duplicate_target"]).contains("sample_hex_tile_catalog_project_copy"), "SAMPLE-NEXT-10 catalog detail exposes duplicate target")
+	_assert_true(String(catalog_detail["learning_use"]).contains("Learning source"), "SAMPLE-NEXT-10 catalog detail exposes learning use")
+	_assert_true(not bool(catalog_detail["production_injection"]), "SAMPLE-NEXT-10 sample detail does not inject production source")
+	_assert_true(String(snapshot["mounted_sample_detail_text"]).contains("dependencies:"), "SAMPLE-NEXT-10 mounted detail text exposes dependencies")
+	var settings_detail_snapshot = workspace.settings_screen_snapshot()
+	_assert_true(bool(settings_detail_snapshot["sample_detail_visible"]), "SAMPLE-NEXT-10 Settings snapshot exposes sample detail visibility")
+	_assert_true(String(settings_detail_snapshot["mounted_sample_detail_text"]).contains("duplicate target"), "SAMPLE-NEXT-10 Settings snapshot exposes mounted detail text")
+	var scene_detail_result = panel.select_sample_detail(HexMapSampleSettingsPanel.SAMPLE_OBJECT_SCENE_ID)
+	_assert_true(bool(scene_detail_result["ok"]), "SAMPLE-NEXT-10 sample detail can select object scene")
+	var scene_detail = scene_detail_result["detail"] as Dictionary
+	_assert_eq(String(scene_detail["asset_type"]), "PackedScene", "SAMPLE-NEXT-10 object scene detail exposes asset type")
+	_assert_eq(int(scene_detail["dependency_count"]), 0, "SAMPLE-NEXT-10 object scene detail exposes dependency count")
+	snapshot = panel.snapshot()
+	_assert_true(String(snapshot["mounted_sample_detail_text"]).contains("PackedScene"), "SAMPLE-NEXT-10 mounted detail text updates selected sample")
 	_assert_eq(Array(snapshot["sample_assets"]).size(), 3, "sample settings lists bundled sample assets")
 	_assert_eq(workspace.generation_dock().tile_catalog(), null, "sample mode OFF hides generation sample catalog fallback")
 	_assert_eq(workspace.edit_tool().tile_catalog(), null, "sample mode OFF hides paint sample catalog fallback")
@@ -4512,6 +4533,9 @@ func _test_sample_settings_duplicate_button_creates_project_catalog() -> void:
 	_assert_eq(row_actions.size(), 3, "SAMPLE-40 sample action snapshot covers sample rows")
 	_assert_true(not String(row_actions[0]["visible_label_text"]).contains("res://"), "UI-02 sample action visible row hides path")
 	_assert_true(String(row_actions[0]["label_tooltip"]).contains("res://"), "UI-02 sample action tooltip carries path")
+	var row_detail = row_actions[0]["detail"] as Dictionary
+	_assert_eq(String(row_detail["asset_type"]), "HexTileCatalogResource", "SAMPLE-NEXT-10 sample action row exposes detail asset type")
+	_assert_eq(int(row_detail["dependency_count"]), 2, "SAMPLE-NEXT-10 sample action row exposes detail dependencies")
 	_assert_true(
 		(row_actions[0]["action_button_texts"] as PackedStringArray).has("Duplicate To Project"),
 		"SAMPLE-40 catalog row exposes duplicate action"
@@ -4559,6 +4583,9 @@ func _test_sample_settings_duplicate_button_creates_project_catalog() -> void:
 	var snapshot = panel.snapshot()
 	var last_action = snapshot["last_sample_action"] as Dictionary
 	_assert_true(bool(last_action["ok"]), "SAMPLE-40 panel snapshot records successful duplicate")
+	var duplicate_detail = snapshot["sample_detail_drawer"] as Dictionary
+	_assert_eq(String(duplicate_detail["duplicate_target"]), catalog_path, "SAMPLE-NEXT-10 detail drawer updates duplicate target after project copy")
+	_assert_true(bool(duplicate_detail["duplicate_target_project_owned"]), "SAMPLE-NEXT-10 duplicate target is project-owned")
 	var sample_state = snapshot["sample_state"] as Dictionary
 	_assert_eq(String(sample_state["state_id"]), HexMapSampleLearningState.STATE_DUPLICATED_TO_PROJECT, "STATE-50 sample panel reports duplicated-to-project state")
 	_assert_eq(String(last_action["slot_id"]), HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, "SAMPLE-40 panel snapshot records affected slot")
