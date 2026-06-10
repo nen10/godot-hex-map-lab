@@ -59,6 +59,22 @@ static func build_seed_lab_panel() -> Dictionary:
 	selected_thumbnail.name = "QA Selected Seed Thumbnail"
 	panel.add_child(selected_thumbnail)
 
+	var score_tree := Tree.new()
+	score_tree.name = "QA Score Table"
+	score_tree.hide_root = true
+	score_tree.columns = 7
+	score_tree.set_column_titles_visible(true)
+	score_tree.set_column_title(0, "rank")
+	score_tree.set_column_title(1, "seed")
+	score_tree.set_column_title(2, "score")
+	score_tree.set_column_title(3, "validation")
+	score_tree.set_column_title(4, "selected")
+	score_tree.set_column_title(5, "preview")
+	score_tree.set_column_title(6, "promotion")
+	score_tree.custom_minimum_size = Vector2(0, 120)
+	score_tree.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.add_child(score_tree)
+
 	var rows_label := _wrapped_label()
 	panel.add_child(rows_label)
 
@@ -67,6 +83,7 @@ static func build_seed_lab_panel() -> Dictionary:
 		"status_label": status_label,
 		"selected_label": selected_label,
 		"selected_thumbnail": selected_thumbnail,
+		"score_tree": score_tree,
 		"rows_label": rows_label,
 	}
 

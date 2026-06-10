@@ -102,6 +102,7 @@ var _qa_seed_lab_panel: VBoxContainer
 var _qa_seed_lab_status_label: Label
 var _qa_seed_lab_selected_label: Label
 var _qa_seed_lab_selected_thumbnail: HexMapPreviewThumbnail
+var _qa_seed_lab_score_tree: Tree
 var _qa_seed_lab_rows_label: Label
 var _qa_selected_seed_row: Dictionary = {}
 var _qa_promoted_document: HexMapDocumentResource = null
@@ -2884,6 +2885,7 @@ func qa_screen_snapshot() -> Dictionary:
 	var seed_lab := qa_seed_lab_context()
 	var empty_state := _qa_tab_empty_state(seed_lab)
 	var score_row_count := int(seed_lab.get("score_row_count", 0))
+	var scored_table = seed_lab.get("scored_table", {}) as Dictionary
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_QA,
 		"screen_role": screen_role,
@@ -2921,10 +2923,16 @@ func qa_screen_snapshot() -> Dictionary:
 		),
 		"score_table_context": qa_score_table_context(),
 		"seed_lab": seed_lab,
+		"scored_table": scored_table,
 		"score_rows": seed_lab.get("score_rows", []),
 		"score_row_previews": seed_lab.get("score_row_previews", []),
 		"score_table_visible": true,
+		"score_table_columns": scored_table.get("columns", PackedStringArray()),
 		"score_table_row_count": score_row_count,
+		"score_table_rows_text": String(scored_table.get("rows_text", "")),
+		"mounted_score_table_present": _qa_seed_lab_score_tree != null,
+		"mounted_score_tree_row_count": _qa_mounted_score_tree_row_count(),
+		"mounted_score_table_rows_text": _qa_seed_lab_rows_label.text if _qa_seed_lab_rows_label != null else "",
 		"selected_seed_row": _qa_selected_seed_row.duplicate(true),
 		"selected_seed_preview": seed_lab.get("selected_seed_preview", {}),
 		"selected_seed_visible": true,
@@ -2953,11 +2961,16 @@ func qa_score_table_context() -> Dictionary:
 		context,
 		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE
 	)
+	var score_rows := _qa_score_rows()
+	var scored_table := _qa_scored_table(score_rows)
 	return {
 		"generation_profile": generation_profile_context,
 		"validation_rule_suite": validation_rule_suite_context,
-		"score_rows": _qa_score_rows(),
-		"score_row_previews": _qa_score_row_previews(_qa_score_rows()),
+		"score_rows": score_rows,
+		"score_row_previews": _qa_score_row_previews(score_rows),
+		"scored_table": scored_table,
+		"score_table_columns": scored_table.get("columns", PackedStringArray()),
+		"score_table_rows_text": String(scored_table.get("rows_text", "")),
 		"score_table_visible": true,
 		"generation_profile_used": context.generation_profile != null,
 		"generation_profile_source": String(generation_profile_context.get("source_badge", "")),
@@ -2967,6 +2980,7 @@ func qa_score_table_context() -> Dictionary:
 func qa_seed_lab_context() -> Dictionary:
 	var context := workspace_asset_context()
 	var score_rows := _qa_score_rows()
+	var scored_table := _qa_scored_table(score_rows)
 	var generation_profile_context := _profile_resource_context(
 		context,
 		HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE
@@ -2980,6 +2994,9 @@ func qa_seed_lab_context() -> Dictionary:
 		"validation_rule_suite": validation_rule_suite_context,
 		"score_rows": score_rows,
 		"score_row_previews": _qa_score_row_previews(score_rows),
+		"scored_table": scored_table,
+		"score_table_columns": scored_table.get("columns", PackedStringArray()),
+		"score_table_rows_text": String(scored_table.get("rows_text", "")),
 		"score_table_visible": true,
 		"score_row_count": score_rows.size(),
 		"selected_seed_row": _qa_selected_seed_row.duplicate(true),
@@ -3020,6 +3037,115 @@ func _qa_score_row_previews(rows: Array) -> Array:
 	return previews
 
 
+func _qa_scored_table(score_rows: Array) -> Dictionary:
+	var table_rows := _qa_scored_table_rows(score_rows)
+	return {
+		"surface_id": "qa_scored_table",
+		"visible": true,
+		"columns": PackedStringArray(["rank", "seed", "score", "validation", "selected", "preview", "promotion"]),
+		"rows": table_rows,
+		"row_count": table_rows.size(),
+		"selected_row_index": _qa_scored_table_state_index(table_rows, "selected", true),
+		"promoted_row_index": _qa_scored_table_state_index(table_rows, "promoted", true),
+		"preview_available_count": _qa_scored_table_preview_count(table_rows),
+		"rows_text": _qa_scored_table_rows_text(table_rows),
+	}
+
+
+func _qa_scored_table_rows(score_rows: Array) -> Array[Dictionary]:
+	var table_rows: Array[Dictionary] = []
+	var promoted_seed := _qa_promoted_seed()
+	for row in score_rows:
+		if not row is Dictionary:
+			continue
+		var score_row := (row as Dictionary)
+		var preview = score_row.get("preview", {}) as Dictionary
+		var seed := int(score_row.get("seed", 0))
+		var selected := _qa_score_row_matches(score_row, _qa_selected_seed_row)
+		var promoted := promoted_seed != 0 and promoted_seed == seed
+		var promotion_state := "promoted" if promoted else ("ready to promote" if selected else "select to promote")
+		table_rows.append({
+			"rank": int(score_row.get("rank", table_rows.size() + 1)),
+			"seed": seed,
+			"score": float(score_row.get("score", 0.0)),
+			"score_text": "%.2f" % float(score_row.get("score", 0.0)),
+			"status": String(score_row.get("status", "")),
+			"cells": int(score_row.get("cells", 0)),
+			"validation": _qa_score_row_validation_text(score_row),
+			"validation_errors": int(score_row.get("validation_errors", 0)),
+			"validation_warnings": int(score_row.get("validation_warnings", 0)),
+			"selected": selected,
+			"selected_state": "selected" if selected else "not selected",
+			"preview": preview.duplicate(true),
+			"preview_available": bool(preview.get("available", false)),
+			"preview_text": _qa_score_row_preview_text(score_row),
+			"promotion_state": promotion_state,
+			"promotion_available": selected and _generation_dock != null and not promoted,
+			"promoted": promoted,
+			"source_index": int(score_row.get("index", -1)),
+		})
+	return table_rows
+
+
+func _qa_score_row_matches(left: Dictionary, right: Dictionary) -> bool:
+	if left.is_empty() or right.is_empty():
+		return false
+	var left_index := int(left.get("index", -1))
+	var right_index := int(right.get("index", -2))
+	if left_index >= 0 and right_index >= 0:
+		return left_index == right_index
+	if int(left.get("seed", 0)) != int(right.get("seed", 0)):
+		return false
+	return is_equal_approx(float(left.get("score", 0.0)), float(right.get("score", 0.0)))
+
+
+func _qa_promoted_seed() -> int:
+	if _qa_promoted_document == null or _qa_promoted_document.metadata == null:
+		return 0
+	return int(_qa_promoted_document.metadata.generation_seed)
+
+
+func _qa_score_row_validation_text(row: Dictionary) -> String:
+	var summary = row.get("validation_summary", {})
+	if summary is Dictionary:
+		return "%dE/%dW" % [
+			int((summary as Dictionary).get("errors", row.get("validation_errors", 0))),
+			int((summary as Dictionary).get("warnings", row.get("validation_warnings", 0))),
+		]
+	return "%dE/%dW" % [
+		int(row.get("validation_errors", 0)),
+		int(row.get("validation_warnings", 0)),
+	]
+
+
+func _qa_score_row_preview_text(row: Dictionary) -> String:
+	var preview = row.get("preview", {}) as Dictionary
+	if preview.is_empty() or not bool(preview.get("available", false)):
+		var reason := String(preview.get("reason", "no preview"))
+		return reason if reason != "" else "no preview"
+	var source_kind := String(preview.get("source_kind", "preview"))
+	var cell_count := int(preview.get("cell_count", row.get("cells", 0)))
+	if cell_count > 0:
+		return "%s %d cells" % [source_kind, cell_count]
+	return source_kind
+
+
+func _qa_scored_table_state_index(rows: Array, key: String, expected: bool) -> int:
+	for index in range(rows.size()):
+		var row = rows[index]
+		if row is Dictionary and bool((row as Dictionary).get(key, false)) == expected:
+			return index
+	return -1
+
+
+func _qa_scored_table_preview_count(rows: Array) -> int:
+	var count := 0
+	for row in rows:
+		if row is Dictionary and bool((row as Dictionary).get("preview_available", false)):
+			count += 1
+	return count
+
+
 func _qa_selected_preview_snapshot() -> Dictionary:
 	if _qa_selected_seed_row.is_empty():
 		return HexMapPreviewThumbnail.unavailable_preview("no_selected_seed", {
@@ -3049,11 +3175,14 @@ func run_qa_seed_lab(seed_count: int, options: Dictionary = {}) -> Dictionary:
 	if not rows.is_empty():
 		_qa_selected_seed_row = (rows[0] as Dictionary).duplicate(true)
 	_refresh_qa_seed_lab_panel()
+	var seed_lab := qa_seed_lab_context()
 	return {
 		"ok": true,
 		"error": OK,
 		"score_rows": rows,
 		"selected_seed_row": _qa_selected_seed_row.duplicate(true),
+		"scored_table": seed_lab.get("scored_table", {}),
+		"seed_lab": seed_lab,
 	}
 
 
@@ -3069,10 +3198,12 @@ func select_qa_seed_row(index: int) -> Dictionary:
 		}
 	_qa_selected_seed_row = (rows[index] as Dictionary).duplicate(true)
 	_refresh_qa_seed_lab_panel()
+	var seed_lab := qa_seed_lab_context()
 	return {
 		"ok": true,
 		"error": OK,
 		"selected_seed_row": _qa_selected_seed_row.duplicate(true),
+		"scored_table": seed_lab.get("scored_table", {}),
 	}
 
 
@@ -3726,6 +3857,7 @@ func _mount_qa_seed_lab_panel() -> void:
 	_qa_seed_lab_status_label = built.get("status_label", null) as Label
 	_qa_seed_lab_selected_label = built.get("selected_label", null) as Label
 	_qa_seed_lab_selected_thumbnail = built.get("selected_thumbnail", null) as HexMapPreviewThumbnail
+	_qa_seed_lab_score_tree = built.get("score_tree", null) as Tree
 	_qa_seed_lab_rows_label = built.get("rows_label", null) as Label
 
 	(page as Control).add_child(_qa_seed_lab_panel)
@@ -5025,21 +5157,67 @@ func _refresh_qa_seed_lab_panel() -> void:
 		_qa_seed_lab_selected_thumbnail.set_preview_snapshot(
 			context.get("selected_seed_preview", {}) as Dictionary
 		)
+	var scored_table = context.get("scored_table", {}) as Dictionary
+	if _qa_seed_lab_score_tree != null:
+		_refresh_qa_seed_lab_score_tree(scored_table)
 	if _qa_seed_lab_rows_label != null:
-		_qa_seed_lab_rows_label.text = _qa_seed_lab_rows_text(context.get("score_rows", []) as Array)
+		_qa_seed_lab_rows_label.text = String(scored_table.get("rows_text", _qa_seed_lab_rows_text(context.get("score_rows", []) as Array)))
+
+
+func _refresh_qa_seed_lab_score_tree(scored_table: Dictionary) -> void:
+	if _qa_seed_lab_score_tree == null:
+		return
+	_qa_seed_lab_score_tree.clear()
+	var root_item := _qa_seed_lab_score_tree.create_item()
+	var rows = scored_table.get("rows", []) as Array
+	for row in rows:
+		if not row is Dictionary:
+			continue
+		var item := _qa_seed_lab_score_tree.create_item(root_item)
+		item.set_text(0, str(int((row as Dictionary).get("rank", 0))))
+		item.set_text(1, str(int((row as Dictionary).get("seed", 0))))
+		item.set_text(2, String((row as Dictionary).get("score_text", "")))
+		item.set_text(3, String((row as Dictionary).get("validation", "")))
+		item.set_text(4, String((row as Dictionary).get("selected_state", "")))
+		item.set_text(5, String((row as Dictionary).get("preview_text", "")))
+		item.set_text(6, String((row as Dictionary).get("promotion_state", "")))
+
+
+func _qa_mounted_score_tree_row_count() -> int:
+	if _qa_seed_lab_score_tree == null:
+		return 0
+	var root_item := _qa_seed_lab_score_tree.get_root()
+	if root_item == null:
+		return 0
+	var count := 0
+	var child := root_item.get_first_child()
+	while child != null:
+		count += 1
+		child = child.get_next()
+	return count
 
 
 func _qa_seed_lab_rows_text(rows: Array) -> String:
+	if rows.is_empty():
+		return "No seed batch rows."
+	return _qa_scored_table_rows_text(_qa_scored_table_rows(rows))
+
+
+func _qa_scored_table_rows_text(rows: Array) -> String:
 	if rows.is_empty():
 		return "No seed batch rows."
 	var parts := PackedStringArray()
 	for row in rows:
 		if not row is Dictionary:
 			continue
-		parts.append("#%d seed=%d score=%.2f" % [
+		parts.append("#%d | seed %d | score %s | validation %s | %s | preview %s | promotion %s" % [
 			int((row as Dictionary).get("rank", 0)),
 			int((row as Dictionary).get("seed", 0)),
-			float((row as Dictionary).get("score", 0.0)),
+			String((row as Dictionary).get("score_text", "")),
+			String((row as Dictionary).get("validation", "")),
+			String((row as Dictionary).get("selected_state", "")),
+			String((row as Dictionary).get("preview_text", "")),
+			String((row as Dictionary).get("promotion_state", "")),
 		])
 	return _join_text(parts, " | ")
 

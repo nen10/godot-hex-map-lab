@@ -82,7 +82,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | `LAYER-NEXT-10` | `COMPLETE` | `SCREEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/LAYER-NEXT-10_LAYER_ROLE_EDITOR/` | Fine-grained Layer role editor | Layer screen/resource/tests | Role visible/locked/z-index/writable source can be edited and reflected in LayerStack/selected node state. |
 | `PAINT-NEXT-10` | `COMPLETE` | `SCREEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PAINT-NEXT-10_VIEWPORT_AFFORDANCE_POLISH/` | Paint viewport affordance polish | Paint tab, viewport adapter, tests | Brush cursor, selected cell, target layer, mode, and last edit feedback sync between viewport and Paint tab. |
 | `VAL-NEXT-10` | `COMPLETE` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/VAL-NEXT-10_VALIDATE_RICH_ISSUE_TABLE_ACTIONS/` | Rich Validate issue table and actions | Validate screen, validation dashboard, tests | Issue table has severity/domain/scope/target/suggestion columns and only real per-issue actions. |
-| `QA-NEXT-10` | `READY` | `GEN-NEXT-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/QA-NEXT-10_SCORE_TABLE_VISUAL_REDESIGN/` | QA scored table visual redesign | QA screen/table/tests | Seed rows, score columns, validation status, selected seed, preview, and promotion state are easy to compare. |
+| `QA-NEXT-10` | `COMPLETE` | `GEN-NEXT-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/QA-NEXT-10_SCORE_TABLE_VISUAL_REDESIGN/` | QA scored table visual redesign | QA screen/table/tests | Seed rows, score columns, validation status, selected seed, preview, and promotion state are easy to compare. |
 | `SETTINGS-NEXT-10` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/SETTINGS-NEXT-10_SETTINGS_GROUPING_TOGGLE_STYLING/` | Settings grouping and toggle styling | Settings/sample panels, tests | Sample Learning, Debug, Project Defaults, and UI Preferences are separated; booleans use toggles/checks with tooltip detail. |
 | `SAMPLE-NEXT-10` | `BACKLOG` | `SETTINGS-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/SAMPLE-NEXT-10_SAMPLE_DETAIL_DRAWER/` | Sample detail drawer | Settings sample detail UI/tests | Sample asset type, dependencies, duplicate target, and learning use are inspectable without injecting samples into production flow. |
 
@@ -140,7 +140,7 @@ acceptance / test path:
 
 ## 9. Current pointer
 
-Current recommended next task: `QA-NEXT-10`.
+Current recommended next task: `SETTINGS-NEXT-10`.
 
 Reason:
 
@@ -171,7 +171,8 @@ Reason:
 - `LAYER-NEXT-10` is complete.
 - `PAINT-NEXT-10` is complete.
 - `VAL-NEXT-10` is complete.
-- `QA-NEXT-10` is READY because `GEN-NEXT-11` is complete.
+- `QA-NEXT-10` is complete.
+- `SETTINGS-NEXT-10` is READY because `UI-METRIC-05` is complete.
 - `PERF-NEXT-11` is READY because `PERF-NEXT-10` is complete.
 - `GENPIPE-NEXT-10` is READY because `GEN-NEXT-11` is complete.
 - `ARCH-NEXT-20` is READY because `ARCH-NEXT-10` is complete.
@@ -687,3 +688,22 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_workspace.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/VAL-NEXT-10_TEST_RESULT_2026-06-10.md`
+
+### QA-NEXT-10 QA scored table visual redesign
+
+proof:
+  plan: `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/QA-NEXT-10_SCORE_TABLE_VISUAL_REDESIGN/`
+  review: `docs/review/autopilot/QA-NEXT-10_SELF_REVIEW_2026-06-10.md`
+  execution:
+    - `docs/review/autopilot/QA-NEXT-10_SELF_REVIEW_2026-06-10.md`
+  ui_metrics:
+    - `.godot_user/ui-metrics/20260610-204647-49048/workspace_layout_metrics.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_qa_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/QA-NEXT-10_TEST_RESULT_2026-06-10.md`
