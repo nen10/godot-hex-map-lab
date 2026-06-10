@@ -107,9 +107,9 @@ const QUERY_ROW_MATCHES := [QUERY_ROW_MATCH_CONTAIN, QUERY_ROW_MATCH_EXCLUDE]
 const GENERATION_BLOCK_EMPTY_MASK := "Placement Mask query result is empty."
 const GENERATION_BLOCK_EMPTY_ADJACENCY_RULES := "Adjacency Rules has no valid rules."
 const GENERATION_BLOCK_STATUS_PREFIX := "Blocked: "
-const QUERY_HEX_CELL_DEFAULT_RADIUS := 12.0
-const QUERY_HEX_CELL_DEFAULT_GAP := 1.0
-const QUERY_HEX_CELL_DEFAULT_PADDING := 2.0
+const QUERY_HEX_CELL_DEFAULT_RADIUS := 20.0
+const QUERY_HEX_CELL_DEFAULT_GAP := 0.0
+const QUERY_HEX_CELL_DEFAULT_PADDING := 16.0
 const QUERY_KIND_MASK := "mask"
 const QUERY_KIND_REFERENCE := "reference"
 const QUERY_KIND_DEDUCTOR_FLOOR := "deductor_floor"
@@ -1305,6 +1305,8 @@ func _build_query_cell_settings_controls() -> Control:
 	_query_cell_padding_spin = _new_int_spin(int(_query_hex_cell_padding), 0, 16)
 	_query_cell_padding_spin.value_changed.connect(_on_query_cell_padding_changed)
 	row.add_child(_query_cell_padding_spin)
+	row.visible = false
+	row.visible = true
 	return row
 
 
@@ -1630,6 +1632,30 @@ func _new_int_spin(value: int, min_value: int, max_value: int) -> SpinBox:
 	spin.value = value
 	spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	return spin
+
+
+func _new_icon_button(icon_text: String, tooltip: String) -> Button:
+	var button = Button.new()
+	button.text = icon_text
+	button.tooltip_text = tooltip
+	button.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_apply_editor_icon(button, icon_text)
+	return button
+
+
+func _apply_editor_icon(button: Button, fallback_text: String) -> void:
+	if not Engine.is_editor_hint():
+		return
+	var theme = EditorInterface.get_editor_theme()
+	match fallback_text:
+		"▲":
+			button.icon = theme.get_icon("ArrowUp", "EditorIcons")
+		"▼":
+			button.icon = theme.get_icon("ArrowDown", "EditorIcons")
+		"✕":
+			button.icon = theme.get_icon("Close", "EditorIcons")
+	if button.icon != null:
+		button.text = ""
 
 
 func _new_catalog_option(tag: String, selected_key: String = "") -> OptionButton:
@@ -2134,13 +2160,24 @@ func _add_query_row(
 		return {}
 
 	var row_control = VBoxContainer.new()
-	var top_row = HBoxContainer.new()
-	row_control.add_child(top_row)
+
+	var row_root = HBoxContainer.new()
+	row_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row_control.add_child(row_root)
+
 	var operation_option = OptionButton.new()
 	for name in QUERY_ROW_OPERATION_NAMES:
 		operation_option.add_item(name)
 	operation_option.select(max(0, QUERY_ROW_OPERATIONS.find(operation)))
-	top_row.add_child(operation_option)
+	operation_option.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row_root.add_child(operation_option)
+
+	var right_side = VBoxContainer.new()
+	right_side.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row_root.add_child(right_side)
+
+	var top_row = HBoxContainer.new()
+	right_side.add_child(top_row)
 
 	var match_option = OptionButton.new()
 	for name in QUERY_ROW_MATCH_NAMES:
@@ -2148,18 +2185,33 @@ func _add_query_row(
 	match_option.select(max(0, QUERY_ROW_MATCHES.find(match)))
 	top_row.add_child(match_option)
 
-	var source_label = Label.new()
-	source_label.custom_minimum_size = Vector2(96, 0)
-	top_row.add_child(source_label)
-
 	var source_item_option = OptionButton.new()
 	_configure_scrollable_option(source_item_option)
 	source_item_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top_row.add_child(source_item_option)
 
+	var bottom_row = HBoxContainer.new()
+	right_side.add_child(bottom_row)
+
+	var source_label = Label.new()
+	source_label.custom_minimum_size = Vector2(96, 0)
+	source_label.add_theme_font_size_override("font_size", 24)
+	bottom_row.add_child(source_label)
+
+	var offset_row = HBoxContainer.new()
+	row_root.add_child(offset_row)
+
+	var offset_labels = VBoxContainer.new()
+	offset_row.add_child(offset_labels)
+
+	var shift_header = Label.new()
+	shift_header.text = "Layer Shift"
+	shift_header.add_theme_font_size_override("font_size", 20)
+	offset_labels.add_child(shift_header)
+
 	var offset_label = Label.new()
 	offset_label.text = "0,0,0"
-	top_row.add_child(offset_label)
+	offset_labels.add_child(offset_label)
 
 	var row := {
 		"row": row_control,
@@ -2180,28 +2232,27 @@ func _add_query_row(
 	source_item_option.item_selected.connect(_on_query_row_source_selected.bind(row, query_kind))
 
 	var offset_control = _build_query_offset_control(row, query_kind)
-	top_row.add_child(offset_control)
+	offset_row.add_child(offset_control)
 
 	var move_buttons = VBoxContainer.new()
-	var up_button = Button.new()
-	up_button.text = "^"
-	up_button.tooltip_text = "Move row up"
+	move_buttons.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	
+	var up_button = _new_icon_button("▲", "Move row up")
 	up_button.pressed.connect(_on_query_row_move_pressed.bind(row, query_kind, -1))
 	move_buttons.add_child(up_button)
 	row["up"] = up_button
 
-	var down_button = Button.new()
-	down_button.text = "v"
-	down_button.tooltip_text = "Move row down"
+	var down_button = _new_icon_button("▼", "Move row down")
 	down_button.pressed.connect(_on_query_row_move_pressed.bind(row, query_kind, 1))
+
 	move_buttons.add_child(down_button)
 	row["down"] = down_button
-	top_row.add_child(move_buttons)
+	row_root.add_child(move_buttons)
 
-	var remove_button = Button.new()
-	remove_button.text = "-"
+	var remove_button = _new_icon_button("✕", "Remove row")
 	remove_button.pressed.connect(_on_query_row_remove_pressed.bind(row, query_kind))
-	top_row.add_child(remove_button)
+	remove_button.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	row_root.add_child(remove_button)
 	row["remove"] = remove_button
 
 	_query_rows_for_kind(query_kind).append(row)

@@ -19,8 +19,7 @@ signal sample_requested(slot_id: String)
 signal slot_state_changed(snapshot: Dictionary)
 
 var _state: HexMapEditorAssetSlotState = HexMapEditorAssetSlotState.new()
-var _compact_row: HBoxContainer
-var _input_row: HBoxContainer
+var _single_row: HBoxContainer
 var _title_label: Label
 var _current_label: Label
 var _type_label: Label
@@ -112,8 +111,8 @@ func slot_state_snapshot() -> Dictionary:
 func slot_layout_snapshot() -> Dictionary:
 	var view_state := _state.view_state()
 	return {
-		"compact_row": _compact_row != null,
-		"adaptive_two_line": _input_row != null,
+		"single_row": _single_row != null,
+		"single_row_visible": _single_row != null and _single_row.visible,
 		"details_visible": _details_container != null and _details_container.visible,
 		"details_button_text": _details_button.text if _details_button != null else "",
 		"details_button_visible": _details_button != null and _details_button.visible,
@@ -243,32 +242,47 @@ func _build_ui() -> void:
 		return
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
-	_compact_row = HBoxContainer.new()
-	_compact_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	add_child(_compact_row)
-
-	_title_label = Label.new()
-	_title_label.custom_minimum_size = Vector2(132, 0)
-	_title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_title_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	_compact_row.add_child(_title_label)
+	_single_row = HBoxContainer.new()
+	_single_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	add_child(_single_row)
 
 	_status_indicator = ColorRect.new()
 	_status_indicator.custom_minimum_size = Vector2(14, 14)
-	_status_indicator.size_flags_horizontal = Control.SIZE_SHRINK_END
+	_status_indicator.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	_status_indicator.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	_status_indicator.mouse_filter = Control.MOUSE_FILTER_PASS
-	_compact_row.add_child(_status_indicator)
+	_status_indicator.mouse_filter = Control.MOUSE_FILTER_STOP
+	_single_row.add_child(_status_indicator)
 
-	_input_row = HBoxContainer.new()
-	_input_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	add_child(_input_row)
+	_title_label = Label.new()
+	_title_label.custom_minimum_size = Vector2(280, 0)
+	_title_label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_title_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_title_label.mouse_filter = Control.MOUSE_FILTER_STOP
+	_title_label.add_theme_font_size_override("font_size", _base_font_size())
+	_single_row.add_child(_title_label)
 
 	if _can_use_editor_resource_picker():
 		_resource_picker = EditorResourcePicker.new()
+		_resource_picker.custom_minimum_size = Vector2(200, 0)
 		_resource_picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		_resource_picker.resource_changed.connect(_on_resource_changed)
-		_input_row.add_child(_resource_picker)
+		_single_row.add_child(_resource_picker)
+
+	_actions_container = HBoxContainer.new()
+	_actions_container.size_flags_horizontal = Control.SIZE_SHRINK_END
+	_single_row.add_child(_actions_container)
+
+	_create_button = Button.new()
+	_create_button.text = "Create New..."
+	_create_button.add_theme_font_size_override("font_size", _base_font_size())
+	_create_button.pressed.connect(_on_create_pressed)
+	_actions_container.add_child(_create_button)
+
+	_sample_button = Button.new()
+	_sample_button.text = "Learn With Sample"
+	_sample_button.add_theme_font_size_override("font_size", _base_font_size())
+	_sample_button.pressed.connect(_on_sample_pressed)
+	_actions_container.add_child(_sample_button)
 
 	_status_label = Label.new()
 	_status_label.visible = false
@@ -289,20 +303,6 @@ func _build_ui() -> void:
 	_messages_label = Label.new()
 	_messages_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_details_container.add_child(_messages_label)
-
-	_actions_container = HBoxContainer.new()
-	_actions_container.size_flags_horizontal = Control.SIZE_SHRINK_END
-	_input_row.add_child(_actions_container)
-
-	_create_button = Button.new()
-	_create_button.text = "Create New..."
-	_create_button.pressed.connect(_on_create_pressed)
-	_actions_container.add_child(_create_button)
-
-	_sample_button = Button.new()
-	_sample_button.text = "Learn With Sample"
-	_sample_button.pressed.connect(_on_sample_pressed)
-	_actions_container.add_child(_sample_button)
 
 
 func _refresh() -> void:
@@ -469,3 +469,7 @@ func _refresh_actions_visibility() -> void:
 	if _actions_container == null:
 		return
 	_actions_container.visible = not _visible_action_button_texts().is_empty()
+
+
+func _base_font_size() -> int:
+	return 24
