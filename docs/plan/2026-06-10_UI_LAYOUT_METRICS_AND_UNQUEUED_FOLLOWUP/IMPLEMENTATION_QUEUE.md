@@ -32,8 +32,8 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | `NEXT-00` | `COMPLETE` | none | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/NEXT-00_ADOPT_UI_METRIC_AND_UNQUEUED_FEEDBACKS/` | Feedback adoption proof, roadmap, and queue source-of-truth | `ROADMAP.md`, `IMPLEMENTATION_QUEUE.md`, feedback docs | Both feedback files are represented in the roadmap and queue; intentional non-queue items are recorded; `./tools/test.sh` passed. |
 | `PROCESS-10` | `COMPLETE` | `NEXT-00` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-10_COMPLEXITY_CLASS_FOR_TASK_PLANS/` | Complexity class for task plans | `docs/policy/PLANNING_POLICY.md`, plan templates, review docs | C1-C5 complexity classes exist; `SUB_TASKS.md` template has complexity header; C4/C5 require candidate matrix, fallback table, and state table. |
 | `PROCESS-11` | `COMPLETE` | `PROCESS-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-11_PHASE_REVIEW_MATRIX/` | Phase review matrix process | `docs/process/QUEUE_OPERATION_RULES.md`, review template docs | Phase completion records task score, debt, evidence, and next readiness; prose-only defer is converted to queue candidate. |
-| `PROCESS-12` | `READY` | `PROCESS-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-12_FALLBACK_LEDGER/` | Fallback / mirror / debug ledger | `docs/review/roadmap/FALLBACK_LEDGER_2026-06-10.md`, planning/review docs | fallback, mirror, legacy, debug, sample, and manual override entries have owner/status/removal condition/test proof. |
-| `PROCESS-13` | `BACKLOG` | `PROCESS-12` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-13_PLAN_EXECUTION_BOUNDARY/` | Plan/execution proof boundary | planning policy, self-review templates, queue proof docs | `IMPLEMENTATION_PLAN.md` stays pre-execution; executed checklist/deviation moves to self-review or execution log. |
+| `PROCESS-12` | `COMPLETE` | `PROCESS-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-12_FALLBACK_LEDGER/` | Fallback / mirror / debug ledger | `docs/review/roadmap/FALLBACK_LEDGER_2026-06-10.md`, planning/review docs | fallback, mirror, legacy, debug, sample, and manual override entries have owner/status/removal condition/test proof. |
+| `PROCESS-13` | `READY` | `PROCESS-12` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-13_PLAN_EXECUTION_BOUNDARY/` | Plan/execution proof boundary | planning policy, self-review templates, queue proof docs | `IMPLEMENTATION_PLAN.md` stays pre-execution; executed checklist/deviation moves to self-review or execution log. |
 
 ---
 
@@ -140,15 +140,16 @@ acceptance / test path:
 
 ## 9. Current pointer
 
-Current recommended next task: `PROCESS-12`.
+Current recommended next task: `PROCESS-13`.
 
 Reason:
 
 - `NEXT-00` is complete.
 - `PROCESS-10` is complete.
 - `PROCESS-11` is complete.
-- `PROCESS-12` is READY because `PROCESS-11` is complete.
-- `PROCESS-12` is the first READY task in queue order.
+- `PROCESS-12` is complete.
+- `PROCESS-13` is READY because `PROCESS-12` is complete.
+- `PROCESS-13` is the first READY task in queue order.
 
 ---
 
@@ -203,3 +204,19 @@ proof:
     - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-11_PHASE_REVIEW_MATRIX/POLICY.md`
     - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-11_PHASE_REVIEW_MATRIX/IMPLEMENTATION_PLAN.md`
     - `docs/review/autopilot/PROCESS-11_TEST_RESULT_2026-06-10.md`
+
+### PROCESS-12 Fallback / mirror / debug ledger
+
+proof:
+  plan: `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-12_FALLBACK_LEDGER/`
+  review: `docs/review/autopilot/PROCESS-12_SELF_REVIEW_2026-06-10.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/review/roadmap/FALLBACK_LEDGER_2026-06-10.md`
+  major files:
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-12_FALLBACK_LEDGER/SUB_TASKS.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-12_FALLBACK_LEDGER/UX.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-12_FALLBACK_LEDGER/POLICY.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-12_FALLBACK_LEDGER/IMPLEMENTATION_PLAN.md`
+    - `docs/review/autopilot/PROCESS-12_TEST_RESULT_2026-06-10.md`
