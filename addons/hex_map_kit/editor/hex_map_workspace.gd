@@ -1646,6 +1646,7 @@ func catalog_screen_snapshot() -> Dictionary:
 	)
 	var entry_rows := catalog_entry_rows()
 	var entry_detail := catalog_entry_detail()
+	var validation_status := _catalog_validation_status(catalog)
 	var empty_state := _catalog_tab_empty_state(entry_rows, entry_detail)
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_CATALOG,
@@ -1665,6 +1666,20 @@ func catalog_screen_snapshot() -> Dictionary:
 		"entry_rows": entry_rows,
 		"entry_detail": entry_detail,
 		"selected_entry": entry_detail,
+		"catalog_entry_workflow_owner": "Catalog",
+		"entry_list_visible": true,
+		"entry_detail_visible": true,
+		"tile_preview_visible": bool(entry_detail.get("preview_available", false)) \
+			and String(entry_detail.get("preview_kind", "")) == "tile",
+		"scene_preview_visible": bool(entry_detail.get("preview_available", false)) \
+			and String(entry_detail.get("preview_kind", "")) == "scene",
+		"tags_status_visible": true,
+		"create_edit_entry_available": catalog != null and catalog.tile_set != null,
+		"create_atlas_entry_available": catalog != null and catalog.tile_set != null,
+		"create_scene_entry_available": catalog != null,
+		"validate_catalog_available": catalog != null,
+		"catalog_validation_status": validation_status,
+		"paint_catalog_entry_management_visible": false,
 		"primary_input_fields": PackedStringArray([
 			"catalog_resource",
 			"tile_set",
@@ -1680,6 +1695,25 @@ func catalog_screen_snapshot() -> Dictionary:
 		]),
 		"raw_coordinate_controls_primary": false,
 		"sample_candidates_visible": _ensure_session_state().show_bundled_samples_in_main_selectors,
+	}
+
+
+func _catalog_validation_status(catalog: HexTileCatalogResource) -> Dictionary:
+	if catalog == null:
+		return {
+			"available": false,
+			"status_text": "No Tile Catalog selected.",
+			"errors": 0,
+			"warnings": 0,
+			"issue_count": 0,
+		}
+	var result: HexMapValidationResult = HexTileCatalogValidator.validate_catalog(catalog)
+	return {
+		"available": true,
+		"status_text": "Catalog OK" if result.issue_count() == 0 else "Catalog issues: %d" % result.issue_count(),
+		"errors": result.error_count(),
+		"warnings": result.warning_count(),
+		"issue_count": result.issue_count(),
 	}
 
 
@@ -2332,6 +2366,11 @@ func paint_brush_screen_snapshot() -> Dictionary:
 		"interaction_state": interaction_state,
 		"view_state": view_state,
 		"brush": view_state.get("brush", {}),
+		"catalog_entry_workflow_owner": String((view_state.get("brush", {}) as Dictionary).get("catalog_entry_workflow_owner", "Catalog")),
+		"catalog_entry_management_visible": bool((view_state.get("brush", {}) as Dictionary).get("catalog_entry_management_visible", false)),
+		"paint_consumes_catalog_key": bool((view_state.get("brush", {}) as Dictionary).get("paint_consumes_catalog_key", true)),
+		"catalog_key_selector_visible": bool((view_state.get("brush", {}) as Dictionary).get("catalog_key_selector_visible", false)),
+		"raw_catalog_metadata_controls_primary": bool((view_state.get("brush", {}) as Dictionary).get("raw_catalog_metadata_controls_primary", false)),
 		"workspace": paint_workspace,
 		"active_document": document_state.get("resource", paint_workspace.get("active_document", null)),
 		"active_document_status": String(document_state.get("status", paint_workspace.get("active_document_status", "none"))),

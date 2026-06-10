@@ -1535,6 +1535,11 @@ func _test_catalog_asset_screen_manages_project_catalog_without_samples() -> voi
 		"Catalog screen exposes tile catalog slot"
 	)
 	_assert_true(not bool(snapshot["sample_candidates_visible"]), "Catalog screen hides sample catalog candidates while sample mode is OFF")
+	_assert_eq(String(snapshot["catalog_entry_workflow_owner"]), "Catalog", "SCREEN-20 Catalog owns catalog entry workflow")
+	_assert_true(bool(snapshot["entry_list_visible"]), "SCREEN-20 Catalog exposes entry list state")
+	_assert_true(bool(snapshot["entry_detail_visible"]), "SCREEN-20 Catalog exposes entry detail state")
+	_assert_true(bool(snapshot["tags_status_visible"]), "SCREEN-20 Catalog exposes tags/status state")
+	_assert_true(not bool(snapshot["paint_catalog_entry_management_visible"]), "SCREEN-20 Paint does not own catalog management")
 	_assert_eq(workspace.workspace_asset_context().tile_catalog, null, "Catalog screen starts without sample catalog")
 	_assert_eq(workspace.generation_dock().tile_catalog(), null, "Catalog screen does not inject generation sample catalog")
 	var missing_detail = snapshot["entry_detail"] as Dictionary
@@ -1585,6 +1590,15 @@ func _test_catalog_asset_screen_manages_project_catalog_without_samples() -> voi
 	_assert_eq(int(snapshot["entry_count"]), 2, "Catalog screen snapshot reports created entries")
 	_assert_true(PackedStringArray(snapshot["entry_keys"]).has("terrain.floor"), "Catalog screen snapshot lists atlas key")
 	_assert_true(PackedStringArray(snapshot["entry_keys"]).has("object.spawn"), "Catalog screen snapshot lists scene key")
+	_assert_true(bool(snapshot["create_edit_entry_available"]), "SCREEN-20 Catalog exposes create/edit entry availability")
+	_assert_true(bool(snapshot["create_atlas_entry_available"]), "SCREEN-20 Catalog exposes atlas entry creation")
+	_assert_true(bool(snapshot["create_scene_entry_available"]), "SCREEN-20 Catalog exposes scene entry creation")
+	_assert_true(bool(snapshot["validate_catalog_available"]), "SCREEN-20 Catalog exposes validation action")
+	_assert_eq(
+		String((snapshot["catalog_validation_status"] as Dictionary)["status_text"]),
+		"Catalog OK",
+		"SCREEN-20 Catalog validation status is visible"
+	)
 	_assert_true(not bool(snapshot["raw_coordinate_controls_primary"]), "TAB-52 Catalog source/atlas fields are metadata, not primary inputs")
 	_assert_true(
 		not PackedStringArray(snapshot["primary_input_fields"]).has("source_id"),
@@ -1610,6 +1624,9 @@ func _test_catalog_asset_screen_manages_project_catalog_without_samples() -> voi
 	_assert_eq(String(scene_detail["type_label"]), "Scene", "TAB-52 Catalog scene detail has human type label")
 	_assert_true(bool(scene_detail["preview_available"]), "TAB-52 Catalog scene detail has scene preview")
 	_assert_eq(String(scene_detail["preview_kind"]), "scene", "TAB-52 Catalog scene detail reports scene preview kind")
+	snapshot = workspace.catalog_screen_snapshot()
+	_assert_true(bool(snapshot["tile_preview_visible"]), "SCREEN-20 Catalog exposes tile preview state")
+	_assert_true(not bool(snapshot["scene_preview_visible"]), "SCREEN-20 default selected entry keeps scene preview inactive until selected")
 	var validation = workspace.validate_tile_catalog()
 	_assert_true(validation is HexMapValidationResult, "Catalog screen validate returns validation result")
 	_assert_eq(validation.issue_count(), 0, "Catalog screen validates project catalog with selected TileSet and PackedScene")
@@ -1967,6 +1984,12 @@ func _test_paint_brush_asset_screen_routes_missing_assets_without_raw_controls()
 	_assert_true(not bool(controls["raw_object_variant"]), "Paint brush hides raw object variant control")
 	_assert_true(not bool(controls["raw_spawn_condition"]), "Paint brush hides raw spawn condition control")
 	_assert_true(not bool(controls["raw_label_id"]), "Paint brush hides raw label id control")
+	_assert_eq(String(brush["catalog_entry_workflow_owner"]), "Catalog", "SCREEN-20 Paint declares Catalog owns entry workflow")
+	_assert_true(not bool(brush["catalog_entry_management_visible"]), "SCREEN-20 Paint hides catalog entry management controls")
+	_assert_true(bool(brush["paint_consumes_catalog_key"]), "SCREEN-20 Paint consumes catalog keys")
+	_assert_true(not bool(brush["raw_catalog_metadata_controls_primary"]), "SCREEN-20 Paint keeps raw catalog metadata non-primary")
+	_assert_eq(String(paint_screen["catalog_entry_workflow_owner"]), "Catalog", "SCREEN-20 Paint screen points catalog management to Catalog")
+	_assert_true(not bool(paint_screen["catalog_entry_management_visible"]), "SCREEN-20 Paint screen hides catalog entry management")
 
 	var output_dir = _test_resource_dir("screen24_paint_brush")
 	var catalog_path = "%s/tile_catalog.tres" % output_dir
@@ -4896,10 +4919,16 @@ func _test_map_edit_tool_target_atlas_settings_use_target_tileset() -> void:
 func _test_map_edit_tool_catalog_selectors_drive_defaults_and_payloads() -> void:
 	var tool = await _new_ready_edit_tool()
 	_assert_true(tool.tile_catalog() != null, "map edit tool loads sample tile catalog")
-	_assert_true(tool._catalog_entries_tree != null, "map edit tool exposes catalog entry list")
-	_assert_true(tool._catalog_add_atlas_button != null, "map edit tool exposes Add Atlas Entry action")
-	_assert_true(tool._catalog_add_scene_button != null, "map edit tool exposes Add Scene Entry action")
-	_assert_true(tool._catalog_validate_button != null, "map edit tool exposes Validate Catalog action")
+	_assert_true(tool._catalog_entries_tree != null, "map edit tool keeps non-primary catalog entry list")
+	_assert_true(tool._catalog_add_atlas_button != null, "map edit tool keeps non-primary Add Atlas Entry action")
+	_assert_true(tool._catalog_add_scene_button != null, "map edit tool keeps non-primary Add Scene Entry action")
+	_assert_true(tool._catalog_validate_button != null, "map edit tool keeps non-primary Validate Catalog action")
+	_assert_true(not bool(tool.paint_brush_snapshot()["catalog_entry_management_visible"]), "SCREEN-20 Paint hides catalog entry management controls")
+	_assert_eq(
+		String(tool.paint_brush_snapshot()["catalog_entry_workflow_owner"]),
+		"Catalog",
+		"SCREEN-20 Paint points catalog editing to Catalog"
+	)
 	var catalog_rows = tool.catalog_entry_rows()
 	_assert_true(catalog_rows.size() >= 3, "catalog screen lists sample catalog entries")
 	var floor_row = _catalog_row_for_key(catalog_rows, "terrain.floor")
@@ -4947,6 +4976,12 @@ func _test_map_edit_tool_catalog_selectors_drive_defaults_and_payloads() -> void
 	_assert_eq(tool._floor_tile_payload["atlas_coords"], Vector2i(0, 0), "floor tile payload resolves catalog atlas")
 	_assert_true(not _control_row_visible(tool._tile_source_spin), "floor tile mode hides source id paint control")
 	_assert_true(not _control_row_visible(tool._tile_atlas_x_spin), "floor tile mode hides atlas coordinate paint controls")
+	_assert_true(bool(tool.paint_brush_snapshot()["catalog_key_selector_visible"]), "SCREEN-20 Paint shows catalog key selector for brush selection")
+	_assert_true(bool(tool.paint_brush_snapshot()["paint_consumes_catalog_key"]), "SCREEN-20 Paint consumes catalog key after selection")
+	_assert_true(
+		not bool(tool.paint_brush_snapshot()["raw_catalog_metadata_controls_primary"]),
+		"SCREEN-20 Paint keeps raw catalog metadata non-primary after selection"
+	)
 
 	tool.set_edit_mode(HexMapEditTool.EditMode.WALL_TILE)
 	tool._select_catalog_option_by_key(tool._tile_catalog_option, "terrain.wall")

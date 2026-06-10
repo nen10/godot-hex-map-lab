@@ -703,6 +703,13 @@ func paint_brush_snapshot() -> Dictionary:
 		"selected_object_definition_id": _selected_object_definition_id,
 		"selected_label_definition_id": _selected_label_definition_id,
 		"zone_mode_available": false,
+		"catalog_entry_workflow_owner": "Catalog",
+		"catalog_entry_management_visible": _catalog_entry_management_visible(),
+		"paint_consumes_catalog_key": true,
+		"catalog_key_selector_visible": _control_row_is_visible(_tile_catalog_option) \
+			or _control_row_is_visible(_object_catalog_option) \
+			or _control_row_is_visible(_overlay_item_key_option),
+		"raw_catalog_metadata_controls_primary": false,
 		"normal_internal_controls_visible": {
 			"source_id": _control_row_is_visible(_tile_source_spin),
 			"atlas_x": _control_row_is_visible(_tile_atlas_x_spin),
@@ -719,6 +726,14 @@ func paint_brush_snapshot() -> Dictionary:
 			"raw_label_id": _control_row_is_visible(_label_id_edit),
 		},
 	}
+
+
+func _catalog_entry_management_visible() -> bool:
+	return _control_effectively_visible(_catalog_entries_tree) \
+		or _control_effectively_visible(_catalog_add_atlas_button) \
+		or _control_effectively_visible(_catalog_add_scene_button) \
+		or _control_effectively_visible(_catalog_validate_button) \
+		or _control_effectively_visible(_catalog_scene_picker)
 
 
 func set_layer_stack_resource(stack: HexLayerStackResource, publish_context: bool = true) -> void:
@@ -1300,7 +1315,9 @@ func _build_ui() -> void:
 		_catalog_scene_picker = EditorResourcePicker.new()
 		_catalog_scene_picker.base_type = "PackedScene"
 		_catalog_scene_picker.resource_changed.connect(_on_catalog_scene_changed)
-		root.add_child(_wrap_labeled("Scene Entry Resource", _catalog_scene_picker))
+		var scene_entry_resource_row = _wrap_labeled("Scene Entry Resource", _catalog_scene_picker)
+		scene_entry_resource_row.visible = false
+		root.add_child(scene_entry_resource_row)
 
 	_catalog_entries_tree = Tree.new()
 	_catalog_entries_tree.hide_root = true
@@ -1313,10 +1330,14 @@ func _build_ui() -> void:
 	_catalog_entries_tree.set_column_title(4, "status")
 	_catalog_entries_tree.custom_minimum_size = Vector2(0, 132)
 	_catalog_entries_tree.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_catalog_entries_tree.visible = false
 	root.add_child(_catalog_entries_tree)
 	_catalog_status_label = _new_detail_label()
-	root.add_child(_wrap_labeled("Catalog Status", _catalog_status_label))
+	var catalog_status_row = _wrap_labeled("Catalog Status", _catalog_status_label)
+	catalog_status_row.visible = false
+	root.add_child(catalog_status_row)
 	var catalog_actions_row = HBoxContainer.new()
+	catalog_actions_row.visible = false
 	_catalog_add_atlas_button = Button.new()
 	_catalog_add_atlas_button.text = "Add Atlas Entry"
 	_catalog_add_atlas_button.pressed.connect(_on_add_catalog_atlas_entry_pressed)
@@ -3114,6 +3135,17 @@ func _control_row_is_visible(control) -> bool:
 	if parent is Control:
 		return (parent as Control).visible
 	return (control as Control).visible
+
+
+func _control_effectively_visible(control) -> bool:
+	if control == null or not (control is Control):
+		return false
+	var current: Node = control
+	while current != null:
+		if current is Control and not (current as Control).visible:
+			return false
+		current = current.get_parent()
+	return true
 
 
 func _paint_edit_mode_for_mode_id(mode_id: String) -> int:
