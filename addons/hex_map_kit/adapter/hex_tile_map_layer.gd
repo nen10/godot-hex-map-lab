@@ -131,6 +131,7 @@ var _hovered_hit_key := ""
 var _hex_map_setter_suppressed := false
 var _level_document_setter_suppressed := false
 var _pending_document_payloads = null
+var _last_tile_map_apply_report: Dictionary = {}
 var _tile_overrides_by_key: Dictionary = {}
 var _overlay_tiles_by_key: Dictionary = {}
 var _object_markers_by_key: Dictionary = {}
@@ -228,10 +229,10 @@ func _hex_polygon(center: Vector2) -> PackedVector2Array:
 	return points
 
 
-func apply_map(resource: HexMapResource) -> void:
+func apply_map(resource: HexMapResource, options: Dictionary = {}) -> Dictionary:
 	var binding := HexTileMapResourceBinding.prepare_map_resource(resource)
 	if not bool(binding.get("ok", false)):
-		return
+		return _store_tile_map_apply_report(_tile_map_apply_report(0, _tile_map_apply_chunk_size(options), true, false, options))
 	flat_top = bool(binding.get("flat_top", true))
 	_sync_hex_size_for_current_display()
 	_data = binding.get("map_data", null)
@@ -244,7 +245,7 @@ func apply_map(resource: HexMapResource) -> void:
 	_highlights.clear()
 	_display_path.clear()
 	_movement_range_overlay.clear()
-	_redraw()
+	return _redraw_with_options(options)
 
 
 func load_map_resource(resource: HexMapResource) -> void:
@@ -285,10 +286,10 @@ func to_document_resource() -> HexMapDocumentResource:
 	return document
 
 
-func apply_document(document) -> void:
+func apply_document(document, options: Dictionary = {}) -> Dictionary:
 	var apply_state := HexMapDocumentApplier.prepare_document_apply(document)
 	if not bool(apply_state.get("ok", false)):
-		return
+		return _store_tile_map_apply_report(_tile_map_apply_report(0, _tile_map_apply_chunk_size(options), true, false, options))
 	if document is HexMapDocumentResource and level_document_resource != document:
 		_level_document_setter_suppressed = true
 		level_document_resource = document
@@ -300,9 +301,12 @@ func apply_document(document) -> void:
 	_hex_map_setter_suppressed = false
 	if not is_node_ready():
 		_pending_document_payloads = snapshot
-		return
-	apply_map(resource)
+		return _store_tile_map_apply_report(_tile_map_apply_report(0, _tile_map_apply_chunk_size(options), true, true, options))
+	var report := apply_map(resource, options)
+	if bool(report.get("cancelled", false)):
+		return report
 	_apply_document_payloads(snapshot)
+	return report
 
 
 func apply_document_to_layer_stack(
@@ -338,7 +342,9 @@ func apply_document_to_layer_stack(
 	_apply_layer_stack_tile_options(options)
 	_configure_tile_map()
 	_sync_stack_tile_map_sets(role_layers)
-	apply_map(resource)
+	var report := apply_map(resource, options)
+	if bool(report.get("cancelled", false)):
+		return false
 	_apply_document_payloads(snapshot)
 	if object_layer is TileMapLayer:
 		apply_object_scene_tiles_to_layer(snapshot, object_layer as TileMapLayer, options)
@@ -407,6 +413,10 @@ func apply_object_instances(document, parent: Node = null, options: Dictionary =
 
 func object_instance_layer() -> Node2D:
 	return _object_instance_layer
+
+
+func last_tile_map_apply_report() -> Dictionary:
+	return _last_tile_map_apply_report.duplicate(true)
 
 
 func apply_document_cell(document, hex: HexVector) -> bool:
@@ -1205,17 +1215,107 @@ func _toric_period_candidates(hex: HexVector, rect: Rect2 = Rect2()) -> Array:
 
 
 func _redraw() -> void:
+	_redraw_with_options()
+
+
+func _redraw_with_options(options: Dictionary = {}) -> Dictionary:
 	if _tile_map == null or _data == null:
-		return
+		return _store_tile_map_apply_report(_tile_map_apply_report(0, _tile_map_apply_chunk_size(options), true, false, options))
 	_configure_tile_map()
+	var entries := HexMapTileAdapter.to_tile_entries(_data, true, true, flat_top)
+	var chunk_size := _tile_map_apply_chunk_size(options)
+	var report := _tile_map_apply_report(entries.size(), chunk_size, true, true, options)
 	_tile_map.clear()
+	report["cleared"] = true
 	if _overlay_tile_map != null:
 		_overlay_tile_map.clear()
-	for entry in HexMapTileAdapter.to_tile_entries(_data, true, true, flat_top):
+	if _report_tile_map_apply_progress(options, report, "clear"):
+		return _store_tile_map_apply_report(_cancel_tile_map_apply_report(report))
+	for entry in entries:
 		_set_tile_cell_for_hex(_tile_map, entry["map_cell"], entry["vector"])
+		report["processed_cells"] = int(report["processed_cells"]) + 1
+		report["written_cells"] = int(report["written_cells"]) + 1
+		if _tile_map_apply_chunk_due(int(report["processed_cells"]), int(report["total_cells"]), chunk_size):
+			if _report_tile_map_apply_progress(options, report, "tiles"):
+				return _store_tile_map_apply_report(_cancel_tile_map_apply_report(report))
 	_redraw_overlay_tile_map()
 	refresh_loop_display()
 	_queue_visual_redraw()
+	report["ok"] = true
+	report["error"] = OK
+	report["progress"] = 1.0
+	_report_tile_map_apply_progress(options, report, "complete")
+	return _store_tile_map_apply_report(report)
+
+
+func _tile_map_apply_report(
+	total_cells: int,
+	chunk_size: int,
+	clear_layer: bool,
+	target_available: bool,
+	options: Dictionary
+) -> Dictionary:
+	return {
+		"ok": false,
+		"error": OK if target_available else ERR_INVALID_PARAMETER,
+		"cancelled": false,
+		"blocked_reason": "" if target_available else "Missing HexTileMapLayer display target or map data.",
+		"target_scope": {
+			"target_kind": "hex_tile_map_layer",
+			"target_class": "HexTileMapLayer",
+			"target_name": name,
+			"display_layer": _tile_map.name if _tile_map != null else "",
+		},
+		"apply_reason": String(options.get("apply_reason", "hex_tile_map_layer_apply")),
+		"clear_layer": clear_layer,
+		"cleared": false,
+		"chunked": true,
+		"chunk_size": chunk_size,
+		"total_cells": total_cells,
+		"processed_cells": 0,
+		"written_cells": 0,
+		"progress": 0.0 if total_cells > 0 else 1.0,
+		"progress_event_count": 0,
+		"last_phase": "start",
+	}
+
+
+func _store_tile_map_apply_report(report: Dictionary) -> Dictionary:
+	_last_tile_map_apply_report = report.duplicate(true)
+	return report
+
+
+func _tile_map_apply_chunk_size(options: Dictionary) -> int:
+	return max(1, int(options.get("chunk_size", options.get("apply_chunk_size", 256))))
+
+
+func _tile_map_apply_chunk_due(processed_cells: int, total_cells: int, chunk_size: int) -> bool:
+	return processed_cells >= total_cells or processed_cells % chunk_size == 0
+
+
+func _report_tile_map_apply_progress(options: Dictionary, report: Dictionary, phase: String) -> bool:
+	var total_cells := int(report.get("total_cells", 0))
+	var processed_cells := int(report.get("processed_cells", 0))
+	report["last_phase"] = phase
+	report["progress"] = 1.0 if total_cells <= 0 else clampf(float(processed_cells) / float(total_cells), 0.0, 1.0)
+	report["progress_event_count"] = int(report.get("progress_event_count", 0)) + 1
+	var status := report.duplicate(true)
+	status["phase"] = phase
+	var progress_callback = options.get("progress_callback", Callable())
+	if progress_callback is Callable and progress_callback.is_valid():
+		progress_callback.call(status)
+	var cancel_callback = options.get("cancel_callback", Callable())
+	if cancel_callback is Callable and cancel_callback.is_valid() and bool(cancel_callback.call(status)):
+		return true
+	return bool(options.get("cancel_requested", false))
+
+
+func _cancel_tile_map_apply_report(report: Dictionary) -> Dictionary:
+	report["ok"] = false
+	report["error"] = ERR_BUSY
+	report["cancelled"] = true
+	report["blocked_reason"] = "Apply cancelled."
+	return report
 
 
 func _update_tile(hex: HexVector) -> void:

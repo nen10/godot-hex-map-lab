@@ -67,7 +67,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | `ARCH-NEXT-10` | `COMPLETE` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-10_PHYSICAL_WORKSPACE_UI_NODE_EXTRACTION/` | Physical Workspace UI node construction extraction | `HexMapWorkspace`, screen component scripts, tests | Workspace is tab host/context/dispatcher; screen-specific UI node construction moves to screen component classes; screen contract tests cover class ownership. |
 | `ARCH-NEXT-11` | `COMPLETE` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-11_GENERATE_DOCK_INTERNAL_COMPONENT_SPLIT/` | Generate Dock internal component split | `hex_map_gen_dock.gd`, Generate components, tests | Generate run controls, profile/source controls, preview/result summary, output/apply/save controls split; `HexMapGenDock` orchestrates state binding. |
 | `CAT-NEXT-10` | `COMPLETE` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/CAT-NEXT-10_CATALOG_EDITOR_COMPONENT_EXTRACTION/` | Catalog editor component extraction | Catalog screen/components, EditTool helper cleanup, tests | Catalog entry list/detail/create/validate is dedicated component; Paint/EditTool no longer own normal Catalog UI responsibility. |
-| `PERF-NEXT-10` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PERF-NEXT-10_CHUNKED_TILEMAP_APPLY_IMPLEMENTATION/` | Chunked TileMap apply implementation | apply paths, progress/busy state, tests | Target apply scope is explicit; apply advances by chunks; progress/busy state and cancel/interrupt consistency are defined and tested. |
+| `PERF-NEXT-10` | `COMPLETE` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PERF-NEXT-10_CHUNKED_TILEMAP_APPLY_IMPLEMENTATION/` | Chunked TileMap apply implementation | apply paths, progress/busy state, tests | Target apply scope is explicit; apply advances by chunks; progress/busy state and cancel/interrupt consistency are defined and tested. |
 
 ---
 
@@ -92,7 +92,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `PERF-NEXT-11` | `BACKLOG` | `PERF-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PERF-NEXT-11_LARGE_MAP_VALIDATION_PROGRESS/` | Large-map validation progress | validator/progress state/tests | Validation traversal reports phase/progress and connects to Validate/Generate busy state. |
+| `PERF-NEXT-11` | `READY` | `PERF-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PERF-NEXT-11_LARGE_MAP_VALIDATION_PROGRESS/` | Large-map validation progress | validator/progress state/tests | Validation traversal reports phase/progress and connects to Validate/Generate busy state. |
 | `GENPIPE-NEXT-10` | `BACKLOG` | `GEN-NEXT-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GENPIPE-NEXT-10_GENERATION_RESULT_RESOURCE_AND_REPLAY_API/` | GenerationResultResource and replay API | new Resource/API/tests | primary/overlay/filter/candidate/validation result scope is defined; Generate/QA can replay/promote result resources. |
 | `GENPIPE-NEXT-20` | `BACKLOG` | `GENPIPE-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GENPIPE-NEXT-20_PIPELINE_GRAPH_UI_RESEARCH_AND_SPIKE/` | Pipeline graph UI research/spike | review docs/prototype if needed | Resource pass / linear pipeline / node graph options are updated; pass graph is either scoped or explicitly rejected. |
 | `PROFILE-NEXT-10` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROFILE-NEXT-10_CONCRETE_PROFILE_BEHAVIOR_SCHEMAS/` | Concrete profile behavior schemas | profile Resources, editors/tests | Validation Suite, Generation Profile, and Export Profile gain real behavior schemas and editor/screen connections. |
@@ -140,7 +140,7 @@ acceptance / test path:
 
 ## 9. Current pointer
 
-Current recommended next task: `PERF-NEXT-10`.
+Current recommended next task: `GEN-NEXT-10`.
 
 Reason:
 
@@ -162,10 +162,13 @@ Reason:
 - `ARCH-NEXT-10` is complete.
 - `ARCH-NEXT-11` is complete.
 - `CAT-NEXT-10` is complete.
-- `PERF-NEXT-10` is the first READY task in queue order.
+- `PERF-NEXT-10` is complete.
+- Phase M3 review is recorded at `docs/review/roadmap/UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP_M3_PHASE_REVIEW_2026-06-10.md`.
+- `GEN-NEXT-10` is the first READY task in queue order.
 - `GEN-NEXT-10` is READY because `ARCH-NEXT-11` is complete.
 - `CAT-NEXT-11` is READY because `CAT-NEXT-10` is complete.
 - `SCREEN-NEXT-10` is READY because `ARCH-NEXT-10` is complete.
+- `PERF-NEXT-11` is READY because `PERF-NEXT-10` is complete.
 - `ARCH-NEXT-20` is READY because `ARCH-NEXT-10` is complete.
 - `TEST-NEXT-10` remains READY because `UI-METRIC-08` is complete.
 
@@ -511,3 +514,26 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_edit_tool.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/CAT-NEXT-10_TEST_RESULT_2026-06-10.md`
+
+### PERF-NEXT-10 Chunked TileMap apply implementation
+
+proof:
+  plan: `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PERF-NEXT-10_CHUNKED_TILEMAP_APPLY_IMPLEMENTATION/`
+  review: `docs/review/autopilot/PERF-NEXT-10_SELF_REVIEW_2026-06-10.md`
+  execution:
+    - `docs/review/autopilot/PERF-NEXT-10_SELF_REVIEW_2026-06-10.md`
+  ui_metrics:
+    - `.godot_user/ui-metrics/20260610-192211-13770/workspace_layout_metrics.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+    - `docs/review/roadmap/UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP_M3_PHASE_REVIEW_2026-06-10.md`
+  major files:
+    - `addons/hex_map_kit/adapter/hex_map_tile_adapter.gd`
+    - `addons/hex_map_kit/adapter/hex_map_document_adapter.gd`
+    - `addons/hex_map_kit/adapter/hex_tile_map_layer.gd`
+    - `addons/hex_map_kit/editor/hex_map_gen_dock.gd`
+    - `addons/hex_map_kit/editor/hex_map_generation_run_state.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/PERF-NEXT-10_TEST_RESULT_2026-06-10.md`

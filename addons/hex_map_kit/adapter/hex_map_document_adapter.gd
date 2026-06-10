@@ -167,10 +167,15 @@ static func copy_document_state(target, source) -> void:
 	target.metadata = source.metadata.duplicate(true) if source.metadata != null else null
 
 
-static func apply_to_tile_map_layer(document, layer, options: Dictionary = {}) -> void:
+static func apply_to_tile_map_layer(document, layer, options: Dictionary = {}) -> Dictionary:
 	var data = _document_map_data(document)
 	if data == null or layer == null:
-		return
+		return {
+			"ok": false,
+			"error": ERR_INVALID_PARAMETER,
+			"cancelled": false,
+			"blocked_reason": "Missing document map data or TileMap target.",
+		}
 	var flat_top = _document_orientation(document) == HexMapResourceScript.ORIENTATION_FLAT_TOP
 	var tile_catalog = options.get("tile_catalog", null)
 	var floor_catalog_key = String(options.get("floor_catalog_key", ""))
@@ -194,7 +199,7 @@ static func apply_to_tile_map_layer(document, layer, options: Dictionary = {}) -
 			options.get("wall_atlas_coords", Vector2i(1, 0)),
 			int(options.get("wall_alternative_tile", 0))
 		)
-	HexMapTileAdapterScript.apply_to_tile_map_layer(
+	var apply_report := HexMapTileAdapterScript.apply_to_tile_map_layer_chunked(
 		layer,
 		data,
 		int(floor_config.get("source_id", -1)),
@@ -204,10 +209,14 @@ static func apply_to_tile_map_layer(document, layer, options: Dictionary = {}) -
 		bool(options.get("clear_layer", true)),
 		flat_top,
 		int(floor_config.get("alternative_tile", 0)),
-		int(wall_config.get("alternative_tile", 0))
+		int(wall_config.get("alternative_tile", 0)),
+		options
 	)
+	if bool(apply_report.get("cancelled", false)):
+		return apply_report
 	var cell_set = data.cell_set()
 	var wall_set = data.wall_set()
+	var override_entries_processed := 0
 	for entry in document_tile_entries(document):
 		var hex = _hex_from_component(entry.get("cell", Vector3i.ZERO))
 		if not cell_set.has(hex.key()):
@@ -221,6 +230,9 @@ static func apply_to_tile_map_layer(document, layer, options: Dictionary = {}) -
 		if entry_kind == KIND_WALL and not is_wall:
 			continue
 		_apply_tile_override(layer, _resolve_catalog_tile_entry(entry, tile_catalog, debug_numeric_fallback), flat_top)
+		override_entries_processed += 1
+	apply_report["override_entries_processed"] = override_entries_processed
+	return apply_report
 
 static func set_wall(document, hex, wall: bool) -> void:
 	var map_resource = _document_map_resource(document)

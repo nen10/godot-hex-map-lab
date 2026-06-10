@@ -250,6 +250,7 @@ func _run() -> void:
 	await _test_generation_dock_promotes_batch_seed_to_canonical_document()
 	await _test_generation_dock_only_generates_from_generate_button()
 	await _test_generation_dock_wires_core_progress_and_cancel()
+	_test_tile_map_adapter_chunked_apply_reports_progress_and_cancel()
 	await _test_generation_dock_applies_configured_tile_entries()
 	await _test_generation_dock_applies_orientation_to_tile_entries()
 	await _test_generation_dock_resource_stores_orientation()
@@ -7210,6 +7211,71 @@ func _test_generation_dock_wires_core_progress_and_cancel() -> void:
 	await process_frame
 
 
+func _test_tile_map_adapter_chunked_apply_reports_progress_and_cancel() -> void:
+	var data = HexMapData.rectangle(5, 1)
+	var fake_layer = FakeTileLayer.new()
+	var progress_events: Array = []
+	var report := HexMapTileAdapter.apply_to_tile_map_layer_chunked(
+		fake_layer,
+		data,
+		4,
+		Vector2i(2, 3),
+		5,
+		Vector2i(6, 7),
+		true,
+		true,
+		0,
+		0,
+		{
+			"chunk_size": 2,
+			"apply_reason": "test_chunked_apply",
+			"progress_callback": Callable(self, "_capture_apply_progress_event").bind(progress_events),
+		}
+	)
+	_assert_true(bool(report["ok"]), "PERF-NEXT-10 chunked apply completes")
+	_assert_true(bool(report["chunked"]), "PERF-NEXT-10 report marks apply as chunked")
+	_assert_eq(int(report["chunk_size"]), 2, "PERF-NEXT-10 report stores chunk size")
+	_assert_eq(int(report["total_cells"]), 5, "PERF-NEXT-10 report stores target cell count")
+	_assert_eq(int(report["processed_cells"]), 5, "PERF-NEXT-10 report stores processed cell count")
+	_assert_eq(int(report["written_cells"]), 5, "PERF-NEXT-10 report stores written cell count")
+	_assert_eq(fake_layer.calls.size(), 5, "PERF-NEXT-10 chunked apply writes each cell")
+	_assert_true(progress_events.size() >= 4, "PERF-NEXT-10 chunked apply emits clear/chunk/complete progress")
+	_assert_eq(String((progress_events[0] as Dictionary)["phase"]), "clear", "PERF-NEXT-10 first progress phase is clear")
+	_assert_eq(
+		String((progress_events[progress_events.size() - 1] as Dictionary)["phase"]),
+		"complete",
+		"PERF-NEXT-10 final progress phase is complete"
+	)
+	_assert_eq(
+		String((report["target_scope"] as Dictionary)["target_kind"]),
+		"tile_map",
+		"PERF-NEXT-10 report stores target scope"
+	)
+
+	var cancel_layer = FakeTileLayer.new()
+	var cancel_report := HexMapTileAdapter.apply_to_tile_map_layer_chunked(
+		cancel_layer,
+		data,
+		4,
+		Vector2i(2, 3),
+		5,
+		Vector2i(6, 7),
+		true,
+		true,
+		0,
+		0,
+		{
+			"chunk_size": 2,
+			"apply_reason": "test_cancelled_apply",
+			"cancel_callback": Callable(self, "_cancel_apply_after_processed").bind(2),
+		}
+	)
+	_assert_true(bool(cancel_report["cancelled"]), "PERF-NEXT-10 chunked apply cancel callback cancels apply")
+	_assert_true(not bool(cancel_report["ok"]), "PERF-NEXT-10 cancelled apply is not ok")
+	_assert_eq(int(cancel_report["processed_cells"]), 2, "PERF-NEXT-10 cancelled apply stops at chunk boundary")
+	_assert_eq(cancel_layer.calls.size(), 2, "PERF-NEXT-10 cancelled apply does not write later chunks")
+
+
 func _test_generation_dock_applies_configured_tile_entries() -> void:
 	var dock = await _new_ready_dock()
 
@@ -7747,10 +7813,26 @@ func _test_generation_dock_output_target_preview_and_selected_document() -> void
 	_assert_eq(String(ready_output["document_result_state"]), "ready_to_apply", "UI-03 document output state is ready to apply")
 	var apply_result = dock.apply_current_generation_to_selected_document()
 	_assert_true(bool(apply_result["ok"]), "NODE-24 applies current generation to selected document")
+	var apply_report = apply_result["apply_report"] as Dictionary
+	_assert_true(bool(apply_report["ok"]), "PERF-NEXT-10 selected document apply report succeeds")
+	_assert_true(bool(apply_report["chunked"]), "PERF-NEXT-10 selected document apply uses chunked report")
+	_assert_eq(int(apply_report["total_cells"]), 2, "PERF-NEXT-10 selected document report stores target cell count")
+	_assert_eq(int(apply_report["processed_cells"]), 2, "PERF-NEXT-10 selected document report stores processed count")
+	_assert_eq(
+		String((apply_report["target_scope"] as Dictionary)["target_kind"]),
+		"hex_tile_map_layer",
+		"PERF-NEXT-10 selected document report stores HexTileMapLayer target scope"
+	)
 	_assert_eq(HexMapDocumentAdapter.document_summary(document)["cells"], 2, "NODE-24 apply replaces selected Level Document terrain")
 	_assert_eq(workspace.workspace_asset_context().level_document, document, "NODE-24 apply updates workspace Level Document relationship")
 	_assert_eq(session.current_document(), document, "NODE-24 apply updates session current document")
 	var applied_output = dock.output_target_snapshot()
+	var output_apply_report = applied_output["last_tile_map_apply_report"] as Dictionary
+	_assert_eq(
+		int(output_apply_report["processed_cells"]),
+		2,
+		"PERF-NEXT-10 output target snapshot stores last chunked apply report"
+	)
 	_assert_eq(String(applied_output["document_result_state"]), "updated", "UI-03 document output state reflects applied generation")
 	_assert_true(String(applied_output["visible_status_text"]).contains("Document: updated"), "UI-03 visible status exposes applied document result")
 	var applied_screen = workspace.generation_screen_snapshot()
@@ -9050,6 +9132,15 @@ func _assert_created_asset_has_no_sample_payload(slot_id: String, resource: Reso
 		HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE:
 			var export_profile := resource as HexExportProfileResource
 			_assert_true(not export_profile.profile_id.contains("sample"), "create-new export profile is not sample-named")
+
+
+func _capture_apply_progress_event(status: Dictionary, events: Array) -> void:
+	events.append(status.duplicate(true))
+
+
+func _cancel_apply_after_processed(status: Dictionary, processed_limit: int) -> bool:
+	return String(status.get("phase", "")) == "tiles" \
+		and int(status.get("processed_cells", 0)) >= processed_limit
 
 
 func _assert_true(value: bool, message: String) -> void:

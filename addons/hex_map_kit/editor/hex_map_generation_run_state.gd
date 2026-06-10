@@ -42,6 +42,7 @@ var tile_settings_pending := false
 var tile_settings_token := 0
 var tile_settings_apply_count := 0
 var tile_settings_last_apply_result := false
+var tile_map_apply_report: Dictionary = {}
 var generated_preview_present := false
 var output_target_mode := ""
 var dirty_document := false
@@ -69,6 +70,8 @@ func update_from_context(context: Dictionary) -> void:
 		"tile_settings_last_apply_result",
 		tile_settings_last_apply_result
 	))
+	var report = context.get("tile_map_apply_report", tile_map_apply_report)
+	tile_map_apply_report = report.duplicate(true) if report is Dictionary else {}
 	generated_preview_present = bool(context.get("generated_preview_present", generated_preview_present))
 	output_target_mode = String(context.get("output_target_mode", output_target_mode))
 	dirty_document = bool(context.get("dirty_document", dirty_document))
@@ -96,6 +99,7 @@ func to_status_snapshot() -> Dictionary:
 		"cancel_available": cancel_available,
 		"block_reason": block_reason,
 		"failure_reason": failure_reason,
+		"tile_map_apply_report": tile_map_apply_report.duplicate(true),
 	}
 
 
@@ -115,6 +119,7 @@ func to_progress_snapshot(current_step_text: String = "") -> Dictionary:
 		"modal_window_count": modal_window_count,
 		"block_reason": block_reason,
 		"failure_reason": failure_reason,
+		"tile_map_apply_report": tile_map_apply_report.duplicate(true),
 	}
 
 
@@ -142,6 +147,7 @@ func to_view_state(current_step_text: String = "") -> Dictionary:
 		"heavy_update_reason": heavy_update_reason,
 		"orientation": orientation,
 		"tile_size": tile_size,
+		"tile_map_apply_report": tile_map_apply_report.duplicate(true),
 	}
 
 
@@ -156,6 +162,7 @@ func tile_settings_snapshot(current_step_text: String = "") -> Dictionary:
 		"heavy_update_reason": heavy_update_reason,
 		"orientation": orientation,
 		"tile_size": tile_size,
+		"tile_map_apply_report": tile_map_apply_report.duplicate(true),
 		"progress": to_progress_snapshot(current_step_text),
 	}
 

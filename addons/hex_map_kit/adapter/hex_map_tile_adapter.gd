@@ -107,19 +107,66 @@ static func apply_to_tile_map_layer(
 	flat_top: bool = true,
 	floor_alternative_tile: int = 0,
 	wall_alternative_tile: int = 0
-) -> void:
+) -> Dictionary:
+	return apply_to_tile_map_layer_chunked(
+		layer,
+		data,
+		floor_source_id,
+		floor_atlas_coords,
+		wall_source_id,
+		wall_atlas_coords,
+		clear_layer,
+		flat_top,
+		floor_alternative_tile,
+		wall_alternative_tile
+	)
+
+
+static func apply_to_tile_map_layer_chunked(
+	layer,
+	data,
+	floor_source_id: int = 0,
+	floor_atlas_coords: Vector2i = Vector2i.ZERO,
+	wall_source_id: int = 0,
+	wall_atlas_coords: Vector2i = Vector2i(1, 0),
+	clear_layer: bool = true,
+	flat_top: bool = true,
+	floor_alternative_tile: int = 0,
+	wall_alternative_tile: int = 0,
+	options: Dictionary = {}
+) -> Dictionary:
+	var entries := to_tile_entries(data, true, true, flat_top) if data != null else []
+	var chunk_size := _apply_chunk_size(options)
+	var report := _apply_report(layer, entries.size(), chunk_size, clear_layer, options)
+	if layer == null or data == null:
+		report["ok"] = false
+		report["error"] = ERR_INVALID_PARAMETER
+		report["blocked_reason"] = "Missing TileMap target or map data."
+		return report
 	if clear_layer and layer.has_method("clear"):
 		layer.clear()
+		report["cleared"] = true
+	if _report_apply_progress(options, report, "clear"):
+		return _cancel_apply_report(report)
 
-	for entry in to_tile_entries(data, true, true, flat_top):
+	for entry in entries:
 		if entry["kind"] == KIND_WALL:
-			if wall_source_id < 0:
-				continue
-			layer.set_cell(entry["map_cell"], wall_source_id, wall_atlas_coords, wall_alternative_tile)
+			if wall_source_id >= 0:
+				layer.set_cell(entry["map_cell"], wall_source_id, wall_atlas_coords, wall_alternative_tile)
+				report["written_cells"] = int(report["written_cells"]) + 1
 		else:
-			if floor_source_id < 0:
-				continue
-			layer.set_cell(entry["map_cell"], floor_source_id, floor_atlas_coords, floor_alternative_tile)
+			if floor_source_id >= 0:
+				layer.set_cell(entry["map_cell"], floor_source_id, floor_atlas_coords, floor_alternative_tile)
+				report["written_cells"] = int(report["written_cells"]) + 1
+		report["processed_cells"] = int(report["processed_cells"]) + 1
+		if _apply_chunk_due(int(report["processed_cells"]), int(report["total_cells"]), chunk_size):
+			if _report_apply_progress(options, report, "tiles"):
+				return _cancel_apply_report(report)
+	report["ok"] = true
+	report["error"] = OK
+	report["progress"] = 1.0
+	_report_apply_progress(options, report, "complete")
+	return report
 
 
 static func apply_to_tile_map_layer_with_catalog(
@@ -129,10 +176,10 @@ static func apply_to_tile_map_layer_with_catalog(
 	floor_catalog_key: String,
 	wall_catalog_key: String,
 	options: Dictionary = {}
-) -> void:
+) -> Dictionary:
 	var floor_config = tile_config_from_catalog(catalog, floor_catalog_key)
 	var wall_config = tile_config_from_catalog(catalog, wall_catalog_key)
-	apply_to_tile_map_layer(
+	return apply_to_tile_map_layer(
 		layer,
 		data,
 		int(floor_config.get("source_id", -1)),
@@ -144,6 +191,81 @@ static func apply_to_tile_map_layer_with_catalog(
 		int(floor_config.get("alternative_tile", 0)),
 		int(wall_config.get("alternative_tile", 0))
 	)
+
+
+static func _apply_report(
+	layer,
+	total_cells: int,
+	chunk_size: int,
+	clear_layer: bool,
+	options: Dictionary
+) -> Dictionary:
+	return {
+		"ok": false,
+		"error": OK,
+		"cancelled": false,
+		"blocked_reason": "",
+		"target_scope": _apply_target_scope(layer),
+		"apply_reason": String(options.get("apply_reason", "tile_map_apply")),
+		"clear_layer": clear_layer,
+		"cleared": false,
+		"chunked": true,
+		"chunk_size": chunk_size,
+		"total_cells": total_cells,
+		"processed_cells": 0,
+		"written_cells": 0,
+		"progress": 0.0 if total_cells > 0 else 1.0,
+		"progress_event_count": 0,
+		"last_phase": "start",
+	}
+
+
+static func _apply_target_scope(layer) -> Dictionary:
+	var target_class := "set_cell_target"
+	var target_name := ""
+	if layer is Object:
+		var object := layer as Object
+		target_class = object.get_class()
+		if object is Node:
+			target_name = (object as Node).name
+	return {
+		"target_kind": "tile_map",
+		"target_class": target_class,
+		"target_name": target_name,
+	}
+
+
+static func _apply_chunk_size(options: Dictionary) -> int:
+	return max(1, int(options.get("chunk_size", options.get("apply_chunk_size", 256))))
+
+
+static func _apply_chunk_due(processed_cells: int, total_cells: int, chunk_size: int) -> bool:
+	return processed_cells >= total_cells or processed_cells % chunk_size == 0
+
+
+static func _report_apply_progress(options: Dictionary, report: Dictionary, phase: String) -> bool:
+	var total_cells := int(report.get("total_cells", 0))
+	var processed_cells := int(report.get("processed_cells", 0))
+	report["last_phase"] = phase
+	report["progress"] = 1.0 if total_cells <= 0 else clampf(float(processed_cells) / float(total_cells), 0.0, 1.0)
+	report["progress_event_count"] = int(report.get("progress_event_count", 0)) + 1
+	var status := report.duplicate(true)
+	status["phase"] = phase
+	var progress_callback = options.get("progress_callback", Callable())
+	if progress_callback is Callable and progress_callback.is_valid():
+		progress_callback.call(status)
+	var cancel_callback = options.get("cancel_callback", Callable())
+	if cancel_callback is Callable and cancel_callback.is_valid() and bool(cancel_callback.call(status)):
+		return true
+	return bool(options.get("cancel_requested", false))
+
+
+static func _cancel_apply_report(report: Dictionary) -> Dictionary:
+	report["ok"] = false
+	report["error"] = ERR_BUSY
+	report["cancelled"] = true
+	report["blocked_reason"] = "Apply cancelled."
+	return report
 
 
 static func configure_hex_tile_set(

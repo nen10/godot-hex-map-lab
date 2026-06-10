@@ -266,6 +266,7 @@ var _generation_thread: Thread
 var _generation_mutex := Mutex.new()
 var _generation_id := 0
 var _generation_chunk_size := 1
+var _tile_map_apply_chunk_size := 256
 var _generation_progress_delay_usec := 0
 var _generation_core_progress_event_count := 0
 var _generation_cancel_poll_count := 0
@@ -295,6 +296,7 @@ var _last_batch_generation_results: Array[Dictionary] = []
 var _last_promoted_generation_document = null
 var _last_generation_snapshot: Dictionary = {}
 var _last_output_apply_result: Dictionary = {}
+var _last_tile_map_apply_report: Dictionary = {}
 var _last_save_result: Dictionary = {}
 
 
@@ -717,6 +719,7 @@ func output_target_snapshot() -> Dictionary:
 		"blocked_reason": block_reason,
 		"document_generation_metadata": relationship_metadata,
 		"last_apply": _last_output_apply_result.duplicate(true),
+		"last_tile_map_apply_report": _last_tile_map_apply_report.duplicate(true),
 	}
 	snapshot["preview_result_state"] = _output_preview_result_state(snapshot)
 	snapshot["document_result_state"] = _output_document_result_state(snapshot)
@@ -826,7 +829,19 @@ func apply_current_generation_to_selected_document() -> Dictionary:
 	)
 	HexMapDocumentAdapter.copy_document_state(target_document, generated_document)
 	selected_layer.level_document_resource = target_document
-	selected_layer.apply_document(target_document)
+	var apply_report := selected_layer.apply_document(
+		target_document,
+		_tile_map_apply_options("selected_document_apply")
+	)
+	if bool(apply_report.get("cancelled", false)):
+		return _record_output_apply_result(
+			false,
+			int(apply_report.get("error", ERR_BUSY)),
+			String(apply_report.get("blocked_reason", "Apply cancelled.")),
+			selected_layer,
+			target_document,
+			apply_report
+		)
 	var context := workspace_asset_context()
 	if context != null:
 		context.set_level_document(target_document)
@@ -837,7 +852,7 @@ func apply_current_generation_to_selected_document() -> Dictionary:
 			target_document.resource_path,
 			"generate.output_target.apply_selected_document"
 		)
-	return _record_output_apply_result(true, OK, "", selected_layer, target_document)
+	return _record_output_apply_result(true, OK, "", selected_layer, target_document, apply_report)
 
 
 func _on_output_target_selected(index: int) -> void:
@@ -973,7 +988,8 @@ func _record_output_apply_result(
 	error: int,
 	blocked_reason: String,
 	selected_layer: HexTileMapLayer,
-	document
+	document,
+	apply_report: Dictionary = {}
 ) -> Dictionary:
 	_last_output_apply_result = {
 		"ok": ok,
@@ -985,7 +1001,10 @@ func _record_output_apply_result(
 		"selected_document": document,
 		"selected_document_path": document.resource_path if document != null else "",
 		"document_generation_metadata": _document_generation_metadata_snapshot(document),
+		"apply_report": apply_report.duplicate(true),
 	}
+	if not apply_report.is_empty():
+		_last_tile_map_apply_report = apply_report.duplicate(true)
 	_refresh_output_target_status()
 	return _last_output_apply_result.duplicate(true)
 
@@ -2605,7 +2624,7 @@ func _on_apply_layer_pressed() -> void:
 		else:
 			apply_current_overlay_data_to_tile_map_layer(layer)
 	else:
-		apply_current_data_to_tile_map_layer(layer)
+		apply_current_data_to_tile_map_layer(layer, "manual_apply")
 	_publish_session_target("generate.apply_layer")
 	print("Applied hex map to target layer: %s" % layer.name)
 
@@ -2633,7 +2652,7 @@ func _apply_tile_settings_to_current_layer() -> bool:
 	if _overlay_mode_enabled():
 		ok = apply_current_overlay_data_to_tile_map_layer(layer)
 	else:
-		ok = apply_current_data_to_tile_map_layer(layer)
+		ok = apply_current_data_to_tile_map_layer(layer, "tile_settings")
 	_tile_settings_last_apply_result = ok
 	_finish_generation_progress_controls_success("Tile settings applied" if ok else "Failed")
 	_sync_generation_run_state()
@@ -2786,7 +2805,7 @@ func _find_target_tile_map_layer_and_apply_current() -> bool:
 	if _current_data != null:
 		_last_generation_apply_order = _next_generation_event_order()
 		_last_generation_validation_summary["apply_order"] = _last_generation_apply_order
-		return apply_current_data_to_tile_map_layer(layer)
+		return apply_current_data_to_tile_map_layer(layer, "generated_preview_apply")
 	return false
 
 
@@ -2898,6 +2917,7 @@ func _sync_generation_run_state(heavy_update_reason: String = "") -> void:
 		"tile_settings_token": _tile_settings_apply_debounce_token,
 		"tile_settings_apply_count": _tile_settings_apply_count,
 		"tile_settings_last_apply_result": _tile_settings_last_apply_result,
+		"tile_map_apply_report": _last_tile_map_apply_report.duplicate(true),
 		"generated_preview_present": _generated_output_present(),
 		"output_target_mode": _output_target_mode,
 		"dirty_document": bool(last_apply.get("ok", false)),
@@ -3464,14 +3484,48 @@ func request_generation_cancel() -> void:
 	_set_generation_progress_cancel_enabled(false)
 
 
-func apply_current_data_to_tile_map_layer(layer) -> bool:
+func _tile_map_apply_options(apply_reason: String) -> Dictionary:
+	return {
+		"chunk_size": _tile_map_apply_chunk_size,
+		"apply_reason": apply_reason,
+		"progress_callback": Callable(self, "_on_tile_map_apply_progress"),
+		"cancel_callback": Callable(self, "_on_tile_map_apply_cancel_requested"),
+	}
+
+
+func _on_tile_map_apply_progress(status: Dictionary) -> void:
+	_last_tile_map_apply_report = status.duplicate(true)
+	var progress := float(status.get("progress", 0.0))
+	var mapped := clampf(
+		GENERATION_PROGRESS_APPLY + progress * (GENERATION_PROGRESS_FINALIZE - GENERATION_PROGRESS_APPLY),
+		0.0,
+		1.0
+	)
+	_set_generation_progress(mapped, _tile_map_apply_status_text(status))
+	_sync_generation_run_state(String(status.get("apply_reason", "tile_map_apply")))
+
+
+func _on_tile_map_apply_cancel_requested(_status: Dictionary) -> bool:
+	return _is_generation_cancel_requested()
+
+
+func _tile_map_apply_status_text(status: Dictionary) -> String:
+	var reason := String(status.get("apply_reason", "tile_map_apply"))
+	if bool(status.get("cancelled", false)):
+		return "Cancel requested"
+	if reason == "tile_settings":
+		return "Applying tile settings"
+	return "Applying generated result"
+
+
+func apply_current_data_to_tile_map_layer(layer, apply_reason: String = "tile_map_apply") -> bool:
 	if _current_data == null or layer == null:
 		return false
 
 	_current_orientation = _tile_settings_orientation()
 	var flat_top := _tile_settings_flat_top()
 	if layer is HexTileMapLayer:
-		return _apply_current_data_to_hex_tile_map_layer(layer as HexTileMapLayer)
+		return _apply_current_data_to_hex_tile_map_layer(layer as HexTileMapLayer, apply_reason)
 	if layer is TileMapLayer:
 		_ensure_unique_tile_set_for_layer(layer)
 		HexMapTileAdapter.configure_hex_tile_set(
@@ -3480,7 +3534,7 @@ func apply_current_data_to_tile_map_layer(layer) -> bool:
 			_tile_settings_tile_size()
 		)
 
-	HexMapTileAdapter.apply_to_tile_map_layer(
+	var report := HexMapTileAdapter.apply_to_tile_map_layer_chunked(
 		layer,
 		_current_data,
 		int(_floor_source_spin.value),
@@ -3488,12 +3542,19 @@ func apply_current_data_to_tile_map_layer(layer) -> bool:
 		int(_wall_source_spin.value),
 		Vector2i(int(_wall_atlas_x_spin.value), int(_wall_atlas_y_spin.value)),
 		_apply_write_clears_layer(),
-		flat_top
+		flat_top,
+		0,
+		0,
+		_tile_map_apply_options(apply_reason)
 	)
-	return true
+	_last_tile_map_apply_report = report.duplicate(true)
+	return bool(report.get("ok", false))
 
 
-func _apply_current_data_to_hex_tile_map_layer(layer: HexTileMapLayer) -> bool:
+func _apply_current_data_to_hex_tile_map_layer(
+	layer: HexTileMapLayer,
+	apply_reason: String = "hex_tile_map_apply"
+) -> bool:
 	if layer == null:
 		return false
 	var flat_top := _tile_settings_flat_top()
@@ -3524,9 +3585,12 @@ func _apply_current_data_to_hex_tile_map_layer(layer: HexTileMapLayer) -> bool:
 		)
 	if not ok:
 		return false
-	layer.hex_map = HexMapResource.from_map_data(_current_data, _current_orientation)
-	layer.refresh_loop_display()
-	return true
+	var report := layer.apply_map(
+		HexMapResource.from_map_data(_current_data, _current_orientation),
+		_tile_map_apply_options(apply_reason)
+	)
+	_last_tile_map_apply_report = report.duplicate(true)
+	return bool(report.get("ok", false))
 
 
 func _apply_write_clears_layer() -> bool:
@@ -4203,7 +4267,7 @@ func _generate_map(show_progress: bool = false) -> bool:
 		PROGRESS_STEP_APPLYING,
 		GENERATION_PROGRESS_APPLY,
 		"Applying generated result",
-		false,
+		true,
 		show_post_progress
 	)
 	if show_post_progress:
@@ -4214,7 +4278,7 @@ func _generate_map(show_progress: bool = false) -> bool:
 			PROGRESS_STEP_APPLYING,
 			GENERATION_PROGRESS_FINALIZE,
 			"Applying generated result",
-			false,
+			true,
 			show_post_progress
 		)
 		if show_post_progress:
