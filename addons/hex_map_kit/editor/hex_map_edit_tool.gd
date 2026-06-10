@@ -471,6 +471,9 @@ func paint_workspace_snapshot() -> Dictionary:
 	var document_management_visible := _document_management_visible()
 	var layer_management_visible := _layer_stack_management_visible()
 	var export_management_visible := _export_management_visible()
+	var last_apply_summary := String(last_apply.get("summary", "none"))
+	var last_apply_message := String(last_apply.get("message", "none"))
+	var selected_cell_present := bool(selected_cell.get("present", false))
 	return {
 		"interaction_state": interaction_state,
 		"view_state": view_state,
@@ -487,8 +490,17 @@ func paint_workspace_snapshot() -> Dictionary:
 		"brush": brush,
 		"selected_cell": selected_cell,
 		"last_edit": last_edit,
-		"last_edit_summary": String(last_apply.get("summary", "none")),
-		"last_edit_message": String(last_apply.get("message", "none")),
+		"last_edit_summary": last_apply_summary,
+		"last_edit_message": last_apply_message,
+		"paint_surface_visible": _control_row_is_visible(_paint_workspace_summary_label),
+		"paint_workspace_summary_text": _paint_workspace_summary_label.text if _paint_workspace_summary_label != null else "",
+		"active_brush_visible": true,
+		"target_layer_summary_visible": true,
+		"selected_cell_summary_visible": true,
+		"last_edit_summary_visible": _control_row_is_visible(_last_edit_detail_label),
+		"last_edit_surface_text": _last_edit_detail_label.text if _last_edit_detail_label != null else "",
+		"resource_reference_only": false,
+		"viewport_edit_updates_paint_state": selected_cell_present or not last_edit.is_empty(),
 		"undo_available": _undo_redo != null,
 		"undo_hint": "Use editor Undo/Redo." if _undo_redo != null else "Undo uses editor history when available.",
 		"document_workflow_owner": "Resources",

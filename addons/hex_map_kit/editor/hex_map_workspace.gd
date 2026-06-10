@@ -2369,7 +2369,22 @@ func paint_brush_screen_snapshot() -> Dictionary:
 	var view_state = paint_workspace.get("view_state", {}) as Dictionary
 	var target_state = view_state.get("target", {}) as Dictionary
 	var document_state = view_state.get("document", {}) as Dictionary
+	var brush_state = view_state.get("brush", {}) as Dictionary
+	var selected_cell_state = view_state.get("selected_cell", paint_workspace.get("selected_cell", {})) as Dictionary
+	var last_apply_state = view_state.get("last_apply", {}) as Dictionary
 	var empty_state := _paint_tab_empty_state()
+	var brush_key := String(brush_state.get("brush_key", ""))
+	var brush_summary := "%s%s" % [
+		String(brush_state.get("mode_label", brush_state.get("mode", ""))),
+		" %s" % brush_key if brush_key != "" else "",
+	]
+	var target_summary := String(target_state.get("name", ""))
+	if target_summary == "":
+		target_summary = String(target_state.get("message", "No editable target"))
+	var selected_cell_summary := String(selected_cell_state.get("cell_key", ""))
+	if selected_cell_summary == "":
+		selected_cell_summary = "none"
+	var last_apply_summary := String(last_apply_state.get("summary", paint_workspace.get("last_edit_summary", "none")))
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_PAINT,
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_PAINT),
@@ -2393,6 +2408,22 @@ func paint_brush_screen_snapshot() -> Dictionary:
 		"export_workflow_owner": String(paint_workspace.get("export_workflow_owner", "Export")),
 		"export_management_visible": bool(paint_workspace.get("export_management_visible", false)),
 		"paint_non_paint_management_visible": bool(paint_workspace.get("paint_non_paint_management_visible", false)),
+		"paint_surface_owner": "Paint",
+		"paint_surface_visible": bool(paint_workspace.get("paint_surface_visible", false)),
+		"paint_workspace_summary_text": String(paint_workspace.get("paint_workspace_summary_text", "")),
+		"empty_state_visible": String(empty_state.get("empty_state_text", "")) != "",
+		"active_brush_visible": bool(paint_workspace.get("active_brush_visible", true)),
+		"active_brush_summary": brush_summary,
+		"target_layer_summary_visible": bool(paint_workspace.get("target_layer_summary_visible", true)),
+		"target_layer_summary": target_summary,
+		"selected_cell_summary_visible": bool(paint_workspace.get("selected_cell_summary_visible", true)),
+		"selected_cell_summary": selected_cell_summary,
+		"last_edit_summary_visible": bool(paint_workspace.get("last_edit_summary_visible", true)),
+		"last_edit_surface_summary": last_apply_summary,
+		"last_edit_surface_text": String(paint_workspace.get("last_edit_surface_text", "")),
+		"resource_reference_only": bool(paint_workspace.get("resource_reference_only", false)),
+		"viewport_edit_updates_paint_state": bool(paint_workspace.get("viewport_edit_updates_paint_state", false)),
+		"paint_context_sections": PackedStringArray(["active_brush", "target_layer", "selected_cell", "last_edit"]),
 		"active_document": document_state.get("resource", paint_workspace.get("active_document", null)),
 		"active_document_status": String(document_state.get("status", paint_workspace.get("active_document_status", "none"))),
 		"active_layer": target_state.get("node", paint_workspace.get("active_layer", null)),
