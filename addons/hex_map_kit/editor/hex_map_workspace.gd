@@ -33,6 +33,8 @@ const HexMapValidationDashboard = preload("res://addons/hex_map_kit/editor/hex_m
 const HexMapValidationWorkflowState = preload("res://addons/hex_map_kit/editor/hex_map_validation_workflow_state.gd")
 const HexMapExportWorkflowState = preload("res://addons/hex_map_kit/editor/hex_map_export_workflow_state.gd")
 const HexMapSampleLearningState = preload("res://addons/hex_map_kit/editor/hex_map_sample_learning_state.gd")
+const HexMapWorkspaceRootState = preload("res://addons/hex_map_kit/editor/hex_map_workspace_root_state.gd")
+const HexMapWorkspaceDispatcher = preload("res://addons/hex_map_kit/editor/hex_map_workspace_dispatcher.gd")
 
 var _editor_session_state: HexMapEditorSessionState = null
 var _tabs: TabContainer
@@ -97,6 +99,7 @@ var _last_workspace_validation_result: HexMapValidationResult = null
 var _last_export_action_result: Dictionary = {}
 var _validation_workflow_state: HexMapValidationWorkflowState = HexMapValidationWorkflowState.new()
 var _export_workflow_state: HexMapExportWorkflowState = HexMapExportWorkflowState.new()
+var _workspace_root_state: HexMapWorkspaceRootState = HexMapWorkspaceRootState.new()
 var _hydrating_document_dependencies := false
 var _last_document_dependency_hydration := {}
 
@@ -199,6 +202,51 @@ func export_workflow_state_snapshot(exporting: bool = false) -> Dictionary:
 
 func sample_learning_state_snapshot() -> Dictionary:
 	return _workspace_sample_state_snapshot(_sample_settings_panel.snapshot() if _sample_settings_panel != null else {})
+
+
+func workspace_root_state_snapshot() -> Dictionary:
+	_sync_workspace_root_state()
+	return _workspace_root_state.to_state_snapshot()
+
+
+func workspace_root_view_state() -> Dictionary:
+	_sync_workspace_root_state()
+	return _workspace_root_state.to_view_state()
+
+
+func workspace_state_debug_report_text() -> String:
+	_sync_workspace_root_state()
+	return _workspace_root_state.debug_report_text()
+
+
+func dispatch_workspace_event(event_id: String, payload: Dictionary = {}) -> Dictionary:
+	return HexMapWorkspaceDispatcher.dispatch(self, event_id, payload)
+
+
+func generation_screen_snapshot() -> Dictionary:
+	var view_state = _generation_dock.generation_run_view_state() if _generation_dock != null else {}
+	var generation_state = _generation_dock.generation_status() if _generation_dock != null else {}
+	var empty_text := String(view_state.get("block_reason", ""))
+	var actions := PackedStringArray()
+	if empty_text != "":
+		actions.append("Configure generation inputs")
+	var empty_state := _tab_empty_state(
+		HexMapWorkspaceComponentRegistry.TAB_GENERATE,
+		"Generate a candidate Level Document from configured map settings.",
+		empty_text,
+		actions,
+		"Generate previews and applies one candidate. QA compares multiple seeds before promotion."
+	)
+	return {
+		"tab": HexMapWorkspaceComponentRegistry.TAB_GENERATE,
+		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_GENERATE),
+		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_GENERATE),
+		"purpose_text": String(empty_state.get("purpose_text", "")),
+		"empty_state": empty_state,
+		"empty_state_text": String(empty_state.get("empty_state_text", "")),
+		"generation_state": generation_state,
+		"view_state": view_state,
+	}
 
 
 func current_workspace_tab_name() -> String:
@@ -304,6 +352,30 @@ func _sync_export_workflow_state(exporting: bool = false) -> void:
 		"exporting": exporting,
 		"block_reason": _export_cannot_export_reason(context, destination),
 	})
+
+
+func _sync_workspace_root_state() -> void:
+	if _workspace_root_state == null:
+		_workspace_root_state = HexMapWorkspaceRootState.new()
+	_workspace_root_state.update_from_context({
+		"current_tab": current_workspace_tab_name(),
+		"tab_names": workspace_tab_names(),
+		"screen_snapshots": _workspace_root_screen_snapshots(),
+	})
+
+
+func _workspace_root_screen_snapshots() -> Dictionary:
+	return {
+		HexMapWorkspaceComponentRegistry.TAB_DOCUMENT: resources_screen_snapshot(),
+		HexMapWorkspaceComponentRegistry.TAB_GENERATE: generation_screen_snapshot(),
+		HexMapWorkspaceComponentRegistry.TAB_PAINT: paint_brush_screen_snapshot(),
+		HexMapWorkspaceComponentRegistry.TAB_CATALOG: catalog_screen_snapshot(),
+		HexMapWorkspaceComponentRegistry.TAB_LAYERS: layer_stack_screen_snapshot(),
+		HexMapWorkspaceComponentRegistry.TAB_VALIDATE: validate_screen_snapshot(),
+		HexMapWorkspaceComponentRegistry.TAB_QA: qa_screen_snapshot(),
+		HexMapWorkspaceComponentRegistry.TAB_EXPORT: export_screen_snapshot(),
+		HexMapWorkspaceComponentRegistry.TAB_SETTINGS: settings_screen_snapshot(),
+	}
 
 
 func set_selected_hex_tile_map_node(node: Node, reason: String = "workspace.selected_hex_tile_map") -> Dictionary:

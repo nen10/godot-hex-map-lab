@@ -45,6 +45,8 @@ const HexMapValidationWorkflowState = preload("res://addons/hex_map_kit/editor/h
 const HexMapExportWorkflowState = preload("res://addons/hex_map_kit/editor/hex_map_export_workflow_state.gd")
 const HexMapSampleLearningState = preload("res://addons/hex_map_kit/editor/hex_map_sample_learning_state.gd")
 const HexMapDialogLifecycleState = preload("res://addons/hex_map_kit/editor/hex_map_dialog_lifecycle_state.gd")
+const HexMapWorkspaceRootState = preload("res://addons/hex_map_kit/editor/hex_map_workspace_root_state.gd")
+const HexMapWorkspaceDispatcher = preload("res://addons/hex_map_kit/editor/hex_map_workspace_dispatcher.gd")
 const HexMapSampleAssetDuplicator = preload("res://addons/hex_map_kit/editor/hex_map_sample_asset_duplicator.gd")
 const HexMapSampleSettingsPanel = preload("res://addons/hex_map_kit/editor/hex_map_sample_settings_panel.gd")
 const HexMapWorkspace = preload("res://addons/hex_map_kit/editor/hex_map_workspace.gd")
@@ -157,6 +159,7 @@ func _run() -> void:
 	await _test_asset_slot_control_exposes_state_snapshot_contract()
 	await _test_file_dialog_lifecycle_helper_attaches_without_reparenting()
 	_test_workspace_lifecycle_state_models_cover_required_transitions()
+	await _test_workspace_root_state_and_dispatcher_integrate_viewstates()
 	await _test_workspace_asset_slots_use_strict_resource_type_filters()
 	await _test_workspace_resource_purpose_tooltips_cover_resource_rows()
 	await _test_workspace_tab_purpose_empty_states_route_to_project_actions()
@@ -3427,6 +3430,84 @@ func _test_workspace_lifecycle_state_models_cover_required_transitions() -> void
 	_assert_eq(dialog_state.state_id, HexMapDialogLifecycleState.STATE_COMMITTED, "STATE-50 dialog state covers committed")
 	dialog_state.update_from_context({"cancelled": true})
 	_assert_eq(dialog_state.state_id, HexMapDialogLifecycleState.STATE_CANCELLED, "STATE-50 dialog state covers cancelled")
+
+
+func _test_workspace_root_state_and_dispatcher_integrate_viewstates() -> void:
+	var session = HexMapEditorSessionState.new()
+	var workspace = HexMapWorkspace.new()
+	workspace.set_editor_session_state(session)
+	root.add_child(workspace)
+	await process_frame
+
+	var root_state = workspace.workspace_root_state_snapshot()
+	_assert_eq(String(root_state["state_source"]), "HexMapWorkspaceRootState", "STATE-60 root snapshot reports state source")
+	_assert_eq(String(root_state["current_tab"]), "Resources", "STATE-60 root state starts on Resources")
+	var screen_view_states = root_state["screen_view_states"] as Dictionary
+	_assert_eq(String((screen_view_states["Generate"] as Dictionary)["state_source"]), "HexMapGenerationRunState", "STATE-60 Generate root ViewState comes from generation state")
+	_assert_eq(String((screen_view_states["Paint"] as Dictionary)["state_source"]), "HexMapPaintInteractionState", "STATE-60 Paint root ViewState comes from paint state")
+	_assert_eq(String((screen_view_states["Validate"] as Dictionary)["state_source"]), "HexMapValidationWorkflowState", "STATE-60 Validate root ViewState comes from validation state")
+	_assert_eq(String((screen_view_states["Export"] as Dictionary)["state_source"]), "HexMapExportWorkflowState", "STATE-60 Export root ViewState comes from export state")
+	_assert_eq(String((screen_view_states["Settings"] as Dictionary)["state_source"]), "HexMapSampleLearningState", "STATE-60 Settings root ViewState comes from sample state")
+	_assert_true((screen_view_states["Resources"] as Dictionary).has("status_text"), "STATE-60 synthesized Resources ViewState exposes status text")
+	var root_view_state = workspace.workspace_root_view_state()
+	_assert_eq(String(root_view_state["state_source"]), "HexMapWorkspaceRootState", "STATE-60 root ViewState reports state source")
+	_assert_eq(
+		String(root_view_state["current_screen_state_id"]),
+		String((screen_view_states["Resources"] as Dictionary)["state_id"]),
+		"STATE-60 root ViewState mirrors current screen state"
+	)
+	var debug_report := workspace.workspace_state_debug_report_text()
+	_assert_true(debug_report.contains("Hex Map Workspace State Debug Report"), "STATE-60 debug report has title")
+	_assert_true(debug_report.contains("screen_state_ids:"), "STATE-60 debug report lists screen state ids")
+	_assert_true(debug_report.contains("- Validate: not_run"), "STATE-60 debug report includes validation state")
+
+	var select_result = workspace.dispatch_workspace_event(HexMapWorkspaceDispatcher.EVENT_SELECT_TAB, {"tab": "Validate"})
+	_assert_true(bool(select_result["ok"]), "STATE-60 dispatcher selects tab")
+	_assert_eq(workspace.current_workspace_tab_name(), "Validate", "STATE-60 dispatcher changes selected tab")
+	_assert_eq(String((select_result["root_state"] as Dictionary)["current_tab"]), "Validate", "STATE-60 dispatch envelope returns root state")
+	_assert_eq(String((select_result["view_state"] as Dictionary)["current_tab"]), "Validate", "STATE-60 dispatch envelope returns root ViewState")
+
+	var validate_result = workspace.dispatch_workspace_event(HexMapWorkspaceDispatcher.EVENT_RUN_VALIDATION)
+	_assert_true(bool(validate_result["ok"]), "STATE-60 dispatcher runs validation")
+	root_state = validate_result["root_state"] as Dictionary
+	screen_view_states = root_state["screen_view_states"] as Dictionary
+	var validation_view = screen_view_states["Validate"] as Dictionary
+	_assert_eq(String(validation_view["state_source"]), "HexMapValidationWorkflowState", "STATE-60 dispatched validation keeps ViewState source")
+	_assert_eq(String(validation_view["state_id"]), HexMapValidationWorkflowState.STATE_ERROR, "STATE-60 dispatched validation updates root state")
+	var validate_action = validate_result["result"] as Dictionary
+	var issue_rows = validate_action["issue_rows"] as Array
+	_assert_true(issue_rows.size() > 0, "STATE-60 dispatched validation returns issue rows")
+
+	var focus_result = workspace.dispatch_workspace_event(HexMapWorkspaceDispatcher.EVENT_SELECT_VALIDATION_ISSUE, {"index": 0})
+	_assert_true(bool(focus_result["ok"]), "STATE-60 dispatcher selects validation issue")
+	_assert_eq(workspace.current_workspace_tab_name(), "Resources", "STATE-60 validation issue focus routes owning screen")
+	root_state = focus_result["root_state"] as Dictionary
+	screen_view_states = root_state["screen_view_states"] as Dictionary
+	validation_view = screen_view_states["Validate"] as Dictionary
+	_assert_eq(String(validation_view["state_id"]), HexMapValidationWorkflowState.STATE_FOCUS_APPLIED, "STATE-60 root state records validation focus")
+
+	var output_dir = _test_resource_dir("state60_workspace_dispatcher")
+	var export_path = "%s/root_dispatch_handoff.tres" % output_dir
+	var destination_result = workspace.dispatch_workspace_event(
+		HexMapWorkspaceDispatcher.EVENT_SELECT_EXPORT_DESTINATION,
+		{"path": export_path}
+	)
+	_assert_true(bool(destination_result["ok"]), "STATE-60 dispatcher selects export destination")
+	root_state = destination_result["root_state"] as Dictionary
+	screen_view_states = root_state["screen_view_states"] as Dictionary
+	_assert_eq(String((screen_view_states["Export"] as Dictionary)["state_source"]), "HexMapExportWorkflowState", "STATE-60 export dispatch updates root ViewState")
+	var clear_result = workspace.dispatch_workspace_event(HexMapWorkspaceDispatcher.EVENT_CLEAR_EXPORT_DESTINATION)
+	_assert_true(bool(clear_result["ok"]), "STATE-60 dispatcher clears export destination")
+
+	var sample_result = workspace.dispatch_workspace_event(HexMapWorkspaceDispatcher.EVENT_OPEN_SAMPLE_LEARNING)
+	_assert_true(bool(sample_result["ok"]), "STATE-60 dispatcher opens sample learning destination")
+	_assert_eq(workspace.current_workspace_tab_name(), "Settings", "STATE-60 sample learning dispatch routes Settings")
+	var unknown_result = workspace.dispatch_workspace_event("unknown_workspace_event")
+	_assert_true(not bool(unknown_result["ok"]), "STATE-60 dispatcher rejects unknown event")
+	_assert_eq(int(unknown_result["error"]), ERR_INVALID_PARAMETER, "STATE-60 unknown event reports invalid parameter")
+
+	workspace.queue_free()
+	await process_frame
 
 
 func _test_workspace_asset_slots_use_strict_resource_type_filters() -> void:
