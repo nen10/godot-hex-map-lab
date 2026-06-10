@@ -118,8 +118,8 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
 | `TEST-80` | `COMPLETE` | `STATE-60`, `ARCH-41` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/TEST-80_EDITOR_TEST_FILE_SPLIT_AND_STATE_CONTRACTS/` | Editor test split around state/screen contracts | `tests/test_editor_plugin.gd`, new workspace/state/screen tests, `docs/TEST.md` | Old UI shape tests are removed or replaced; tests cover state transitions, hydration/writeback, and screen contracts; no analog test is added; `./tools/test.sh` passes if Godot is available. |
-| `DOC-90` | `READY` | `SCREEN-10`, `SCREEN-22`, `SCREEN-25` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/DOC-90_WORKSPACE_WORKFLOW_MANUAL_UPDATE/` | Manual update for current Workspace workflow | `docs/manual/MANUAL_EDITOR_PLUGIN.md`, `docs/manual/MANUAL_WORKFLOW.md`, `docs/TEST.md`, `README.md` if needed | Manual explains selected HexTileMap -> Resources -> Generate -> Paint -> Catalog -> Validate -> QA -> Export flow, source badges, and sample learning as a separate chapter; no analog test is added. |
-| `PROC-90` | `BACKLOG` | `DOC-90`, `TEST-80` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/PROC-90_FINAL_DIST_REGENERATION/` | Final dist regeneration and manifest proof | `tools/package_addon.sh`, `dist/`, self-review/test-result docs | `tools/package_addon.sh` runs; committed manifest/zip match the current addon tree; diff result is recorded in self-review; dist freshness remains outside normal `tools/test.sh` gate. |
+| `DOC-90` | `COMPLETE` | `SCREEN-10`, `SCREEN-22`, `SCREEN-25` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/DOC-90_WORKSPACE_WORKFLOW_MANUAL_UPDATE/` | Manual update for current Workspace workflow | `docs/manual/MANUAL_EDITOR_PLUGIN.md`, `docs/manual/MANUAL_WORKFLOW.md`, `docs/TEST.md`, `README.md` if needed | Manual explains selected HexTileMap -> Resources -> Generate -> Paint -> Catalog -> Validate -> QA -> Export flow, source badges, and sample learning as a separate chapter; no analog test is added. |
+| `PROC-90` | `READY` | `DOC-90`, `TEST-80` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/PROC-90_FINAL_DIST_REGENERATION/` | Final dist regeneration and manifest proof | `tools/package_addon.sh`, `dist/`, self-review/test-result docs | `tools/package_addon.sh` runs; committed manifest/zip match the current addon tree; diff result is recorded in self-review; dist freshness remains outside normal `tools/test.sh` gate. |
 
 ---
 
@@ -148,7 +148,7 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `DOC-90`.
+Current recommended next task: `PROC-90`.
 
 Reason:
 
@@ -186,10 +186,9 @@ Reason:
 - `PERF-60` is complete.
 - `GENPIPE-80` is complete.
 - `TEST-80` is complete.
-- `DOC-90` remains READY.
-- `DOC-90` is READY because `SCREEN-10`, `SCREEN-22`, and `SCREEN-25` are complete.
-- `PROC-90` remains BACKLOG until `DOC-90` is complete.
-- `DOC-90` is the first READY task in queue order after completed `TEST-80`.
+- `DOC-90` is complete.
+- `PROC-90` is READY because `DOC-90` and `TEST-80` are complete.
+- `PROC-90` is the first READY task in queue order after completed `DOC-90`.
 
 ---
 
@@ -837,3 +836,22 @@ proof:
     - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/TEST-80_EDITOR_TEST_FILE_SPLIT_AND_STATE_CONTRACTS/POLICY.md`
     - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/TEST-80_EDITOR_TEST_FILE_SPLIT_AND_STATE_CONTRACTS/IMPLEMENTATION_PLAN.md`
     - `docs/review/autopilot/TEST-80_TEST_RESULT_2026-06-10.md`
+
+### DOC-90 Workspace workflow manual update
+
+proof:
+  plan: `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/DOC-90_WORKSPACE_WORKFLOW_MANUAL_UPDATE/`
+  review: `docs/review/autopilot/DOC-90_SELF_REVIEW_2026-06-10.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/manual/MANUAL_EDITOR_PLUGIN.md`
+    - `docs/manual/MANUAL_WORKFLOW.md`
+    - `README.md`
+    - `docs/TEST.md`
+  major files:
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/DOC-90_WORKSPACE_WORKFLOW_MANUAL_UPDATE/SUB_TASKS.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/DOC-90_WORKSPACE_WORKFLOW_MANUAL_UPDATE/UX.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/DOC-90_WORKSPACE_WORKFLOW_MANUAL_UPDATE/POLICY.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/DOC-90_WORKSPACE_WORKFLOW_MANUAL_UPDATE/IMPLEMENTATION_PLAN.md`
+    - `docs/review/autopilot/DOC-90_TEST_RESULT_2026-06-10.md`

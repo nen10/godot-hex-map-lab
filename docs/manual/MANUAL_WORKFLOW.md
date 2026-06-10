@@ -66,18 +66,31 @@ Open **Hex Map Workspace** and work from the authoring goal:
 
 Normal editor selection uses Resource pickers and FileDialogs. Saved paths may be displayed as read-only status, but path text is not the primary input workflow.
 
-Project asset first pass:
+Recommended workspace pass:
 
 1. Select a `HexTileMap` in the Scene tree and confirm `Resources` shows the selected node.
-2. Create or select the Level Document and missing node-owned unique resources in `Resources`.
-3. Create or select the Tile Catalog and assign its TileSet in `Catalog`.
-4. Create or select Object and Label databases, Layer Stack, and optional Movement Profile in `Resources`.
-5. Create or select `HexValidationRuleSuiteResource` and `HexGenerationProfileResource` assets in `Validate` and `QA`.
-6. Choose a `HexExportProfileResource` and Runtime Handoff destination in `Export`.
+2. In `Resources`, create or select the Level Document, missing node-owned unique resources, shared project resources, and profile resources.
+3. In `Generate`, preview a generated result or explicitly apply it to the selected document.
+4. In `Paint`, edit the document with terrain, object, and label brushes from the selected project resources.
+5. In `Catalog`, repair missing tile/scene entries, assign the catalog `TileSet`, and validate catalog status. In a new empty project, configure Catalog before painting if no brush keys exist yet.
+6. In `Validate`, inspect domain/severity issues and focus cells, resources, or catalog entries.
+7. In `QA`, compare seeds and promote the selected result to the Level Document when it should become canonical.
+8. In `Export`, choose a `HexExportProfileResource` and Runtime Handoff destination, then create a runtime `HexMapResource`.
 
 `Resources` auto-links the selected `HexTileMap` while auto-link is on. If no node is selected, the tab shows `No HexTileMap selected` and keeps production asset selection visible instead of filling the workspace with samples.
 
 The selected Level Document is the canonical authoring source. `HexTileMapLayer.hex_map` is runtime/display snapshot data for preview, target import, or Runtime Handoff output; it does not replace the Level Document as the map you save, validate, or continue editing.
+
+Resource rows show ownership through source badges:
+
+| Badge | Meaning | Normal action |
+|---|---|---|
+| `Node` | The selected `HexTileMap` owns the relationship. | Create or select it in `Resources`; auto-link writes it back while enabled. |
+| `Project` | A project resource was selected explicitly. | Use it as the production source. |
+| `Document Dependency` | The selected Level Document hydrated this shared dependency. | Keep it when the document already owns the relationship. |
+| `Manual Override` | The workspace selection intentionally overrides the document dependency. | Use it for the current session, then write it back if it should become canonical. |
+| `Sample Learning` | A bundled sample asset is visible for learning. | Duplicate it into project files before adapting it. |
+| `Missing` | No resource is selected. | Create or select a project asset, or leave optional resources missing. |
 
 Generate output target:
 

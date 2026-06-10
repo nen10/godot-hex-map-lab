@@ -25,17 +25,18 @@ After Godot starts, the editor shows the **Hex Map Workspace** dock. The workspa
 - `Export`
 - `Settings`
 
-The tab names are the stable task map for the editor UI. Production work starts with a selected scene node and project asset slots, not bundled samples:
+The tab names are the stable task map for the editor UI. The first production pass is selected `HexTileMap` -> `Resources` -> `Generate` -> `Paint` -> `Catalog` -> `Validate` -> `QA` -> `Export`. Production work starts with a selected scene node and project asset slots, not bundled samples:
 
 1. Select the target `HexTileMap` in the Scene tree. The Workspace auto-links the selected node by default.
-2. In `Resources`, create or select a project `HexMapDocumentResource`, Layer Stack, Object Database, Label Database, and optional Movement Profile. Use `Create Missing Resources` for missing node-owned unique resources.
-3. In `Catalog`, create or select a project `HexTileCatalogResource`, then select its `TileSet` and optional scene-entry `PackedScene` resources.
-4. In `Generate`, choose whether the generated result is `Preview only` or should be applied to the selected document.
-5. In `Paint`, choose terrain/object/label brushes from the project resources already selected in `Resources` and `Catalog`.
-6. In `Layers`, inspect the selected `HexTileMap`, create role layers, and apply the document by role.
-7. In `Validate` and `QA`, inspect issues, compare seeds, and promote a selected result to the project Level Document.
+2. In `Resources`, create or select a project `HexMapDocumentResource`, Layer Stack, Object Database, Label Database, optional Movement Profile, and profile resources. Use `Create Missing Resources` for missing node-owned unique resources.
+3. In `Generate`, choose whether the generated result is `Preview only` or should be applied to the selected document.
+4. In `Paint`, choose terrain/object/label brushes from the selected project resources. If a brush needs a missing tile or scene entry, route to `Catalog`.
+5. In `Catalog`, create or select a project `HexTileCatalogResource`, assign its `TileSet`, add tile/scene entries, and validate catalog status.
+6. In `Validate`, inspect issues, focus cells/resources/catalog entries, and follow fix suggestions.
+7. In `QA`, compare seeds and promote a selected result to the project Level Document.
 8. In `Export`, select a project `HexExportProfileResource` and choose an explicit Runtime Handoff destination with the FileDialog.
-9. In `Settings`, use Samples only for learning or duplicating bundled assets into project-owned resources.
+9. Use `Layers` when role layers need to be created or the current document must be applied by role.
+10. In `Settings`, use Samples only for learning or duplicating bundled assets into project-owned resources.
 
 ## 2. Manage Resources And Level Document
 
@@ -55,6 +56,19 @@ Selecting or creating node-owned resources writes back to the selected `HexTileM
 The saved resource path is shown as read-only status. Do not use editable `res://...` text as the normal document workflow.
 
 Use the `Export` tab's Runtime Handoff workflow when producing a runtime-oriented `HexMapResource`; it is separate from saving the authoring `HexMapDocumentResource`.
+
+### Resource Source Badges
+
+Resource rows use source badges to show ownership and selection state. Paths and internal details stay in row tooltips or the debug report.
+
+| Badge | Meaning | Normal action |
+|---|---|---|
+| `Node` | The selected `HexTileMap` owns this resource relationship. | Create or select the resource in `Resources`; auto-link writes it back while enabled. |
+| `Project` | A project resource was selected explicitly. | Use it as the production source for Generate, Paint, Validate, QA, or Export. |
+| `Document Dependency` | The selected Level Document hydrated this shared dependency. | Keep it when the document already owns the relationship. |
+| `Manual Override` | The workspace selection intentionally overrides the selected document dependency. | Use it for the current session, then write back if it should become the document dependency. |
+| `Sample Learning` | A bundled sample asset is visible as a learning candidate. | Duplicate it into the project before adapting it for production. |
+| `Missing` | No resource is selected. | Create or select a project asset, or leave optional resources missing when the workflow allows it. |
 
 ## 3. Generate A Map
 
