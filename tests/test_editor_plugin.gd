@@ -2470,10 +2470,20 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 	_assert_eq(String(export_state["state_id"]), HexMapExportWorkflowState.STATE_NO_DESTINATION, "STATE-50 Export starts without destination")
 	_assert_true(bool(snapshot["purpose_component_present"]), "TAB-56 Export snapshot confirms purpose panel")
 	_assert_eq(snapshot["active_output_type"], "runtime_handoff_resource", "TAB-56 Export uses runtime handoff as active output")
+	_assert_true(bool(snapshot["active_output_type_visible"]), "SCREEN-25 Export exposes active output type")
+	_assert_true(bool(snapshot["export_type_taxonomy_visible"]), "SCREEN-25 Export exposes output type taxonomy")
+	_assert_true(bool(snapshot["output_destination_visible"]), "SCREEN-25 Export exposes output destination state")
+	_assert_true(bool(snapshot["export_result_state_visible"]), "SCREEN-25 Export exposes result state")
+	_assert_eq(String(snapshot["export_result_state"]), HexMapExportWorkflowState.STATE_NO_DESTINATION, "SCREEN-25 Export starts with result state")
+	_assert_eq(String(snapshot["export_result_state_source"]), "HexMapExportWorkflowState", "SCREEN-25 Export result state names source")
+	_assert_true(not bool(snapshot["resource_reference_only"]), "SCREEN-25 Export is not resource-reference-only")
 	var output_type = snapshot["output_type"] as Dictionary
 	_assert_eq(output_type["label"], "Runtime Handoff Resource", "TAB-56 Export names output type")
 	_assert_eq(output_type["source"], "Current Level Document", "TAB-56 Export names source")
 	_assert_eq(output_type["target_resource_class"], "HexMapResource", "TAB-56 Export names output resource")
+	_assert_eq(String(output_type["result_purpose_text"]), "Runtime/API handoff for HexMapResource consumers.", "SCREEN-25 Export explains runtime handoff purpose")
+	_assert_eq(String(output_type["result_usage"]), "Runtime and scripting use", "SCREEN-25 Export explains result usage")
+	_assert_eq(String(output_type["destination_purpose"]), "Project .tres path for the runtime handoff resource.", "SCREEN-25 Export explains destination purpose")
 	_assert_true(not bool(output_type["source_ready"]), "TAB-56 Export starts with missing source")
 	_assert_true(not bool(output_type["destination_ready"]), "TAB-56 Export starts with missing destination")
 	_assert_eq(snapshot["cannot_export_reason"], "Level Document is not selected.", "TAB-56 Export explains blocked export")
@@ -2509,6 +2519,9 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 	_assert_true(not visible_mode_labels.has("Data Export"), "INFO-72 Data Export is classified but not visible")
 	_assert_true(not visible_mode_labels.has("Package Build"), "INFO-72 Package Build is classified but not visible")
 	_assert_true(not visible_mode_labels.has("Debug Report"), "INFO-72 Debug Report is classified but not visible")
+	_assert_eq(int(snapshot["normal_export_action_count"]), 1, "SCREEN-25 Export exposes one normal export action")
+	_assert_true(String(snapshot["package_support_boundary"]).contains("developer release process"), "SCREEN-25 Export explains package boundary")
+	_assert_true(String(snapshot["debug_export_boundary"]).contains("diagnostic"), "SCREEN-25 Export explains debug export boundary")
 	_assert_true(
 		PackedStringArray(snapshot["component_ids"]).has("export_asset_panel"),
 		"Export screen exposes export asset panel"
@@ -2530,6 +2543,7 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 		"Export screen exposes export profile slot"
 	)
 	_assert_true(not bool((snapshot["destination"] as Dictionary).get("selected", true)), "Export screen starts without destination")
+	_assert_true(String(snapshot["output_destination_purpose"]).contains("runtime handoff resource"), "SCREEN-25 Export destination purpose is visible")
 	_assert_true(not bool(snapshot["can_export"]), "Export screen cannot export until configured")
 	_assert_true(not bool(snapshot["sample_destination_available"]), "Export screen has no sample destination")
 	_assert_true(not bool(snapshot["editable_destination_path_visible"]), "Export screen does not expose editable destination path text")
@@ -2611,6 +2625,9 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 	_assert_eq(int(export_result["cell_count"]), int(document_summary["cells"]), "Export result reports document cell count")
 	_assert_eq(String((export_result["package_handoff"] as Dictionary).get("path", "")), export_path, "Export result reports package handoff path")
 	_assert_eq(String((export_result["runtime_handoff"] as Dictionary).get("resource_class", "")), "HexMapResource", "Export result reports runtime handoff type")
+	snapshot = workspace.export_screen_snapshot()
+	_assert_eq(String(snapshot["export_result_state"]), HexMapExportWorkflowState.STATE_EXPORTED, "SCREEN-25 Export snapshot reports exported result state")
+	_assert_true(String(snapshot["export_result_status_text"]).contains("Exported Runtime Handoff"), "SCREEN-25 Export snapshot reports exported status")
 
 	var next_export_path = "%s/runtime_handoff_next.tres" % output_dir
 	var next_destination = workspace.select_export_destination(next_export_path)

@@ -90,7 +90,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | `SCREEN-22` | `COMPLETE` | `STATE-40`, `SCREEN-20`, `SCREEN-21` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-22_PAINT_TAB_BRUSH_SURFACE/` | Paint tab as real brush editing surface | Paint screen, edit tool, viewport input adapter, editor tests | Paint tab has empty state, active brush, target layer, selected cell, and last edit; viewport editing updates Paint state; tab does not regress to resource references only; `./tools/test.sh` passed. |
 | `SCREEN-23` | `COMPLETE` | `STATE-50`, `SCREEN-10` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-23_VALIDATE_ISSUE_NAVIGATOR_REFINEMENT/` | Validate tab issue navigator refinement | validation dashboard, workspace Validate tab, document validator, tests | Validate works as workflow-level issue navigator with list/severity/scope/focus action; slot-level Validate buttons are unnecessary; `./tools/test.sh` passed. |
 | `SCREEN-24` | `COMPLETE` | `PROFILE-30`, `STATE-10` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-24_QA_SEED_LAB_AND_PROFILE_SCREEN/` | QA Seed Lab and Generation Profile screen | QA tab, generation profile resource, generation results/state, tests | QA uses Generation Profile; score table, selected seed, and promote target are visible; Document source of truth and draft context boundary are clear; `./tools/test.sh` passed. |
-| `SCREEN-25` | `READY` | `PROFILE-30`, `STATE-50` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-25_EXPORT_PURPOSE_SCREEN/` | Export tab purpose screen | Export tab, export profile resource, dist/export helpers, tests/docs | Export type, output destination, runtime handoff/debug/package purpose, and result state are clear. |
+| `SCREEN-25` | `COMPLETE` | `PROFILE-30`, `STATE-50` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-25_EXPORT_PURPOSE_SCREEN/` | Export tab purpose screen | Export tab, export profile resource, dist/export helpers, tests/docs | Export type, output destination, runtime handoff/debug/package purpose, and result state are clear; `./tools/test.sh` passed. |
 
 ---
 
@@ -118,7 +118,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
 | `TEST-80` | `BACKLOG` | `STATE-60`, `ARCH-41` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/TEST-80_EDITOR_TEST_FILE_SPLIT_AND_STATE_CONTRACTS/` | Editor test split around state/screen contracts | `tests/test_editor_plugin.gd`, new workspace/state/screen tests, `docs/TEST.md` | Old UI shape tests are removed or replaced; tests cover state transitions, hydration/writeback, and screen contracts; no analog test is added; `./tools/test.sh` passes if Godot is available. |
-| `DOC-90` | `BACKLOG` | `SCREEN-10`, `SCREEN-22`, `SCREEN-25` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/DOC-90_WORKSPACE_WORKFLOW_MANUAL_UPDATE/` | Manual update for current Workspace workflow | `docs/manual/MANUAL_EDITOR_PLUGIN.md`, `docs/manual/MANUAL_WORKFLOW.md`, `docs/TEST.md`, `README.md` if needed | Manual explains selected HexTileMap -> Resources -> Generate -> Paint -> Catalog -> Validate -> QA -> Export flow, source badges, and sample learning as a separate chapter; no analog test is added. |
+| `DOC-90` | `READY` | `SCREEN-10`, `SCREEN-22`, `SCREEN-25` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/DOC-90_WORKSPACE_WORKFLOW_MANUAL_UPDATE/` | Manual update for current Workspace workflow | `docs/manual/MANUAL_EDITOR_PLUGIN.md`, `docs/manual/MANUAL_WORKFLOW.md`, `docs/TEST.md`, `README.md` if needed | Manual explains selected HexTileMap -> Resources -> Generate -> Paint -> Catalog -> Validate -> QA -> Export flow, source badges, and sample learning as a separate chapter; no analog test is added. |
 | `PROC-90` | `BACKLOG` | `DOC-90`, `TEST-80` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/PROC-90_FINAL_DIST_REGENERATION/` | Final dist regeneration and manifest proof | `tools/package_addon.sh`, `dist/`, self-review/test-result docs | `tools/package_addon.sh` runs; committed manifest/zip match the current addon tree; diff result is recorded in self-review; dist freshness remains outside normal `tools/test.sh` gate. |
 
 ---
@@ -148,7 +148,7 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `SCREEN-25`.
+Current recommended next task: `ARCH-40`.
 
 Reason:
 
@@ -179,10 +179,11 @@ Reason:
 - `SCREEN-22` is complete.
 - `SCREEN-23` is complete.
 - `SCREEN-24` is complete.
-- `SCREEN-25`, `ARCH-40`, `ARCH-41`, `ARCH-50`, and `PERF-60` remain READY.
+- `SCREEN-25` is complete.
+- `ARCH-40`, `ARCH-41`, `ARCH-50`, `PERF-60`, and `DOC-90` remain READY.
 - `TEST-80` remains BACKLOG because `ARCH-41` is not complete.
-- `DOC-90` remains BACKLOG because `SCREEN-25` is not complete.
-- `SCREEN-25` is the first READY task in queue order after completed `SCREEN-24`.
+- `DOC-90` is READY because `SCREEN-10`, `SCREEN-22`, and `SCREEN-25` are complete.
+- `ARCH-40` is the first READY task in queue order after completed `SCREEN-25`.
 
 ---
 
@@ -690,3 +691,21 @@ proof:
     - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-24_QA_SEED_LAB_AND_PROFILE_SCREEN/POLICY.md`
     - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-24_QA_SEED_LAB_AND_PROFILE_SCREEN/IMPLEMENTATION_PLAN.md`
     - `docs/review/autopilot/SCREEN-24_TEST_RESULT_2026-06-10.md`
+
+### SCREEN-25 Export purpose screen
+
+proof:
+  plan: `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-25_EXPORT_PURPOSE_SCREEN/`
+  review: `docs/review/autopilot/SCREEN-25_SELF_REVIEW_2026-06-10.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-25_EXPORT_PURPOSE_SCREEN/SUB_TASKS.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-25_EXPORT_PURPOSE_SCREEN/UX.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-25_EXPORT_PURPOSE_SCREEN/POLICY.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-25_EXPORT_PURPOSE_SCREEN/IMPLEMENTATION_PLAN.md`
+    - `docs/review/autopilot/SCREEN-25_TEST_RESULT_2026-06-10.md`

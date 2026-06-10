@@ -2775,8 +2775,11 @@ func export_screen_snapshot() -> Dictionary:
 	var output_type := _export_output_type_context(context, destination)
 	var empty_state := _export_tab_empty_state(context, destination)
 	var output_modes := _export_output_modes()
+	var visible_output_mode_ids := _export_visible_output_mode_ids(output_modes)
+	var visible_output_mode_labels := _export_visible_output_mode_labels(output_modes)
 	var can_export := context.level_document != null and session.export_saved_path != ""
 	var export_state := export_workflow_state_snapshot()
+	var export_view_state = export_state.get("view_state", {}) as Dictionary
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_EXPORT,
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_EXPORT),
@@ -2785,13 +2788,20 @@ func export_screen_snapshot() -> Dictionary:
 		"empty_state": empty_state,
 		"empty_state_text": String(empty_state.get("empty_state_text", "")),
 		"export_state": export_state,
-		"view_state": export_state.get("view_state", {}),
+		"view_state": export_view_state,
 		"purpose_component_present": tab_has_component(HexMapWorkspaceComponentRegistry.TAB_EXPORT, "export_purpose_panel"),
 		"active_output_type": "runtime_handoff_resource",
+		"active_output_type_visible": true,
 		"output_type": output_type,
 		"output_modes": output_modes,
-		"visible_output_mode_ids": _export_visible_output_mode_ids(output_modes),
-		"visible_output_mode_labels": _export_visible_output_mode_labels(output_modes),
+		"visible_output_mode_ids": visible_output_mode_ids,
+		"visible_output_mode_labels": visible_output_mode_labels,
+		"normal_export_action_count": visible_output_mode_ids.size(),
+		"export_type_taxonomy_visible": true,
+		"runtime_handoff_purpose": String(output_type.get("result_purpose_text", "")),
+		"runtime_handoff_result_usage": String(output_type.get("result_usage", "")),
+		"package_support_boundary": String(output_type.get("package_support_boundary", "")),
+		"debug_export_boundary": String(output_type.get("debug_report_boundary", "")),
 		"level_document": context.level_document,
 		"export_profile": context.export_profile,
 		"export_profile_context": _profile_resource_context(
@@ -2807,6 +2817,8 @@ func export_screen_snapshot() -> Dictionary:
 			HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE
 		),
 		"destination": destination,
+		"output_destination_visible": true,
+		"output_destination_purpose": String(output_type.get("destination_purpose", "")),
 		"destination_dialog_config": export_destination_dialog_config(),
 		"can_export": can_export,
 		"cannot_export_reason": _export_cannot_export_reason(context, destination),
@@ -2816,6 +2828,10 @@ func export_screen_snapshot() -> Dictionary:
 		"run_button_tooltip": _export_run_button_tooltip(context, destination),
 		"package_handoff": _export_handoff_context(session.export_saved_path, null),
 		"runtime_handoff": _export_handoff_context(session.export_saved_path, null),
+		"export_result_state_visible": true,
+		"export_result_state": String(export_state.get("state_id", "")),
+		"export_result_status_text": String(export_view_state.get("status_text", "")),
+		"export_result_state_source": String(output_type.get("result_state_source", "")),
 		"unsupported_export_buttons_visible": false,
 		"data_export_button_visible": false,
 		"package_build_button_visible": false,
@@ -2830,6 +2846,7 @@ func export_screen_snapshot() -> Dictionary:
 		"destination_controls_visible": true,
 		"output_type_controls_visible": true,
 		"paint_export_management_visible": false,
+		"resource_reference_only": false,
 	}
 
 
@@ -4093,6 +4110,13 @@ func _export_output_type_context(context: HexMapWorkspaceAssetContext, destinati
 		"source": "Current Level Document",
 		"target_resource_class": "HexMapResource",
 		"file_extension": ".tres",
+		"result_purpose_text": "Runtime/API handoff for HexMapResource consumers.",
+		"result_usage": "Runtime and scripting use",
+		"destination_required": true,
+		"destination_purpose": "Project .tres path for the runtime handoff resource.",
+		"result_state_source": "HexMapExportWorkflowState",
+		"package_support_boundary": "Package build stays in the developer release process.",
+		"debug_report_boundary": "Debug reports stay diagnostic outside production Export.",
 		"source_ready": context.level_document != null,
 		"destination_ready": bool(destination.get("selected", false)),
 		"export_profile_optional": true,
