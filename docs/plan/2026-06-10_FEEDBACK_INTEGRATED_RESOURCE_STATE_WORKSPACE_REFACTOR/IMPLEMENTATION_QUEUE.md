@@ -73,10 +73,10 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `UI-00` | `READY` | `STATE-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-00_CREATE_WORKSPACE_UI_CONTRACTS/` | Workspace UI visible contracts | `WORKSPACE_SCREEN_CONTRACT.md`, `WORKSPACE_STATE_MACHINE.md`, `VISIBLE_CONTROL_INVENTORY.md`, `RESOURCE_ROW_SPEC.md`, `DEBUG_LABEL_POLICY.md` | Each tab separates always-visible information from tooltip/debug detail; debug/filepath/internal state are not normal UI; Generate tab caution is documented before changes. |
-| `UI-01` | `BACKLOG` | `STATE-20`, `UI-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-01_RESOURCE_ROW_REDESIGN/` | Compact/adaptive Resource row redesign | asset slot control/state, workspace asset panel, row tests | Resource rows work as compact one-line or narrow adaptive two-line controls; status text moves to icon+tooltip; filepath/node path/debug state are hidden by default; Details button is removed unless replaced by a real detail surface. |
-| `UI-02` | `BACKLOG` | `UI-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-02_SETTINGS_LABEL_SIMPLIFICATION/` | Settings label and debug text simplification | `HexMapWorkspace`, `HexMapSampleSettingsPanel`, settings/debug UI, editor tests | Boolean state is represented by checkbox/toggle controls, not always-on true/false text; debug payload moves to copy/debug report flow. |
-| `UI-03` | `BACKLOG` | `STATE-10`, `UI-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-03_GENERATE_EMPTY_AREA_AND_STATUS_REPAIR/` | Generate empty-area and result-status repair | `hex_map_gen_dock.gd`, workspace Generate tab, generation state/tests | Generate screen no longer contains unexplained dead space; preview/apply/document/save result state is visible; any reload action has a clear state purpose. |
+| `UI-00` | `COMPLETE` | `STATE-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-00_CREATE_WORKSPACE_UI_CONTRACTS/` | Workspace UI visible contracts | `WORKSPACE_SCREEN_CONTRACT.md`, `WORKSPACE_STATE_MACHINE.md`, `VISIBLE_CONTROL_INVENTORY.md`, `RESOURCE_ROW_SPEC.md`, `DEBUG_LABEL_POLICY.md` | Each tab separates always-visible information from tooltip/debug detail; debug/filepath/internal state are not normal UI; Generate tab caution is documented before changes; `./tools/test.sh` passed. |
+| `UI-01` | `READY` | `STATE-20`, `UI-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-01_RESOURCE_ROW_REDESIGN/` | Compact/adaptive Resource row redesign | asset slot control/state, workspace asset panel, row tests | Resource rows work as compact one-line or narrow adaptive two-line controls; status text moves to icon+tooltip; filepath/node path/debug state are hidden by default; Details button is removed unless replaced by a real detail surface. |
+| `UI-02` | `READY` | `UI-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-02_SETTINGS_LABEL_SIMPLIFICATION/` | Settings label and debug text simplification | `HexMapWorkspace`, `HexMapSampleSettingsPanel`, settings/debug UI, editor tests | Boolean state is represented by checkbox/toggle controls, not always-on true/false text; debug payload moves to copy/debug report flow. |
+| `UI-03` | `READY` | `STATE-10`, `UI-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-03_GENERATE_EMPTY_AREA_AND_STATUS_REPAIR/` | Generate empty-area and result-status repair | `hex_map_gen_dock.gd`, workspace Generate tab, generation state/tests | Generate screen no longer contains unexplained dead space; preview/apply/document/save result state is visible; any reload action has a clear state purpose. |
 
 ---
 
@@ -148,7 +148,7 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `UI-00`.
+Current recommended next task: `UI-01`.
 
 Reason:
 
@@ -169,11 +169,13 @@ Reason:
 - `STATE-40` is complete.
 - `STATE-50` is complete.
 - `STATE-60` is complete.
-- `UI-00`, `SCREEN-24`, `SCREEN-25`, `ARCH-40`, `ARCH-50`, and `PERF-60` remain READY.
+- `UI-00` is complete.
+- `UI-01`, `UI-02`, and `UI-03` are READY because `UI-00` is complete.
+- `SCREEN-24`, `SCREEN-25`, `ARCH-40`, `ARCH-50`, and `PERF-60` remain READY.
 - `SCREEN-22` remains BACKLOG because `SCREEN-20` and `SCREEN-21` are not complete.
 - `SCREEN-23` remains BACKLOG because `SCREEN-10` is not complete.
 - `TEST-80` remains BACKLOG because `ARCH-41` is not complete.
-- `UI-00` is the first READY task in queue order after completed `STATE-60`.
+- `UI-01` is the first READY task in queue order after completed `UI-00`.
 
 ---
 
@@ -492,3 +494,24 @@ proof:
     - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-60_ROOT_DISPATCHER_AND_VIEWSTATE_INTEGRATION/POLICY.md`
     - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-60_ROOT_DISPATCHER_AND_VIEWSTATE_INTEGRATION/IMPLEMENTATION_PLAN.md`
     - `docs/review/autopilot/STATE-60_TEST_RESULT_2026-06-10.md`
+
+### UI-00 Create workspace UI contracts
+
+proof:
+  plan: `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-00_CREATE_WORKSPACE_UI_CONTRACTS/`
+  review: `docs/review/autopilot/UI-00_SELF_REVIEW_2026-06-10.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-00_CREATE_WORKSPACE_UI_CONTRACTS/SUB_TASKS.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-00_CREATE_WORKSPACE_UI_CONTRACTS/UX.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-00_CREATE_WORKSPACE_UI_CONTRACTS/POLICY.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-00_CREATE_WORKSPACE_UI_CONTRACTS/IMPLEMENTATION_PLAN.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-00_CREATE_WORKSPACE_UI_CONTRACTS/WORKSPACE_SCREEN_CONTRACT.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-00_CREATE_WORKSPACE_UI_CONTRACTS/WORKSPACE_STATE_MACHINE.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-00_CREATE_WORKSPACE_UI_CONTRACTS/VISIBLE_CONTROL_INVENTORY.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-00_CREATE_WORKSPACE_UI_CONTRACTS/RESOURCE_ROW_SPEC.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-00_CREATE_WORKSPACE_UI_CONTRACTS/DEBUG_LABEL_POLICY.md`
+    - `docs/review/autopilot/UI-00_TEST_RESULT_2026-06-10.md`
