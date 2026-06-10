@@ -46,6 +46,8 @@ var _selected_hex_tile_map_status_label: Label
 var _selected_hex_tile_map_auto_link_label: Label
 var _resources_context_panel: VBoxContainer
 var _resources_context_status_label: Label
+var _resources_context_next_actions_label: Label
+var _resources_source_badges_label: Label
 var _resources_group_labels: Dictionary = {}
 var _catalog_detail_panel: VBoxContainer
 var _catalog_detail_status_label: Label
@@ -447,6 +449,7 @@ func selected_hex_tile_map_snapshot() -> Dictionary:
 	var layer := session.current_selected_hex_tile_map_layer()
 	var hex_layer := layer as HexTileMapLayer
 	var selected := hex_layer != null
+	var display_name := _node_display_name(hex_layer)
 	var context := workspace_asset_context()
 	var level_document := hex_layer.level_document_resource if selected else context.level_document
 	var layer_stack := hex_layer.layer_stack_resource if selected else null
@@ -460,7 +463,9 @@ func selected_hex_tile_map_snapshot() -> Dictionary:
 		"selected": selected,
 		"selected_node": hex_layer,
 		"node_name": hex_layer.name if selected else "",
+		"display_name": display_name,
 		"node_path": _node_display_path(hex_layer),
+		"node_path_visible": false,
 		"status_text": _selected_hex_tile_map_status_text(hex_layer),
 		"auto_link": session.selected_hex_tile_map_auto_link_enabled(),
 		"auto_link_text": "Auto-link: On" if session.selected_hex_tile_map_auto_link_enabled() else "Auto-link: Off",
@@ -1051,6 +1056,11 @@ func document_screen_snapshot() -> Dictionary:
 func resources_screen_snapshot() -> Dictionary:
 	var context := workspace_asset_context()
 	var document := context.level_document
+	var selected_snapshot := selected_hex_tile_map_snapshot()
+	var missing_snapshot := missing_unique_resources_snapshot()
+	var groups := resource_group_rows()
+	var source_badge_rows := _resource_source_badge_rows(groups, selected_snapshot)
+	var next_actions := _resources_next_actions(selected_snapshot, missing_snapshot)
 	var document_slot := tab_asset_slot_snapshot(
 		HexMapWorkspaceComponentRegistry.TAB_DOCUMENT,
 		HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT
@@ -1079,11 +1089,161 @@ func resources_screen_snapshot() -> Dictionary:
 		"asset_source_snapshot": context.source_snapshot(),
 		"dependency_hydration": _document_dependency_hydration_snapshot(document),
 		"last_dependency_hydration": _last_document_dependency_hydration.duplicate(true),
-		"selected_hex_tile_map": selected_hex_tile_map_snapshot(),
-		"resource_groups": resource_group_rows(),
+		"selected_hex_tile_map": selected_snapshot,
+		"selected_hex_tile_map_summary": _selected_hex_tile_map_summary(selected_snapshot, missing_snapshot),
+		"resource_groups": groups,
+		"source_badge_rows": source_badge_rows,
+		"source_badge_explanations": _resource_source_badge_explanations(),
+		"missing_unique_resources": missing_snapshot,
+		"next_actions": next_actions,
+		"clear_next_actions_beyond_resource_rows": not next_actions.is_empty(),
 		"create_missing_resources_available": _missing_unique_resources_create_button != null,
 		"create_missing_resources_button_text": _missing_unique_resources_create_button.text if _missing_unique_resources_create_button != null else "",
 	}
+
+
+func _selected_hex_tile_map_summary(selected_snapshot: Dictionary, missing_snapshot: Dictionary) -> Dictionary:
+	var selected := bool(selected_snapshot.get("selected", false))
+	var missing_count := int(missing_snapshot.get("missing_count", 0))
+	var display_name := String(selected_snapshot.get("display_name", ""))
+	var visible_text := "No HexTileMap selected"
+	if selected:
+		var document_state := String(selected_snapshot.get("level_document_status", "Missing"))
+		var layer_stack_state := String(selected_snapshot.get("layer_stack_status", "Missing"))
+		visible_text = "%s | Level Document: %s | Layer Stack: %s" % [
+			display_name,
+			document_state,
+			layer_stack_state,
+		]
+		if missing_count > 0:
+			visible_text += " | Missing: %d" % missing_count
+	return {
+		"visible": true,
+		"visible_text": visible_text,
+		"display_name": display_name,
+		"selected": selected,
+		"node_path_visible": false,
+		"node_path": String(selected_snapshot.get("node_path", "")),
+		"missing_unique_count": missing_count,
+		"level_document_status": String(selected_snapshot.get("level_document_status", "")),
+		"layer_stack_status": String(selected_snapshot.get("layer_stack_status", "")),
+		"tile_catalog_status": String(selected_snapshot.get("tile_catalog_status", "")),
+	}
+
+
+func _resources_next_actions(selected_snapshot: Dictionary, missing_snapshot: Dictionary) -> PackedStringArray:
+	var actions := PackedStringArray()
+	if not bool(selected_snapshot.get("selected", false)):
+		actions.append("Select a HexTileMap node")
+		return actions
+	var missing_ids = missing_snapshot.get("missing_resource_ids", PackedStringArray()) as PackedStringArray
+	if missing_ids != null and not missing_ids.is_empty():
+		actions.append("Choose a save folder")
+		actions.append("Create Missing Resources")
+	var writeback = selected_snapshot.get("writeback", {}) as Dictionary
+	if String(writeback.get("blocked_reason", "")) == "":
+		actions.append("Review source badges")
+	return actions
+
+
+func _resource_source_badge_rows(groups: Array, selected_snapshot: Dictionary) -> Array[Dictionary]:
+	var context := workspace_asset_context()
+	var source_snapshot := context.source_snapshot()
+	var selected := bool(selected_snapshot.get("selected", false))
+	var binding_state = selected_snapshot.get("binding_state", {}) as Dictionary
+	var manual_override_slot_ids := PackedStringArray(binding_state.get("manual_override_slot_ids", PackedStringArray()))
+	var hydrated_slot_ids := PackedStringArray(binding_state.get("hydrated_dependency_slot_ids", PackedStringArray()))
+	var rows: Array[Dictionary] = []
+	var included := {}
+	for group in groups:
+		var slot_ids = (group as Dictionary).get("slot_ids", PackedStringArray()) as PackedStringArray
+		for slot_id_value in slot_ids:
+			var slot_id := String(slot_id_value)
+			if included.has(slot_id):
+				continue
+			included[slot_id] = true
+			var source = source_snapshot.get(slot_id, {}) as Dictionary
+			var resource := context.asset_for_slot(slot_id)
+			var badge := _resource_source_badge_for_slot(
+				slot_id,
+				resource,
+				source,
+				manual_override_slot_ids,
+				hydrated_slot_ids,
+				selected
+			)
+			var label := _resource_group_slot_label(slot_id)
+			rows.append({
+				"slot_id": slot_id,
+				"label": label,
+				"source_badge": badge,
+				"source": String(source.get("source", HexMapWorkspaceAssetContext.SOURCE_NONE)),
+				"resource": resource,
+				"selected": resource != null,
+				"visible_text": "%s: %s" % [label, badge],
+				"tooltip": _resource_source_badge_tooltip(slot_id, badge, resource),
+			})
+	return rows
+
+
+func _resource_source_badge_for_slot(
+	slot_id: String,
+	resource: Resource,
+	source: Dictionary,
+	manual_override_slot_ids: PackedStringArray,
+	hydrated_slot_ids: PackedStringArray,
+	selected: bool
+) -> String:
+	if resource == null:
+		return "Missing"
+	if selected and HexMapWorkspaceBindingService.node_owned_slot_ids().has(slot_id):
+		return "Node"
+	if manual_override_slot_ids.has(slot_id):
+		return "Manual Override"
+	if hydrated_slot_ids.has(slot_id):
+		return HexMapDocumentDependencyService.SOURCE_BADGE_DOCUMENT_DEPENDENCY
+	var source_id := String(source.get("source", HexMapWorkspaceAssetContext.SOURCE_NONE))
+	if source_id == HexMapWorkspaceAssetContext.SOURCE_SAMPLE:
+		return HexMapWorkspaceAssetContext.SOURCE_BADGE_SAMPLE
+	if source_id == HexMapWorkspaceAssetContext.SOURCE_DOCUMENT_DEPENDENCY:
+		return HexMapDocumentDependencyService.SOURCE_BADGE_DOCUMENT_DEPENDENCY
+	if source_id == HexMapWorkspaceAssetContext.SOURCE_PROJECT:
+		return HexMapWorkspaceAssetContext.SOURCE_BADGE_PROJECT
+	return HexMapWorkspaceAssetContext.SOURCE_BADGE_NONE
+
+
+func _resource_source_badge_tooltip(slot_id: String, badge: String, resource: Resource) -> String:
+	var lines := PackedStringArray()
+	lines.append("%s: %s" % [_resource_group_slot_label(slot_id), _resource_source_badge_explanations().get(badge, badge)])
+	if resource != null and resource.resource_path != "":
+		lines.append("Path: %s" % resource.resource_path)
+	return "\n".join(lines)
+
+
+func _resource_source_badge_explanations() -> Dictionary:
+	return {
+		"Node": "Owned by the selected HexTileMap node.",
+		HexMapDocumentDependencyService.SOURCE_BADGE_DOCUMENT_DEPENDENCY: "Hydrated from the selected Level Document dependencies.",
+		"Manual Override": "Workspace selection intentionally overrides the selected document dependency.",
+		HexMapWorkspaceAssetContext.SOURCE_BADGE_SAMPLE: "Learning/sample asset; duplicate before production use.",
+		HexMapWorkspaceAssetContext.SOURCE_BADGE_PROJECT: "Selected project resource.",
+		HexMapWorkspaceAssetContext.SOURCE_BADGE_NONE: "No resource selected.",
+	}
+
+
+func _source_badge_rows_text(rows: Array) -> String:
+	var parts := PackedStringArray()
+	for row in rows:
+		if not row is Dictionary:
+			continue
+		parts.append(String((row as Dictionary).get("visible_text", "")))
+	return _join_text(parts, " | ")
+
+
+func _resources_next_actions_text(actions: PackedStringArray) -> String:
+	if actions.is_empty():
+		return "Next: Review resource rows."
+	return "Next: %s." % _join_text(actions, " / ")
 
 
 func resource_group_rows() -> Array[Dictionary]:
@@ -2833,6 +2993,14 @@ func _mount_resources_context_panel() -> void:
 		_resources_context_panel.add_child(label)
 		_resources_group_labels[group_id] = label
 
+	_resources_source_badges_label = Label.new()
+	_resources_source_badges_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_resources_context_panel.add_child(_resources_source_badges_label)
+
+	_resources_context_next_actions_label = Label.new()
+	_resources_context_next_actions_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_resources_context_panel.add_child(_resources_context_next_actions_label)
+
 	(page as Control).add_child(_resources_context_panel)
 	_register_tab_component(
 		HexMapWorkspaceComponentRegistry.TAB_DOCUMENT,
@@ -3165,20 +3333,60 @@ func _resource_group_row(
 	slot_ids: PackedStringArray,
 	tooltip: String
 ) -> Dictionary:
+	var context := workspace_asset_context()
+	var selected_snapshot := selected_hex_tile_map_snapshot()
+	var selected := bool(selected_snapshot.get("selected", false))
+	var binding_state = selected_snapshot.get("binding_state", {}) as Dictionary
+	var manual_override_slot_ids := PackedStringArray(binding_state.get("manual_override_slot_ids", PackedStringArray()))
+	var hydrated_slot_ids := PackedStringArray(binding_state.get("hydrated_dependency_slot_ids", PackedStringArray()))
+	var source_snapshot := context.source_snapshot()
 	var slot_labels := PackedStringArray()
+	var missing_labels := PackedStringArray()
+	var slot_status_rows: Array[Dictionary] = []
 	var tooltip_lines := PackedStringArray()
 	tooltip_lines.append(tooltip)
+	var ready_count := 0
 	for slot_id in slot_ids:
-		var text := _resource_group_slot_label(String(slot_id))
+		var actual_slot_id := String(slot_id)
+		var text := _resource_group_slot_label(actual_slot_id)
 		slot_labels.append(text)
-		var purpose := HexMapWorkspaceAssetResourceFactory.resource_purpose(String(slot_id))
+		var resource := context.asset_for_slot(actual_slot_id)
+		if resource != null:
+			ready_count += 1
+		else:
+			missing_labels.append(text)
+		var source = source_snapshot.get(actual_slot_id, {}) as Dictionary
+		var badge := _resource_source_badge_for_slot(
+			actual_slot_id,
+			resource,
+			source,
+			manual_override_slot_ids,
+			hydrated_slot_ids,
+			selected
+		)
+		slot_status_rows.append({
+			"slot_id": actual_slot_id,
+			"label": text,
+			"present": resource != null,
+			"source_badge": badge,
+			"status_text": "%s: %s" % [text, badge],
+		})
+		var purpose := HexMapWorkspaceAssetResourceFactory.resource_purpose(actual_slot_id)
 		if purpose != "":
 			tooltip_lines.append("%s: %s" % [text, purpose])
+	var status_text := "%d/%d ready" % [ready_count, slot_ids.size()]
+	if not missing_labels.is_empty():
+		status_text += " | Missing: %s" % _join_text(missing_labels, ", ")
 	return {
 		"group_id": group_id,
 		"label": label,
 		"slot_ids": slot_ids.duplicate(),
 		"slot_labels": slot_labels,
+		"slot_status_rows": slot_status_rows,
+		"ready_count": ready_count,
+		"missing_count": missing_labels.size(),
+		"missing_labels": missing_labels,
+		"status_text": status_text,
 		"tooltip": "\n".join(tooltip_lines),
 	}
 
@@ -4153,23 +4361,31 @@ func _refresh_selected_hex_tile_map_context() -> void:
 func _refresh_resources_context_panel() -> void:
 	if _resources_context_panel == null:
 		return
-	var snapshot := selected_hex_tile_map_snapshot()
+	var screen := resources_screen_snapshot()
+	var snapshot = screen.get("selected_hex_tile_map", {}) as Dictionary
+	var summary = screen.get("selected_hex_tile_map_summary", {}) as Dictionary
 	var empty_state := _resources_tab_empty_state()
 	if _resources_context_status_label != null:
 		_resources_context_status_label.text = _empty_state_inline_text(empty_state) \
-			if bool(empty_state.get("visible", false)) else String(snapshot.get("status_text", "No HexTileMap selected"))
+			if bool(empty_state.get("visible", false)) else String(summary.get("visible_text", "No HexTileMap selected"))
 		_resources_context_status_label.tooltip_text = String(empty_state.get("help_tooltip", _selected_hex_tile_map_tooltip(snapshot)))
-	for group in resource_group_rows():
+	var groups = screen.get("resource_groups", []) as Array
+	for group in groups:
 		var group_id := String(group.get("group_id", ""))
 		var label = _resources_group_labels.get(group_id, null) as Label
 		if label == null:
 			continue
-		var slot_labels = group.get("slot_labels", PackedStringArray()) as PackedStringArray
 		label.text = "%s: %s" % [
 			String(group.get("label", "")),
-			_join_text(slot_labels, ", "),
+			String(group.get("status_text", "")),
 		]
 		label.tooltip_text = String(group.get("tooltip", ""))
+	if _resources_source_badges_label != null:
+		_resources_source_badges_label.text = "Sources: %s" % _source_badge_rows_text(screen.get("source_badge_rows", []) as Array)
+		_resources_source_badges_label.tooltip_text = "Source badges explain ownership; paths stay in row tooltips and debug reports."
+	if _resources_context_next_actions_label != null:
+		var next_actions = screen.get("next_actions", PackedStringArray()) as PackedStringArray
+		_resources_context_next_actions_label.text = _resources_next_actions_text(next_actions)
 
 
 func _refresh_catalog_detail_panel() -> void:
@@ -4483,7 +4699,7 @@ func _refresh_missing_unique_resources_panel() -> void:
 func _selected_hex_tile_map_status_text(layer: Node) -> String:
 	if layer == null or not is_instance_valid(layer):
 		return "No HexTileMap selected"
-	return "Selected HexTileMap: %s" % _node_display_path(layer)
+	return "Selected HexTileMap: %s" % _node_display_name(layer)
 
 
 func _selected_hex_tile_map_tooltip(snapshot: Dictionary) -> String:
@@ -4508,6 +4724,12 @@ func _node_display_path(node: Node) -> String:
 	if node == null or not is_instance_valid(node):
 		return ""
 	return str(node.get_path()) if node.is_inside_tree() else node.name
+
+
+func _node_display_name(node: Node) -> String:
+	if node == null or not is_instance_valid(node):
+		return ""
+	return node.name if node.name != "" else "HexTileMap"
 
 
 func _binding_relationship(slot_id: String, label: String) -> Dictionary:

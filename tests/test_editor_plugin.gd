@@ -483,6 +483,8 @@ func _test_workspace_selected_hex_tile_map_auto_binding() -> void:
 	_assert_true(bool(selected_snapshot["selected"]), "NODE-21 selected HexTileMap is recorded")
 	_assert_eq(selected_snapshot["selected_node"], selected_layer, "NODE-21 selected node is the HexTileMapLayer")
 	_assert_true(String(selected_snapshot["status_text"]).contains("SelectedHexTileMap"), "NODE-21 selected status names the node")
+	_assert_true(not String(selected_snapshot["status_text"]).contains("/"), "SCREEN-10 selected status keeps node path out of primary text")
+	_assert_true(not bool(selected_snapshot["node_path_visible"]), "SCREEN-10 selected snapshot marks node path as detail")
 	_assert_eq(session.current_selected_hex_tile_map_layer(), selected_layer, "NODE-21 session stores selected HexTileMap")
 	_assert_eq(session.current_target_layer(), selected_layer, "NODE-21 auto-link publishes selected node as target")
 	_assert_eq(workspace.edit_tool().target_layer(), selected_layer, "NODE-21 workspace applies selected node to edit tool")
@@ -504,6 +506,14 @@ func _test_workspace_selected_hex_tile_map_auto_binding() -> void:
 		selected_layer,
 		"TAB-50 Resources screen shows selected HexTileMap node"
 	)
+	var selected_resources_snapshot = workspace.resources_screen_snapshot()
+	var selected_resources_summary = selected_resources_snapshot["selected_hex_tile_map_summary"] as Dictionary
+	_assert_true(String(selected_resources_summary["visible_text"]).contains("SelectedHexTileMap"), "SCREEN-10 Resources summary names selected HexTileMap")
+	_assert_true(not String(selected_resources_summary["visible_text"]).contains("/"), "SCREEN-10 Resources summary omits node path")
+	_assert_true((selected_resources_snapshot["next_actions"] as PackedStringArray).has("Choose a save folder"), "SCREEN-10 Resources exposes missing-resource save-folder next action")
+	var selected_source_badges = _rows_by_slot(selected_resources_snapshot["source_badge_rows"] as Array)
+	_assert_eq(String((selected_source_badges[HexMapWorkspaceAssetContext.SLOT_LAYER_STACK] as Dictionary)["source_badge"]), "Node", "SCREEN-10 Resources marks selected node Layer Stack as Node source")
+	_assert_eq(String((selected_source_badges[HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT] as Dictionary)["source_badge"]), "Missing", "SCREEN-10 Resources marks missing Level Document source")
 	_assert_true(recorder.keys.has("selected_hex_tile_map_layer"), "NODE-21 session emits selected node change")
 	_assert_true(recorder.keys.has("target_layer"), "NODE-21 auto-link emits target change")
 
@@ -524,6 +534,13 @@ func _test_workspace_selected_hex_tile_map_auto_binding() -> void:
 	workspace.set_selected_hex_tile_map_node(selected_layer, "test.selected_hex_tile_map.dependencies")
 	_assert_eq(workspace.workspace_asset_context().level_document, dependency_document, "NODE-20 selected node Level Document enters workspace context")
 	_assert_eq(workspace.workspace_asset_context().tile_catalog, dependency_catalog, "NODE-20 selected node document dependencies hydrate shared context")
+	var dependency_resources_snapshot = workspace.resources_screen_snapshot()
+	var dependency_source_badges = _rows_by_slot(dependency_resources_snapshot["source_badge_rows"] as Array)
+	_assert_eq(
+		String((dependency_source_badges[HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG] as Dictionary)["source_badge"]),
+		HexMapDocumentDependencyService.SOURCE_BADGE_DOCUMENT_DEPENDENCY,
+		"SCREEN-10 Resources marks hydrated Tile Catalog as Document Dependency"
+	)
 	binding_state = workspace.selected_hex_tile_map_binding_state_snapshot()
 	_assert_true((binding_state["active_state_ids"] as PackedStringArray).has(HexMapWorkspaceBindingService.STATE_HYDRATED_DEPENDENCIES), "STATE-30 document dependency hydration state is explicit")
 	_assert_true((binding_state["hydrated_dependency_slot_ids"] as PackedStringArray).has(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG), "STATE-30 hydrated dependency records Tile Catalog slot")
@@ -1318,6 +1335,12 @@ func _test_workspace_hydrates_asset_context_from_document_dependencies() -> void
 		HexMapDocumentDependencyService.SOURCE_BADGE_DOCUMENT_DEPENDENCY,
 		"RES-11 Resources source snapshot records Object Database dependency badge"
 	)
+	var resources_badges = _rows_by_slot(resources_snapshot["source_badge_rows"] as Array)
+	_assert_eq(
+		String((resources_badges[HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE] as Dictionary)["source_badge"]),
+		HexMapDocumentDependencyService.SOURCE_BADGE_DOCUMENT_DEPENDENCY,
+		"SCREEN-10 Resources source badge row records Object Database dependency badge"
+	)
 
 	var partial_document = HexMapDocumentAdapter.from_map_resource(
 		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
@@ -1421,9 +1444,23 @@ func _test_document_asset_screen_manages_project_document_without_samples() -> v
 		"TAB-50 UniqueResource tooltip explains resource purpose"
 	)
 	_assert_true(
+		String((groups_by_id["unique"] as Dictionary)["status_text"]).contains("0/2 ready"),
+		"SCREEN-10 Resources unique group exposes readiness count"
+	)
+	_assert_true(
 		((groups_by_id["optional"] as Dictionary)["slot_ids"] as PackedStringArray).has(HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE),
 		"TAB-57 Resources optional group includes Movement Profile"
 	)
+	var selected_summary = snapshot["selected_hex_tile_map_summary"] as Dictionary
+	_assert_eq(String(selected_summary["visible_text"]), "No HexTileMap selected", "SCREEN-10 Resources summary starts with no-selection state")
+	_assert_true(not bool(selected_summary["node_path_visible"]), "SCREEN-10 Resources summary keeps node path out of primary text")
+	_assert_true((snapshot["next_actions"] as PackedStringArray).has("Select a HexTileMap node"), "SCREEN-10 Resources next action points to node selection")
+	_assert_true(bool(snapshot["clear_next_actions_beyond_resource_rows"]), "SCREEN-10 Resources exposes next actions beyond resource rows")
+	var source_badge_rows = _rows_by_slot(snapshot["source_badge_rows"] as Array)
+	_assert_eq(String((source_badge_rows[HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT] as Dictionary)["source_badge"]), "Missing", "SCREEN-10 Resources source badge row marks missing document")
+	var source_badge_explanations = snapshot["source_badge_explanations"] as Dictionary
+	_assert_true(source_badge_explanations.has("Node"), "SCREEN-10 Resources explains Node source badge")
+	_assert_true(source_badge_explanations.has("Manual Override"), "SCREEN-10 Resources explains Manual Override source badge")
 	_assert_eq(String(snapshot["create_missing_resources_button_text"]), "Create Missing Resources", "TAB-50 Resources screen keeps Create Missing Resources")
 	_assert_eq(workspace.workspace_asset_context().level_document, null, "Document screen starts without a sample document")
 	_assert_true(not session.show_bundled_samples_in_main_selectors, "Document screen starts with sample mode OFF")
@@ -8470,6 +8507,14 @@ func _entries_by_id(entries: Array) -> Dictionary:
 	var result := {}
 	for entry in entries:
 		result[String(entry["id"])] = entry
+	return result
+
+
+func _rows_by_slot(rows: Array) -> Dictionary:
+	var result := {}
+	for row in rows:
+		if row is Dictionary:
+			result[String((row as Dictionary).get("slot_id", ""))] = row
 	return result
 
 
