@@ -3394,6 +3394,17 @@ func _test_workspace_sample_settings_panel_controls_sample_mode_sources() -> voi
 	var settings_sample_state = settings_snapshot["sample_state"] as Dictionary
 	_assert_eq(String(settings_sample_state["state_source"]), "HexMapSampleLearningState", "STATE-50 Settings reports sample state source")
 	_assert_eq(String(settings_sample_state["state_id"]), HexMapSampleLearningState.STATE_LEARNING_AVAILABLE, "STATE-50 first-run Settings reports learning available")
+	var settings_group_ids = settings_snapshot["settings_group_ids"] as PackedStringArray
+	for group_id in ["sample_learning", "debug", "project_defaults", "ui_preferences"]:
+		_assert_true(settings_group_ids.has(group_id), "SETTINGS-NEXT-10 Settings exposes group: %s" % group_id)
+	_assert_true(bool(settings_snapshot["settings_groups_separated"]), "SETTINGS-NEXT-10 Settings groups are separated")
+	_assert_true(bool(settings_snapshot["sample_learning_group_present"]), "SETTINGS-NEXT-10 Sample Learning group is present")
+	_assert_true(bool(settings_snapshot["debug_group_present"]), "SETTINGS-NEXT-10 Debug group is present")
+	_assert_true(bool(settings_snapshot["project_defaults_group_present"]), "SETTINGS-NEXT-10 Project Defaults group is present")
+	_assert_true(bool(settings_snapshot["ui_preferences_group_present"]), "SETTINGS-NEXT-10 UI Preferences group is present")
+	_assert_eq(int(settings_snapshot["boolean_control_count"]), 4, "SETTINGS-NEXT-10 Settings exposes four boolean controls")
+	_assert_true(bool(settings_snapshot["boolean_controls_use_checkboxes"]), "SETTINGS-NEXT-10 Settings booleans use CheckBox controls")
+	_assert_true(bool(settings_snapshot["boolean_controls_have_tooltips"]), "SETTINGS-NEXT-10 Settings boolean controls have tooltip detail")
 	_assert_true(bool(settings_snapshot["debug_numeric_fallback_isolated"]), "TAB-57 debug numeric fallback is isolated in Settings controls")
 	_assert_true(bool(settings_snapshot["sample_actions_work_or_removed"]), "TAB-57 sample actions are functional or removed")
 	_assert_true(not bool(settings_snapshot["settings_debug_label_visible"]), "UI-02 Settings hides redundant debug enabled/disabled label")
@@ -3401,6 +3412,15 @@ func _test_workspace_sample_settings_panel_controls_sample_mode_sources() -> voi
 	_assert_true(not bool(settings_snapshot["boolean_state_text_visible"]), "UI-02 Settings booleans are represented by CheckBoxes")
 	_assert_true(not bool(settings_snapshot["debug_payload_visible_in_normal_ui"]), "UI-02 Settings debug payload is not normal UI text")
 	var snapshot = panel.snapshot()
+	var panel_group_ids = snapshot["settings_group_ids"] as PackedStringArray
+	_assert_true(panel_group_ids.has("sample_learning"), "SETTINGS-NEXT-10 sample panel exposes Sample Learning group")
+	_assert_true(panel_group_ids.has("debug"), "SETTINGS-NEXT-10 sample panel exposes Debug group")
+	_assert_true(bool(snapshot["boolean_controls_have_tooltips"]), "SETTINGS-NEXT-10 sample panel checkbox controls have tooltip detail")
+	var boolean_controls = snapshot["boolean_controls"] as Array
+	for control in boolean_controls:
+		var row = control as Dictionary
+		_assert_eq(String(row["control_type"]), "CheckBox", "SETTINGS-NEXT-10 boolean control is a CheckBox")
+		_assert_true(String(row["tooltip"]) != "", "SETTINGS-NEXT-10 boolean CheckBox has tooltip")
 	var panel_sample_state = snapshot["sample_state"] as Dictionary
 	_assert_eq(String(panel_sample_state["state_id"]), HexMapSampleLearningState.STATE_OFF, "STATE-50 sample panel starts off")
 	_assert_true(

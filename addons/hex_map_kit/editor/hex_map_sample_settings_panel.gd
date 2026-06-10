@@ -12,6 +12,14 @@ signal sample_settings_changed(snapshot: Dictionary)
 
 const ACTION_DUPLICATE_TO_PROJECT := "duplicate_to_project"
 
+const GROUP_SAMPLE_LEARNING := "sample_learning"
+const GROUP_DEBUG := "debug"
+
+const TOGGLE_SHOW_SAMPLES := "show_bundled_samples_in_main_selectors"
+const TOGGLE_SCRATCH_SAMPLES := "use_bundled_sample_assets_for_scratch_documents"
+const TOGGLE_COPY_SAMPLES := "auto_create_project_copy_when_applying_sample"
+const TOGGLE_DEBUG_NUMERIC_FALLBACK := "debug_numeric_tile_fallback_enabled"
+
 const SAMPLE_CATALOG_ID := "sample_catalog"
 const SAMPLE_TILE_SET_ID := "sample_tile_set"
 const SAMPLE_OBJECT_SCENE_ID := "sample_object_scene"
@@ -156,7 +164,14 @@ func snapshot() -> Dictionary:
 		"auto_create_project_copy_when_applying_sample": _auto_create_project_copy_when_applying_sample(),
 		"debug_numeric_tile_fallback_enabled": _debug_numeric_tile_fallback_enabled(),
 		"sample_assets": sample_asset_rows(),
+		"sample_asset_count": sample_asset_rows().size(),
 		"sample_action_rows": sample_action_rows_snapshot(),
+		"settings_groups": settings_group_snapshot(),
+		"settings_group_ids": PackedStringArray([GROUP_SAMPLE_LEARNING, GROUP_DEBUG]),
+		"sample_learning_toggle_ids": PackedStringArray([TOGGLE_SHOW_SAMPLES, TOGGLE_SCRATCH_SAMPLES, TOGGLE_COPY_SAMPLES]),
+		"debug_toggle_ids": PackedStringArray([TOGGLE_DEBUG_NUMERIC_FALLBACK]),
+		"boolean_controls": boolean_controls_snapshot(),
+		"boolean_controls_have_tooltips": _boolean_controls_have_tooltips(),
 		"last_sample_action": _last_sample_action_result.duplicate(),
 		"sample_status_text": _sample_status_text(),
 		"sample_status_tooltip": _sample_status_tooltip(),
@@ -166,6 +181,36 @@ func snapshot() -> Dictionary:
 		"sample_state": sample_state,
 		"sample_view_state": sample_state.get("view_state", {}),
 	}
+
+
+func settings_group_snapshot() -> Array[Dictionary]:
+	return [
+		{
+			"id": GROUP_SAMPLE_LEARNING,
+			"title": "Sample Learning",
+			"component_id": "sample_settings_panel",
+			"toggle_ids": PackedStringArray([TOGGLE_SHOW_SAMPLES, TOGGLE_SCRATCH_SAMPLES, TOGGLE_COPY_SAMPLES]),
+			"sample_asset_count": sample_asset_rows().size(),
+			"separated": true,
+		},
+		{
+			"id": GROUP_DEBUG,
+			"title": "Debug",
+			"component_id": "sample_settings_panel",
+			"toggle_ids": PackedStringArray([TOGGLE_DEBUG_NUMERIC_FALLBACK]),
+			"sample_asset_count": 0,
+			"separated": true,
+		},
+	]
+
+
+func boolean_controls_snapshot() -> Array[Dictionary]:
+	return [
+		_boolean_control_snapshot(TOGGLE_SHOW_SAMPLES, GROUP_SAMPLE_LEARNING, _show_samples_check),
+		_boolean_control_snapshot(TOGGLE_SCRATCH_SAMPLES, GROUP_SAMPLE_LEARNING, _scratch_samples_check),
+		_boolean_control_snapshot(TOGGLE_COPY_SAMPLES, GROUP_SAMPLE_LEARNING, _copy_samples_check),
+		_boolean_control_snapshot(TOGGLE_DEBUG_NUMERIC_FALLBACK, GROUP_DEBUG, _debug_numeric_fallback_check),
+	]
 
 
 func sample_state_snapshot(sample_source_selected_slots: PackedStringArray = PackedStringArray()) -> Dictionary:
@@ -184,30 +229,40 @@ func _build_ui() -> void:
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
 
+	var sample_group := _settings_group_container("Sample Learning", GROUP_SAMPLE_LEARNING)
+	add_child(sample_group)
+
 	_show_samples_check = CheckBox.new()
 	_show_samples_check.text = "Show bundled samples in asset selectors"
+	_show_samples_check.tooltip_text = "Shows bundled samples as learning candidates; they remain opt-in and not production defaults."
 	_show_samples_check.toggled.connect(_on_show_samples_toggled)
-	add_child(_show_samples_check)
+	sample_group.add_child(_show_samples_check)
 
 	_scratch_samples_check = CheckBox.new()
 	_scratch_samples_check.text = "Use bundled sample assets for scratch documents"
+	_scratch_samples_check.tooltip_text = "Allows scratch documents to start from bundled learning assets only."
 	_scratch_samples_check.toggled.connect(_on_scratch_samples_toggled)
-	add_child(_scratch_samples_check)
+	sample_group.add_child(_scratch_samples_check)
 
 	_copy_samples_check = CheckBox.new()
 	_copy_samples_check.text = "Create project copies when applying samples"
+	_copy_samples_check.tooltip_text = "Duplicates sample assets to the project before use in production flows."
 	_copy_samples_check.toggled.connect(_on_copy_samples_toggled)
-	add_child(_copy_samples_check)
+	sample_group.add_child(_copy_samples_check)
+
+	var debug_group := _settings_group_container("Debug", GROUP_DEBUG)
+	add_child(debug_group)
 
 	_debug_numeric_fallback_check = CheckBox.new()
 	_debug_numeric_fallback_check.text = "Enable numeric tile fallback for debug"
+	_debug_numeric_fallback_check.tooltip_text = "Enables numeric tile fallback only for explicit debug inspection."
 	_debug_numeric_fallback_check.toggled.connect(_on_debug_numeric_fallback_toggled)
-	add_child(_debug_numeric_fallback_check)
+	debug_group.add_child(_debug_numeric_fallback_check)
 
 	_sample_status_label = Label.new()
 	_sample_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_sample_status_label.visible = false
-	add_child(_sample_status_label)
+	sample_group.add_child(_sample_status_label)
 
 	for row in sample_asset_rows():
 		var row_control = HBoxContainer.new()
@@ -231,7 +286,7 @@ func _build_ui() -> void:
 			row_control.add_child(duplicate_button)
 			row_snapshot["duplicate_button"] = duplicate_button
 
-		add_child(row_control)
+		sample_group.add_child(row_control)
 		_asset_rows.append(row_snapshot)
 
 
@@ -290,6 +345,39 @@ func sample_action_rows_snapshot() -> Array[Dictionary]:
 			"action_button_texts": action_texts,
 		})
 	return result
+
+
+func _settings_group_container(title: String, group_id: String) -> VBoxContainer:
+	var group := VBoxContainer.new()
+	group.name = "%s Settings Group" % title
+	group.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	group.set_meta("hex_settings_group_id", group_id)
+	var label := Label.new()
+	label.text = title
+	label.add_theme_font_size_override("font_size", 13)
+	group.add_child(label)
+	return group
+
+
+func _boolean_control_snapshot(control_id: String, group_id: String, control: CheckBox) -> Dictionary:
+	return {
+		"id": control_id,
+		"group_id": group_id,
+		"control_type": "CheckBox",
+		"checked": control.button_pressed if control != null else false,
+		"label": control.text if control != null else "",
+		"tooltip": control.tooltip_text if control != null else "",
+		"has_tooltip": control != null and control.tooltip_text != "",
+	}
+
+
+func _boolean_controls_have_tooltips() -> bool:
+	for row in boolean_controls_snapshot():
+		if not row is Dictionary:
+			return false
+		if not bool((row as Dictionary).get("has_tooltip", false)):
+			return false
+	return true
 
 
 func _sample_supports_duplicate(sample_id: String) -> bool:

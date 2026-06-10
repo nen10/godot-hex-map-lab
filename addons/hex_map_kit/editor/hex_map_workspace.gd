@@ -200,6 +200,9 @@ func settings_screen_snapshot() -> Dictionary:
 	var resources_slot_ids := tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_DOCUMENT)
 	var empty_state := _settings_tab_empty_state()
 	var screen_role := HexMapSettingsScreen.screen_contract()
+	var settings_groups := HexMapSettingsScreen.settings_group_rows(sample_snapshot)
+	var settings_group_ids := _settings_group_ids(settings_groups)
+	var boolean_controls = sample_snapshot.get("boolean_controls", []) as Array
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_SETTINGS,
 		"screen_role_source": String(screen_role.get("screen_role_source", "")),
@@ -216,6 +219,18 @@ func settings_screen_snapshot() -> Dictionary:
 		"sample_learning_controls_present": _sample_settings_panel != null,
 		"sample_state": sample_state,
 		"sample_view_state": sample_state.get("view_state", {}),
+		"settings_groups": settings_groups,
+		"settings_group_ids": settings_group_ids,
+		"settings_groups_separated": _settings_groups_separated(settings_groups),
+		"sample_learning_group_present": settings_group_ids.has(HexMapSettingsScreen.GROUP_SAMPLE_LEARNING),
+		"debug_group_present": settings_group_ids.has(HexMapSettingsScreen.GROUP_DEBUG),
+		"project_defaults_group_present": settings_group_ids.has(HexMapSettingsScreen.GROUP_PROJECT_DEFAULTS),
+		"ui_preferences_group_present": settings_group_ids.has(HexMapSettingsScreen.GROUP_UI_PREFERENCES),
+		"sample_settings_groups": sample_snapshot.get("settings_groups", []),
+		"boolean_controls": boolean_controls,
+		"boolean_control_count": boolean_controls.size(),
+		"boolean_controls_use_checkboxes": _settings_boolean_controls_use_type(boolean_controls, "CheckBox"),
+		"boolean_controls_have_tooltips": _settings_boolean_controls_have_tooltips(boolean_controls),
 		"sample_asset_count": (sample_snapshot.get("sample_assets", []) as Array).size(),
 		"sample_actions_work_or_removed": _settings_sample_actions_work_or_removed(sample_snapshot),
 		"debug_numeric_fallback_isolated": _sample_settings_panel != null and settings_slot_ids.is_empty(),
@@ -5256,6 +5271,41 @@ func _settings_sample_actions_work_or_removed(sample_snapshot: Dictionary) -> bo
 		if String((row as Dictionary).get("id", "")) == HexMapSampleSettingsPanel.SAMPLE_CATALOG_ID:
 			catalog_duplicate_available = action_texts.has("Duplicate To Project")
 	return catalog_duplicate_available
+
+
+func _settings_group_ids(groups: Array) -> PackedStringArray:
+	var ids := PackedStringArray()
+	for group in groups:
+		if group is Dictionary:
+			ids.append(String((group as Dictionary).get("id", "")))
+	return ids
+
+
+func _settings_groups_separated(groups: Array) -> bool:
+	for group in groups:
+		if not group is Dictionary:
+			return false
+		if not bool((group as Dictionary).get("separated", false)):
+			return false
+	return not groups.is_empty()
+
+
+func _settings_boolean_controls_use_type(rows: Array, control_type: String) -> bool:
+	for row in rows:
+		if not row is Dictionary:
+			return false
+		if String((row as Dictionary).get("control_type", "")) != control_type:
+			return false
+	return not rows.is_empty()
+
+
+func _settings_boolean_controls_have_tooltips(rows: Array) -> bool:
+	for row in rows:
+		if not row is Dictionary:
+			return false
+		if not bool((row as Dictionary).get("has_tooltip", false)):
+			return false
+	return not rows.is_empty()
 
 
 func _refresh_export_purpose_panel() -> void:
