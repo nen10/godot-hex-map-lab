@@ -2,6 +2,8 @@
 class_name HexMapEditorPathSelector
 extends RefCounted
 
+const HexMapDialogLifecycleState = preload("res://addons/hex_map_kit/editor/hex_map_dialog_lifecycle_state.gd")
+
 const IMAGE_FILTERS := ["*.png, *.jpg, *.jpeg, *.webp ; Image atlas"]
 const TRES_FILTERS := ["*.tres ; Godot resource"]
 
@@ -19,6 +21,13 @@ static func new_dialog(file_mode: int, filters: Array) -> EditorFileDialog:
 
 static func dialog_lifecycle_snapshot(dialog: Node) -> Dictionary:
 	var parent := dialog.get_parent() if dialog != null else null
+	var state := HexMapDialogLifecycleState.new()
+	state.update_from_context({
+		"valid": dialog != null,
+		"has_parent": parent != null,
+		"inside_tree": dialog != null and dialog.is_inside_tree(),
+	})
+	var dialog_state := state.to_state_snapshot()
 	return {
 		"valid": dialog != null,
 		"has_parent": parent != null,
@@ -28,6 +37,8 @@ static func dialog_lifecycle_snapshot(dialog: Node) -> Dictionary:
 		"parent_name": parent.name if parent != null else "",
 		"file_mode": int(dialog.get("file_mode")) if dialog != null and dialog.get("file_mode") != null else -1,
 		"access": int(dialog.get("access")) if dialog != null and dialog.get("access") != null else -1,
+		"dialog_state": dialog_state,
+		"view_state": dialog_state.get("view_state", {}),
 	}
 
 

@@ -41,6 +41,10 @@ const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_ma
 const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
 const HexMapWorkspaceAssetResourceFactory = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_resource_factory.gd")
 const HexMapWorkspaceBindingService = preload("res://addons/hex_map_kit/editor/hex_map_workspace_binding_service.gd")
+const HexMapValidationWorkflowState = preload("res://addons/hex_map_kit/editor/hex_map_validation_workflow_state.gd")
+const HexMapExportWorkflowState = preload("res://addons/hex_map_kit/editor/hex_map_export_workflow_state.gd")
+const HexMapSampleLearningState = preload("res://addons/hex_map_kit/editor/hex_map_sample_learning_state.gd")
+const HexMapDialogLifecycleState = preload("res://addons/hex_map_kit/editor/hex_map_dialog_lifecycle_state.gd")
 const HexMapSampleAssetDuplicator = preload("res://addons/hex_map_kit/editor/hex_map_sample_asset_duplicator.gd")
 const HexMapSampleSettingsPanel = preload("res://addons/hex_map_kit/editor/hex_map_sample_settings_panel.gd")
 const HexMapWorkspace = preload("res://addons/hex_map_kit/editor/hex_map_workspace.gd")
@@ -152,6 +156,7 @@ func _run() -> void:
 	await _test_asset_slot_state_model_contract_covers_sample_visibility_and_project_duplicates()
 	await _test_asset_slot_control_exposes_state_snapshot_contract()
 	await _test_file_dialog_lifecycle_helper_attaches_without_reparenting()
+	_test_workspace_lifecycle_state_models_cover_required_transitions()
 	await _test_workspace_asset_slots_use_strict_resource_type_filters()
 	await _test_workspace_resource_purpose_tooltips_cover_resource_rows()
 	await _test_workspace_tab_purpose_empty_states_route_to_project_actions()
@@ -2022,6 +2027,10 @@ func _test_validate_asset_screen_reports_missing_project_assets_without_samples(
 	_assert_true(String(snapshot["target_summary"]).contains("Level Document missing"), "TAB-54 Validate screen summarizes target readiness")
 	_assert_true(bool(snapshot["navigator_component_present"]), "TAB-54 Validate snapshot confirms issue navigator component")
 	_assert_eq(snapshot["empty_state_text"], "Run validation to list workspace issues.", "TAB-54 Validate screen has pre-run empty state")
+	var validation_state = snapshot["validation_state"] as Dictionary
+	_assert_eq(String(validation_state["state_source"]), "HexMapValidationWorkflowState", "STATE-50 Validate snapshot reports state source")
+	_assert_eq(String(validation_state["state_id"]), HexMapValidationWorkflowState.STATE_NOT_RUN, "STATE-50 Validate starts not run")
+	_assert_eq(String((snapshot["view_state"] as Dictionary)["status_text"]), "Run validation to list workspace issues.", "STATE-50 Validate ViewState reports not-run status")
 	_assert_true(not bool(snapshot["resource_row_validate_buttons_present"]), "TAB-54 Validate keeps row-level Validate buttons absent")
 	_assert_true(
 		PackedStringArray(snapshot["component_ids"]).has("validation_asset_panel"),
@@ -2039,6 +2048,8 @@ func _test_validate_asset_screen_reports_missing_project_assets_without_samples(
 
 	var validate_result = workspace.run_validate_screen()
 	_assert_true(bool(validate_result["ok"]), "Validate screen runs workspace validation")
+	validation_state = validate_result["validation_state"] as Dictionary
+	_assert_eq(String(validation_state["state_id"]), HexMapValidationWorkflowState.STATE_ERROR, "STATE-50 Validate run reports error state")
 	var result = validate_result["result"] as HexMapValidationResult
 	_assert_true(result is HexMapValidationResult, "Validate screen returns validation result")
 	_assert_eq(result.error_count(), 5, "Validate screen reports required missing project assets as errors")
@@ -2097,6 +2108,8 @@ func _test_validate_asset_screen_reports_missing_project_assets_without_samples(
 
 	var selection = workspace.select_validate_issue(int(document_row["index"]))
 	_assert_true(bool(selection["ok"]), "TAB-54 Validate issue selection succeeds")
+	validation_state = selection["validation_state"] as Dictionary
+	_assert_eq(String(validation_state["state_id"]), HexMapValidationWorkflowState.STATE_FOCUS_APPLIED, "STATE-50 Validate selection applies focus state")
 	_assert_eq(selection["selected_tab"], "Resources", "TAB-54 selecting document issue moves to Resources")
 	_assert_eq((selection["navigation"] as Dictionary)["target_component_id"], "document_asset_panel", "TAB-54 selection records component target")
 	snapshot = workspace.validate_screen_snapshot()
@@ -2299,6 +2312,9 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 
 	var snapshot = workspace.export_screen_snapshot()
 	_assert_eq(snapshot["purpose_text"], "Export writes the current Level Document as a runtime HexMapResource handoff.", "TAB-56 Export screen states purpose")
+	var export_state = snapshot["export_state"] as Dictionary
+	_assert_eq(String(export_state["state_source"]), "HexMapExportWorkflowState", "STATE-50 Export snapshot reports state source")
+	_assert_eq(String(export_state["state_id"]), HexMapExportWorkflowState.STATE_NO_DESTINATION, "STATE-50 Export starts without destination")
 	_assert_true(bool(snapshot["purpose_component_present"]), "TAB-56 Export snapshot confirms purpose panel")
 	_assert_eq(snapshot["active_output_type"], "runtime_handoff_resource", "TAB-56 Export uses runtime handoff as active output")
 	var output_type = snapshot["output_type"] as Dictionary
@@ -2395,6 +2411,8 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 	var missing_destination = workspace.export_selected_document_to_destination()
 	_assert_true(not bool(missing_destination["ok"]), "Export screen refuses export without selected destination")
 	_assert_eq(int(missing_destination["error"]), ERR_INVALID_PARAMETER, "Export without destination reports invalid parameter")
+	export_state = missing_destination["export_state"] as Dictionary
+	_assert_eq(String(export_state["state_id"]), HexMapExportWorkflowState.STATE_NO_DESTINATION, "STATE-50 blocked export keeps no-destination state")
 
 	var document := _sample_editor_document()
 	workspace.workspace_asset_context().set_level_document(document)
@@ -2414,6 +2432,8 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 
 	snapshot = workspace.export_screen_snapshot()
 	_assert_true(bool(snapshot["can_export"]), "Export screen can export after document and destination are selected")
+	export_state = snapshot["export_state"] as Dictionary
+	_assert_eq(String(export_state["state_id"]), HexMapExportWorkflowState.STATE_READY, "STATE-50 Export becomes ready after source and destination")
 	_assert_true(not bool(snapshot["run_button_disabled"]), "FB-02 Export run action enables after document and destination")
 	_assert_true(String(snapshot["run_button_tooltip"]).contains("Runtime Handoff"), "FB-02 enabled Export run action names its state change")
 	_assert_true(not bool(snapshot["use_recent_button_disabled"]), "FB-02 Export use-recent action enables after destination history exists")
@@ -2426,6 +2446,8 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 
 	var export_result = workspace.export_selected_document_to_destination()
 	_assert_true(bool(export_result["ok"]), "Export screen writes selected document handoff")
+	export_state = export_result["export_state"] as Dictionary
+	_assert_eq(String(export_state["state_id"]), HexMapExportWorkflowState.STATE_EXPORTED, "STATE-50 Export reports exported state after handoff write")
 	_assert_true(FileAccess.file_exists(export_path), "Export screen writes selected destination file")
 	var loaded = ResourceLoader.load(export_path, "", ResourceLoader.CACHE_MODE_IGNORE)
 	_assert_true(loaded is HexMapResource, "Export screen handoff loads as HexMapResource")
@@ -2649,9 +2671,14 @@ func _test_workspace_sample_settings_panel_controls_sample_mode_sources() -> voi
 		"TAB-57 Resources exposes Movement Profile"
 	)
 	_assert_true(bool(settings_snapshot["sample_learning_controls_present"]), "TAB-57 Settings keeps sample learning controls")
+	var settings_sample_state = settings_snapshot["sample_state"] as Dictionary
+	_assert_eq(String(settings_sample_state["state_source"]), "HexMapSampleLearningState", "STATE-50 Settings reports sample state source")
+	_assert_eq(String(settings_sample_state["state_id"]), HexMapSampleLearningState.STATE_LEARNING_AVAILABLE, "STATE-50 first-run Settings reports learning available")
 	_assert_true(bool(settings_snapshot["debug_numeric_fallback_isolated"]), "TAB-57 debug numeric fallback is isolated in Settings controls")
 	_assert_true(bool(settings_snapshot["sample_actions_work_or_removed"]), "TAB-57 sample actions are functional or removed")
 	var snapshot = panel.snapshot()
+	var panel_sample_state = snapshot["sample_state"] as Dictionary
+	_assert_eq(String(panel_sample_state["state_id"]), HexMapSampleLearningState.STATE_OFF, "STATE-50 sample panel starts off")
 	_assert_true(
 		not bool(snapshot["show_bundled_samples_in_main_selectors"]),
 		"sample visibility is off by default"
@@ -2682,6 +2709,8 @@ func _test_workspace_sample_settings_panel_controls_sample_mode_sources() -> voi
 
 	panel.set_show_bundled_samples_in_main_selectors(true)
 	snapshot = panel.snapshot()
+	panel_sample_state = snapshot["sample_state"] as Dictionary
+	_assert_eq(String(panel_sample_state["state_id"]), HexMapSampleLearningState.STATE_LEARNING_AVAILABLE, "STATE-50 sample panel reports learning available when sample selectors are shown")
 	_assert_true(bool(snapshot["show_bundled_samples_in_main_selectors"]), "sample setting can enable sample selector visibility")
 	_assert_true(bool(workspace.catalog_screen_snapshot()["sample_candidates_visible"]), "sample mode ON exposes Catalog learning candidates")
 	_assert_eq(workspace.generation_dock().tile_catalog(), null, "SAMPLE-41 sample mode ON does not inject Generate sample catalog")
@@ -3325,6 +3354,11 @@ func _test_file_dialog_lifecycle_helper_attaches_without_reparenting() -> void:
 	var initial_snapshot = HexMapEditorPathSelector.dialog_lifecycle_snapshot(dialog)
 	_assert_true(bool(initial_snapshot["valid"]), "FileDialog lifecycle snapshot accepts a dialog node")
 	_assert_true(not bool(initial_snapshot["has_parent"]), "new dialog node starts without a parent")
+	_assert_eq(
+		String((initial_snapshot["dialog_state"] as Dictionary)["state_id"]),
+		HexMapDialogLifecycleState.STATE_CLOSED,
+		"STATE-50 unattached dialog starts closed"
+	)
 
 	_assert_true(
 		HexMapEditorPathSelector.attach_dialog(dialog, first_parent),
@@ -3335,6 +3369,11 @@ func _test_file_dialog_lifecycle_helper_attaches_without_reparenting() -> void:
 	_assert_eq(attached_snapshot["parent"], first_parent, "FileDialog lifecycle helper uses the requested parent")
 	_assert_true(bool(attached_snapshot["inside_tree"]), "attached dialog node is inside the test scene tree")
 	_assert_eq(first_parent.get_child_count(), 1, "FileDialog attach adds the dialog node once")
+	_assert_eq(
+		String((attached_snapshot["dialog_state"] as Dictionary)["state_id"]),
+		HexMapDialogLifecycleState.STATE_WAITING_USER,
+		"STATE-50 attached dialog waits for user"
+	)
 
 	_assert_true(
 		HexMapEditorPathSelector.attach_dialog(dialog, second_parent),
@@ -3349,6 +3388,45 @@ func _test_file_dialog_lifecycle_helper_attaches_without_reparenting() -> void:
 	first_parent.queue_free()
 	second_parent.queue_free()
 	await process_frame
+
+
+func _test_workspace_lifecycle_state_models_cover_required_transitions() -> void:
+	var validation_state := HexMapValidationWorkflowState.new()
+	validation_state.update_from_context({"running": true})
+	_assert_eq(validation_state.state_id, HexMapValidationWorkflowState.STATE_RUNNING, "STATE-50 validation state covers running")
+	validation_state.update_from_context({"result_present": true, "issue_count": 0, "error_count": 0, "warning_count": 0})
+	_assert_eq(validation_state.state_id, HexMapValidationWorkflowState.STATE_CLEAN, "STATE-50 validation state covers clean")
+	validation_state.update_from_context({"result_present": true, "issue_count": 1, "error_count": 0, "warning_count": 1})
+	_assert_eq(validation_state.state_id, HexMapValidationWorkflowState.STATE_WARNING, "STATE-50 validation state covers warning")
+
+	var export_state := HexMapExportWorkflowState.new()
+	export_state.update_from_context({"exporting": true})
+	_assert_eq(export_state.state_id, HexMapExportWorkflowState.STATE_EXPORTING, "STATE-50 export state covers exporting")
+	export_state.update_from_context({
+		"destination": {"selected": true, "path": "res://tmp/export.tres"},
+		"can_export": true,
+	})
+	_assert_eq(export_state.state_id, HexMapExportWorkflowState.STATE_READY, "STATE-50 export state covers ready")
+	export_state.update_from_context({
+		"destination": {"selected": true, "path": "res://tmp/export.tres"},
+		"last_result": {"ok": false, "path": "res://tmp/export.tres"},
+		"block_reason": "Export failed.",
+	})
+	_assert_eq(export_state.state_id, HexMapExportWorkflowState.STATE_FAILED, "STATE-50 export state covers failed")
+
+	var sample_state := HexMapSampleLearningState.new()
+	sample_state.update_from_context({"sample_source_selected_slots": PackedStringArray([HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG])})
+	_assert_eq(sample_state.state_id, HexMapSampleLearningState.STATE_SAMPLE_SOURCE_SELECTED, "STATE-50 sample state covers explicit sample source")
+
+	var dialog_state := HexMapDialogLifecycleState.new()
+	dialog_state.update_from_context({"opening": true})
+	_assert_eq(dialog_state.state_id, HexMapDialogLifecycleState.STATE_OPENING, "STATE-50 dialog state covers opening")
+	dialog_state.update_from_context({"inside_tree": true})
+	_assert_eq(dialog_state.state_id, HexMapDialogLifecycleState.STATE_WAITING_USER, "STATE-50 dialog state covers waiting user")
+	dialog_state.update_from_context({"committed": true, "result": {"path": "res://tmp/result.tres"}})
+	_assert_eq(dialog_state.state_id, HexMapDialogLifecycleState.STATE_COMMITTED, "STATE-50 dialog state covers committed")
+	dialog_state.update_from_context({"cancelled": true})
+	_assert_eq(dialog_state.state_id, HexMapDialogLifecycleState.STATE_CANCELLED, "STATE-50 dialog state covers cancelled")
 
 
 func _test_workspace_asset_slots_use_strict_resource_type_filters() -> void:
@@ -3644,6 +3722,8 @@ func _test_sample_settings_duplicate_button_creates_project_catalog() -> void:
 	var snapshot = panel.snapshot()
 	var last_action = snapshot["last_sample_action"] as Dictionary
 	_assert_true(bool(last_action["ok"]), "SAMPLE-40 panel snapshot records successful duplicate")
+	var sample_state = snapshot["sample_state"] as Dictionary
+	_assert_eq(String(sample_state["state_id"]), HexMapSampleLearningState.STATE_DUPLICATED_TO_PROJECT, "STATE-50 sample panel reports duplicated-to-project state")
 	_assert_eq(String(last_action["slot_id"]), HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, "SAMPLE-40 panel snapshot records affected slot")
 	_assert_true(String(snapshot["sample_status_text"]).contains(catalog_path), "SAMPLE-40 panel status shows changed catalog path")
 

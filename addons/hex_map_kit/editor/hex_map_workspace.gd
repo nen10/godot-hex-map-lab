@@ -30,6 +30,9 @@ const HexMapWorkspaceAssetResourceFactory = preload("res://addons/hex_map_kit/ed
 const HexMapWorkspaceBindingService = preload("res://addons/hex_map_kit/editor/hex_map_workspace_binding_service.gd")
 const HexMapWorkspaceComponentRegistry = preload("res://addons/hex_map_kit/editor/hex_map_workspace_component_registry.gd")
 const HexMapValidationDashboard = preload("res://addons/hex_map_kit/editor/hex_map_validation_dashboard.gd")
+const HexMapValidationWorkflowState = preload("res://addons/hex_map_kit/editor/hex_map_validation_workflow_state.gd")
+const HexMapExportWorkflowState = preload("res://addons/hex_map_kit/editor/hex_map_export_workflow_state.gd")
+const HexMapSampleLearningState = preload("res://addons/hex_map_kit/editor/hex_map_sample_learning_state.gd")
 
 var _editor_session_state: HexMapEditorSessionState = null
 var _tabs: TabContainer
@@ -91,6 +94,9 @@ var _tab_components: Dictionary = {}
 var _tab_pages: Dictionary = {}
 var _tab_scroll_roots: Dictionary = {}
 var _last_workspace_validation_result: HexMapValidationResult = null
+var _last_export_action_result: Dictionary = {}
+var _validation_workflow_state: HexMapValidationWorkflowState = HexMapValidationWorkflowState.new()
+var _export_workflow_state: HexMapExportWorkflowState = HexMapExportWorkflowState.new()
 var _hydrating_document_dependencies := false
 var _last_document_dependency_hydration := {}
 
@@ -156,6 +162,7 @@ func settings_screen_snapshot() -> Dictionary:
 	var sample_snapshot := {}
 	if _sample_settings_panel != null:
 		sample_snapshot = _sample_settings_panel.snapshot()
+	var sample_state := _workspace_sample_state_snapshot(sample_snapshot)
 	var settings_slot_ids := tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_SETTINGS)
 	var resources_slot_ids := tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_DOCUMENT)
 	var empty_state := _settings_tab_empty_state()
@@ -167,6 +174,8 @@ func settings_screen_snapshot() -> Dictionary:
 		"empty_state": empty_state,
 		"empty_state_text": String(empty_state.get("empty_state_text", "")),
 		"sample_learning_controls_present": _sample_settings_panel != null,
+		"sample_state": sample_state,
+		"sample_view_state": sample_state.get("view_state", {}),
 		"sample_asset_count": (sample_snapshot.get("sample_assets", []) as Array).size(),
 		"sample_actions_work_or_removed": _settings_sample_actions_work_or_removed(sample_snapshot),
 		"debug_numeric_fallback_isolated": _sample_settings_panel != null and settings_slot_ids.is_empty(),
@@ -176,6 +185,20 @@ func settings_screen_snapshot() -> Dictionary:
 			if resources_slot_ids.has(HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE) else "",
 		"resources_tab_asset_slot_ids": resources_slot_ids,
 	}
+
+
+func validation_workflow_state_snapshot(running: bool = false) -> Dictionary:
+	_sync_validation_workflow_state(running)
+	return _validation_workflow_state.to_state_snapshot()
+
+
+func export_workflow_state_snapshot(exporting: bool = false) -> Dictionary:
+	_sync_export_workflow_state(exporting)
+	return _export_workflow_state.to_state_snapshot()
+
+
+func sample_learning_state_snapshot() -> Dictionary:
+	return _workspace_sample_state_snapshot(_sample_settings_panel.snapshot() if _sample_settings_panel != null else {})
 
 
 func current_workspace_tab_name() -> String:
@@ -212,12 +235,75 @@ func sample_learning_cta_visible() -> bool:
 
 func sample_learning_cta_snapshot() -> Dictionary:
 	var session := _ensure_session_state()
+	var sample_state := sample_learning_state_snapshot()
 	return {
 		"visible": sample_learning_cta_visible(),
 		"dismissed": session.sample_learning_cta_dismissed,
 		"selected_tab": current_workspace_tab_name(),
 		"learn_label": _learn_samples_button.text if _learn_samples_button != null else "",
+		"sample_state": sample_state,
+		"view_state": sample_state.get("view_state", {}),
 	}
+
+
+func _workspace_sample_state_snapshot(sample_snapshot: Dictionary) -> Dictionary:
+	var state := HexMapSampleLearningState.new()
+	state.update_from_context({
+		"show_samples": bool(sample_snapshot.get("show_bundled_samples_in_main_selectors", false)),
+		"learning_cta_visible": sample_learning_cta_visible(),
+		"last_sample_action": sample_snapshot.get("last_sample_action", {}),
+		"sample_source_selected_slots": _sample_source_selected_slots(),
+	})
+	return state.to_state_snapshot()
+
+
+func _sample_source_selected_slots() -> PackedStringArray:
+	var slots := PackedStringArray()
+	var context := workspace_asset_context()
+	for slot_id in HexMapWorkspaceAssetContext.asset_slot_ids():
+		if context.asset_source(slot_id) == HexMapWorkspaceAssetContext.SOURCE_SAMPLE:
+			slots.append(slot_id)
+	return slots
+
+
+func _sync_validation_workflow_state(running: bool = false) -> void:
+	if _validation_workflow_state == null:
+		_validation_workflow_state = HexMapValidationWorkflowState.new()
+	var issue_count := 0
+	var error_count := 0
+	var warning_count := 0
+	if _last_workspace_validation_result != null:
+		issue_count = _last_workspace_validation_result.issue_count()
+		error_count = _last_workspace_validation_result.error_count()
+		warning_count = _last_workspace_validation_result.warning_count()
+	_validation_workflow_state.update_from_context({
+		"running": running,
+		"result_present": _last_workspace_validation_result != null,
+		"issue_count": issue_count,
+		"error_count": error_count,
+		"warning_count": warning_count,
+		"selected_issue_index": _selected_validate_issue_index,
+		"selected_issue_row": _selected_validate_issue_row,
+		"selected_issue_navigation": _selected_validate_issue_navigation,
+		"focus_applied": _selected_validate_issue_index >= 0 and not _selected_validate_issue_navigation.is_empty(),
+	})
+
+
+func _sync_export_workflow_state(exporting: bool = false) -> void:
+	if _export_workflow_state == null:
+		_export_workflow_state = HexMapExportWorkflowState.new()
+	var context := workspace_asset_context()
+	var destination := _export_destination_context()
+	var output_type := _export_output_type_context(context, destination)
+	var can_export := context.level_document != null and _ensure_session_state().export_saved_path != ""
+	_export_workflow_state.update_from_context({
+		"destination": destination,
+		"output_type": output_type,
+		"last_result": _last_export_action_result,
+		"can_export": can_export,
+		"exporting": exporting,
+		"block_reason": _export_cannot_export_reason(context, destination),
+	})
 
 
 func set_selected_hex_tile_map_node(node: Node, reason: String = "workspace.selected_hex_tile_map") -> Dictionary:
@@ -964,12 +1050,15 @@ func validate_screen_snapshot() -> Dictionary:
 	var context := workspace_asset_context()
 	var issue_rows := validate_screen_issue_rows(_last_workspace_validation_result)
 	var empty_state := _validate_tab_empty_state(issue_rows)
+	var validation_state := validation_workflow_state_snapshot()
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_VALIDATE,
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_VALIDATE),
 		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_VALIDATE),
 		"purpose_text": String(empty_state.get("purpose_text", "")),
 		"empty_state": empty_state,
+		"validation_state": validation_state,
+		"view_state": validation_state.get("view_state", {}),
 		"target_summary": _validate_target_summary(context),
 		"level_document": context.level_document,
 		"tile_catalog": context.tile_catalog,
@@ -1002,16 +1091,20 @@ func validate_screen_snapshot() -> Dictionary:
 
 
 func run_validate_screen() -> Dictionary:
+	_sync_validation_workflow_state(true)
 	_last_workspace_validation_result = validate_workspace_assets()
 	_selected_validate_issue_index = -1
 	_selected_validate_issue_row.clear()
 	_selected_validate_issue_navigation.clear()
 	var rows := validate_screen_issue_rows(_last_workspace_validation_result)
 	_refresh_validation_issue_navigator()
+	var validation_state := validation_workflow_state_snapshot()
 	return {
 		"ok": true,
 		"result": _last_workspace_validation_result,
 		"issue_rows": rows,
+		"validation_state": validation_state,
+		"view_state": validation_state.get("view_state", {}),
 	}
 
 
@@ -1119,10 +1212,13 @@ func select_validate_issue(index: int) -> Dictionary:
 		_selected_validate_issue_row.clear()
 		_selected_validate_issue_navigation.clear()
 		_refresh_validation_issue_navigator()
+		var validation_state := validation_workflow_state_snapshot()
 		return {
 			"ok": false,
 			"error": ERR_DOES_NOT_EXIST,
 			"selected_tab": current_workspace_tab_name(),
+			"validation_state": validation_state,
+			"view_state": validation_state.get("view_state", {}),
 		}
 	var issue := _validate_issue_at_index(index)
 	var row := (rows[index] as Dictionary).duplicate(true)
@@ -1134,12 +1230,15 @@ func select_validate_issue(index: int) -> Dictionary:
 	if target_tab != "":
 		select_workspace_tab(target_tab)
 	_refresh_validation_issue_navigator()
+	var validation_state := validation_workflow_state_snapshot()
 	return {
 		"ok": true,
 		"error": OK,
 		"issue_row": row.duplicate(true),
 		"navigation": navigation.duplicate(true),
 		"selected_tab": current_workspace_tab_name(),
+		"validation_state": validation_state,
+		"view_state": validation_state.get("view_state", {}),
 	}
 
 
@@ -2261,6 +2360,7 @@ func export_screen_snapshot() -> Dictionary:
 	var empty_state := _export_tab_empty_state(context, destination)
 	var output_modes := _export_output_modes()
 	var can_export := context.level_document != null and session.export_saved_path != ""
+	var export_state := export_workflow_state_snapshot()
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_EXPORT,
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_EXPORT),
@@ -2268,6 +2368,8 @@ func export_screen_snapshot() -> Dictionary:
 		"purpose_text": String(empty_state.get("purpose_text", "")),
 		"empty_state": empty_state,
 		"empty_state_text": String(empty_state.get("empty_state_text", "")),
+		"export_state": export_state,
+		"view_state": export_state.get("view_state", {}),
 		"purpose_component_present": tab_has_component(HexMapWorkspaceComponentRegistry.TAB_EXPORT, "export_purpose_panel"),
 		"active_output_type": "runtime_handoff_resource",
 		"output_type": output_type,
@@ -2385,14 +2487,29 @@ func export_selected_document_to_destination(path: String = "") -> Dictionary:
 	if path.strip_edges() != "":
 		var select_result := select_export_destination(path)
 		if not bool(select_result.get("ok", false)):
+			_last_export_action_result = select_result.duplicate(true)
+			var export_state := export_workflow_state_snapshot()
+			select_result["export_state"] = export_state
+			select_result["view_state"] = export_state.get("view_state", {})
 			return select_result
 	var actual_path := HexMapWorkspaceAssetResourceFactory.normalized_resource_path(_ensure_session_state().export_saved_path)
 	if actual_path == "":
-		return _export_action_result(false, ERR_INVALID_PARAMETER, actual_path)
+		var result := _export_action_result(false, ERR_INVALID_PARAMETER, actual_path)
+		_last_export_action_result = result.duplicate(true)
+		var export_state := export_workflow_state_snapshot()
+		result["export_state"] = export_state
+		result["view_state"] = export_state.get("view_state", {})
+		return result
 	var document := workspace_asset_context().level_document
 	if document == null:
-		return _export_action_result(false, ERR_DOES_NOT_EXIST, actual_path)
+		var result := _export_action_result(false, ERR_DOES_NOT_EXIST, actual_path)
+		_last_export_action_result = result.duplicate(true)
+		var export_state := export_workflow_state_snapshot()
+		result["export_state"] = export_state
+		result["view_state"] = export_state.get("view_state", {})
+		return result
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(actual_path.get_base_dir()))
+	_sync_export_workflow_state(true)
 	var map_resource = HexMapDocumentAdapter.to_map_resource(document)
 	var error := ResourceSaver.save(map_resource, actual_path)
 	var result := _export_action_result(error == OK, error, actual_path)
@@ -2411,6 +2528,10 @@ func export_selected_document_to_destination(path: String = "") -> Dictionary:
 	result["purpose_text"] = "Runtime handoff HexMapResource"
 	result["package_handoff"] = _export_handoff_context(actual_path, map_resource)
 	result["runtime_handoff"] = _export_handoff_context(actual_path, map_resource)
+	_last_export_action_result = result.duplicate(true)
+	var export_state := export_workflow_state_snapshot()
+	result["export_state"] = export_state
+	result["view_state"] = export_state.get("view_state", {})
 	_refresh_export_purpose_panel()
 	_refresh_export_destination_panel()
 	return result

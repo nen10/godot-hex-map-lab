@@ -64,8 +64,8 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | `STATE-20` | `COMPLETE` | `STATE-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-20_ASSET_SLOT_CONFIG_RUNTIME_SPLIT/` | Asset slot config/runtime/result state split | `hex_map_editor_asset_slot_state.gd`, `hex_map_editor_asset_slot_control.gd`, workspace asset panel, tests | Slot definition, current selection, validation result, sample availability, and operation result are separate structures; OK/Missing/Optional labels become ViewState/icon+tooltip. |
 | `STATE-30` | `COMPLETE` | `NODE-20`, `STATE-20` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-30_WORKSPACE_SELECTION_BINDING_STATE/` | Workspace selection and writeback state machine | binding service, `HexMapEditorSessionState`, `HexMapWorkspace`, editor tests | No target, selected node without document, hydrated dependencies, manual override, pending writeback, applied writeback, and conflict are explicit states; auto-link works without a manual link button. |
 | `STATE-40` | `COMPLETE` | `STATE-30` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-40_PAINT_INTERACTION_STATE_MACHINE/` | Paint interaction state machine | `hex_map_edit_tool.gd`, viewport input adapter, workspace Paint tab, editor tests | Paint state covers target/document/brush/viewport hover/apply/dirty/validation focus/missing asset; selected cell, active brush, and layer target render from state. |
-| `STATE-50` | `READY` | `STATE-30` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-50_VALIDATION_EXPORT_SAMPLE_DIALOG_STATES/` | Validation, Export, Sample, and Dialog state models | workspace tabs, validation dashboard, sample settings, dist/export UI, dialog lifecycle helpers, tests | Validation, export, sample learning, and dialog lifecycle have explicit state transitions and ViewState output; tests cover transitions, not private widget shapes. |
-| `STATE-60` | `BACKLOG` | `STATE-10`, `STATE-20`, `STATE-30`, `STATE-40`, `STATE-50` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-60_ROOT_DISPATCHER_AND_VIEWSTATE_INTEGRATION/` | Root dispatcher and ViewState integration | workspace root state/dispatcher helpers, tab renderers, debug report code, tests | Screens receive ViewState instead of recombining flags; root events dispatch through reducer/dispatcher boundaries; debug reports can be generated from state snapshots. |
+| `STATE-50` | `COMPLETE` | `STATE-30` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-50_VALIDATION_EXPORT_SAMPLE_DIALOG_STATES/` | Validation, Export, Sample, and Dialog state models | workspace tabs, validation dashboard, sample settings, dist/export UI, dialog lifecycle helpers, tests | Validation, export, sample learning, and dialog lifecycle have explicit state transitions and ViewState output; tests cover transitions, not private widget shapes. |
+| `STATE-60` | `READY` | `STATE-10`, `STATE-20`, `STATE-30`, `STATE-40`, `STATE-50` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-60_ROOT_DISPATCHER_AND_VIEWSTATE_INTEGRATION/` | Root dispatcher and ViewState integration | workspace root state/dispatcher helpers, tab renderers, debug report code, tests | Screens receive ViewState instead of recombining flags; root events dispatch through reducer/dispatcher boundaries; debug reports can be generated from state snapshots. |
 
 ---
 
@@ -90,7 +90,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | `SCREEN-22` | `BACKLOG` | `STATE-40`, `SCREEN-20`, `SCREEN-21` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-22_PAINT_TAB_BRUSH_SURFACE/` | Paint tab as real brush editing surface | Paint screen, edit tool, viewport input adapter, editor tests | Paint tab has empty state, active brush, target layer, selected cell, and last edit; viewport editing updates Paint state; tab does not regress to resource references only. |
 | `SCREEN-23` | `BACKLOG` | `STATE-50`, `SCREEN-10` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-23_VALIDATE_ISSUE_NAVIGATOR_REFINEMENT/` | Validate tab issue navigator refinement | validation dashboard, workspace Validate tab, document validator, tests | Validate works as workflow-level issue navigator with list/severity/scope/focus action; slot-level Validate buttons are unnecessary. |
 | `SCREEN-24` | `READY` | `PROFILE-30`, `STATE-10` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-24_QA_SEED_LAB_AND_PROFILE_SCREEN/` | QA Seed Lab and Generation Profile screen | QA tab, generation profile resource, generation results/state, tests | QA uses Generation Profile; score table, selected seed, and promote target are visible; Document source of truth and draft context boundary are clear. |
-| `SCREEN-25` | `BACKLOG` | `PROFILE-30`, `STATE-50` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-25_EXPORT_PURPOSE_SCREEN/` | Export tab purpose screen | Export tab, export profile resource, dist/export helpers, tests/docs | Export type, output destination, runtime handoff/debug/package purpose, and result state are clear. |
+| `SCREEN-25` | `READY` | `PROFILE-30`, `STATE-50` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-25_EXPORT_PURPOSE_SCREEN/` | Export tab purpose screen | Export tab, export profile resource, dist/export helpers, tests/docs | Export type, output destination, runtime handoff/debug/package purpose, and result state are clear. |
 
 ---
 
@@ -148,7 +148,7 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `STATE-50`.
+Current recommended next task: `STATE-60`.
 
 Reason:
 
@@ -167,10 +167,11 @@ Reason:
 - `STATE-20` is complete.
 - `STATE-30` is complete.
 - `STATE-40` is complete.
-- `STATE-50`, `UI-00`, `SCREEN-24`, `ARCH-40`, `ARCH-50`, and `PERF-60` remain READY.
+- `STATE-50` is complete.
+- `STATE-60`, `UI-00`, `SCREEN-24`, `SCREEN-25`, `ARCH-40`, `ARCH-50`, and `PERF-60` remain READY.
 - `SCREEN-22` remains BACKLOG because `SCREEN-20` and `SCREEN-21` are not complete.
-- `STATE-60` remains BACKLOG because `STATE-50` is not complete.
-- `STATE-50` is first READY task in queue order after completed `STATE-40`.
+- `SCREEN-23` remains BACKLOG because `SCREEN-10` is not complete.
+- `STATE-60` is first READY task in queue order after completed `STATE-50`.
 
 ---
 
@@ -439,3 +440,31 @@ proof:
     - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-40_PAINT_INTERACTION_STATE_MACHINE/POLICY.md`
     - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-40_PAINT_INTERACTION_STATE_MACHINE/IMPLEMENTATION_PLAN.md`
     - `docs/review/autopilot/STATE-40_TEST_RESULT_2026-06-10.md`
+
+### STATE-50 Validation Export Sample Dialog states
+
+proof:
+  plan: `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-50_VALIDATION_EXPORT_SAMPLE_DIALOG_STATES/`
+  review: `docs/review/autopilot/STATE-50_SELF_REVIEW_2026-06-10.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_validation_workflow_state.gd`
+    - `addons/hex_map_kit/editor/hex_map_validation_workflow_state.gd.uid`
+    - `addons/hex_map_kit/editor/hex_map_export_workflow_state.gd`
+    - `addons/hex_map_kit/editor/hex_map_export_workflow_state.gd.uid`
+    - `addons/hex_map_kit/editor/hex_map_sample_learning_state.gd`
+    - `addons/hex_map_kit/editor/hex_map_sample_learning_state.gd.uid`
+    - `addons/hex_map_kit/editor/hex_map_dialog_lifecycle_state.gd`
+    - `addons/hex_map_kit/editor/hex_map_dialog_lifecycle_state.gd.uid`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `addons/hex_map_kit/editor/hex_map_sample_settings_panel.gd`
+    - `addons/hex_map_kit/editor/hex_map_editor_path_selector.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-50_VALIDATION_EXPORT_SAMPLE_DIALOG_STATES/SUB_TASKS.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-50_VALIDATION_EXPORT_SAMPLE_DIALOG_STATES/UX.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-50_VALIDATION_EXPORT_SAMPLE_DIALOG_STATES/POLICY.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/STATE-50_VALIDATION_EXPORT_SAMPLE_DIALOG_STATES/IMPLEMENTATION_PLAN.md`
+    - `docs/review/autopilot/STATE-50_TEST_RESULT_2026-06-10.md`

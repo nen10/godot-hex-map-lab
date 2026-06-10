@@ -6,6 +6,7 @@ const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_ma
 const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
 const HexMapSampleAssetDuplicator = preload("res://addons/hex_map_kit/editor/hex_map_sample_asset_duplicator.gd")
 const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
+const HexMapSampleLearningState = preload("res://addons/hex_map_kit/editor/hex_map_sample_learning_state.gd")
 
 signal sample_settings_changed(snapshot: Dictionary)
 
@@ -148,6 +149,7 @@ func duplicate_sample_catalog_to_project(
 
 
 func snapshot() -> Dictionary:
+	var sample_state := sample_state_snapshot()
 	return {
 		"show_bundled_samples_in_main_selectors": _show_bundled_samples_in_main_selectors(),
 		"use_bundled_sample_assets_for_scratch_documents": _use_bundled_sample_assets_for_scratch_documents(),
@@ -157,7 +159,19 @@ func snapshot() -> Dictionary:
 		"sample_action_rows": sample_action_rows_snapshot(),
 		"last_sample_action": _last_sample_action_result.duplicate(),
 		"sample_status_text": _sample_status_text(),
+		"sample_state": sample_state,
+		"sample_view_state": sample_state.get("view_state", {}),
 	}
+
+
+func sample_state_snapshot(sample_source_selected_slots: PackedStringArray = PackedStringArray()) -> Dictionary:
+	var state := HexMapSampleLearningState.new()
+	state.update_from_context({
+		"show_samples": _show_bundled_samples_in_main_selectors(),
+		"last_sample_action": _last_sample_action_result,
+		"sample_source_selected_slots": sample_source_selected_slots,
+	})
+	return state.to_state_snapshot()
 
 
 func _build_ui() -> void:
