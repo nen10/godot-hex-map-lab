@@ -3,7 +3,9 @@ class_name HexUILayoutMetricEvaluator
 extends RefCounted
 
 const SCHEMA := "hex_ui_layout_metric_report.v1"
+const P0_SCHEMA := "hex_ui_layout_p0_gate_report.v1"
 const SEVERITY_WARN := "warn"
+const SEVERITY_P0 := "p0"
 
 const CATEGORY_TEXT_TRUNCATION := "text_truncation"
 const CATEGORY_RESOURCE_ROW_GEOMETRY := "resource_row_geometry"
@@ -13,6 +15,8 @@ const CATEGORY_DEBUG_LEAKAGE := "debug_leakage"
 const CATEGORY_NO_OP_ACTION := "no_op_action"
 const CATEGORY_PICKER_SPECIFICITY := "picker_specificity"
 const CATEGORY_STATE_CONTRADICTION := "state_contradiction"
+const CATEGORY_SAMPLE_FALLBACK_PRODUCTION := "sample_fallback_production"
+const CATEGORY_UNREACHABLE_PRIMARY_ACTION := "unreachable_primary_action"
 
 const REQUIRED_CATEGORIES := [
 	CATEGORY_TEXT_TRUNCATION,
@@ -23,6 +27,24 @@ const REQUIRED_CATEGORIES := [
 	CATEGORY_NO_OP_ACTION,
 	CATEGORY_PICKER_SPECIFICITY,
 	CATEGORY_STATE_CONTRADICTION,
+]
+
+const P0_CATEGORIES := [
+	CATEGORY_NO_OP_ACTION,
+	CATEGORY_SCROLL_REACHABILITY,
+	CATEGORY_STATE_CONTRADICTION,
+	CATEGORY_SAMPLE_FALLBACK_PRODUCTION,
+	CATEGORY_DEBUG_LEAKAGE,
+	CATEGORY_PICKER_SPECIFICITY,
+	CATEGORY_UNREACHABLE_PRIMARY_ACTION,
+]
+
+const P0_PROMOTED_WARN_CATEGORIES := [
+	CATEGORY_NO_OP_ACTION,
+	CATEGORY_SCROLL_REACHABILITY,
+	CATEGORY_STATE_CONTRADICTION,
+	CATEGORY_DEBUG_LEAKAGE,
+	CATEGORY_PICKER_SPECIFICITY,
 ]
 
 const DEBUG_TEXT_PATTERNS := [
@@ -75,6 +97,39 @@ static func evaluate(snapshot: Dictionary, options: Dictionary = {}) -> Dictiona
 
 
 static func report_to_json(report: Dictionary) -> String:
+	return JSON.stringify(report, "\t")
+
+
+static func evaluate_p0(snapshot: Dictionary, options: Dictionary = {}) -> Dictionary:
+	var warning_report := evaluate(snapshot, options)
+	var controls := _controls(snapshot)
+	var failures: Array[Dictionary] = []
+	for warning in warning_report["warnings"] as Array:
+		var entry := warning as Dictionary
+		var category := String(entry.get("category", ""))
+		if P0_PROMOTED_WARN_CATEGORIES.has(category):
+			_add_failure(
+				failures,
+				category,
+				String(entry.get("path", "")),
+				String(entry.get("message", "")),
+				String(entry.get("evidence", ""))
+			)
+	_evaluate_sample_fallback_production(controls, failures, options)
+	_evaluate_unreachable_primary_actions(controls, failures)
+	return {
+		"schema": P0_SCHEMA,
+		"snapshot_schema": String(snapshot.get("schema", "")),
+		"scenario_id": String(snapshot.get("scenario_id", "unspecified")),
+		"passed": failures.is_empty(),
+		"failure_count": failures.size(),
+		"category_counts": _category_counts(failures),
+		"failures": failures,
+		"warning_report": warning_report,
+	}
+
+
+static func p0_report_to_json(report: Dictionary) -> String:
 	return JSON.stringify(report, "\t")
 
 
@@ -276,6 +331,67 @@ static func _evaluate_state_contradictions(
 				String(entry.get("text", "")),
 			]
 		)
+
+
+static func _evaluate_sample_fallback_production(
+	controls: Array,
+	failures: Array[Dictionary],
+	options: Dictionary
+) -> void:
+	if not bool(options.get("production_mode", true)):
+		return
+	for control in controls:
+		var entry := control as Dictionary
+		var metadata := _metadata(entry)
+		if String(metadata.get("hex_metric_source", "")) != "sample":
+			continue
+		if not bool(metadata.get("hex_metric_production_required", false)):
+			continue
+		_add_failure(
+			failures,
+			CATEGORY_SAMPLE_FALLBACK_PRODUCTION,
+			_path(entry),
+			"Sample source is being used as production completion evidence.",
+			String(entry.get("text", ""))
+		)
+
+
+static func _evaluate_unreachable_primary_actions(
+	controls: Array,
+	failures: Array[Dictionary]
+) -> void:
+	for control in controls:
+		var entry := control as Dictionary
+		if String(entry.get("class", "")) != "Button":
+			continue
+		var metadata := _metadata(entry)
+		if not bool(metadata.get("hex_metric_primary_action", false)):
+			continue
+		if bool(metadata.get("action_reachable", true)):
+			continue
+		_add_failure(
+			failures,
+			CATEGORY_UNREACHABLE_PRIMARY_ACTION,
+			_path(entry),
+			"Primary action is visible but unreachable from the current UI state.",
+			String(entry.get("text", ""))
+		)
+
+
+static func _add_failure(
+	failures: Array[Dictionary],
+	category: String,
+	path: String,
+	message: String,
+	evidence: String
+) -> void:
+	failures.append({
+		"category": category,
+		"severity": SEVERITY_P0,
+		"path": path,
+		"message": message,
+		"evidence": evidence,
+	})
 
 
 static func _add_warning(

@@ -4,6 +4,7 @@ const HexUILayoutMetricEvaluator = preload("res://addons/hex_map_kit/editor/test
 const HexUILayoutSnapshotCollector = preload("res://addons/hex_map_kit/editor/testing/hex_ui_layout_snapshot_collector.gd")
 const HexUIStateScenarioBuilder = preload("res://addons/hex_map_kit/editor/testing/hex_ui_state_scenario_builder.gd")
 const REPORT_SCHEMA := "hex_ui_layout_metric_report.v1"
+const P0_SCHEMA := "hex_ui_layout_p0_gate_report.v1"
 const REQUIRED_CATEGORIES := [
 	"text_truncation",
 	"resource_row_geometry",
@@ -13,6 +14,15 @@ const REQUIRED_CATEGORIES := [
 	"no_op_action",
 	"picker_specificity",
 	"state_contradiction",
+]
+const P0_CATEGORIES := [
+	"no_op_action",
+	"scroll_reachability",
+	"state_contradiction",
+	"sample_fallback_production",
+	"debug_leakage",
+	"picker_specificity",
+	"unreachable_primary_action",
 ]
 
 var _failures: Array[String] = []
@@ -25,6 +35,9 @@ func _init() -> void:
 func _run() -> void:
 	_test_synthetic_snapshot_reports_required_warn_categories()
 	_test_report_serializes_to_json()
+	_test_p0_gate_reports_required_fail_categories()
+	_test_p0_gate_clean_snapshot_passes()
+	_test_p0_report_serializes_to_json()
 	await _test_runtime_workspace_snapshot_is_warn_only()
 	_finish()
 
@@ -50,6 +63,42 @@ func _test_report_serializes_to_json() -> void:
 	var parsed = JSON.parse_string(json_text)
 	_assert_true(parsed is Dictionary, "metric report serializes to JSON dictionary")
 	_assert_eq(String((parsed as Dictionary).get("schema", "")), REPORT_SCHEMA, "serialized report schema survives")
+
+
+func _test_p0_gate_reports_required_fail_categories() -> void:
+	var report := HexUILayoutMetricEvaluator.evaluate_p0(_synthetic_p0_risk_snapshot(), {
+		"expected_state_id": "no_selected_hex_tile_map",
+		"require_scroll": true,
+		"production_mode": true,
+	})
+	_assert_eq(String(report["schema"]), P0_SCHEMA, "P0 report schema")
+	_assert_eq(bool(report["passed"]), false, "P0 report fails risk snapshot")
+	_assert_true(int(report["failure_count"]) >= P0_CATEGORIES.size(), "P0 report has failures")
+	for category in P0_CATEGORIES:
+		_assert_true(_category_count(report, String(category)) > 0, "P0 report category %s" % category)
+	for failure in report["failures"] as Array:
+		_assert_eq(String((failure as Dictionary).get("severity", "")), "p0", "P0 finding severity")
+
+
+func _test_p0_gate_clean_snapshot_passes() -> void:
+	var report := HexUILayoutMetricEvaluator.evaluate_p0(_synthetic_p0_clean_snapshot(), {
+		"expected_state_id": "ready",
+		"require_scroll": true,
+		"production_mode": true,
+	})
+	_assert_eq(String(report["schema"]), P0_SCHEMA, "clean P0 report schema")
+	_assert_eq(bool(report["passed"]), true, "clean P0 report passes")
+	_assert_eq(int(report["failure_count"]), 0, "clean P0 report has no failures")
+
+
+func _test_p0_report_serializes_to_json() -> void:
+	var report := HexUILayoutMetricEvaluator.evaluate_p0(_synthetic_p0_risk_snapshot(), {
+		"expected_state_id": "no_selected_hex_tile_map",
+	})
+	var json_text := HexUILayoutMetricEvaluator.p0_report_to_json(report)
+	var parsed = JSON.parse_string(json_text)
+	_assert_true(parsed is Dictionary, "P0 report serializes to JSON dictionary")
+	_assert_eq(String((parsed as Dictionary).get("schema", "")), P0_SCHEMA, "serialized P0 report schema survives")
 
 
 func _test_runtime_workspace_snapshot_is_warn_only() -> void:
@@ -97,6 +146,47 @@ func _synthetic_risk_snapshot() -> Dictionary:
 		"schema": "hex_ui_layout_snapshot.v1",
 		"scenario_id": "synthetic_risk_snapshot",
 		"viewport_size": {"x": 1000, "y": 800},
+		"root_class": "Control",
+		"root_name": "Root",
+		"control_count": controls.size(),
+		"controls": controls,
+	}
+
+
+func _synthetic_p0_risk_snapshot() -> Dictionary:
+	var snapshot := _synthetic_risk_snapshot()
+	var controls := snapshot["controls"] as Array
+	controls.append(_control("SampleSource", "SampleSource", "Label", 10, 210, 160, 16, 160, 16, "Bundled sample selected", {
+		"hex_metric_source": "sample",
+		"hex_metric_production_required": true,
+	}, "", ""))
+	controls.append(_control("PrimaryAction", "PrimaryAction", "Button", 10, 240, 120, 24, 120, 24, "Apply", {
+		"hex_metric_primary_action": true,
+		"action_reachable": false,
+		"action_bound": true,
+	}, "", ""))
+	snapshot["control_count"] = controls.size()
+	return snapshot
+
+
+func _synthetic_p0_clean_snapshot() -> Dictionary:
+	var controls := [
+		_control(".", "Root", "Control", 0, 0, 640, 480, 0, 0, "", {}, "", ""),
+		_control("Scroll", "Scroll", "ScrollContainer", 0, 0, 640, 480, 0, 0, "", {}, "", ""),
+		_control("ReadyLabel", "ReadyLabel", "Label", 12, 12, 160, 24, 120, 24, "Ready", {
+			"hex_metric_state_id": "ready",
+		}, "", "Scroll"),
+		_control("PrimaryAction", "PrimaryAction", "Button", 12, 48, 120, 24, 120, 24, "Apply", {
+			"hex_metric_primary_action": true,
+			"action_reachable": true,
+			"action_bound": true,
+		}, "", "Scroll"),
+		_control("ConcretePicker", "ConcretePicker", "EditorResourcePicker", 12, 84, 220, 28, 180, 28, "", {}, "HexMapDocumentResource", "Scroll"),
+	]
+	return {
+		"schema": "hex_ui_layout_snapshot.v1",
+		"scenario_id": "synthetic_p0_clean_snapshot",
+		"viewport_size": {"x": 640, "y": 480},
 		"root_class": "Control",
 		"root_name": "Root",
 		"control_count": controls.size(),

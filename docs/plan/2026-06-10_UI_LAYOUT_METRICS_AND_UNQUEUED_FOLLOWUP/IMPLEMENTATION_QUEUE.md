@@ -53,10 +53,10 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `UI-METRIC-05` | `READY` | `UI-METRIC-04` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-05_P0_ACCEPTANCE_GATE/` | P0 UI metric acceptance gate | metric evaluator, tests, docs/TEST.md | visible no-op button, missing required scroll, state contradiction, sample fallback in production, debug leakage, required generic Resource picker, and unreachable primary action fail P0. |
-| `UI-METRIC-06` | `BACKLOG` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-06_P1_ACCEPTANCE_GATE/` | P1 UI metric acceptance gate | metric evaluator, tests, docs/TEST.md | resource row compression, normal width label truncation, large dead area, disabled action without tooltip, and summary-only task tab are P1 fail/report conditions. |
-| `UI-METRIC-07` | `BACKLOG` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-07_TEST_SH_INTEGRATION/` | P0 metric integration in standard tests | `tools/test.sh`, metric report output docs | `tools/test.sh` runs P0 gate; P1 can stay separate initially; JSON/MD report is written under `.godot_user/ui-metrics/<run-id>/`. |
-| `UI-METRIC-08` | `BACKLOG` | `UI-METRIC-05`, `PROCESS-13` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-08_AUTOPILOT_ACCEPTANCE_TEMPLATE_UPDATE/` | Autopilot UI acceptance template update | policy/process docs, self-review templates | UI task self-review references UI metric report; UI task completion includes P0 failures = 0. |
+| `UI-METRIC-05` | `COMPLETE` | `UI-METRIC-04` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-05_P0_ACCEPTANCE_GATE/` | P0 UI metric acceptance gate | metric evaluator, tests, docs/TEST.md | visible no-op button, missing required scroll, state contradiction, sample fallback in production, debug leakage, required generic Resource picker, and unreachable primary action fail P0. |
+| `UI-METRIC-06` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-06_P1_ACCEPTANCE_GATE/` | P1 UI metric acceptance gate | metric evaluator, tests, docs/TEST.md | resource row compression, normal width label truncation, large dead area, disabled action without tooltip, and summary-only task tab are P1 fail/report conditions. |
+| `UI-METRIC-07` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-07_TEST_SH_INTEGRATION/` | P0 metric integration in standard tests | `tools/test.sh`, metric report output docs | `tools/test.sh` runs P0 gate; P1 can stay separate initially; JSON/MD report is written under `.godot_user/ui-metrics/<run-id>/`. |
+| `UI-METRIC-08` | `READY` | `UI-METRIC-05`, `PROCESS-13` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-08_AUTOPILOT_ACCEPTANCE_TEMPLATE_UPDATE/` | Autopilot UI acceptance template update | policy/process docs, self-review templates | UI task self-review references UI metric report; UI task completion includes P0 failures = 0. |
 
 ---
 
@@ -64,10 +64,10 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `ARCH-NEXT-10` | `BACKLOG` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-10_PHYSICAL_WORKSPACE_UI_NODE_EXTRACTION/` | Physical Workspace UI node construction extraction | `HexMapWorkspace`, screen component scripts, tests | Workspace is tab host/context/dispatcher; screen-specific UI node construction moves to screen component classes; screen contract tests cover class ownership. |
-| `ARCH-NEXT-11` | `BACKLOG` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-11_GENERATE_DOCK_INTERNAL_COMPONENT_SPLIT/` | Generate Dock internal component split | `hex_map_gen_dock.gd`, Generate components, tests | Generate run controls, profile/source controls, preview/result summary, output/apply/save controls split; `HexMapGenDock` orchestrates state binding. |
-| `CAT-NEXT-10` | `BACKLOG` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/CAT-NEXT-10_CATALOG_EDITOR_COMPONENT_EXTRACTION/` | Catalog editor component extraction | Catalog screen/components, EditTool helper cleanup, tests | Catalog entry list/detail/create/validate is dedicated component; Paint/EditTool no longer own normal Catalog UI responsibility. |
-| `PERF-NEXT-10` | `BACKLOG` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PERF-NEXT-10_CHUNKED_TILEMAP_APPLY_IMPLEMENTATION/` | Chunked TileMap apply implementation | apply paths, progress/busy state, tests | Target apply scope is explicit; apply advances by chunks; progress/busy state and cancel/interrupt consistency are defined and tested. |
+| `ARCH-NEXT-10` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-10_PHYSICAL_WORKSPACE_UI_NODE_EXTRACTION/` | Physical Workspace UI node construction extraction | `HexMapWorkspace`, screen component scripts, tests | Workspace is tab host/context/dispatcher; screen-specific UI node construction moves to screen component classes; screen contract tests cover class ownership. |
+| `ARCH-NEXT-11` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-11_GENERATE_DOCK_INTERNAL_COMPONENT_SPLIT/` | Generate Dock internal component split | `hex_map_gen_dock.gd`, Generate components, tests | Generate run controls, profile/source controls, preview/result summary, output/apply/save controls split; `HexMapGenDock` orchestrates state binding. |
+| `CAT-NEXT-10` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/CAT-NEXT-10_CATALOG_EDITOR_COMPONENT_EXTRACTION/` | Catalog editor component extraction | Catalog screen/components, EditTool helper cleanup, tests | Catalog entry list/detail/create/validate is dedicated component; Paint/EditTool no longer own normal Catalog UI responsibility. |
+| `PERF-NEXT-10` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PERF-NEXT-10_CHUNKED_TILEMAP_APPLY_IMPLEMENTATION/` | Chunked TileMap apply implementation | apply paths, progress/busy state, tests | Target apply scope is explicit; apply advances by chunks; progress/busy state and cancel/interrupt consistency are defined and tested. |
 
 ---
 
@@ -81,9 +81,9 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | `SCREEN-NEXT-10` | `BACKLOG` | `ARCH-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/SCREEN-NEXT-10_RESOURCES_LAYERS_EXPORT_VISUAL_REDESIGN/` | Rich Resources / Layers / Export visual redesign | Resources/Layers/Export screens, tests | Resources, Layers, and Export become clearer task surfaces for node/document/dependency, role tree, and runtime handoff state. |
 | `LAYER-NEXT-10` | `BACKLOG` | `SCREEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/LAYER-NEXT-10_LAYER_ROLE_EDITOR/` | Fine-grained Layer role editor | Layer screen/resource/tests | Role visible/locked/z-index/writable source can be edited and reflected in LayerStack/selected node state. |
 | `PAINT-NEXT-10` | `BACKLOG` | `SCREEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PAINT-NEXT-10_VIEWPORT_AFFORDANCE_POLISH/` | Paint viewport affordance polish | Paint tab, viewport adapter, tests | Brush cursor, selected cell, target layer, mode, and last edit feedback sync between viewport and Paint tab. |
-| `VAL-NEXT-10` | `BACKLOG` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/VAL-NEXT-10_VALIDATE_RICH_ISSUE_TABLE_ACTIONS/` | Rich Validate issue table and actions | Validate screen, validation dashboard, tests | Issue table has severity/domain/scope/target/suggestion columns and only real per-issue actions. |
+| `VAL-NEXT-10` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/VAL-NEXT-10_VALIDATE_RICH_ISSUE_TABLE_ACTIONS/` | Rich Validate issue table and actions | Validate screen, validation dashboard, tests | Issue table has severity/domain/scope/target/suggestion columns and only real per-issue actions. |
 | `QA-NEXT-10` | `BACKLOG` | `GEN-NEXT-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/QA-NEXT-10_SCORE_TABLE_VISUAL_REDESIGN/` | QA scored table visual redesign | QA screen/table/tests | Seed rows, score columns, validation status, selected seed, preview, and promotion state are easy to compare. |
-| `SETTINGS-NEXT-10` | `BACKLOG` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/SETTINGS-NEXT-10_SETTINGS_GROUPING_TOGGLE_STYLING/` | Settings grouping and toggle styling | Settings/sample panels, tests | Sample Learning, Debug, Project Defaults, and UI Preferences are separated; booleans use toggles/checks with tooltip detail. |
+| `SETTINGS-NEXT-10` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/SETTINGS-NEXT-10_SETTINGS_GROUPING_TOGGLE_STYLING/` | Settings grouping and toggle styling | Settings/sample panels, tests | Sample Learning, Debug, Project Defaults, and UI Preferences are separated; booleans use toggles/checks with tooltip detail. |
 | `SAMPLE-NEXT-10` | `BACKLOG` | `SETTINGS-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/SAMPLE-NEXT-10_SAMPLE_DETAIL_DRAWER/` | Sample detail drawer | Settings sample detail UI/tests | Sample asset type, dependencies, duplicate target, and learning use are inspectable without injecting samples into production flow. |
 
 ---
@@ -95,8 +95,8 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | `PERF-NEXT-11` | `BACKLOG` | `PERF-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PERF-NEXT-11_LARGE_MAP_VALIDATION_PROGRESS/` | Large-map validation progress | validator/progress state/tests | Validation traversal reports phase/progress and connects to Validate/Generate busy state. |
 | `GENPIPE-NEXT-10` | `BACKLOG` | `GEN-NEXT-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GENPIPE-NEXT-10_GENERATION_RESULT_RESOURCE_AND_REPLAY_API/` | GenerationResultResource and replay API | new Resource/API/tests | primary/overlay/filter/candidate/validation result scope is defined; Generate/QA can replay/promote result resources. |
 | `GENPIPE-NEXT-20` | `BACKLOG` | `GENPIPE-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GENPIPE-NEXT-20_PIPELINE_GRAPH_UI_RESEARCH_AND_SPIKE/` | Pipeline graph UI research/spike | review docs/prototype if needed | Resource pass / linear pipeline / node graph options are updated; pass graph is either scoped or explicitly rejected. |
-| `PROFILE-NEXT-10` | `BACKLOG` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROFILE-NEXT-10_CONCRETE_PROFILE_BEHAVIOR_SCHEMAS/` | Concrete profile behavior schemas | profile Resources, editors/tests | Validation Suite, Generation Profile, and Export Profile gain real behavior schemas and editor/screen connections. |
-| `STATE-NEXT-10` | `BACKLOG` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/STATE-NEXT-10_ROOT_REDUCER_EVENT_MODEL/` | Root reducer / event model expansion | dispatcher/root state/tests | Workspace events are typed; reducer results, side effects, UI state update, and debug report proof are separated. |
+| `PROFILE-NEXT-10` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROFILE-NEXT-10_CONCRETE_PROFILE_BEHAVIOR_SCHEMAS/` | Concrete profile behavior schemas | profile Resources, editors/tests | Validation Suite, Generation Profile, and Export Profile gain real behavior schemas and editor/screen connections. |
+| `STATE-NEXT-10` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/STATE-NEXT-10_ROOT_REDUCER_EVENT_MODEL/` | Root reducer / event model expansion | dispatcher/root state/tests | Workspace events are typed; reducer results, side effects, UI state update, and debug report proof are separated. |
 | `STATE-NEXT-11` | `BACKLOG` | `STATE-NEXT-10`, `ARCH-NEXT-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/STATE-NEXT-11_GENERATION_PRIVATE_FLAG_MIRROR_RETIREMENT/` | Generation private flag mirror retirement | Generate run state/dock/tests | `_generation_*` mirror inventory exists; replaced fields are removed or read-only; removal conditions and tests are recorded. |
 
 ---
@@ -140,7 +140,7 @@ acceptance / test path:
 
 ## 9. Current pointer
 
-Current recommended next task: `UI-METRIC-05`.
+Current recommended next task: `UI-METRIC-06`.
 
 Reason:
 
@@ -154,8 +154,9 @@ Reason:
 - `UI-METRIC-02` is complete.
 - `UI-METRIC-03` is complete.
 - `UI-METRIC-04` is complete.
-- `UI-METRIC-05` is READY because `UI-METRIC-04` is complete.
-- `UI-METRIC-05` is the first READY task in queue order.
+- `UI-METRIC-05` is complete.
+- `UI-METRIC-06` is READY because `UI-METRIC-05` is complete.
+- `UI-METRIC-06` is the first READY task in queue order.
 
 ---
 
@@ -347,3 +348,23 @@ proof:
     - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-04_LAYOUT_METRIC_EVALUATOR_WARN_ONLY/POLICY.md`
     - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-04_LAYOUT_METRIC_EVALUATOR_WARN_ONLY/IMPLEMENTATION_PLAN.md`
     - `docs/review/autopilot/UI-METRIC-04_TEST_RESULT_2026-06-10.md`
+
+### UI-METRIC-05 P0 acceptance gate
+
+proof:
+  plan: `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-05_P0_ACCEPTANCE_GATE/`
+  review: `docs/review/autopilot/UI-METRIC-05_SELF_REVIEW_2026-06-10.md`
+  execution:
+    - `docs/review/autopilot/UI-METRIC-05_SELF_REVIEW_2026-06-10.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/testing/hex_ui_layout_metric_evaluator.gd`
+    - `tests/test_workspace_layout_metric_evaluator.gd`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-05_P0_ACCEPTANCE_GATE/SUB_TASKS.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-05_P0_ACCEPTANCE_GATE/UX.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-05_P0_ACCEPTANCE_GATE/POLICY.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-05_P0_ACCEPTANCE_GATE/IMPLEMENTATION_PLAN.md`
+    - `docs/review/autopilot/UI-METRIC-05_TEST_RESULT_2026-06-10.md`
