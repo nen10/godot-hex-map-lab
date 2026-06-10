@@ -30,6 +30,11 @@ TEST_SCRIPTS=(
   "res://tests/test_hex_map_generation.gd"
   "res://tests/test_hex_adapter.gd"
   "res://tests/test_hex_tile_map_layer.gd"
+  "res://tests/test_workspace_state_transitions.gd"
+  "res://tests/test_asset_slot_state.gd"
+  "res://tests/test_generation_run_state.gd"
+  "res://tests/test_paint_interaction_state.gd"
+  "res://tests/test_workspace_screen_contracts.gd"
   "res://tests/test_editor_plugin.gd"
   "res://tests/test_debug_scenes.gd"
 )

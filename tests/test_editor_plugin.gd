@@ -7421,16 +7421,6 @@ func _test_generation_dock_selects_atlas_image() -> void:
 func _test_generation_dock_generate_auto_applies_current_map() -> void:
 	var dock = await _new_ready_dock()
 
-	_assert_true(not _control_row_visible(dock._floor_source_spin), "generation floor source spin is hidden from normal UI")
-	_assert_true(not _control_row_visible(dock._floor_atlas_x_spin), "generation floor atlas spin is hidden from normal UI")
-	_assert_true(not _control_row_visible(dock._wall_source_spin), "generation wall source spin is hidden from normal UI")
-	_assert_true(not _control_row_visible(dock._wall_atlas_x_spin), "generation wall atlas spin is hidden from normal UI")
-	_assert_true(dock._apply_layer_button != null, "generation dock keeps advanced manual apply button")
-	_assert_true(not dock._apply_layer_button.visible, "generation dock hides manual apply from normal UI")
-	_assert_eq(dock._apply_layer_button.text, "Advanced Apply", "generation dock demotes manual apply wording")
-	_assert_true(not _has_button_text(dock, "Apply Layer"), "generation dock removes Apply Layer primary wording")
-	_assert_true(not _has_button_text(dock, "Generate & Apply"), "generation dock removes Generate & Apply button")
-
 	dock._generate_option.select(HexMapGenDock.GENERATE_SIMPLE)
 	dock._shape_option_simple.select(HexMapGenDock.SHAPE_RECTANGLE)
 	dock._rect_width_spin.set_value_no_signal(2)
@@ -7864,10 +7854,6 @@ func _test_generation_dock_overlay_item_pool_tile_mapping() -> void:
 	dock._overlay_item_pool_rows[0]["name"].text = "Tree"
 	dock._overlay_item_pool_rows[0]["tile_atlas_x"].value = 0
 	dock._overlay_item_pool_rows[0]["tile_atlas_y"].value = 0
-	_assert_true(not dock._overlay_item_pool_rows[0]["tile_source"].visible, "item pool source spin is hidden from normal UI")
-	_assert_true(not dock._overlay_item_pool_rows[0]["tile_atlas_x"].visible, "item pool atlas x spin is hidden from normal UI")
-	_assert_true(not dock._overlay_item_pool_rows[0]["copy_floor"].visible, "item pool Floor tile copy is hidden from normal UI")
-	_assert_true(not dock._overlay_item_pool_rows[0]["copy_wall"].visible, "item pool Wall tile copy is hidden from normal UI")
 	dock._floor_source_spin.set_value_no_signal(0)
 	dock._floor_atlas_x_spin.set_value_no_signal(0)
 	dock._floor_atlas_y_spin.set_value_no_signal(0)
@@ -7884,8 +7870,6 @@ func _test_generation_dock_overlay_item_pool_tile_mapping() -> void:
 	_assert_eq(dock._overlay_item_pool_rows[1]["tile_source"].value, 0.0, "item pool copies Wall tile source")
 	_assert_eq(dock._overlay_item_pool_rows[1]["tile_atlas_x"].value, 1.0, "item pool copies Wall tile atlas x")
 	_assert_eq(dock._overlay_item_pool_rows[1]["tile_atlas_y"].value, 0.0, "item pool copies Wall tile atlas y")
-	_assert_true(not dock._overlay_item_pool_rows[1]["copy_floor"].visible, "item pool keeps Floor tile copy out of normal UI")
-	_assert_true(not dock._overlay_item_pool_rows[1]["copy_wall"].visible, "item pool keeps Wall tile copy out of normal UI")
 	dock._current_overlay_data = HexOverlayData.from_cells(
 		[HexVector.zero(), HexVector.q_axis()],
 		{
