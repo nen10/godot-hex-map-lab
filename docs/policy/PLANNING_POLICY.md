@@ -37,6 +37,14 @@ task resolution : [
 - 今回task が 設計判断の場合、目標を実現する設計と複数のtaskから構成される採否の判断を任意の数だけ記載する。
 - 今回task が 計画を作成することを目標にする場合、本質的な価値を実現する新規の目標を数多く提案し、採否の判断を任意の数だけ記載する。
 
+### Scheduled Task Audit
+
+```
+
+| deferred / rejected item | existing queue id | decision | reason |
+|---|---|---|---|
+```
+
 ### plan scheduling
 
 Scheduled task : {
@@ -52,35 +60,57 @@ Scheduled task : {
 
 ### add sub-tasks rules
 
-- `SUB_TASKS.md` 内の Scheduled task は 今回task 完了処理時に `IMPLEMENTATION_QUEUE.md` に割り込みで追加する。
+- `SUB_TASKS.md` 内の Scheduled task は 今回task 完了処理時に `IMPLEMENTATION_QUEUE.md` に追加する。
   - 記載の format は通常の task と同様とし、詳細は `docs/process/QUEUE_OPERATION_RULES.md` に従う。
 
 ## 1. UX.md
 
-目標を operation steps として具体化するため、複数の UX を提案し、各候補を評価する。
-implementation queue の task packet は最小限の説明であり、目標の具体化のため `ROADMAP.md` の該当 task を参照して検討する。
+UX Candidate Matrixを作成し、その後目標を experience steps として具体化する。
+
+### UX Candidate Matrix
+
+```
+| candidate | user value | risk | cost | decision | reason |
+|---|---|---|---|---|---|
+| A. keep in Paint | low | high | low | reject | mixes resource context and brush work |
+| B. move to Catalog | high | medium | medium | adopt | aligns tab with user task |
+| C. duplicate in both | medium | high | high | reject | two sources of truth |
+```
 
 以下を含む:
 
 - user goal。
-- operation steps。
 - { 採用, 維持 }する UX。
 - { 廃止, 保留 }する UX。
 - hack 扱いとして廃止または backlog残置する UX
 - 既存 UX との干渉。
+- 提案から構成される experience steps
 
 ## 2. POLICY.md
 
 目標を実現するため、採用UXを基準に必要な設計を判断する。
 
+
 以下を含む:
 
 - 採用判断。
 - 不採用判断。
-- 破壊的変更の理由。
+- 破壊的変更。
 - legacy 扱いとして廃止または backlog残置する設計
 - Resource / API / UI の境界。
-- 未確定だが task 内で決めてよい事項。
+
+### Invariants
+
+- Workspace context has one selected-node source.
+- Sample Learning never becomes production source.
+- Manual Override must not silently write back unless policy says so.
+
+### Fallback / Mirror Handling
+
+```
+| item | decision | why | removal condition | test |
+|---|---|---|---|---|
+```
 
 ## 3. IMPLEMENTATION_PLAN.md
 

@@ -31,6 +31,12 @@ Roadmap は目標となる複数のUX,API方針に対して、説明可能な実
 5. phase ごとの成果物と成功状態。
 6. 最初に queue 化すべき範囲。
 
+## Roadmap principals
+
+- 網羅性 : feedbackされた内容に基づいて、全ての推奨項目をRoadmapに取り込んでいる
+- 俯瞰性 : feedbackから想定可能な、今後計画するべき全ての設計課題をRoadmapに盛り込んでいる
+- 完全性 : feedbackにおける大きな問題について、十分に構成要素を取り出して全ての目標をRoadmapに盛り込んでいる
+
 ## Decision rules
 
 - スケールの大きな UX 提案 / ブレスト項目 / feadback項目 を元に検討する。

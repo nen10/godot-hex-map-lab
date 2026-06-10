@@ -18,6 +18,7 @@ Commit は作業途中の保存ではなく、task completion proof である。
 
 | status | commit |
 |---|---|
+| `RESOLUTED` | product completion commit |
 | `COMPLETE` | product completion commit |
 | `COMPLETE_WITH_BACKLOG` | product completion commit |
 | `BLOCKED_BY_TEST_ENV` | docs-only state commit |
@@ -29,6 +30,9 @@ Commit しない状態:
 - `RUNNING`
 - `VERIFYING`
 - `REPAIR_NOW`
+- `RESOLUTED_RUNNING`
+- `RESOLUTED_VERIFYING`
+- `RESOLUTED_REPAIR_NOW`
 - `BACKLOG`
 - `READY`
 
