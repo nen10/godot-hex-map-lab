@@ -31,6 +31,7 @@ Editor Plugin 操作で複数機能の結合性を確認する任意検証は、
 - `tests/test_hex_map_generation.gd`
 - `tests/test_hex_adapter.gd`
 - `tests/test_hex_tile_map_layer.gd`
+- `tests/test_workspace_layout_metrics.gd`
 - `tests/test_editor_plugin.gd`
 - `tests/test_debug_scenes.gd`
 
@@ -128,6 +129,7 @@ GodotでのDebug実行によるテストが有用なケースについては、�
 - `tests/test_editor_plugin.gd` STATE-50 coverage: `HexMapValidationWorkflowState` / `HexMapExportWorkflowState` / `HexMapSampleLearningState` / `HexMapDialogLifecycleState` が Validation の not_run / running / clean / warning / error / issue_selected / focus_applied、Export の no_destination / ready / exporting / exported / failed、Sample の off / learning_available / duplicated_to_project / sample_source_selected、Dialog の closed / opening / waiting_user / committed / cancelled と Workspace ViewState sourceを headless で検証する。
 - `tests/test_editor_plugin.gd` STATE-60 coverage: `HexMapWorkspaceRootState` / `HexMapWorkspaceDispatcher` が root snapshot / root ViewState / screen ViewState composition、select-tab / validation / issue-focus / export-destination / sample-learning dispatch envelope、state snapshot由来 debug report を headless で検証する。
 - UI-00 coverage: `WORKSPACE_SCREEN_CONTRACT.md` / `WORKSPACE_STATE_MACHINE.md` / `VISIBLE_CONTROL_INVENTORY.md` / `RESOURCE_ROW_SPEC.md` / `DEBUG_LABEL_POLICY.md` が Workspace normal UI、tooltip/detail、debug report、Generate caution、Resource row compact/adaptive contractを定義し、`./tools/test.sh` と self-review で確認する。
+- `tests/test_workspace_layout_metrics.gd` UI-METRIC-03 coverage: `HexUILayoutSnapshotCollector` / `HexUIStateScenarioBuilder` が no selected HexTileMap、selected HexTileMap without resources、selected HexTileMap with shared resources のシナリオと複数 viewport size で Workspace を構築し、visible Control の rect / minimum size / text / base_type / tooltip / scroll parent / metadata と JSON serialization を headless で検証する。このテストは collector contract のみを標準検証し、metric WARN/P0/P1 gate は後続 task まで report-only 境界として扱う。
 - `tests/test_editor_plugin.gd` UI-01 coverage: `HexMapEditorAssetSlotControl` が adaptive two-line row、visible status word removal、status swatch/icon id、tooltip detail、Details button absence、Create New / explicit sample action visibilityを headless で検証する。
 - `tests/test_editor_plugin.gd` UI-02 coverage: Settings / Sample Settings が CheckBoxによるboolean state、debug enabled/disabled label非表示、sample row path非表示、sample duplicate result pathのtooltip/snapshot移動を headless で検証する。
 - `tests/test_editor_plugin.gd` UI-03 coverage: Generate screen snapshot / output target snapshot が unblocked empty-state非表示、preview/document/apply/save result summary、blocked ViewState reason、source registry Refresh Source wordingを headless で検証する。
