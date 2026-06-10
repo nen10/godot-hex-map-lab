@@ -44,6 +44,9 @@ Task 実行中に作成された `SUB_TASK.md` 内のすべての Scheduled task
 proof:
   plan: docs/plan/<roadmap>/<TASK_ID>_<slug>/
   review: docs/review/autopilot/<TASK_ID>_SELF_REVIEW_<date>.md
+  execution:
+    - docs/review/autopilot/<TASK_ID>_SELF_REVIEW_<date>.md
+    - docs/plan/<roadmap>/<TASK_ID>_<slug>/EXECUTION_LOG.md if present
   tests:
     - ./tools/test.sh
   docs:
@@ -51,6 +54,8 @@ proof:
   major files:
     - ...
 ```
+
+`IMPLEMENTATION_PLAN.md` is planning proof. 実行済み checklist、変更ファイルの実績、plan deviation、repair履歴は self-review または optional `EXECUTION_LOG.md` に記録する。完了証跡は plan と execution proof を別々に参照できる状態にする。
 
 ## Phase review matrix
 

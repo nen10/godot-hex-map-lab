@@ -17,13 +17,13 @@ Roadmap 作成は `docs/policy/ROADMAP_DECISION_POLICY.md`、queue 作成は `do
 
 1. Queue から先頭の `READY` task を選ぶ。
 2. task を `RUNNING` にする。
-3. `docs/policy/PLANNING_POLICY.md`に従い、実装計画を作成する。`ROADMAP.md` 内の該当 taskも参照する。
+3. `docs/policy/PLANNING_POLICY.md`に従い、実装計画を作成する。`ROADMAP.md` 内の該当 taskも参照する。`IMPLEMENTATION_PLAN.md` は pre-execution planning proof として扱う。
 4. plan 後に承認待ちで止まらず、同じ run で実装する。
 5. code / tests / docs を更新する。cf.`docs/policy/IMPLEMENTATION_POLICY.md`
 6. `./tools/test.sh` を実行する。
 7. 失敗や不足を分類し、`repair-now` は同じ task で修正する。
 8. task 実行中に作成した Scheduled task を `IMPLEMENTATION_QUEUE.md` に追加する。
-9.  `docs/review/autopilot/<TASK_ID>_SELF_REVIEW_<date>.md` を作り、sample-only success を completion proof にしていないことを確認する。
+9.  `docs/review/autopilot/SELF_REVIEW_TEMPLATE.md` に沿って `docs/review/autopilot/<TASK_ID>_SELF_REVIEW_<date>.md` を作り、実行summary、変更ファイル、plan deviation、repair-now、sample-only success を completion proof にしていないことを確認する。
 10. `QUEUE_OPERATION_RULES.md` に従って queue を更新する。
 11. 完了状態なら `CODEX_AUTOPILOT_COMMIT_POLICY.md` に従って commit する。
 12. 次の `READY` task へ進む。

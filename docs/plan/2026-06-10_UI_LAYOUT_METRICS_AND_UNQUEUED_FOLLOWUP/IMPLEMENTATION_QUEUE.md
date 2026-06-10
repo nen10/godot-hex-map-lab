@@ -33,7 +33,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | `PROCESS-10` | `COMPLETE` | `NEXT-00` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-10_COMPLEXITY_CLASS_FOR_TASK_PLANS/` | Complexity class for task plans | `docs/policy/PLANNING_POLICY.md`, plan templates, review docs | C1-C5 complexity classes exist; `SUB_TASKS.md` template has complexity header; C4/C5 require candidate matrix, fallback table, and state table. |
 | `PROCESS-11` | `COMPLETE` | `PROCESS-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-11_PHASE_REVIEW_MATRIX/` | Phase review matrix process | `docs/process/QUEUE_OPERATION_RULES.md`, review template docs | Phase completion records task score, debt, evidence, and next readiness; prose-only defer is converted to queue candidate. |
 | `PROCESS-12` | `COMPLETE` | `PROCESS-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-12_FALLBACK_LEDGER/` | Fallback / mirror / debug ledger | `docs/review/roadmap/FALLBACK_LEDGER_2026-06-10.md`, planning/review docs | fallback, mirror, legacy, debug, sample, and manual override entries have owner/status/removal condition/test proof. |
-| `PROCESS-13` | `READY` | `PROCESS-12` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-13_PLAN_EXECUTION_BOUNDARY/` | Plan/execution proof boundary | planning policy, self-review templates, queue proof docs | `IMPLEMENTATION_PLAN.md` stays pre-execution; executed checklist/deviation moves to self-review or execution log. |
+| `PROCESS-13` | `COMPLETE` | `PROCESS-12` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-13_PLAN_EXECUTION_BOUNDARY/` | Plan/execution proof boundary | planning policy, self-review templates, queue proof docs | `IMPLEMENTATION_PLAN.md` stays pre-execution; executed checklist/deviation moves to self-review or execution log. |
 
 ---
 
@@ -41,7 +41,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `UI-METRIC-00` | `BACKLOG` | `PROCESS-12` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-00_WORKSPACE_UI_CONTRACT/` | Workspace UI metric contract | `docs/ui/WORKSPACE_UI_CONTRACT.md`, docs/tests notes | Each tab has purpose, required components, forbidden visible text, and metric thresholds; Resource row/button/debug/sample contracts are defined. |
+| `UI-METRIC-00` | `READY` | `PROCESS-12` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-00_WORKSPACE_UI_CONTRACT/` | Workspace UI metric contract | `docs/ui/WORKSPACE_UI_CONTRACT.md`, docs/tests notes | Each tab has purpose, required components, forbidden visible text, and metric thresholds; Resource row/button/debug/sample contracts are defined. |
 | `UI-METRIC-01` | `BACKLOG` | `UI-METRIC-00` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-01_WORKSPACE_STATE_MATRIX/` | Workspace state matrix | `docs/ui/WORKSPACE_STATE_MATRIX.md` | no selected node, selected node without resources, selected with resources, sample on/off, generate preview, validation errors, QA, Export, Settings states define expected and forbidden visible output. |
 | `UI-METRIC-02` | `BACKLOG` | `UI-METRIC-00` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-02_STATIC_UI_AUDIT/` | Static UI audit tool | `tools/ui_static_audit.py`, docs/TEST.md | Detects suspicious buttons without pressed connection, forbidden button text, visible debug label patterns, generic ResourcePicker patterns, and tab constructor without ScrollContainer suspicion. |
 | `UI-METRIC-03` | `BACKLOG` | `UI-METRIC-00`, `UI-METRIC-01` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-03_LAYOUT_SNAPSHOT_COLLECTOR/` | Runtime layout snapshot collector | `addons/hex_map_kit/editor/testing/`, `tests/test_workspace_layout_metrics.gd` | Workspace can be built across scenarios/sizes; visible Control rect/minimum/text/base_type/tooltip/scroll parent/metadata can be serialized to JSON; report only, not fail gate. |
@@ -140,7 +140,7 @@ acceptance / test path:
 
 ## 9. Current pointer
 
-Current recommended next task: `PROCESS-13`.
+Current recommended next task: `UI-METRIC-00`.
 
 Reason:
 
@@ -148,8 +148,9 @@ Reason:
 - `PROCESS-10` is complete.
 - `PROCESS-11` is complete.
 - `PROCESS-12` is complete.
-- `PROCESS-13` is READY because `PROCESS-12` is complete.
-- `PROCESS-13` is the first READY task in queue order.
+- Phase M0 tasks are complete.
+- `UI-METRIC-00` is READY because `PROCESS-12` is complete.
+- `UI-METRIC-00` is the first READY task in queue order.
 
 ---
 
@@ -220,3 +221,25 @@ proof:
     - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-12_FALLBACK_LEDGER/POLICY.md`
     - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-12_FALLBACK_LEDGER/IMPLEMENTATION_PLAN.md`
     - `docs/review/autopilot/PROCESS-12_TEST_RESULT_2026-06-10.md`
+
+### PROCESS-13 Plan / execution proof boundary
+
+proof:
+  plan: `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-13_PLAN_EXECUTION_BOUNDARY/`
+  review: `docs/review/autopilot/PROCESS-13_SELF_REVIEW_2026-06-10.md`
+  execution:
+    - `docs/review/autopilot/PROCESS-13_SELF_REVIEW_2026-06-10.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/policy/PLANNING_POLICY.md`
+    - `docs/process/QUEUE_OPERATION_RULES.md`
+    - `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
+    - `docs/review/autopilot/SELF_REVIEW_TEMPLATE.md`
+    - `docs/review/roadmap/UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP_M0_PHASE_REVIEW_2026-06-10.md`
+  major files:
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-13_PLAN_EXECUTION_BOUNDARY/SUB_TASKS.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-13_PLAN_EXECUTION_BOUNDARY/UX.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-13_PLAN_EXECUTION_BOUNDARY/POLICY.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-13_PLAN_EXECUTION_BOUNDARY/IMPLEMENTATION_PLAN.md`
+    - `docs/review/autopilot/PROCESS-13_TEST_RESULT_2026-06-10.md`

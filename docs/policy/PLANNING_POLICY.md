@@ -164,15 +164,27 @@ C3以上、または状態遷移・UI表示・fallback/mirror を扱う task で
 
 目標を実現するため、採用設計を基準に実装を計画する。
 
+`IMPLEMENTATION_PLAN.md` は pre-execution planning proof であり、実行ログではない。実装後に、実行済み status、変更ファイルの最終一覧、plan deviation、repair履歴を記録するためだけに `IMPLEMENTATION_PLAN.md` を更新しない。それらは `docs/review/autopilot/<TASK_ID>_SELF_REVIEW_<date>.md`、または大きい task の optional `EXECUTION_LOG.md` に記録する。
+
 以下を含む:
 
 - Scope。
 - 変更対象ファイル。
-- 実装 steps。
+- planned implementation steps。
 - fallback 扱いとして廃止または backlog残置する step
 - Test path。
 - docs 更新。
-- completion checklist。
+- planned completion criteria。
+
+### Plan / Execution Boundary
+
+| artifact | owns | must not own |
+|---|---|---|
+| `IMPLEMENTATION_PLAN.md` | intended scope, target files, planned steps, planned tests, planned completion criteria | post-execution status, final changed-file audit, executed checklist, deviation record |
+| `SELF_REVIEW_<date>.md` | execution summary, changed files, acceptance result, deviation table, repair-now audit, test summary | new unreviewed scope decisions |
+| optional `EXECUTION_LOG.md` | detailed execution trace for C4/C5 or long tasks | replacement for self-review |
+
+If implementation reveals a scope/design change before the change is made, update the plan as planning input. If the change is discovered during or after implementation, record it as a deviation in self-review or `EXECUTION_LOG.md`.
 
 ### Dependency / Test Matrix
 
