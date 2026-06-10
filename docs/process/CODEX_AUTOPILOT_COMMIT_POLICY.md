@@ -42,6 +42,7 @@ Commit しない状態:
 - queue status が commit 可能状態である。
 - self-review がある。
 - test result または environment-blocking result がある。
+- UI-facing task は self-review または test result に UI metric report path と P0 failures = 0 が記録されている。
 - `repair-now` が残っていない。
 - queue proof が更新されている。
 - unrelated dirty files を含めない。

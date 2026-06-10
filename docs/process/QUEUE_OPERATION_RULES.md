@@ -47,6 +47,8 @@ proof:
   execution:
     - docs/review/autopilot/<TASK_ID>_SELF_REVIEW_<date>.md
     - docs/plan/<roadmap>/<TASK_ID>_<slug>/EXECUTION_LOG.md if present
+  ui_metrics:
+    - .godot_user/ui-metrics/<run-id>/workspace_layout_metrics.md if UI-facing
   tests:
     - ./tools/test.sh
   docs:
@@ -56,6 +58,8 @@ proof:
 ```
 
 `IMPLEMENTATION_PLAN.md` is planning proof. 実行済み checklist、変更ファイルの実績、plan deviation、repair履歴は self-review または optional `EXECUTION_LOG.md` に記録する。完了証跡は plan と execution proof を別々に参照できる状態にする。
+
+UI-facing task の completion proof は self-review または test result に UI metric report path と P0 failures = 0 を含める。P1 issue count は report-only として記録するが、active roadmap が P1 gating を有効化した場合はその条件を proof に含める。
 
 ## Phase review matrix
 

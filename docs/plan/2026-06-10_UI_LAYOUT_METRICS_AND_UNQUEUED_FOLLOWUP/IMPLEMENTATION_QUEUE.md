@@ -56,7 +56,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | `UI-METRIC-05` | `COMPLETE` | `UI-METRIC-04` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-05_P0_ACCEPTANCE_GATE/` | P0 UI metric acceptance gate | metric evaluator, tests, docs/TEST.md | visible no-op button, missing required scroll, state contradiction, sample fallback in production, debug leakage, required generic Resource picker, and unreachable primary action fail P0. |
 | `UI-METRIC-06` | `COMPLETE` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-06_P1_ACCEPTANCE_GATE/` | P1 UI metric acceptance gate | metric evaluator, tests, docs/TEST.md | resource row compression, normal width label truncation, large dead area, disabled action without tooltip, and summary-only task tab are P1 fail/report conditions. |
 | `UI-METRIC-07` | `COMPLETE` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-07_TEST_SH_INTEGRATION/` | P0 metric integration in standard tests | `tools/test.sh`, metric report output docs | `tools/test.sh` runs P0 gate; P1 can stay separate initially; JSON/MD report is written under `.godot_user/ui-metrics/<run-id>/`. |
-| `UI-METRIC-08` | `READY` | `UI-METRIC-05`, `PROCESS-13` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-08_AUTOPILOT_ACCEPTANCE_TEMPLATE_UPDATE/` | Autopilot UI acceptance template update | policy/process docs, self-review templates | UI task self-review references UI metric report; UI task completion includes P0 failures = 0. |
+| `UI-METRIC-08` | `COMPLETE` | `UI-METRIC-05`, `PROCESS-13` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-08_AUTOPILOT_ACCEPTANCE_TEMPLATE_UPDATE/` | Autopilot UI acceptance template update | policy/process docs, self-review templates | UI task self-review references UI metric report; UI task completion includes P0 failures = 0. |
 
 ---
 
@@ -108,7 +108,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | `ARCH-NEXT-20` | `BACKLOG` | `ARCH-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-20_OBJECT_LAYER_RENDERING_EXTRACTION/` | Object layer rendering extraction | HexTileMapLayer/object layer adapter/tests | Object placement rendering/runtime instancing boundary is separated; `HexTileMapLayer` remains coordinator. |
 | `ARCH-NEXT-21` | `BACKLOG` | `ARCH-NEXT-20` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-21_GAMEPLAY_QUERY_SERVICE_EXTRACTION/` | Gameplay query service extraction | path/range/connectivity services/tests | Runtime query helpers move to service/facade boundary; runtime samples use service path. |
 | `ARCH-NEXT-22` | `BACKLOG` | `ARCH-NEXT-20` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-22_DEBUG_OVERLAY_RENDERER_EXTRACTION/` | Debug overlay renderer extraction | debug overlay/validation focus/tests | Debug overlay rendering is separated from normal gameplay rendering and connects to Validate/debug report paths. |
-| `TEST-NEXT-10` | `BACKLOG` | `UI-METRIC-08` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/TEST-NEXT-10_CONTINUE_EDITOR_TEST_FILE_SPLIT/` | Continue editor integration test split | tests/test_editor_plugin.gd, new test files, tools/test.sh | Remaining integration tests split by feature family; `test_editor_plugin.gd` becomes workflow smoke; no old private widget shape expansion. |
+| `TEST-NEXT-10` | `READY` | `UI-METRIC-08` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/TEST-NEXT-10_CONTINUE_EDITOR_TEST_FILE_SPLIT/` | Continue editor integration test split | tests/test_editor_plugin.gd, new test files, tools/test.sh | Remaining integration tests split by feature family; `test_editor_plugin.gd` becomes workflow smoke; no old private widget shape expansion. |
 | `EXPORT-NEXT-10` | `BACKLOG` | `SCREEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/EXPORT-NEXT-10_PACKAGE_BUILD_UI_DECISION/` | Package build UI product decision | Export docs/screen/process docs | Decide whether package build belongs in editor Export UI or remains process-only; manual/process are updated accordingly. |
 | `DOC-NEXT-90` | `BACKLOG` | `UI-METRIC-08`, `TEST-NEXT-10`, `EXPORT-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/DOC-NEXT-90_MANUAL_AND_PROCESS_UPDATE/` | Manual/process update for metric and follow-up work | manuals, docs/TEST.md, README.md | Manuals explain UI metric gates, new surfaces, fallback ledger, and sample/debug boundaries; no analog test is added. |
 | `PROC-NEXT-90` | `BACKLOG` | `DOC-NEXT-90` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROC-NEXT-90_FINAL_DIST_REGENERATION/` | Final dist regeneration | `tools/package_addon.sh`, `dist/`, self-review/test-result docs | `tools/package_addon.sh` runs; manifest/zip match current addon tree; dist freshness remains outside normal test gate. |
@@ -140,7 +140,7 @@ acceptance / test path:
 
 ## 9. Current pointer
 
-Current recommended next task: `UI-METRIC-08`.
+Current recommended next task: `ARCH-NEXT-10`.
 
 Reason:
 
@@ -157,8 +157,10 @@ Reason:
 - `UI-METRIC-05` is complete.
 - `UI-METRIC-06` is complete.
 - `UI-METRIC-07` is complete.
-- `UI-METRIC-08` is READY because `UI-METRIC-05` and `PROCESS-13` are complete.
-- `UI-METRIC-08` is the first READY task in queue order.
+- `UI-METRIC-08` is complete.
+- Phase M2 review is recorded at `docs/review/roadmap/UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP_M2_PHASE_REVIEW_2026-06-10.md`.
+- `ARCH-NEXT-10` is the first READY task in queue order.
+- `TEST-NEXT-10` is also READY because `UI-METRIC-08` is complete.
 
 ---
 
@@ -410,3 +412,27 @@ proof:
     - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-07_TEST_SH_INTEGRATION/POLICY.md`
     - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-07_TEST_SH_INTEGRATION/IMPLEMENTATION_PLAN.md`
     - `docs/review/autopilot/UI-METRIC-07_TEST_RESULT_2026-06-10.md`
+
+### UI-METRIC-08 Autopilot UI acceptance template update
+
+proof:
+  plan: `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-08_AUTOPILOT_ACCEPTANCE_TEMPLATE_UPDATE/`
+  review: `docs/review/autopilot/UI-METRIC-08_SELF_REVIEW_2026-06-10.md`
+  execution:
+    - `docs/review/autopilot/UI-METRIC-08_SELF_REVIEW_2026-06-10.md`
+  ui_metrics:
+    - `.godot_user/ui-metrics/20260610-182912-27153/workspace_layout_metrics.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/review/autopilot/SELF_REVIEW_TEMPLATE.md`
+    - `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
+    - `docs/process/QUEUE_OPERATION_RULES.md`
+    - `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
+  major files:
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-08_AUTOPILOT_ACCEPTANCE_TEMPLATE_UPDATE/SUB_TASKS.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-08_AUTOPILOT_ACCEPTANCE_TEMPLATE_UPDATE/UX.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-08_AUTOPILOT_ACCEPTANCE_TEMPLATE_UPDATE/POLICY.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-08_AUTOPILOT_ACCEPTANCE_TEMPLATE_UPDATE/IMPLEMENTATION_PLAN.md`
+    - `docs/review/roadmap/UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP_M2_PHASE_REVIEW_2026-06-10.md`
+    - `docs/review/autopilot/UI-METRIC-08_TEST_RESULT_2026-06-10.md`

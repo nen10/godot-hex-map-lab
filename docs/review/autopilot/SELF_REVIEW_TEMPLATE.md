@@ -29,6 +29,18 @@ Use `none` when there is no deviation.
 |---|---|---|
 |  |  |  |
 
+## UI Metric Review
+
+For UI-facing tasks, record the metric report from `./tools/test.sh`.
+For non-UI tasks, use `not applicable` with a reason.
+
+| item | result | evidence |
+|---|---|---|
+| Metric report path |  |  |
+| P0 failures |  | Must be `0` for UI task completion. |
+| P1 issues |  | Report-only unless the active roadmap says otherwise. |
+| UI metric applicability |  | UI task / non-UI task reason. |
+
 ## Deferred / Prose-only Audit
 
 | item | classification | queue / ledger / reject / policy |
