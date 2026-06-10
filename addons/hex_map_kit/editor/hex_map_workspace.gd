@@ -128,6 +128,7 @@ var _tab_scroll_roots: Dictionary = {}
 var _last_workspace_validation_result: HexMapValidationResult = null
 var _last_export_action_result: Dictionary = {}
 var _validation_workflow_state: HexMapValidationWorkflowState = HexMapValidationWorkflowState.new()
+var _last_validation_progress_state: Dictionary = {}
 var _export_workflow_state: HexMapExportWorkflowState = HexMapExportWorkflowState.new()
 var _workspace_root_state: HexMapWorkspaceRootState = HexMapWorkspaceRootState.new()
 var _hydrating_document_dependencies := false
@@ -440,7 +441,87 @@ func _sync_validation_workflow_state(running: bool = false) -> void:
 		"selected_issue_row": _selected_validate_issue_row,
 		"selected_issue_navigation": _selected_validate_issue_navigation,
 		"focus_applied": _selected_validate_issue_index >= 0 and not _selected_validate_issue_navigation.is_empty(),
+		"progress_state": _validation_progress_state_for_workflow(running),
 	})
+
+
+func _validation_progress_state_for_workflow(running: bool) -> Dictionary:
+	if _last_validation_progress_state.is_empty():
+		return {
+			"phase": "",
+			"phase_text": "",
+			"step": 0,
+			"steps": 0,
+			"progress": 0.0,
+			"event_count": 0,
+			"running": running,
+			"visible": running,
+			"cells": 0,
+			"tile_entries": 0,
+			"objects": 0,
+			"dependencies": 0,
+			"errors": 0,
+			"warnings": 0,
+		}
+	var progress_state := _last_validation_progress_state.duplicate(true)
+	progress_state["running"] = running
+	progress_state["visible"] = running or _last_workspace_validation_result != null
+	return progress_state
+
+
+func _begin_workspace_validation_progress() -> void:
+	_store_validation_progress_state({
+		"phase": "workspace_assets",
+		"phase_text": "Checking workspace assets",
+		"step": 0,
+		"steps": 1,
+		"progress": 0.0,
+		"event_count": 1,
+	}, true)
+
+
+func _finish_workspace_validation_progress() -> void:
+	var state := _last_validation_progress_state.duplicate(true)
+	if state.is_empty():
+		state = {
+			"phase": "complete",
+			"phase_text": "Validation complete",
+			"step": 1,
+			"steps": 1,
+			"progress": 1.0,
+			"event_count": 1,
+		}
+	if String(state.get("phase", "")) != "complete" or float(state.get("progress", 0.0)) < 1.0:
+		state["event_count"] = int(state.get("event_count", 0)) + 1
+	state["phase"] = "complete"
+	state["phase_text"] = "Validation complete"
+	state["progress"] = 1.0
+	state["steps"] = max(1, int(state.get("steps", 1)))
+	state["step"] = int(state["steps"])
+	_store_validation_progress_state(state, false)
+
+
+func _on_validation_progress(status: Dictionary) -> void:
+	_store_validation_progress_state(status, true)
+
+
+func _store_validation_progress_state(status: Dictionary, running: bool) -> void:
+	var progress_state := status.duplicate(true)
+	progress_state["phase"] = String(progress_state.get("phase", ""))
+	progress_state["phase_text"] = String(progress_state.get("phase_text", ""))
+	progress_state["step"] = int(progress_state.get("step", 0))
+	progress_state["steps"] = int(progress_state.get("steps", 0))
+	progress_state["progress"] = clampf(float(progress_state.get("progress", 0.0)), 0.0, 1.0)
+	progress_state["event_count"] = int(progress_state.get("event_count", 0))
+	progress_state["running"] = running
+	progress_state["visible"] = bool(progress_state.get("visible", true))
+	progress_state["cells"] = int(progress_state.get("cells", 0))
+	progress_state["tile_entries"] = int(progress_state.get("tile_entries", 0))
+	progress_state["objects"] = int(progress_state.get("objects", 0))
+	progress_state["dependencies"] = int(progress_state.get("dependencies", 0))
+	progress_state["errors"] = int(progress_state.get("errors", 0))
+	progress_state["warnings"] = int(progress_state.get("warnings", 0))
+	_last_validation_progress_state = progress_state
 
 
 func _sync_export_workflow_state(exporting: bool = false) -> void:
@@ -1477,9 +1558,11 @@ func clear_level_document() -> Dictionary:
 
 
 func validate_level_document():
+	var options := _document_validation_options()
+	options["progress_callback"] = Callable(self, "_on_validation_progress")
 	return HexMapDocumentValidator.validate_document(
 		workspace_asset_context().level_document,
-		_document_validation_options()
+		options
 	)
 
 
@@ -1490,6 +1573,7 @@ func validate_screen_snapshot() -> Dictionary:
 	var issue_rows := validate_screen_issue_rows(_last_workspace_validation_result)
 	var empty_state := _validate_tab_empty_state(issue_rows)
 	var validation_state := validation_workflow_state_snapshot()
+	var validation_progress_state := validation_state.get("progress_state", {}) as Dictionary
 	var issue_table := _validate_issue_table(issue_rows)
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_VALIDATE,
@@ -1503,6 +1587,10 @@ func validate_screen_snapshot() -> Dictionary:
 		"empty_state": empty_state,
 		"validation_state": validation_state,
 		"view_state": validation_state.get("view_state", {}),
+		"validation_progress_state": validation_progress_state,
+		"validation_progress_visible": bool(validation_progress_state.get("visible", false)),
+		"validation_progress_phase": String(validation_progress_state.get("phase", "")),
+		"validation_progress_phase_text": String(validation_progress_state.get("phase_text", "")),
 		"target_summary": _validate_target_summary(context),
 		"level_document": context.level_document,
 		"tile_catalog": context.tile_catalog,
@@ -1555,8 +1643,10 @@ func _on_validate_screen_run_pressed() -> void:
 
 
 func run_validate_screen() -> Dictionary:
+	_begin_workspace_validation_progress()
 	_sync_validation_workflow_state(true)
 	_last_workspace_validation_result = validate_workspace_assets()
+	_finish_workspace_validation_progress()
 	_selected_validate_issue_index = -1
 	_selected_validate_issue_row.clear()
 	_selected_validate_issue_navigation.clear()
@@ -1564,6 +1654,7 @@ func run_validate_screen() -> Dictionary:
 	var issue_table := _validate_issue_table(rows)
 	_refresh_validation_issue_navigator()
 	var validation_state := validation_workflow_state_snapshot()
+	var validation_progress_state := validation_state.get("progress_state", {}) as Dictionary
 	return {
 		"ok": true,
 		"result": _last_workspace_validation_result,
@@ -1571,6 +1662,10 @@ func run_validate_screen() -> Dictionary:
 		"issue_table": issue_table,
 		"validation_state": validation_state,
 		"view_state": validation_state.get("view_state", {}),
+		"validation_progress_state": validation_progress_state,
+		"validation_progress_visible": bool(validation_progress_state.get("visible", false)),
+		"validation_progress_phase": String(validation_progress_state.get("phase", "")),
+		"validation_progress_phase_text": String(validation_progress_state.get("phase_text", "")),
 	}
 
 
@@ -1629,11 +1724,19 @@ func validate_workspace_assets() -> HexMapValidationResult:
 		HexMapWorkspaceAssetContext.SLOT_LAYER_STACK
 	)
 	if context.level_document != null:
-		var document_result = HexMapDocumentValidator.validate_document(context.level_document, _document_validation_options())
+		var document_options := _document_validation_options()
+		document_options["progress_callback"] = Callable(self, "_on_validation_progress")
+		var document_result = HexMapDocumentValidator.validate_document(context.level_document, document_options)
 		for issue in document_result.issues:
 			if issue is Dictionary:
 				result.issues.append((issue as Dictionary).duplicate(true))
+		if document_result.summary.has("validation_progress"):
+			result.summary["document_validation_progress"] = (
+				document_result.summary.get("validation_progress", {}) as Dictionary
+			).duplicate(true)
 	_update_workspace_validation_counts(result)
+	if not _last_validation_progress_state.is_empty():
+		result.summary["validation_progress"] = _last_validation_progress_state.duplicate(true)
 	return result
 
 

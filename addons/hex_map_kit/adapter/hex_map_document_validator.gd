@@ -28,6 +28,17 @@ const RULE_OBJECT_SCENE_MISSING := "document.object_scene_missing"
 const RULE_OBJECT_DUPLICATE_UNIQUE := "document.object_duplicate_unique"
 const RULE_PROFILE_REACHABILITY := "movement.profile_reachability"
 
+const VALIDATION_PHASE_PREPARE := "prepare"
+const VALIDATION_PHASE_TERRAIN_DEFAULTS := "terrain_defaults"
+const VALIDATION_PHASE_TILE_ENTRIES := "tile_entries"
+const VALIDATION_PHASE_OBJECT_ENTRIES := "object_entries"
+const VALIDATION_PHASE_LABEL_ENTRIES := "label_entries"
+const VALIDATION_PHASE_DEPENDENCIES := "dependencies"
+const VALIDATION_PHASE_PROFILE_REACHABILITY := "profile_reachability"
+const VALIDATION_PHASE_COMPLETE := "complete"
+const VALIDATION_PHASE_MAP_MISSING := "map_missing"
+const VALIDATION_PROGRESS_TOTAL_STEPS := 7
+
 
 static func validate_document(document, options: Dictionary = {}):
 	var result = HexMapValidationResultScript.new()
@@ -41,6 +52,7 @@ static func validate_document(document, options: Dictionary = {}):
 		"errors": 0,
 		"warnings": 0,
 	}
+	_report_validation_progress(options, result, VALIDATION_PHASE_PREPARE, 0, VALIDATION_PROGRESS_TOTAL_STEPS)
 	if data == null:
 		result.add_error(
 			"document.map_missing",
@@ -48,18 +60,90 @@ static func validate_document(document, options: Dictionary = {}):
 			HexMapValidationResultScript.SCOPE_DOCUMENT
 		)
 		_update_counts(result)
+		_report_validation_progress(options, result, VALIDATION_PHASE_MAP_MISSING, 1, 1)
 		return result
 
 	var cell_set = data.cell_set()
 	var wall_set = data.wall_set()
 	_validate_terrain_defaults(result, document, cell_set, wall_set, options)
+	_report_validation_progress(options, result, VALIDATION_PHASE_TERRAIN_DEFAULTS, 1, VALIDATION_PROGRESS_TOTAL_STEPS)
 	_validate_tile_entries(result, document, cell_set, options)
+	_report_validation_progress(options, result, VALIDATION_PHASE_TILE_ENTRIES, 2, VALIDATION_PROGRESS_TOTAL_STEPS)
 	_validate_object_entries(result, document, cell_set, wall_set, options)
+	_report_validation_progress(options, result, VALIDATION_PHASE_OBJECT_ENTRIES, 3, VALIDATION_PROGRESS_TOTAL_STEPS)
 	_validate_label_entries(result, document, cell_set)
+	_report_validation_progress(options, result, VALIDATION_PHASE_LABEL_ENTRIES, 4, VALIDATION_PROGRESS_TOTAL_STEPS)
 	_validate_dependencies(result, document)
+	_report_validation_progress(options, result, VALIDATION_PHASE_DEPENDENCIES, 5, VALIDATION_PROGRESS_TOTAL_STEPS)
 	_validate_profile_reachability(result, document, data, options)
+	_report_validation_progress(options, result, VALIDATION_PHASE_PROFILE_REACHABILITY, 6, VALIDATION_PROGRESS_TOTAL_STEPS)
 	_update_counts(result)
+	_report_validation_progress(options, result, VALIDATION_PHASE_COMPLETE, VALIDATION_PROGRESS_TOTAL_STEPS, VALIDATION_PROGRESS_TOTAL_STEPS)
 	return result
+
+
+static func _report_validation_progress(
+	options: Dictionary,
+	result,
+	phase: String,
+	step: int,
+	total_steps: int
+) -> void:
+	var progress := 1.0
+	if total_steps > 0:
+		progress = clampf(float(step) / float(total_steps), 0.0, 1.0)
+	var event_count := int(result.summary.get("validation_progress_event_count", 0)) + 1
+	var status := {
+		"phase": phase,
+		"phase_text": _validation_phase_text(phase),
+		"step": step,
+		"steps": total_steps,
+		"progress": progress,
+		"event_count": event_count,
+		"cells": int(result.summary.get("cells", 0)),
+		"tile_entries": int(result.summary.get("tile_entries", 0)),
+		"objects": int(result.summary.get("objects", 0)),
+		"dependencies": int(result.summary.get("dependencies", 0)),
+		"errors": result.error_count(),
+		"warnings": result.warning_count(),
+	}
+	result.summary["validation_progress"] = status.duplicate(true)
+	result.summary["validation_progress_phase"] = phase
+	result.summary["validation_progress_step"] = step
+	result.summary["validation_progress_steps"] = total_steps
+	result.summary["validation_progress_event_count"] = event_count
+	options["validation_progress"] = status.duplicate(true)
+	options["validation_progress_event_count"] = event_count
+	options["progress"] = progress
+	var callback = options.get("progress_callback", null)
+	if callback is Callable:
+		var progress_callback: Callable = callback
+		if progress_callback.is_valid():
+			progress_callback.call(status.duplicate(true))
+
+
+static func _validation_phase_text(phase: String) -> String:
+	match phase:
+		VALIDATION_PHASE_PREPARE:
+			return "Preparing validation"
+		VALIDATION_PHASE_TERRAIN_DEFAULTS:
+			return "Checking terrain defaults"
+		VALIDATION_PHASE_TILE_ENTRIES:
+			return "Checking tile entries"
+		VALIDATION_PHASE_OBJECT_ENTRIES:
+			return "Checking object entries"
+		VALIDATION_PHASE_LABEL_ENTRIES:
+			return "Checking labels"
+		VALIDATION_PHASE_DEPENDENCIES:
+			return "Checking dependencies"
+		VALIDATION_PHASE_PROFILE_REACHABILITY:
+			return "Checking movement reachability"
+		VALIDATION_PHASE_MAP_MISSING:
+			return "Map missing"
+		VALIDATION_PHASE_COMPLETE:
+			return "Validation complete"
+		_:
+			return "Validating document"
 
 
 static func _validate_tile_entries(result, document, cell_set: Dictionary, options: Dictionary) -> void:

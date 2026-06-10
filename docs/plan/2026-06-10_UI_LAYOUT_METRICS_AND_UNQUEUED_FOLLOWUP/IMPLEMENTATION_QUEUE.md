@@ -92,7 +92,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `PERF-NEXT-11` | `READY` | `PERF-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PERF-NEXT-11_LARGE_MAP_VALIDATION_PROGRESS/` | Large-map validation progress | validator/progress state/tests | Validation traversal reports phase/progress and connects to Validate/Generate busy state. |
+| `PERF-NEXT-11` | `COMPLETE` | `PERF-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PERF-NEXT-11_LARGE_MAP_VALIDATION_PROGRESS/` | Large-map validation progress | validator/progress state/tests | Validation traversal reports phase/progress and connects to Validate/Generate busy state. |
 | `GENPIPE-NEXT-10` | `READY` | `GEN-NEXT-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GENPIPE-NEXT-10_GENERATION_RESULT_RESOURCE_AND_REPLAY_API/` | GenerationResultResource and replay API | new Resource/API/tests | primary/overlay/filter/candidate/validation result scope is defined; Generate/QA can replay/promote result resources. |
 | `GENPIPE-NEXT-20` | `BACKLOG` | `GENPIPE-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GENPIPE-NEXT-20_PIPELINE_GRAPH_UI_RESEARCH_AND_SPIKE/` | Pipeline graph UI research/spike | review docs/prototype if needed | Resource pass / linear pipeline / node graph options are updated; pass graph is either scoped or explicitly rejected. |
 | `PROFILE-NEXT-10` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROFILE-NEXT-10_CONCRETE_PROFILE_BEHAVIOR_SCHEMAS/` | Concrete profile behavior schemas | profile Resources, editors/tests | Validation Suite, Generation Profile, and Export Profile gain real behavior schemas and editor/screen connections. |
@@ -140,7 +140,7 @@ acceptance / test path:
 
 ## 9. Current pointer
 
-Current recommended next task: `PERF-NEXT-11`.
+Current recommended next task: `GENPIPE-NEXT-10`.
 
 Reason:
 
@@ -175,7 +175,7 @@ Reason:
 - `SETTINGS-NEXT-10` is complete.
 - `SAMPLE-NEXT-10` is complete.
 - Phase M4 review is recorded at `docs/review/roadmap/UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP_M4_PHASE_REVIEW_2026-06-10.md`.
-- `PERF-NEXT-11` is READY because `PERF-NEXT-10` is complete.
+- `PERF-NEXT-11` is complete.
 - `GENPIPE-NEXT-10` is READY because `GEN-NEXT-11` is complete.
 - `ARCH-NEXT-20` is READY because `ARCH-NEXT-10` is complete.
 - `EXPORT-NEXT-10` is READY because `SCREEN-NEXT-10` is complete.
@@ -748,3 +748,26 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_workspace.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/SAMPLE-NEXT-10_TEST_RESULT_2026-06-10.md`
+
+### PERF-NEXT-11 Large-map validation progress
+
+proof:
+  plan: `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PERF-NEXT-11_LARGE_MAP_VALIDATION_PROGRESS/`
+  review: `docs/review/autopilot/PERF-NEXT-11_SELF_REVIEW_2026-06-10.md`
+  execution:
+    - `docs/review/autopilot/PERF-NEXT-11_SELF_REVIEW_2026-06-10.md`
+    - `docs/review/autopilot/PERF-NEXT-11_TEST_RESULT_2026-06-10.md`
+  ui_metrics:
+    - `.godot_user/ui-metrics/20260610-211309-90551/workspace_layout_metrics.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/adapter/hex_map_document_validator.gd`
+    - `addons/hex_map_kit/editor/hex_map_validation_workflow_state.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `addons/hex_map_kit/editor/hex_map_gen_dock.gd`
+    - `tests/test_hex_adapter.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/PERF-NEXT-11_TEST_RESULT_2026-06-10.md`

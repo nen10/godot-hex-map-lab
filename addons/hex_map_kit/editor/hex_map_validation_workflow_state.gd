@@ -21,6 +21,7 @@ var selected_issue_index := -1
 var selected_issue_row := {}
 var selected_issue_navigation := {}
 var focus_applied := false
+var progress_state: Dictionary = {}
 
 
 func update_from_context(context: Dictionary) -> void:
@@ -33,6 +34,7 @@ func update_from_context(context: Dictionary) -> void:
 	selected_issue_row = (context.get("selected_issue_row", {}) as Dictionary).duplicate(true)
 	selected_issue_navigation = (context.get("selected_issue_navigation", {}) as Dictionary).duplicate(true)
 	focus_applied = bool(context.get("focus_applied", false))
+	progress_state = _normalize_progress_state(context.get("progress_state", {}))
 	active_state_ids = _derive_active_state_ids()
 	state_id = _derive_primary_state_id(active_state_ids)
 
@@ -51,6 +53,11 @@ func to_state_snapshot() -> Dictionary:
 		"selected_issue_row": selected_issue_row.duplicate(true),
 		"selected_issue_navigation": selected_issue_navigation.duplicate(true),
 		"focus_applied": focus_applied,
+		"progress_state": progress_state.duplicate(true),
+		"progress": float(progress_state.get("progress", 0.0)),
+		"progress_visible": bool(progress_state.get("visible", false)),
+		"progress_phase": String(progress_state.get("phase", "")),
+		"progress_phase_text": String(progress_state.get("phase_text", "")),
 		"view_state": to_view_state(),
 	}
 
@@ -71,6 +78,36 @@ func to_view_state() -> Dictionary:
 		"selected_issue_row": selected_issue_row.duplicate(true),
 		"selected_issue_navigation": selected_issue_navigation.duplicate(true),
 		"focus_applied": focus_applied,
+		"progress_state": progress_state.duplicate(true),
+		"progress": float(progress_state.get("progress", 0.0)),
+		"progress_visible": bool(progress_state.get("visible", false)),
+		"progress_phase": String(progress_state.get("phase", "")),
+		"progress_phase_text": String(progress_state.get("phase_text", "")),
+	}
+
+
+func _normalize_progress_state(value) -> Dictionary:
+	var source: Dictionary = value if value is Dictionary else {}
+	var phase := String(source.get("phase", ""))
+	var phase_text := String(source.get("phase_text", ""))
+	if phase_text == "":
+		phase_text = "Validation complete" if result_present else ""
+	var progress := clampf(float(source.get("progress", 1.0 if result_present else 0.0)), 0.0, 1.0)
+	return {
+		"phase": phase,
+		"phase_text": phase_text,
+		"step": int(source.get("step", 0)),
+		"steps": int(source.get("steps", 0)),
+		"progress": progress,
+		"event_count": int(source.get("event_count", 0)),
+		"running": running,
+		"visible": bool(source.get("visible", running or result_present)),
+		"cells": int(source.get("cells", 0)),
+		"tile_entries": int(source.get("tile_entries", 0)),
+		"objects": int(source.get("objects", 0)),
+		"dependencies": int(source.get("dependencies", 0)),
+		"errors": int(source.get("errors", error_count)),
+		"warnings": int(source.get("warnings", warning_count)),
 	}
 
 
@@ -112,6 +149,9 @@ func _derive_primary_state_id(states: PackedStringArray) -> String:
 
 func _status_text() -> String:
 	if state_id == STATE_RUNNING:
+		var phase_text := String(progress_state.get("phase_text", ""))
+		if phase_text != "":
+			return "Validation running: %s." % phase_text
 		return "Validation running."
 	if state_id == STATE_NOT_RUN:
 		return "Run validation to list workspace issues."

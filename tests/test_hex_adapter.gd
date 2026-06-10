@@ -33,6 +33,13 @@ const HexOverlayResource = preload("res://addons/hex_map_kit/adapter/hex_overlay
 const HexOverlayTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_overlay_tile_adapter.gd")
 const HexAdjacencyRuleSet = preload("res://addons/hex_map_kit/adapter/hex_adjacency_rule_set.gd")
 
+class ValidationProgressRecorder:
+	var events: Array[Dictionary] = []
+
+	func record(status: Dictionary) -> void:
+		events.append(status.duplicate(true))
+
+
 var _failures: Array[String] = []
 var _test_output_root := ""
 
@@ -71,6 +78,7 @@ func _run() -> void:
 	_test_hex_map_document_summary_reports_canonical_counts()
 	_test_hex_map_validation_result_serializes_summary_and_warnings()
 	_test_hex_map_document_validator_reports_core_rules()
+	_test_hex_map_document_validator_reports_phase_progress()
 	_test_hex_map_document_validator_rule_matrix()
 	_test_hex_map_document_validator_profile_reachability()
 	_test_hex_movement_profile_resource_roundtrips_gameplay_defaults()
@@ -1139,6 +1147,63 @@ func _test_hex_map_document_validator_reports_core_rules() -> void:
 		"tile_set": tile_set,
 	})
 	_assert_has_issue(missing_tile_result, "document.tile_missing", "validator detects missing catalog tile")
+
+
+func _test_hex_map_document_validator_reports_phase_progress() -> void:
+	var data = HexMapData.rectangle(12, 12)
+	var document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(data))
+	for index in range(min(12, data.cells.size())):
+		HexMapDocumentAdapter.set_tile_override(document, data.cells[index], {
+			"kind": HexMapDocumentAdapter.KIND_FLOOR,
+			"catalog_key": "terrain.floor.%d" % index,
+		})
+	var recorder := ValidationProgressRecorder.new()
+	var result = HexMapDocumentValidator.validate_document(document, {
+		"progress_callback": Callable(recorder, "record"),
+	})
+	var events := recorder.events
+	_assert_eq(events.size() >= 8, true, "validator reports progress for each validation phase")
+	_assert_eq(
+		String(events[0].get("phase", "")),
+		HexMapDocumentValidator.VALIDATION_PHASE_PREPARE,
+		"validator progress starts with prepare phase"
+	)
+	var last_event := events[events.size() - 1]
+	_assert_eq(
+		String(last_event.get("phase", "")),
+		HexMapDocumentValidator.VALIDATION_PHASE_COMPLETE,
+		"validator progress ends with complete phase"
+	)
+	_assert_eq(float(last_event.get("progress", 0.0)), 1.0, "validator final progress is complete")
+	_assert_eq(int(last_event.get("cells", 0)), data.cells.size(), "validator progress reports large-map cell count")
+	_assert_eq(
+		int(result.summary.get("validation_progress_event_count", 0)),
+		events.size(),
+		"validator summary stores progress event count"
+	)
+	_assert_eq(
+		String(result.summary.get("validation_progress_phase", "")),
+		HexMapDocumentValidator.VALIDATION_PHASE_COMPLETE,
+		"validator summary stores final progress phase"
+	)
+	var previous_progress := -1.0
+	var saw_tiles := false
+	var saw_dependencies := false
+	var saw_reachability := false
+	for event in events:
+		var progress := float(event.get("progress", 0.0))
+		_assert_eq(progress >= previous_progress, true, "validator progress is monotonic")
+		previous_progress = progress
+		var phase := String(event.get("phase", ""))
+		if phase == HexMapDocumentValidator.VALIDATION_PHASE_TILE_ENTRIES:
+			saw_tiles = true
+		if phase == HexMapDocumentValidator.VALIDATION_PHASE_DEPENDENCIES:
+			saw_dependencies = true
+		if phase == HexMapDocumentValidator.VALIDATION_PHASE_PROFILE_REACHABILITY:
+			saw_reachability = true
+	_assert_eq(saw_tiles, true, "validator progress reports tile traversal phase")
+	_assert_eq(saw_dependencies, true, "validator progress reports dependency traversal phase")
+	_assert_eq(saw_reachability, true, "validator progress reports reachability traversal phase")
 
 
 func _test_hex_map_document_validator_rule_matrix() -> void:

@@ -2613,6 +2613,7 @@ func _test_validate_asset_screen_reports_missing_project_assets_without_samples(
 	_assert_eq(String(validation_state["state_source"]), "HexMapValidationWorkflowState", "STATE-50 Validate snapshot reports state source")
 	_assert_eq(String(validation_state["state_id"]), HexMapValidationWorkflowState.STATE_NOT_RUN, "STATE-50 Validate starts not run")
 	_assert_eq(String((snapshot["view_state"] as Dictionary)["status_text"]), "Run validation to list workspace issues.", "STATE-50 Validate ViewState reports not-run status")
+	_assert_true(not bool(snapshot["validation_progress_visible"]), "PERF-NEXT-11 Validate progress is hidden before first run")
 	_assert_true(not bool(snapshot["resource_row_validate_buttons_present"]), "TAB-54 Validate keeps row-level Validate buttons absent")
 	_assert_true(
 		PackedStringArray(snapshot["component_ids"]).has("validation_asset_panel"),
@@ -2632,6 +2633,16 @@ func _test_validate_asset_screen_reports_missing_project_assets_without_samples(
 	_assert_true(bool(validate_result["ok"]), "Validate screen runs workspace validation")
 	validation_state = validate_result["validation_state"] as Dictionary
 	_assert_eq(String(validation_state["state_id"]), HexMapValidationWorkflowState.STATE_ERROR, "STATE-50 Validate run reports error state")
+	var validation_progress_state = validate_result["validation_progress_state"] as Dictionary
+	_assert_true(bool(validate_result["validation_progress_visible"]), "PERF-NEXT-11 Validate run exposes progress state")
+	_assert_eq(String(validation_progress_state["phase"]), "complete", "PERF-NEXT-11 Validate run finishes progress phase")
+	_assert_eq(float(validation_progress_state["progress"]), 1.0, "PERF-NEXT-11 Validate run finishes progress ratio")
+	_assert_true(int(validation_progress_state["event_count"]) >= 2, "PERF-NEXT-11 Validate run records progress events")
+	_assert_eq(
+		String((validate_result["view_state"] as Dictionary)["progress_phase"]),
+		"complete",
+		"PERF-NEXT-11 Validate view state exposes progress phase"
+	)
 	var result = validate_result["result"] as HexMapValidationResult
 	_assert_true(result is HexMapValidationResult, "Validate screen returns validation result")
 	_assert_eq(result.error_count(), 5, "Validate screen reports required missing project assets as errors")
@@ -2729,6 +2740,14 @@ func _test_validate_asset_screen_reports_missing_project_assets_without_samples(
 	(cell_document.object_placements[0] as HexMapDocumentObjectPlacementResource).cell = Vector3i(1, 0, 0)
 	workspace.workspace_asset_context().set_level_document(cell_document)
 	var cell_validate_result = workspace.run_validate_screen()
+	validation_progress_state = cell_validate_result["validation_progress_state"] as Dictionary
+	_assert_true(int(validation_progress_state["event_count"]) >= 8, "PERF-NEXT-11 document validation reports phase events")
+	_assert_true(int(validation_progress_state["cells"]) > 0, "PERF-NEXT-11 document validation progress reports cell count")
+	_assert_eq(
+		String(((cell_validate_result["result"] as HexMapValidationResult).summary.get("validation_progress", {}) as Dictionary).get("phase", "")),
+		"complete",
+		"PERF-NEXT-11 workspace validation result stores final progress"
+	)
 	var cell_rows = cell_validate_result["issue_rows"] as Array
 	var wall_row = _validation_issue_row_for_rule(cell_rows, "document.object_on_wall")
 	_assert_eq(wall_row["destination_tab"], "Paint", "TAB-54 cell-scoped issue routes to Paint")
@@ -7348,13 +7367,35 @@ func _test_generation_dock_captures_generation_validation_failure() -> void:
 		"text": "Outside",
 	})
 
-	var result = dock.validate_generation_document(document)
+	var result = dock.validate_generation_document(document, {"show_progress": true})
 	var summary = dock.generation_validation_summary()
+	var progress_snapshot = dock.generation_progress_snapshot()
 	_assert_true(result != null, "generation validation failure stores raw result")
 	_assert_true(bool(summary.get("validated", false)), "generation validation failure records validation run")
 	_assert_true(not bool(summary.get("passed", true)), "invalid generated document records failed validation")
 	_assert_true(int(summary.get("errors", 0)) >= 1, "invalid generated document records validation errors")
 	_assert_eq(int(summary.get("apply_order", -1)), 0, "direct validation capture does not mark auto apply")
+	_assert_true(bool(progress_snapshot.get("visible", false)), "PERF-NEXT-11 direct generation validation shows progress")
+	_assert_eq(
+		String(progress_snapshot.get("status", "")),
+		"Validating generated document",
+		"PERF-NEXT-11 direct generation validation uses Generate validating status"
+	)
+	_assert_eq(
+		String(progress_snapshot.get("step", "")),
+		HexMapGenDock.PROGRESS_STEP_VALIDATING,
+		"PERF-NEXT-11 direct generation validation uses validating step"
+	)
+	_assert_true(
+		is_equal_approx(float(progress_snapshot.get("progress", 0.0)), HexMapGenDock.GENERATION_PROGRESS_APPLY),
+		"PERF-NEXT-11 validation progress maps into Generate progress range"
+	)
+	var generation_validation_progress = summary.get("validation_progress", {}) as Dictionary
+	_assert_eq(
+		String(generation_validation_progress.get("phase", "")),
+		HexMapDocumentValidator.VALIDATION_PHASE_COMPLETE,
+		"PERF-NEXT-11 generation validation summary stores final validator progress"
+	)
 	_assert_eq(
 		String(result.issues[0].get("rule_id", "")),
 		"document.orphan_payload",

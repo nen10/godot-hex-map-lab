@@ -3231,9 +3231,42 @@ func validate_generation_document(document, options: Dictionary = {}):
 	var validation_options = _generation_validation_options()
 	for key in options:
 		validation_options[key] = options[key]
+	var show_progress := bool(validation_options.get(
+		"show_progress",
+		_generation_progress_container != null and _generation_progress_container.visible
+	))
+	validation_options.erase("show_progress")
+	var external_callback = validation_options.get("progress_callback", null)
+	validation_options["progress_callback"] = Callable(
+		self,
+		"_on_generation_validation_progress"
+	).bind(show_progress, external_callback)
+	if show_progress:
+		_show_busy_progress_step(
+			PROGRESS_STEP_VALIDATING,
+			GENERATION_PROGRESS_VALIDATE,
+			"Validating generated document",
+			false,
+			true
+		)
 	var result = HexMapDocumentValidator.validate_document(document, validation_options)
 	_capture_generation_validation_result(result, document != null)
 	return result
+
+
+func _on_generation_validation_progress(status: Dictionary, show_progress: bool, external_callback = null) -> void:
+	if show_progress:
+		var validation_progress := clampf(float(status.get("progress", 0.0)), 0.0, 1.0)
+		var mapped_progress := GENERATION_PROGRESS_VALIDATE \
+			+ validation_progress * (GENERATION_PROGRESS_APPLY - GENERATION_PROGRESS_VALIDATE)
+		_set_generation_progress_cancel_enabled(false)
+		_set_generation_progress(mapped_progress, "Validating generated document")
+		_generation_progress_step = PROGRESS_STEP_VALIDATING
+		_sync_generation_run_state(String(status.get("phase", "validation")))
+	if external_callback is Callable:
+		var callback: Callable = external_callback
+		if callback.is_valid():
+			callback.call(status.duplicate(true))
 
 
 func run_generation_batch(seed_count: int, options: Dictionary = {}) -> Array[Dictionary]:
@@ -3457,6 +3490,10 @@ func _capture_generation_validation_result(result, generated_map_present: bool) 
 		result,
 		generated_map_present
 	)
+	if result != null and result.summary.has("validation_progress"):
+		_last_generation_validation_summary["validation_progress"] = (
+			result.summary.get("validation_progress", {}) as Dictionary
+		).duplicate(true)
 
 
 func _next_generation_event_order() -> int:
