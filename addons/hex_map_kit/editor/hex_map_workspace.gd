@@ -2485,6 +2485,7 @@ func qa_screen_snapshot() -> Dictionary:
 	var context := workspace_asset_context()
 	var seed_lab := qa_seed_lab_context()
 	var empty_state := _qa_tab_empty_state(seed_lab)
+	var score_row_count := int(seed_lab.get("score_row_count", 0))
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_QA,
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_QA),
@@ -2494,11 +2495,14 @@ func qa_screen_snapshot() -> Dictionary:
 		"empty_state_text": String(empty_state.get("empty_state_text", "")),
 		"generate_role_text": "Generate previews one candidate; QA compares seed batches and adopts a winner.",
 		"seed_lab_component_present": tab_has_component(HexMapWorkspaceComponentRegistry.TAB_QA, "qa_seed_lab_panel"),
+		"qa_workflow_owner": "QA",
 		"generation_profile": context.generation_profile,
 		"generation_profile_context": _profile_resource_context(
 			context,
 			HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE
 		),
+		"generation_profile_used": context.generation_profile != null,
+		"generation_profile_context_visible": true,
 		"validation_rule_suite": context.validation_rule_suite,
 		"validation_rule_suite_context": _profile_resource_context(
 			context,
@@ -2516,49 +2520,74 @@ func qa_screen_snapshot() -> Dictionary:
 		"score_table_context": qa_score_table_context(),
 		"seed_lab": seed_lab,
 		"score_rows": seed_lab.get("score_rows", []),
+		"score_table_visible": true,
+		"score_table_row_count": score_row_count,
 		"selected_seed_row": _qa_selected_seed_row.duplicate(true),
+		"selected_seed_visible": true,
+		"selected_seed_available": not _qa_selected_seed_row.is_empty(),
 		"promoted_document": _qa_promoted_document,
+		"promote_target_visible": true,
+		"promote_to_document_available": bool(seed_lab.get("can_promote", false)),
 		"promotion_updates_resources": context.level_document != null and context.level_document == _qa_promoted_document,
+		"document_source_of_truth": "Level Document",
+		"draft_context_boundary_visible": true,
+		"draft_context_text": "Generate previews candidates; QA compares score rows and promotes one selected seed to the Level Document.",
+		"generate_candidate_boundary": "Generate preview candidate",
+		"qa_promotion_boundary": "Promote selected QA seed to Level Document",
+		"resource_reference_only": false,
 		"sample_candidates_visible": _ensure_session_state().show_bundled_samples_in_main_selectors,
 	}
 
 
 func qa_score_table_context() -> Dictionary:
 	var context := workspace_asset_context()
+	var generation_profile_context := _profile_resource_context(
+		context,
+		HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE
+	)
+	var validation_rule_suite_context := _profile_resource_context(
+		context,
+		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE
+	)
 	return {
-		"generation_profile": _profile_resource_context(
-			context,
-			HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE
-		),
-		"validation_rule_suite": _profile_resource_context(
-			context,
-			HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE
-		),
+		"generation_profile": generation_profile_context,
+		"validation_rule_suite": validation_rule_suite_context,
 		"score_rows": _qa_score_rows(),
+		"score_table_visible": true,
+		"generation_profile_used": context.generation_profile != null,
+		"generation_profile_source": String(generation_profile_context.get("source_badge", "")),
 	}
 
 
 func qa_seed_lab_context() -> Dictionary:
 	var context := workspace_asset_context()
 	var score_rows := _qa_score_rows()
+	var generation_profile_context := _profile_resource_context(
+		context,
+		HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE
+	)
+	var validation_rule_suite_context := _profile_resource_context(
+		context,
+		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE
+	)
 	return {
-		"generation_profile": _profile_resource_context(
-			context,
-			HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE
-		),
-		"validation_rule_suite": _profile_resource_context(
-			context,
-			HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE
-		),
+		"generation_profile": generation_profile_context,
+		"validation_rule_suite": validation_rule_suite_context,
 		"score_rows": score_rows,
+		"score_table_visible": true,
 		"score_row_count": score_rows.size(),
 		"selected_seed_row": _qa_selected_seed_row.duplicate(true),
+		"selected_seed_visible": true,
 		"selected_seed": int(_qa_selected_seed_row.get("seed", 0)) if not _qa_selected_seed_row.is_empty() else 0,
 		"selected_score": float(_qa_selected_seed_row.get("score", 0.0)) if not _qa_selected_seed_row.is_empty() else 0.0,
 		"can_run_batch": _generation_dock != null,
 		"can_promote": _generation_dock != null and not _qa_selected_seed_row.is_empty(),
 		"promotion_target": _qa_promotion_target_context(context),
+		"promote_target_visible": true,
 		"promoted_document": _qa_promoted_document,
+		"document_source_of_truth": "Level Document",
+		"draft_context_boundary_visible": true,
+		"draft_context_text": "Generate previews candidates; QA compares score rows and promotes one selected seed to the Level Document.",
 		"empty_state_text": "Run Seed Lab to compare generated seeds." if score_rows.is_empty() else "",
 	}
 

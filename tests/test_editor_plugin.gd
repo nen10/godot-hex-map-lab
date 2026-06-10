@@ -2288,6 +2288,15 @@ func _test_qa_asset_screen_manages_profiles_and_score_context_without_samples() 
 	_assert_true(bool(snapshot["seed_lab_component_present"]), "TAB-55 QA snapshot confirms Seed Lab component")
 	_assert_eq(snapshot["purpose_text"], "Compare generated seeds and promote one result to the Level Document.", "TAB-55 QA screen states purpose")
 	_assert_true(String(snapshot["generate_role_text"]).contains("Generate previews one candidate"), "TAB-55 QA distinguishes Generate and QA roles")
+	_assert_eq(String(snapshot["qa_workflow_owner"]), "QA", "SCREEN-24 QA owns seed lab workflow")
+	_assert_true(bool(snapshot["generation_profile_context_visible"]), "SCREEN-24 QA exposes Generation Profile context")
+	_assert_true(bool(snapshot["score_table_visible"]), "SCREEN-24 QA exposes score table state")
+	_assert_true(bool(snapshot["selected_seed_visible"]), "SCREEN-24 QA exposes selected seed state")
+	_assert_true(bool(snapshot["promote_target_visible"]), "SCREEN-24 QA exposes promote target state")
+	_assert_eq(String(snapshot["document_source_of_truth"]), "Level Document", "SCREEN-24 QA names Level Document as source of truth")
+	_assert_true(bool(snapshot["draft_context_boundary_visible"]), "SCREEN-24 QA exposes draft context boundary")
+	_assert_true(String(snapshot["draft_context_text"]).contains("promotes"), "SCREEN-24 QA explains promote boundary")
+	_assert_true(not bool(snapshot["resource_reference_only"]), "SCREEN-24 QA is not resource-reference-only")
 	_assert_true(
 		PackedStringArray(snapshot["asset_slot_ids"]).has(HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE),
 		"QA screen exposes generation profile slot"
@@ -2321,6 +2330,8 @@ func _test_qa_asset_screen_manages_profiles_and_score_context_without_samples() 
 	_assert_eq(workspace.workspace_asset_context().validation_rule_suite, suite, "created validation suite enters workspace context")
 
 	var score_context = workspace.qa_score_table_context()
+	_assert_true(bool(score_context["score_table_visible"]), "SCREEN-24 score context exposes score table")
+	_assert_true(bool(score_context["generation_profile_used"]), "SCREEN-24 score context uses Generation Profile")
 	_assert_true(bool((score_context["generation_profile"] as Dictionary).get("selected", false)), "QA score context reports selected generation profile")
 	_assert_true(bool((score_context["validation_rule_suite"] as Dictionary).get("selected", false)), "QA score context reports selected validation suite")
 	_assert_eq(
@@ -2380,6 +2391,11 @@ func _test_qa_asset_screen_manages_profiles_and_score_context_without_samples() 
 	snapshot = workspace.qa_screen_snapshot()
 	var seed_lab = snapshot["seed_lab"] as Dictionary
 	_assert_eq(seed_lab["empty_state_text"], "Run Seed Lab to compare generated seeds.", "TAB-55 QA Seed Lab starts with empty state")
+	_assert_true(bool(seed_lab["score_table_visible"]), "SCREEN-24 Seed Lab exposes score table")
+	_assert_true(bool(seed_lab["selected_seed_visible"]), "SCREEN-24 Seed Lab exposes selected seed")
+	_assert_true(bool(seed_lab["promote_target_visible"]), "SCREEN-24 Seed Lab exposes promotion target")
+	_assert_eq(String(seed_lab["document_source_of_truth"]), "Level Document", "SCREEN-24 Seed Lab names document source of truth")
+	_assert_true(bool(seed_lab["draft_context_boundary_visible"]), "SCREEN-24 Seed Lab exposes draft boundary")
 	_assert_true(bool(seed_lab["can_run_batch"]), "TAB-55 QA Seed Lab can run through generation dock")
 	_assert_true(not bool(seed_lab["can_promote"]), "TAB-55 QA Seed Lab requires selected seed before promotion")
 
@@ -2400,8 +2416,11 @@ func _test_qa_asset_screen_manages_profiles_and_score_context_without_samples() 
 	snapshot = workspace.qa_screen_snapshot()
 	seed_lab = snapshot["seed_lab"] as Dictionary
 	_assert_eq(int(seed_lab["score_row_count"]), 2, "TAB-55 QA snapshot reports score row count")
+	_assert_eq(int(snapshot["score_table_row_count"]), 2, "SCREEN-24 QA screen reports score table row count")
 	_assert_true((snapshot["score_rows"] as Array).size() == 2, "TAB-55 QA screen exposes score rows")
+	_assert_true(bool(snapshot["selected_seed_available"]), "SCREEN-24 QA screen reports selected seed after batch")
 	_assert_true(bool(seed_lab["can_promote"]), "TAB-55 QA Seed Lab can promote selected row")
+	_assert_true(bool(snapshot["promote_to_document_available"]), "SCREEN-24 QA screen enables promotion after seed selection")
 
 	var seed_select = workspace.select_qa_seed_row(1)
 	_assert_true(bool(seed_select["ok"]), "TAB-55 QA Seed Lab selects score row")
@@ -2414,6 +2433,8 @@ func _test_qa_asset_screen_manages_profiles_and_score_context_without_samples() 
 	_assert_eq(workspace.workspace_asset_context().level_document, promoted_document, "TAB-55 promotion updates Resources Level Document context")
 	snapshot = workspace.qa_screen_snapshot()
 	_assert_true(bool(snapshot["promotion_updates_resources"]), "TAB-55 QA snapshot reports Resources document update")
+	_assert_true(bool(snapshot["promotion_updates_resources"]), "SCREEN-24 promotion updates Resources Level Document")
+	_assert_eq(String(snapshot["qa_promotion_boundary"]), "Promote selected QA seed to Level Document", "SCREEN-24 QA names promotion boundary")
 	seed_lab = snapshot["seed_lab"] as Dictionary
 	_assert_true(bool((seed_lab["promotion_target"] as Dictionary).get("promoted", false)), "TAB-55 promotion target marks promoted document")
 
