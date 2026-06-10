@@ -34,6 +34,16 @@ Editor Plugin 操作で複数機能の結合性を確認する任意検証は、
 - `tests/test_editor_plugin.gd`
 - `tests/test_debug_scenes.gd`
 
+### UI static audit
+
+`UI-METRIC-02` adds a report-only static audit for Workspace UI contract risks:
+
+```sh
+python3 tools/ui_static_audit.py
+```
+
+The audit reports suspicious button wiring, placeholder button text, debug/raw/path visible text patterns, generic `EditorResourcePicker` usage, and tab scroll-container suspicion. It exits 0 by default because P0/P1 gating is scheduled later. Use `--strict` only when a caller intentionally wants findings to return a nonzero exit code.
+
 ### テスト方針
 
 テスト期待値と結果が異なる場合、安易に期待値を修正せず、UnityとGodotでの座標の扱いに違いがあるかなどの移行時の問題に注意を払い、正確な理解のもとで正しいテストを作成する。移行元Unityコード上のバグに由来すると判断できる場合、必ず指摘する。
