@@ -33,6 +33,7 @@ Editor Plugin 操作で複数機能の結合性を確認する任意検証は、
 - `tests/test_hex_tile_map_layer.gd`
 - `tests/test_workspace_layout_metrics.gd`
 - `tests/test_workspace_layout_metric_evaluator.gd`
+- `tests/test_workspace_layout_metric_gate.gd`
 - `tests/test_editor_plugin.gd`
 - `tests/test_debug_scenes.gd`
 
@@ -45,6 +46,16 @@ python3 tools/ui_static_audit.py
 ```
 
 The audit reports suspicious button wiring, placeholder button text, debug/raw/path visible text patterns, generic `EditorResourcePicker` usage, and tab scroll-container suspicion. It exits 0 by default because P0/P1 gating is scheduled later. Use `--strict` only when a caller intentionally wants findings to return a nonzero exit code.
+
+### UI metric reports
+
+`UI-METRIC-07` adds the standard runtime Workspace metric gate to `./tools/test.sh`. The gate writes JSON and Markdown reports under:
+
+```text
+.godot_user/ui-metrics/<run-id>/
+```
+
+The P0 failure count is a standard test gate and must be zero. P1 issue counts are included in the report but remain report-only initially.
 
 ### テスト方針
 
@@ -134,6 +145,7 @@ GodotでのDebug実行によるテストが有用なケースについては、�
 - `tests/test_workspace_layout_metric_evaluator.gd` UI-METRIC-04 coverage: `HexUILayoutMetricEvaluator` が text truncation、resource row geometry、scroll reachability、dead area、debug leakage、no-op action、picker specificity、state contradiction を severity `warn` の report として出し、runtime Workspace snapshot の warning count を fail gate にしないことを headless で検証する。
 - `tests/test_workspace_layout_metric_evaluator.gd` UI-METRIC-05 coverage: `HexUILayoutMetricEvaluator.evaluate_p0()` が visible no-op button、missing required scroll、state contradiction、sample fallback in production、debug leakage、required generic Resource picker、unreachable primary action を severity `p0` の failure report として出し、clean synthetic snapshot では `passed=true` になることを headless で検証する。実際の Workspace P0 report を `tools/test.sh` の failure gate に接続する処理は `UI-METRIC-07` で行う。
 - `tests/test_workspace_layout_metric_evaluator.gd` UI-METRIC-06 coverage: `HexUILayoutMetricEvaluator.evaluate_p1()` が resource row compression、normal width label truncation、large dead area、disabled action without tooltip、summary-only task tab を severity `p1` の issue report として出し、clean synthetic snapshot では `passed=true` になることを headless で検証する。P1 の標準 test failure integration は `UI-METRIC-07` 以降に分離する。
+- `tests/test_workspace_layout_metric_gate.gd` UI-METRIC-07 coverage: no selected HexTileMap、selected HexTileMap without resources、selected HexTileMap with shared resources の runtime Workspace snapshot に対して P0/P1 metric reports を作成し、`.godot_user/ui-metrics/<run-id>/workspace_layout_metrics.json` と `.md` を出力し、P0 failures が 0 であることを標準テストで検証する。P1 issue count は report-only として記録する。
 - `tests/test_editor_plugin.gd` UI-01 coverage: `HexMapEditorAssetSlotControl` が adaptive two-line row、visible status word removal、status swatch/icon id、tooltip detail、Details button absence、Create New / explicit sample action visibilityを headless で検証する。
 - `tests/test_editor_plugin.gd` UI-02 coverage: Settings / Sample Settings が CheckBoxによるboolean state、debug enabled/disabled label非表示、sample row path非表示、sample duplicate result pathのtooltip/snapshot移動を headless で検証する。
 - `tests/test_editor_plugin.gd` UI-03 coverage: Generate screen snapshot / output target snapshot が unblocked empty-state非表示、preview/document/apply/save result summary、blocked ViewState reason、source registry Refresh Source wordingを headless で検証する。

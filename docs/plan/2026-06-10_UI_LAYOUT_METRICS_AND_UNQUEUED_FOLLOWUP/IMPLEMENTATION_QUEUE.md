@@ -55,7 +55,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 |---|---|---|---|---|---|---|
 | `UI-METRIC-05` | `COMPLETE` | `UI-METRIC-04` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-05_P0_ACCEPTANCE_GATE/` | P0 UI metric acceptance gate | metric evaluator, tests, docs/TEST.md | visible no-op button, missing required scroll, state contradiction, sample fallback in production, debug leakage, required generic Resource picker, and unreachable primary action fail P0. |
 | `UI-METRIC-06` | `COMPLETE` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-06_P1_ACCEPTANCE_GATE/` | P1 UI metric acceptance gate | metric evaluator, tests, docs/TEST.md | resource row compression, normal width label truncation, large dead area, disabled action without tooltip, and summary-only task tab are P1 fail/report conditions. |
-| `UI-METRIC-07` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-07_TEST_SH_INTEGRATION/` | P0 metric integration in standard tests | `tools/test.sh`, metric report output docs | `tools/test.sh` runs P0 gate; P1 can stay separate initially; JSON/MD report is written under `.godot_user/ui-metrics/<run-id>/`. |
+| `UI-METRIC-07` | `COMPLETE` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-07_TEST_SH_INTEGRATION/` | P0 metric integration in standard tests | `tools/test.sh`, metric report output docs | `tools/test.sh` runs P0 gate; P1 can stay separate initially; JSON/MD report is written under `.godot_user/ui-metrics/<run-id>/`. |
 | `UI-METRIC-08` | `READY` | `UI-METRIC-05`, `PROCESS-13` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-08_AUTOPILOT_ACCEPTANCE_TEMPLATE_UPDATE/` | Autopilot UI acceptance template update | policy/process docs, self-review templates | UI task self-review references UI metric report; UI task completion includes P0 failures = 0. |
 
 ---
@@ -140,7 +140,7 @@ acceptance / test path:
 
 ## 9. Current pointer
 
-Current recommended next task: `UI-METRIC-07`.
+Current recommended next task: `UI-METRIC-08`.
 
 Reason:
 
@@ -156,8 +156,9 @@ Reason:
 - `UI-METRIC-04` is complete.
 - `UI-METRIC-05` is complete.
 - `UI-METRIC-06` is complete.
-- `UI-METRIC-07` is READY because `UI-METRIC-05` is complete.
-- `UI-METRIC-07` is the first READY task in queue order.
+- `UI-METRIC-07` is complete.
+- `UI-METRIC-08` is READY because `UI-METRIC-05` and `PROCESS-13` are complete.
+- `UI-METRIC-08` is the first READY task in queue order.
 
 ---
 
@@ -389,3 +390,23 @@ proof:
     - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-06_P1_ACCEPTANCE_GATE/POLICY.md`
     - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-06_P1_ACCEPTANCE_GATE/IMPLEMENTATION_PLAN.md`
     - `docs/review/autopilot/UI-METRIC-06_TEST_RESULT_2026-06-10.md`
+
+### UI-METRIC-07 P0 metric integration in standard tests
+
+proof:
+  plan: `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-07_TEST_SH_INTEGRATION/`
+  review: `docs/review/autopilot/UI-METRIC-07_SELF_REVIEW_2026-06-10.md`
+  execution:
+    - `docs/review/autopilot/UI-METRIC-07_SELF_REVIEW_2026-06-10.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `tests/test_workspace_layout_metric_gate.gd`
+    - `tools/test.sh`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-07_TEST_SH_INTEGRATION/SUB_TASKS.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-07_TEST_SH_INTEGRATION/UX.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-07_TEST_SH_INTEGRATION/POLICY.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-07_TEST_SH_INTEGRATION/IMPLEMENTATION_PLAN.md`
+    - `docs/review/autopilot/UI-METRIC-07_TEST_RESULT_2026-06-10.md`

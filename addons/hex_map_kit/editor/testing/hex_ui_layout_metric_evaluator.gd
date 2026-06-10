@@ -66,7 +66,6 @@ const P1_PROMOTED_WARN_CATEGORIES := [
 ]
 
 const DEBUG_TEXT_PATTERNS := [
-	"debug",
 	"raw",
 	"json",
 	"private",
@@ -125,7 +124,7 @@ static func evaluate_p0(snapshot: Dictionary, options: Dictionary = {}) -> Dicti
 	for warning in warning_report["warnings"] as Array:
 		var entry := warning as Dictionary
 		var category := String(entry.get("category", ""))
-		if P0_PROMOTED_WARN_CATEGORIES.has(category):
+		if _should_promote_warning_to_p0(entry, controls):
 			_add_failure(
 				failures,
 				category,
@@ -332,8 +331,10 @@ static func _evaluate_no_op_actions(controls: Array, warnings: Array[Dictionary]
 			continue
 		if bool(metadata.get("action_bound", false)):
 			continue
-		var normalized := text.strip_edges().to_lower().trim_suffix("...").strip_edges()
-		if PLACEHOLDER_ACTION_TEXT.has(normalized):
+		if bool(metadata.get("hex_metric_placeholder_action", false)):
+			var normalized := text.strip_edges().to_lower().trim_suffix("...").strip_edges()
+			if not PLACEHOLDER_ACTION_TEXT.has(normalized):
+				continue
 			_add_warning(
 				warnings,
 				CATEGORY_NO_OP_ACTION,
@@ -341,6 +342,15 @@ static func _evaluate_no_op_actions(controls: Array, warnings: Array[Dictionary]
 				"Visible button uses placeholder-like action text without binding evidence.",
 				text
 			)
+
+
+static func _should_promote_warning_to_p0(warning: Dictionary, controls: Array) -> bool:
+	var category := String(warning.get("category", ""))
+	if not P0_PROMOTED_WARN_CATEGORIES.has(category):
+		return false
+	if category == CATEGORY_PICKER_SPECIFICITY:
+		return bool(_metadata_for_path(controls, String(warning.get("path", ""))).get("hex_metric_required_resource_picker", false))
+	return true
 
 
 static func _evaluate_picker_specificity(controls: Array, warnings: Array[Dictionary]) -> void:
@@ -538,6 +548,14 @@ static func _controls(snapshot: Dictionary) -> Array:
 static func _metadata(control: Dictionary) -> Dictionary:
 	var value = control.get("metadata", {})
 	return value if value is Dictionary else {}
+
+
+static func _metadata_for_path(controls: Array, path: String) -> Dictionary:
+	for control in controls:
+		var entry := control as Dictionary
+		if _path(entry) == path:
+			return _metadata(entry)
+	return {}
 
 
 static func _path(control: Dictionary) -> String:

@@ -37,6 +37,7 @@ TEST_SCRIPTS=(
   "res://tests/test_workspace_screen_contracts.gd"
   "res://tests/test_workspace_layout_metrics.gd"
   "res://tests/test_workspace_layout_metric_evaluator.gd"
+  "res://tests/test_workspace_layout_metric_gate.gd"
   "res://tests/test_editor_plugin.gd"
   "res://tests/test_debug_scenes.gd"
 )

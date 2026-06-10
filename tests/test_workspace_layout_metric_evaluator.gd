@@ -182,7 +182,9 @@ func _synthetic_risk_snapshot() -> Dictionary:
 		_control("NoOpButton", "NoOpButton", "Button", 10, 105, 80, 24, 80, 24, "Details", {
 			"hex_metric_action": "noop",
 		}, "", ""),
-		_control("ResourcePicker", "ResourcePicker", "EditorResourcePicker", 10, 140, 120, 28, 180, 28, "", {}, "Resource", ""),
+		_control("ResourcePicker", "ResourcePicker", "EditorResourcePicker", 10, 140, 120, 28, 180, 28, "", {
+			"hex_metric_required_resource_picker": true,
+		}, "Resource", ""),
 		_control("Contradiction", "Contradiction", "Label", 10, 175, 120, 16, 120, 16, "Ready", {
 			"hex_metric_state_id": "ready",
 		}, "", ""),
