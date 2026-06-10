@@ -109,7 +109,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
 | `PERF-60` | `COMPLETE` | `STATE-10` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/PERF-60_GENERATE_PERFORMANCE_BUDGET_AND_CHUNKED_APPLY_REVIEW/` | Generate performance budget and chunked apply review | `docs/review/roadmap/GENERATE_PERFORMANCE_BUDGET_2026-06-10.md`, generation/apply paths, profiling notes | Map-size budgets classify redraw/generation/apply/validation costs; global update costs such as orientation switch are identified; progress/busy/cancel/chunked-apply policy is recorded. |
-| `GENPIPE-80` | `READY` | `PERF-60` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/GENPIPE-80_GENERATION_PIPELINE_STATE_CONCEPT/` | Generation pipeline state concept backlog | `docs/review/roadmap/GENERATION_PIPELINE_STATE_CONCEPT_2026-06-10.md`, generation/resource notes | Final Level Document and intermediate map data are distinguished; primary/overlay/filter/candidate map handling is compared across Resource pass, linear pipeline, and node graph options. |
+| `GENPIPE-80` | `COMPLETE` | `PERF-60` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/GENPIPE-80_GENERATION_PIPELINE_STATE_CONCEPT/` | Generation pipeline state concept backlog | `docs/review/roadmap/GENERATION_PIPELINE_STATE_CONCEPT_2026-06-10.md`, generation/resource notes | Final Level Document and intermediate map data are distinguished; primary/overlay/filter/candidate map handling is compared across Resource pass, linear pipeline, and node graph options. |
 
 ---
 
@@ -148,7 +148,7 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `GENPIPE-80`.
+Current recommended next task: `TEST-80`.
 
 Reason:
 
@@ -184,11 +184,11 @@ Reason:
 - `ARCH-41` is complete.
 - `ARCH-50` is complete.
 - `PERF-60` is complete.
-- `GENPIPE-80`, `TEST-80`, and `DOC-90` remain READY.
-- `GENPIPE-80` is READY because `PERF-60` is complete.
+- `GENPIPE-80` is complete.
+- `TEST-80` and `DOC-90` remain READY.
 - `TEST-80` is READY because `STATE-60` and `ARCH-41` are complete.
 - `DOC-90` is READY because `SCREEN-10`, `SCREEN-22`, and `SCREEN-25` are complete.
-- `GENPIPE-80` is the first READY task in queue order after completed `PERF-60`.
+- `TEST-80` is the first READY task in queue order after completed `GENPIPE-80`.
 
 ---
 
@@ -796,3 +796,20 @@ proof:
     - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/PERF-60_GENERATE_PERFORMANCE_BUDGET_AND_CHUNKED_APPLY_REVIEW/POLICY.md`
     - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/PERF-60_GENERATE_PERFORMANCE_BUDGET_AND_CHUNKED_APPLY_REVIEW/IMPLEMENTATION_PLAN.md`
     - `docs/review/autopilot/PERF-60_TEST_RESULT_2026-06-10.md`
+
+### GENPIPE-80 Generation pipeline state concept
+
+proof:
+  plan: `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/GENPIPE-80_GENERATION_PIPELINE_STATE_CONCEPT/`
+  review: `docs/review/autopilot/GENPIPE-80_SELF_REVIEW_2026-06-10.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+    - `docs/review/roadmap/GENERATION_PIPELINE_STATE_CONCEPT_2026-06-10.md`
+  major files:
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/GENPIPE-80_GENERATION_PIPELINE_STATE_CONCEPT/SUB_TASKS.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/GENPIPE-80_GENERATION_PIPELINE_STATE_CONCEPT/UX.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/GENPIPE-80_GENERATION_PIPELINE_STATE_CONCEPT/POLICY.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/GENPIPE-80_GENERATION_PIPELINE_STATE_CONCEPT/IMPLEMENTATION_PLAN.md`
+    - `docs/review/autopilot/GENPIPE-80_TEST_RESULT_2026-06-10.md`
