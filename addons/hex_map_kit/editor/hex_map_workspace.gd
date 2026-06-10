@@ -1941,6 +1941,10 @@ func select_label_definition(label_id: String) -> Dictionary:
 
 func paint_brush_screen_snapshot() -> Dictionary:
 	var paint_workspace := _edit_tool.paint_workspace_snapshot() if _edit_tool != null else {}
+	var interaction_state = paint_workspace.get("interaction_state", {}) as Dictionary
+	var view_state = paint_workspace.get("view_state", {}) as Dictionary
+	var target_state = view_state.get("target", {}) as Dictionary
+	var document_state = view_state.get("document", {}) as Dictionary
 	var empty_state := _paint_tab_empty_state()
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_PAINT,
@@ -1949,16 +1953,18 @@ func paint_brush_screen_snapshot() -> Dictionary:
 		"purpose_text": String(empty_state.get("purpose_text", "")),
 		"empty_state": empty_state,
 		"empty_state_text": String(empty_state.get("empty_state_text", "")),
-		"brush": _edit_tool.paint_brush_snapshot() if _edit_tool != null else {},
+		"interaction_state": interaction_state,
+		"view_state": view_state,
+		"brush": view_state.get("brush", {}),
 		"workspace": paint_workspace,
-		"active_document": paint_workspace.get("active_document", null),
-		"active_document_status": String(paint_workspace.get("active_document_status", "none")),
-		"active_layer": paint_workspace.get("active_layer", null),
-		"active_layer_name": String(paint_workspace.get("active_layer_name", "")),
-		"selected_cell": paint_workspace.get("selected_cell", {}),
+		"active_document": document_state.get("resource", paint_workspace.get("active_document", null)),
+		"active_document_status": String(document_state.get("status", paint_workspace.get("active_document_status", "none"))),
+		"active_layer": target_state.get("node", paint_workspace.get("active_layer", null)),
+		"active_layer_name": String(target_state.get("name", paint_workspace.get("active_layer_name", ""))),
+		"selected_cell": view_state.get("selected_cell", paint_workspace.get("selected_cell", {})),
 		"last_edit": paint_workspace.get("last_edit", {}),
-		"last_edit_summary": String(paint_workspace.get("last_edit_summary", "none")),
-		"last_edit_message": String(paint_workspace.get("last_edit_message", "none")),
+		"last_edit_summary": String(view_state.get("last_apply_summary", paint_workspace.get("last_edit_summary", "none"))),
+		"last_edit_message": String(view_state.get("last_apply_message", paint_workspace.get("last_edit_message", "none"))),
 		"undo_hint": String(paint_workspace.get("undo_hint", "")),
 		"resource_picker_rows_visible": paint_workspace.get("resource_picker_rows_visible", {}),
 	}

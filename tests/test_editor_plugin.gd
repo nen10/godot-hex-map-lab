@@ -32,6 +32,7 @@ const HexMapGenerationRunState = preload("res://addons/hex_map_kit/editor/hex_ma
 const HexMapEditTool = preload("res://addons/hex_map_kit/editor/hex_map_edit_tool.gd")
 const HexMapEditMutationBuilder = preload("res://addons/hex_map_kit/editor/hex_map_edit_mutation_builder.gd")
 const HexMapEditViewportInputAdapter = preload("res://addons/hex_map_kit/editor/hex_map_edit_viewport_input_adapter.gd")
+const HexMapPaintInteractionState = preload("res://addons/hex_map_kit/editor/hex_map_paint_interaction_state.gd")
 const HexMapDocumentInspector = preload("res://addons/hex_map_kit/editor/hex_map_document_inspector.gd")
 const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
 const HexMapEditorAssetSlotState = preload("res://addons/hex_map_kit/editor/hex_map_editor_asset_slot_state.gd")
@@ -415,6 +416,18 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 	var selected_cell = paint_snapshot["selected_cell"] as Dictionary
 	_assert_true(bool(selected_cell["present"]), "TAB-51 Paint snapshot reports selected/last edited cell")
 	_assert_eq(String(selected_cell["cell_key"]), HexVector.zero().key(), "TAB-51 Paint snapshot reports edited cell key")
+	var paint_state = paint_snapshot["interaction_state"] as Dictionary
+	var paint_view_state = paint_snapshot["view_state"] as Dictionary
+	var paint_active_states := PackedStringArray(paint_state["active_state_ids"])
+	_assert_eq(String(paint_state["state_source"]), "HexMapPaintInteractionState", "STATE-40 Paint snapshot reports state source")
+	_assert_eq(String(paint_state["state_id"]), HexMapPaintInteractionState.STATE_APPLIED_DIRTY, "STATE-40 viewport edit enters applied dirty state")
+	_assert_true(paint_active_states.has(HexMapPaintInteractionState.STATE_READY), "STATE-40 viewport edit keeps ready state active")
+	_assert_true(paint_active_states.has(HexMapPaintInteractionState.STATE_HOVERING_CELL), "STATE-40 viewport edit exposes hovered cell state")
+	_assert_true(paint_active_states.has(HexMapPaintInteractionState.STATE_SELECTED_CELL), "STATE-40 viewport edit exposes selected cell state")
+	_assert_true(paint_active_states.has(HexMapPaintInteractionState.STATE_APPLIED_DIRTY), "STATE-40 viewport edit exposes apply/dirty state")
+	_assert_eq(paint_view_state["active_layer"], layer, "STATE-40 Paint ViewState renders active layer target")
+	_assert_eq(String(paint_view_state["selected_cell_key"]), HexVector.zero().key(), "STATE-40 Paint ViewState renders selected cell")
+	_assert_true(bool(paint_view_state["can_paint"]), "STATE-40 Paint ViewState allows painting when target/document/brush are ready")
 	_assert_true(
 		String(paint_snapshot["last_edit_message"]).contains("document=yes"),
 		"TAB-51 Paint snapshot reports last edit detail"
@@ -1889,6 +1902,16 @@ func _test_paint_brush_asset_screen_routes_missing_assets_without_raw_controls()
 	_assert_eq(cta["target_tab"], "Catalog", "Paint brush missing terrain catalog points to Catalog tab")
 	_assert_eq(cta["target_component_id"], "catalog_asset_panel", "Paint brush missing terrain catalog points to catalog panel")
 	_assert_eq(cta["target_slot_id"], HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, "Paint brush missing terrain catalog points to tile catalog slot")
+	var paint_state = paint_screen["interaction_state"] as Dictionary
+	var paint_view_state = paint_screen["view_state"] as Dictionary
+	var paint_active_states := PackedStringArray(paint_state["active_state_ids"])
+	_assert_eq(String(paint_state["state_source"]), "HexMapPaintInteractionState", "STATE-40 Paint screen reports state source")
+	_assert_eq(String(paint_view_state["state_source"]), "HexMapPaintInteractionState", "STATE-40 Paint screen reports ViewState source")
+	_assert_true(paint_active_states.has(HexMapPaintInteractionState.STATE_NO_TARGET), "STATE-40 Paint state covers missing target")
+	_assert_true(paint_active_states.has(HexMapPaintInteractionState.STATE_NO_DOCUMENT), "STATE-40 Paint state covers missing document")
+	_assert_true(paint_active_states.has(HexMapPaintInteractionState.STATE_MISSING_ASSET), "STATE-40 Paint state covers missing asset")
+	_assert_true(not bool(paint_view_state["can_paint"]), "STATE-40 Paint ViewState blocks painting when setup is incomplete")
+	_assert_eq(String((paint_view_state["missing_asset"] as Dictionary)["target_tab"]), "Catalog", "STATE-40 Paint ViewState routes missing asset")
 
 	var controls = brush["normal_internal_controls_visible"] as Dictionary
 	_assert_true(not bool(controls["source_id"]), "Paint brush hides source id control")
@@ -1915,6 +1938,10 @@ func _test_paint_brush_asset_screen_routes_missing_assets_without_raw_controls()
 	brush = terrain_brush["brush"] as Dictionary
 	_assert_true(bool(brush["ready"]), "Paint brush terrain is ready with selected catalog key")
 	_assert_eq(brush["brush_key"], "terrain.floor", "Paint brush terrain reports catalog key")
+	paint_screen = workspace.paint_brush_screen_snapshot()
+	paint_view_state = paint_screen["view_state"] as Dictionary
+	_assert_true(bool((paint_view_state["brush"] as Dictionary)["ready"]), "STATE-40 Paint ViewState renders active ready brush")
+	_assert_eq(String(paint_view_state["brush_key"]), "terrain.floor", "STATE-40 Paint ViewState renders active brush key")
 
 	var overlay_brush = workspace.select_paint_catalog_brush_key("terrain.floor", "overlay")
 	_assert_true(bool(overlay_brush["ok"]), "Paint brush selects overlay catalog key")
@@ -4970,6 +4997,12 @@ func _test_map_edit_tool_validation_dashboard_groups_and_focuses_cell_issue() ->
 	_assert_eq(focus.get("cell", Vector3i.ZERO), Vector3i(1, 0, 0), "validation issue focus records selected cell")
 	_assert_eq(focus.get("cell_key", ""), HexVector.q_axis().key(), "validation issue focus records cell key")
 	_assert_eq(bool(focus.get("focused", false)), true, "validation issue focus marks existing cell focused")
+	var paint_state = tool.paint_interaction_state_snapshot()
+	var paint_view_state = paint_state["view_state"] as Dictionary
+	var paint_active_states := PackedStringArray(paint_state["active_state_ids"])
+	_assert_true(paint_active_states.has(HexMapPaintInteractionState.STATE_VALIDATION_FOCUS), "STATE-40 Paint state covers validation focus")
+	_assert_eq(String((paint_view_state["validation_focus"] as Dictionary)["focus_type"]), "cell", "STATE-40 Paint ViewState renders validation focus")
+	_assert_eq(String(paint_view_state["hovered_cell_key"]), HexVector.q_axis().key(), "STATE-40 Paint ViewState renders focused cell as hovered cell state")
 	_assert_true(hex_layer._highlights.has(HexVector.q_axis().key()), "cell-scoped validation issue highlights HexTileMapLayer target")
 	_assert_true(tool._validation_dashboard._selected_detail_label.text.contains("Fix:"), "selected cell issue detail shows fix suggestion")
 

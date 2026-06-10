@@ -10,6 +10,7 @@ const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resourc
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexMapEditMutationBuilder = preload("res://addons/hex_map_kit/editor/hex_map_edit_mutation_builder.gd")
 const HexMapEditViewportInputAdapter = preload("res://addons/hex_map_kit/editor/hex_map_edit_viewport_input_adapter.gd")
+const HexMapPaintInteractionState = preload("res://addons/hex_map_kit/editor/hex_map_paint_interaction_state.gd")
 const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
 const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
 const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
@@ -136,6 +137,7 @@ var _last_selection_sync_target: Node = null
 var _test_editor_selected_target_layer: Node = null
 var _test_viewport_canvas_transform_enabled := false
 var _test_viewport_canvas_transform := Transform2D.IDENTITY
+var _paint_interaction_state: HexMapPaintInteractionState = HexMapPaintInteractionState.new()
 
 var _paint_workspace_summary_label: Label
 var _document_label: Label
@@ -458,25 +460,32 @@ func last_edit_status() -> Dictionary:
 
 
 func paint_workspace_snapshot() -> Dictionary:
-	var target_status := target_readiness_status()
-	var brush := paint_brush_snapshot()
+	var interaction_state := paint_interaction_state_snapshot()
+	var view_state = interaction_state.get("view_state", {}) as Dictionary
+	var target_state = interaction_state.get("target", {}) as Dictionary
+	var document_state = interaction_state.get("document", {}) as Dictionary
+	var brush = interaction_state.get("brush", {}) as Dictionary
+	var selected_cell = interaction_state.get("selected_cell", {}) as Dictionary
+	var last_apply = interaction_state.get("last_apply", {}) as Dictionary
 	var last_edit := last_edit_status()
 	return {
-		"active_document": _document,
-		"active_document_status": _document_state_text(),
-		"active_document_path": _document_path,
-		"active_layer": _target_layer if _target_layer != null and is_instance_valid(_target_layer) else null,
-		"active_layer_name": _target_layer.name if _target_layer != null and is_instance_valid(_target_layer) else "",
-		"active_layer_path": _target_path_string(),
-		"active_layer_class": _target_class_string(),
-		"active_layer_role": _selected_layer_stack_role,
-		"target_ready": bool(target_status.get("ready", false)),
-		"target_message": String(target_status.get("message", "")),
+		"interaction_state": interaction_state,
+		"view_state": view_state,
+		"active_document": document_state.get("resource", null),
+		"active_document_status": String(document_state.get("status", "none")),
+		"active_document_path": String(document_state.get("path", "")),
+		"active_layer": target_state.get("node", null),
+		"active_layer_name": String(target_state.get("name", "")),
+		"active_layer_path": String(target_state.get("path", "")),
+		"active_layer_class": String(target_state.get("class", "")),
+		"active_layer_role": String(target_state.get("role", "")),
+		"target_ready": bool(target_state.get("ready", false)),
+		"target_message": String(target_state.get("message", "")),
 		"brush": brush,
-		"selected_cell": _paint_selected_cell_snapshot(last_edit),
+		"selected_cell": selected_cell,
 		"last_edit": last_edit,
-		"last_edit_summary": _paint_last_edit_summary(last_edit),
-		"last_edit_message": _format_last_edit_detail(last_edit),
+		"last_edit_summary": String(last_apply.get("summary", "none")),
+		"last_edit_message": String(last_apply.get("message", "none")),
 		"undo_available": _undo_redo != null,
 		"undo_hint": "Use editor Undo/Redo." if _undo_redo != null else "Undo uses editor history when available.",
 		"resource_picker_rows_visible": {
@@ -484,6 +493,16 @@ func paint_workspace_snapshot() -> Dictionary:
 			"label_database": _control_row_is_visible(_label_database_picker),
 		},
 	}
+
+
+func paint_interaction_state_snapshot() -> Dictionary:
+	_sync_paint_interaction_state()
+	return _paint_interaction_state.to_state_snapshot()
+
+
+func paint_interaction_view_state() -> Dictionary:
+	_sync_paint_interaction_state()
+	return _paint_interaction_state.to_view_state()
 
 
 func target_readiness_status() -> Dictionary:
@@ -3168,6 +3187,99 @@ func _paint_missing_asset_cta(mode_id: String, brush_key: String) -> Dictionary:
 	return {}
 
 
+func _sync_paint_interaction_state() -> void:
+	if _paint_interaction_state == null:
+		_paint_interaction_state = HexMapPaintInteractionState.new()
+	var target_status := target_readiness_status()
+	var brush := paint_brush_snapshot()
+	var last_edit := last_edit_status()
+	var missing_asset = brush.get("missing_asset_cta", {}) as Dictionary
+	_paint_interaction_state.update_from_context({
+		"target": _paint_target_state_snapshot(target_status),
+		"document": _paint_document_state_snapshot(),
+		"brush": brush,
+		"hovered_cell": _paint_hovered_cell_snapshot(),
+		"selected_cell": _paint_selected_cell_snapshot(last_edit),
+		"last_apply": _paint_last_apply_state_snapshot(last_edit),
+		"validation_focus": validation_focus_status(),
+		"missing_asset": missing_asset,
+	})
+
+
+func _paint_target_state_snapshot(target_status: Dictionary) -> Dictionary:
+	var target_node = _target_layer if _target_layer != null and is_instance_valid(_target_layer) else null
+	return {
+		"present": target_node != null,
+		"node": target_node,
+		"name": target_node.name if target_node != null else "",
+		"path": _target_path_string(),
+		"class": _target_class_string(),
+		"role": _selected_layer_stack_role,
+		"ready": bool(target_status.get("ready", false)),
+		"message": String(target_status.get("message", "")),
+		"is_hex_tile_map_layer": bool(target_status.get("is_hex_tile_map_layer", false)),
+		"tile_set_present": bool(target_status.get("tile_set_present", false)),
+		"tile_set_resource_path": String(target_status.get("tile_set_resource_path", "")),
+		"used_cell_count": int(target_status.get("used_cell_count", 0)),
+		"loop_display_mode": int(target_status.get("loop_display_mode", HexTileMapLayer.LOOP_DISPLAY_NONE)),
+	}
+
+
+func _paint_document_state_snapshot() -> Dictionary:
+	return {
+		"present": _document != null,
+		"resource": _document,
+		"status": _document_state_text(),
+		"path": _document_path,
+		"source": _document_source,
+		"dirty": _document_dirty,
+	}
+
+
+func _paint_hovered_cell_snapshot() -> Dictionary:
+	if _last_edit_hit.is_empty() or not _last_edit_hit.has("hex"):
+		return {
+			"present": false,
+			"cell_key": "",
+			"visual_cell_key": "",
+			"local_position": Vector2.ZERO,
+			"exists": false,
+			"source": "",
+		}
+	var hex = _last_edit_hit["hex"]
+	var visual_hex = _last_edit_hit.get("visual_hex", hex)
+	return {
+		"present": true,
+		"cell_key": hex.key(),
+		"hex": hex,
+		"visual_cell_key": visual_hex.key(),
+		"visual_hex": visual_hex,
+		"local_position": _last_edit_hit.get("local", Vector2.ZERO),
+		"exists": bool(_last_edit_hit.get("exists", false)),
+		"source": "validation_focus" if _last_edit_hit.has("validation_rule_id") else "last_hit",
+	}
+
+
+func _paint_last_apply_state_snapshot(trace: Dictionary) -> Dictionary:
+	var summary := _paint_last_edit_summary(trace)
+	var message := _format_last_edit_detail(trace)
+	if trace.is_empty() and _document_dirty:
+		summary = "dirty"
+		message = "Document has unsaved changes."
+	return {
+		"present": not trace.is_empty(),
+		"applied": bool(trace.get("applied", false)),
+		"document_changed": bool(trace.get("document_changed", false)),
+		"target_applied": bool(trace.get("target_applied", false)),
+		"display_changed": bool(trace.get("display_changed", false)),
+		"dirty": _document_dirty,
+		"summary": summary,
+		"message": message,
+		"target_apply_reason": String(trace.get("target_apply_reason", "")),
+		"target_resolution_reason": String(trace.get("target_resolution_reason", "")),
+	}
+
+
 func _sync_resource_pickers() -> void:
 	if _document_resource_picker != null:
 		_document_resource_picker.edited_resource = _document
@@ -4332,15 +4444,15 @@ func _refresh_paint_workspace_summary() -> void:
 	if _paint_workspace_summary_label == null:
 		return
 	var snapshot := paint_workspace_snapshot()
-	var brush = snapshot.get("brush", {}) as Dictionary
-	var selected_cell = snapshot.get("selected_cell", {}) as Dictionary
-	_paint_workspace_summary_label.text = "Document: %s | Layer: %s | Brush: %s %s | Cell: %s | Last edit: %s | Undo: %s" % [
-		String(snapshot.get("active_document_status", "none")),
-		String(snapshot.get("active_layer_name", "none")) if String(snapshot.get("active_layer_name", "")) != "" else "none",
-		String(brush.get("mode_label", "")),
-		String(brush.get("brush_key", "")) if String(brush.get("brush_key", "")) != "" else "(unselected)",
-		String(selected_cell.get("cell_key", "")) if bool(selected_cell.get("present", false)) else "none",
-		String(snapshot.get("last_edit_summary", "none")),
+	var view_state = snapshot.get("view_state", {}) as Dictionary
+	_paint_workspace_summary_label.text = "Document: %s | Layer: %s | Brush: %s %s | Cell: %s | Last edit: %s | State: %s | Undo: %s" % [
+		String(view_state.get("document_status", "none")),
+		String(view_state.get("active_layer_name", "none")) if String(view_state.get("active_layer_name", "")) != "" else "none",
+		String(view_state.get("brush_mode_label", "")),
+		String(view_state.get("brush_key", "")) if String(view_state.get("brush_key", "")) != "" else "(unselected)",
+		String(view_state.get("selected_cell_key", "")) if String(view_state.get("selected_cell_key", "")) != "" else "none",
+		String(view_state.get("last_apply_summary", "none")),
+		String(view_state.get("status_text", "")),
 		String(snapshot.get("undo_hint", "")),
 	]
 
