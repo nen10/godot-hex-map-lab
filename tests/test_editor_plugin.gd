@@ -29,6 +29,10 @@ const HexExportProfileResource = preload("res://addons/hex_map_kit/adapter/hex_e
 const HexMapGenDock = preload("res://addons/hex_map_kit/editor/hex_map_gen_dock.gd")
 const HexMapGenStateEvaluator = preload("res://addons/hex_map_kit/editor/hex_map_gen_state_evaluator.gd")
 const HexMapGenerationRunState = preload("res://addons/hex_map_kit/editor/hex_map_generation_run_state.gd")
+const HexMapGenRunControls = preload("res://addons/hex_map_kit/editor/hex_map_gen_run_controls.gd")
+const HexMapGenSourceControls = preload("res://addons/hex_map_kit/editor/hex_map_gen_source_controls.gd")
+const HexMapGenOutputControls = preload("res://addons/hex_map_kit/editor/hex_map_gen_output_controls.gd")
+const HexMapGenResultControls = preload("res://addons/hex_map_kit/editor/hex_map_gen_result_controls.gd")
 const HexMapEditTool = preload("res://addons/hex_map_kit/editor/hex_map_edit_tool.gd")
 const HexMapEditMutationBuilder = preload("res://addons/hex_map_kit/editor/hex_map_edit_mutation_builder.gd")
 const HexMapEditViewportInputAdapter = preload("res://addons/hex_map_kit/editor/hex_map_edit_viewport_input_adapter.gd")
@@ -349,6 +353,7 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 	_assert_true(workspace.edit_tool() is HexMapEditTool, "workspace mounts paint/edit component")
 	_assert_true(workspace.sample_settings_panel() is HexMapSampleSettingsPanel, "workspace mounts sample settings component")
 	_assert_eq(workspace.generation_dock().editor_session_state(), session, "workspace forwards session to generation component")
+	_assert_generation_dock_internal_component_contract(workspace.generation_dock())
 	_assert_eq(workspace.edit_tool().editor_session_state(), session, "workspace forwards session to paint/edit component")
 	_assert_eq(workspace.sample_settings_panel().editor_session_state(), session, "workspace forwards session to sample settings component")
 	_assert_true(workspace.tab_has_component("Layers", "layer_stack_role_panel"), "workspace mounts Layers role editor component")
@@ -466,6 +471,73 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 	layer.queue_free()
 	workspace.queue_free()
 	await process_frame
+
+
+func _assert_generation_dock_internal_component_contract(dock: HexMapGenDock) -> void:
+	var expected := {
+		"generate_run_controls": {
+			"screen_script": "hex_map_gen_run_controls.gd",
+			"screen_role_source": "HexMapGenRunControls",
+			"builder": "build_run_controls",
+		},
+		"generate_progress_controls": {
+			"screen_script": "hex_map_gen_run_controls.gd",
+			"screen_role_source": "HexMapGenRunControls",
+			"builder": "build_progress_controls",
+		},
+		"generate_source_registry": {
+			"screen_script": "hex_map_gen_source_controls.gd",
+			"screen_role_source": "HexMapGenSourceControls",
+			"builder": "build_source_registry_controls",
+		},
+		"generate_output_target": {
+			"screen_script": "hex_map_gen_output_controls.gd",
+			"screen_role_source": "HexMapGenOutputControls",
+			"builder": "build_output_target_controls",
+		},
+		"generate_save_apply_controls": {
+			"screen_script": "hex_map_gen_output_controls.gd",
+			"screen_role_source": "HexMapGenOutputControls",
+			"builder": "build_save_apply_controls",
+		},
+		"generate_seed_lab": {
+			"screen_script": "hex_map_gen_result_controls.gd",
+			"screen_role_source": "HexMapGenResultControls",
+			"builder": "build_seed_lab_controls",
+		},
+		"generate_result_summary": {
+			"screen_script": "hex_map_gen_result_controls.gd",
+			"screen_role_source": "HexMapGenResultControls",
+			"builder": "build_result_summary_label",
+		},
+	}
+	var script_rows := []
+	for rows in [
+		HexMapGenRunControls.component_owner_rows(),
+		HexMapGenSourceControls.component_owner_rows(),
+		HexMapGenOutputControls.component_owner_rows(),
+		HexMapGenResultControls.component_owner_rows(),
+	]:
+		for row in rows:
+			var row_data := row as Dictionary
+			script_rows.append(row_data.duplicate(true))
+	_assert_eq(dock.generation_component_owner_rows().size(), expected.size(), "ARCH-NEXT-11 Generate owner row count")
+	_assert_eq(script_rows.size(), expected.size(), "ARCH-NEXT-11 Generate script owner row count")
+	for script_row in script_rows:
+		var row_data := script_row as Dictionary
+		var component_id := String(row_data.get("component_id", ""))
+		_assert_true(expected.has(component_id), "ARCH-NEXT-11 script row component is expected: %s" % component_id)
+		var expected_row = expected[component_id] as Dictionary
+		_assert_eq(String(row_data.get("screen_script", "")), String(expected_row["screen_script"]), "ARCH-NEXT-11 %s script row owner" % component_id)
+		_assert_eq(String(row_data.get("screen_role_source", "")), String(expected_row["screen_role_source"]), "ARCH-NEXT-11 %s script row role" % component_id)
+		_assert_eq(String(row_data.get("builder", "")), String(expected_row["builder"]), "ARCH-NEXT-11 %s script row builder" % component_id)
+	for component_id in expected.keys():
+		var expected_row_data = expected[component_id] as Dictionary
+		_assert_true(dock.generation_component_ids().has(String(component_id)), "ARCH-NEXT-11 Generate component id exists: %s" % component_id)
+		var mounted := dock.mounted_generation_component_owner_for(String(component_id))
+		_assert_eq(String(mounted.get("screen_script", "")), String(expected_row_data["screen_script"]), "ARCH-NEXT-11 %s mounted script owner" % component_id)
+		_assert_eq(String(mounted.get("screen_role_source", "")), String(expected_row_data["screen_role_source"]), "ARCH-NEXT-11 %s mounted role owner" % component_id)
+		_assert_eq(String(mounted.get("builder", "")), String(expected_row_data["builder"]), "ARCH-NEXT-11 %s mounted builder owner" % component_id)
 
 
 func _test_workspace_selected_hex_tile_map_auto_binding() -> void:

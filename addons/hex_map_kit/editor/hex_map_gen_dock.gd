@@ -25,6 +25,10 @@ const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_ma
 const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
 const HexMapGenStateEvaluator = preload("res://addons/hex_map_kit/editor/hex_map_gen_state_evaluator.gd")
 const HexMapGenerationRunState = preload("res://addons/hex_map_kit/editor/hex_map_generation_run_state.gd")
+const HexMapGenRunControls = preload("res://addons/hex_map_kit/editor/hex_map_gen_run_controls.gd")
+const HexMapGenSourceControls = preload("res://addons/hex_map_kit/editor/hex_map_gen_source_controls.gd")
+const HexMapGenOutputControls = preload("res://addons/hex_map_kit/editor/hex_map_gen_output_controls.gd")
+const HexMapGenResultControls = preload("res://addons/hex_map_kit/editor/hex_map_gen_result_controls.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const HexToricCoordinate = preload("res://addons/hex_map_kit/core/hex_toric_coordinate.gd")
 const HexRandomizer = preload("res://addons/hex_map_kit/core/hex_randomizer.gd")
@@ -281,6 +285,7 @@ var _generation_run_state: HexMapGenerationRunState = HexMapGenerationRunState.n
 var _current_overlay_data = null
 var _editor_session_state: HexMapEditorSessionState = null
 var _workspace_asset_context: HexMapWorkspaceAssetContext = null
+var _generation_components: Dictionary = {}
 var _last_generation_validation_result = null
 var _last_generation_validation_summary: Dictionary = {}
 var _generation_event_order := 0
@@ -338,6 +343,39 @@ func workspace_asset_context() -> HexMapWorkspaceAssetContext:
 	return null
 
 
+func generation_component_owner_rows() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for rows in [
+		HexMapGenRunControls.component_owner_rows(),
+		HexMapGenSourceControls.component_owner_rows(),
+		HexMapGenOutputControls.component_owner_rows(),
+		HexMapGenResultControls.component_owner_rows(),
+	]:
+		for row in rows:
+			var row_data := row as Dictionary
+			result.append(row_data.duplicate(true))
+	return result
+
+
+func generation_component_ids() -> PackedStringArray:
+	var result := PackedStringArray()
+	for row in generation_component_owner_rows():
+		result.append(String(row.get("component_id", "")))
+	return result
+
+
+func mounted_generation_component_owner_for(component_id: String) -> Dictionary:
+	var node = _generation_components.get(component_id, null) as Node
+	if node == null:
+		return {}
+	return {
+		"component_id": component_id,
+		"screen_script": String(node.get_meta("hex_generate_component_script", "")),
+		"screen_role_source": String(node.get_meta("hex_generate_component_role_source", "")),
+		"builder": String(node.get_meta("hex_generate_component_builder", "")),
+	}
+
+
 func main_sample_controls_visible() -> bool:
 	if _sample_tiles_button != null:
 		return _sample_tiles_button.visible
@@ -369,6 +407,12 @@ func _exit_tree() -> void:
 		_generation_thread.wait_to_finish()
 		_generation_thread = null
 	_hide_generation_progress_controls()
+
+
+func _register_generation_component(component_id: String, control: Control) -> void:
+	if component_id == "" or control == null:
+		return
+	_generation_components[component_id] = control
 
 
 func _build_ui() -> void:
@@ -548,25 +592,8 @@ func _build_ui() -> void:
 
 	root.add_child(_build_separator())
 
-	var button_row = HBoxContainer.new()
-
-	_apply_layer_button = Button.new()
-	_apply_layer_button.text = "Advanced Apply"
-	_apply_layer_button.visible = false
-	_apply_layer_button.pressed.connect(_on_apply_layer_pressed)
-	button_row.add_child(_apply_layer_button)
-
-	_save_button = Button.new()
-	_save_button.text = "Save As .tres"
-	_save_button.pressed.connect(_on_save_pressed)
-	button_row.add_child(_save_button)
-
-	root.add_child(button_row)
-
-	_stats_label = Label.new()
-	_stats_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_stats_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
-	root.add_child(_stats_label)
+	root.add_child(_build_save_apply_controls())
+	root.add_child(_build_result_summary_controls())
 
 	root.add_child(_build_overlay_controls())
 
@@ -636,32 +663,39 @@ func _build_apply_write_controls() -> Control:
 
 
 func _build_output_target_controls() -> Control:
-	var box = VBoxContainer.new()
-
-	var row = HBoxContainer.new()
-	row.add_child(_build_small_label("Output target"))
-	_output_target_option = OptionButton.new()
-	_output_target_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	for index in range(OUTPUT_TARGET_MODES.size()):
-		_output_target_option.add_item(String(OUTPUT_TARGET_LABELS[index]))
-		_output_target_option.set_item_metadata(index, String(OUTPUT_TARGET_MODES[index]))
-	_output_target_option.select(0)
+	var built := HexMapGenOutputControls.build_output_target_controls(
+		OUTPUT_TARGET_MODES,
+		OUTPUT_TARGET_LABELS
+	)
+	var root = built.get("root", null) as Control
+	_output_target_option = built.get("output_target_option", null) as OptionButton
 	_output_target_option.item_selected.connect(_on_output_target_selected)
-	row.add_child(_output_target_option)
-
-	_output_target_apply_button = Button.new()
-	_output_target_apply_button.text = "Apply to Document"
+	_output_target_apply_button = built.get("apply_button", null) as Button
 	_output_target_apply_button.pressed.connect(_on_apply_to_selected_document_pressed)
-	row.add_child(_output_target_apply_button)
-	box.add_child(row)
-
-	_output_target_status_label = Label.new()
-	_output_target_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_output_target_status_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
-	box.add_child(_output_target_status_label)
+	_output_target_status_label = built.get("status_label", null) as Label
 
 	_refresh_output_target_status()
-	return box
+	_register_generation_component("generate_output_target", root)
+	return root
+
+
+func _build_save_apply_controls() -> Control:
+	var built := HexMapGenOutputControls.build_save_apply_controls()
+	var root = built.get("root", null) as Control
+	_apply_layer_button = built.get("apply_layer_button", null) as Button
+	_apply_layer_button.pressed.connect(_on_apply_layer_pressed)
+	_save_button = built.get("save_button", null) as Button
+	_save_button.pressed.connect(_on_save_pressed)
+	_register_generation_component("generate_save_apply_controls", root)
+	return root
+
+
+func _build_result_summary_controls() -> Control:
+	var built := HexMapGenResultControls.build_result_summary_label()
+	var root = built.get("root", null) as Control
+	_stats_label = built.get("stats_label", null) as Label
+	_register_generation_component("generate_result_summary", root)
+	return root
 
 
 func output_target_snapshot() -> Dictionary:
@@ -957,27 +991,14 @@ func _record_output_apply_result(
 
 
 func _build_source_registry_controls() -> Control:
-	_source_registry_container = VBoxContainer.new()
-	_source_registry_container.add_child(_build_section_label("Source Registry"))
-
-	var row = HBoxContainer.new()
-	_source_load_button = Button.new()
-	_source_load_button.text = "Browse .tres"
+	var built := HexMapGenSourceControls.build_source_registry_controls()
+	_source_registry_container = built.get("root", null) as VBoxContainer
+	_source_load_button = built.get("source_load_button", null) as Button
 	_source_load_button.pressed.connect(_on_source_load_pressed)
-	row.add_child(_source_load_button)
-
-	_generate_history_dir_label = Label.new()
-	_generate_history_dir_label.text = "History: off"
-	_generate_history_dir_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(_generate_history_dir_label)
-	_source_registry_container.add_child(row)
-
-	_source_registry_list = VBoxContainer.new()
-	_source_registry_container.add_child(_source_registry_list)
-	_source_registry_status_label = Label.new()
-	_source_registry_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_source_registry_status_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
-	_source_registry_container.add_child(_source_registry_status_label)
+	_generate_history_dir_label = built.get("history_dir_label", null) as Label
+	_source_registry_list = built.get("source_list", null) as VBoxContainer
+	_source_registry_status_label = built.get("status_label", null) as Label
+	_register_generation_component("generate_source_registry", _source_registry_container)
 	return _source_registry_container
 
 
@@ -1185,84 +1206,35 @@ func _build_wall_probability_controls() -> Control:
 
 
 func _build_seed_controls() -> Control:
-	var row = HBoxContainer.new()
-
-	_generate_button = Button.new()
-	_generate_button.text = "Primary Generation"
+	var built := HexMapGenRunControls.build_run_controls()
+	var row = built.get("root", null) as Control
+	_generate_button = built.get("generate_button", null) as Button
 	_generate_button.pressed.connect(_on_generate_pressed)
-	row.add_child(_generate_button)
-
-	var label = Label.new()
-	label.text = "Seed"
-	row.add_child(label)
-
-	_seed_spin = SpinBox.new()
-	_seed_spin.min_value = 0
-	_seed_spin.max_value = 999999
-	_seed_spin.value = 1201
-	_seed_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_seed_spin = built.get("seed_spin", null) as SpinBox
 	_seed_spin.value_changed.connect(_on_option_changed)
-	row.add_child(_seed_spin)
-
-	_seed_random_button = Button.new()
-	_seed_random_button.text = "Rand"
+	_seed_random_button = built.get("seed_random_button", null) as Button
 	_seed_random_button.pressed.connect(_on_seed_randomize)
-	row.add_child(_seed_random_button)
-
-	_generate_history_check = CheckButton.new()
-	_generate_history_check.text = "History"
+	_generate_history_check = built.get("history_check", null) as CheckButton
 	_generate_history_check.toggled.connect(_on_generate_history_toggled)
-	row.add_child(_generate_history_check)
-
-	_generate_history_dir_button = Button.new()
-	_generate_history_dir_button.text = "History Dir"
+	_generate_history_dir_button = built.get("history_dir_button", null) as Button
 	_generate_history_dir_button.pressed.connect(_on_generate_history_dir_pressed)
-	row.add_child(_generate_history_dir_button)
+	_register_generation_component("generate_run_controls", row)
 	return row
 
 
 func _build_seed_lab_controls() -> Control:
-	var box = VBoxContainer.new()
-	box.add_child(_build_section_label("Seed Lab"))
-	var action_row = HBoxContainer.new()
-	var count_label = Label.new()
-	count_label.text = "Seeds"
-	action_row.add_child(count_label)
-	_seed_lab_count_spin = SpinBox.new()
-	_seed_lab_count_spin.min_value = 1
-	_seed_lab_count_spin.max_value = 100
-	_seed_lab_count_spin.value = 3
-	_seed_lab_count_spin.step = 1
-	action_row.add_child(_seed_lab_count_spin)
-	_seed_lab_run_button = Button.new()
-	_seed_lab_run_button.text = "Run Batch"
+	var built := HexMapGenResultControls.build_seed_lab_controls()
+	var box = built.get("root", null) as Control
+	_seed_lab_count_spin = built.get("count_spin", null) as SpinBox
+	_seed_lab_run_button = built.get("run_button", null) as Button
 	_seed_lab_run_button.pressed.connect(_on_seed_lab_run_pressed)
-	action_row.add_child(_seed_lab_run_button)
-	_seed_lab_promote_button = Button.new()
-	_seed_lab_promote_button.text = "Promote to Document"
+	_seed_lab_promote_button = built.get("promote_button", null) as Button
 	_seed_lab_promote_button.pressed.connect(_on_seed_lab_promote_pressed)
-	action_row.add_child(_seed_lab_promote_button)
-	box.add_child(action_row)
-	_seed_lab_score_tree = Tree.new()
-	_seed_lab_score_tree.hide_root = true
-	_seed_lab_score_tree.columns = 6
-	_seed_lab_score_tree.set_column_titles_visible(true)
-	_seed_lab_score_tree.set_column_title(0, "rank")
-	_seed_lab_score_tree.set_column_title(1, "seed")
-	_seed_lab_score_tree.set_column_title(2, "score")
-	_seed_lab_score_tree.set_column_title(3, "status")
-	_seed_lab_score_tree.set_column_title(4, "cells")
-	_seed_lab_score_tree.set_column_title(5, "validation")
-	_seed_lab_score_tree.custom_minimum_size = Vector2(0, 120)
-	_seed_lab_score_tree.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_seed_lab_score_tree = built.get("score_tree", null) as Tree
 	_seed_lab_score_tree.item_selected.connect(_on_seed_lab_score_selected)
-	box.add_child(_seed_lab_score_tree)
-	_seed_lab_preview_label = Label.new()
-	_seed_lab_preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(_seed_lab_preview_label)
-	_seed_lab_status_label = Label.new()
-	_seed_lab_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(_seed_lab_status_label)
+	_seed_lab_preview_label = built.get("preview_label", null) as Label
+	_seed_lab_status_label = built.get("status_label", null) as Label
+	_register_generation_component("generate_seed_lab", box)
 	_refresh_seed_lab_screen()
 	return box
 
@@ -1341,29 +1313,13 @@ func _build_tile_layer_controls() -> Control:
 
 
 func _build_generation_progress_controls() -> Control:
-	_generation_progress_container = HBoxContainer.new()
-	_generation_progress_container.visible = false
-
-	_generation_progress_status_label = Label.new()
-	_generation_progress_status_label.text = "Ready"
-	_generation_progress_container.add_child(_generation_progress_status_label)
-
-	_generation_progress_bar = ProgressBar.new()
-	_generation_progress_bar.min_value = 0.0
-	_generation_progress_bar.max_value = 1.0
-	_generation_progress_bar.step = 0.01
-	_generation_progress_bar.value = 0.0
-	_generation_progress_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_generation_progress_bar.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_generation_progress_container.add_child(_generation_progress_bar)
-
-	var cancel_row = HBoxContainer.new()
-	_generation_progress_cancel_button = Button.new()
-	_generation_progress_cancel_button.text = "Cancel"
-	_generation_progress_cancel_button.disabled = true
+	var built := HexMapGenRunControls.build_progress_controls()
+	_generation_progress_container = built.get("root", null) as HBoxContainer
+	_generation_progress_status_label = built.get("status_label", null) as Label
+	_generation_progress_bar = built.get("progress_bar", null) as ProgressBar
+	_generation_progress_cancel_button = built.get("cancel_button", null) as Button
 	_generation_progress_cancel_button.pressed.connect(_on_cancel_generation_pressed)
-	cancel_row.add_child(_generation_progress_cancel_button)
-	_generation_progress_container.add_child(cancel_row)
+	_register_generation_component("generate_progress_controls", _generation_progress_container)
 
 	return _generation_progress_container
 

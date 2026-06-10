@@ -65,7 +65,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
 | `ARCH-NEXT-10` | `COMPLETE` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-10_PHYSICAL_WORKSPACE_UI_NODE_EXTRACTION/` | Physical Workspace UI node construction extraction | `HexMapWorkspace`, screen component scripts, tests | Workspace is tab host/context/dispatcher; screen-specific UI node construction moves to screen component classes; screen contract tests cover class ownership. |
-| `ARCH-NEXT-11` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-11_GENERATE_DOCK_INTERNAL_COMPONENT_SPLIT/` | Generate Dock internal component split | `hex_map_gen_dock.gd`, Generate components, tests | Generate run controls, profile/source controls, preview/result summary, output/apply/save controls split; `HexMapGenDock` orchestrates state binding. |
+| `ARCH-NEXT-11` | `COMPLETE` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-11_GENERATE_DOCK_INTERNAL_COMPONENT_SPLIT/` | Generate Dock internal component split | `hex_map_gen_dock.gd`, Generate components, tests | Generate run controls, profile/source controls, preview/result summary, output/apply/save controls split; `HexMapGenDock` orchestrates state binding. |
 | `CAT-NEXT-10` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/CAT-NEXT-10_CATALOG_EDITOR_COMPONENT_EXTRACTION/` | Catalog editor component extraction | Catalog screen/components, EditTool helper cleanup, tests | Catalog entry list/detail/create/validate is dedicated component; Paint/EditTool no longer own normal Catalog UI responsibility. |
 | `PERF-NEXT-10` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PERF-NEXT-10_CHUNKED_TILEMAP_APPLY_IMPLEMENTATION/` | Chunked TileMap apply implementation | apply paths, progress/busy state, tests | Target apply scope is explicit; apply advances by chunks; progress/busy state and cancel/interrupt consistency are defined and tested. |
 
@@ -75,7 +75,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `GEN-NEXT-10` | `BACKLOG` | `ARCH-NEXT-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GEN-NEXT-10_GENERATE_TAB_LAYOUT_REDESIGN/` | Full Generate tab layout redesign | Generate components, UI metric tests | Input/Profile/Preview/Apply/Save/Performance state are visually separated; reload/save/apply purpose is clear. |
+| `GEN-NEXT-10` | `READY` | `ARCH-NEXT-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GEN-NEXT-10_GENERATE_TAB_LAYOUT_REDESIGN/` | Full Generate tab layout redesign | Generate components, UI metric tests | Input/Profile/Preview/Apply/Save/Performance state are visually separated; reload/save/apply purpose is clear. |
 | `GEN-NEXT-11` | `BACKLOG` | `GEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GEN-NEXT-11_GENERATE_QA_PREVIEW_THUMBNAILS/` | Generate / QA preview thumbnails | Generate/QA preview components, cache/budget tests | Generate candidate thumbnail and QA score row preview are connected; thumbnail is from project document/candidate data, not sample fallback. |
 | `CAT-NEXT-11` | `BACKLOG` | `CAT-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/CAT-NEXT-11_CATALOG_TILE_SCENE_PREVIEW_UI/` | Rich tile / scene preview UI | Catalog entry detail, TileSet/scene preview tests | Atlas tile and scene preview render in detail; invalid/missing preview uses badge/tooltip. |
 | `SCREEN-NEXT-10` | `READY` | `ARCH-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/SCREEN-NEXT-10_RESOURCES_LAYERS_EXPORT_VISUAL_REDESIGN/` | Rich Resources / Layers / Export visual redesign | Resources/Layers/Export screens, tests | Resources, Layers, and Export become clearer task surfaces for node/document/dependency, role tree, and runtime handoff state. |
@@ -140,7 +140,7 @@ acceptance / test path:
 
 ## 9. Current pointer
 
-Current recommended next task: `ARCH-NEXT-11`.
+Current recommended next task: `CAT-NEXT-10`.
 
 Reason:
 
@@ -160,7 +160,9 @@ Reason:
 - `UI-METRIC-08` is complete.
 - Phase M2 review is recorded at `docs/review/roadmap/UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP_M2_PHASE_REVIEW_2026-06-10.md`.
 - `ARCH-NEXT-10` is complete.
-- `ARCH-NEXT-11` is the first READY task in queue order.
+- `ARCH-NEXT-11` is complete.
+- `CAT-NEXT-10` is the first READY task in queue order.
+- `GEN-NEXT-10` is READY because `ARCH-NEXT-11` is complete.
 - `SCREEN-NEXT-10` is READY because `ARCH-NEXT-10` is complete.
 - `ARCH-NEXT-20` is READY because `ARCH-NEXT-10` is complete.
 - `TEST-NEXT-10` remains READY because `UI-METRIC-08` is complete.
@@ -465,3 +467,25 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_workspace_component_registry.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/ARCH-NEXT-10_TEST_RESULT_2026-06-10.md`
+
+### ARCH-NEXT-11 Generate Dock internal component split
+
+proof:
+  plan: `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-11_GENERATE_DOCK_INTERNAL_COMPONENT_SPLIT/`
+  review: `docs/review/autopilot/ARCH-NEXT-11_SELF_REVIEW_2026-06-10.md`
+  execution:
+    - `docs/review/autopilot/ARCH-NEXT-11_SELF_REVIEW_2026-06-10.md`
+  ui_metrics:
+    - `.godot_user/ui-metrics/20260610-185451-65129/workspace_layout_metrics.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_gen_dock.gd`
+    - `addons/hex_map_kit/editor/hex_map_gen_run_controls.gd`
+    - `addons/hex_map_kit/editor/hex_map_gen_source_controls.gd`
+    - `addons/hex_map_kit/editor/hex_map_gen_output_controls.gd`
+    - `addons/hex_map_kit/editor/hex_map_gen_result_controls.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/ARCH-NEXT-11_TEST_RESULT_2026-06-10.md`
