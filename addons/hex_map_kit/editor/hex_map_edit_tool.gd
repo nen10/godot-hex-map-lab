@@ -1,6 +1,6 @@
 @tool
 class_name HexMapEditTool
-extends Control
+extends VBoxContainer
 
 const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
 const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
@@ -1201,25 +1201,15 @@ func forward_canvas_gui_input(event: InputEvent) -> bool:
 func _build_ui() -> void:
 	if _mode_option != null:
 		return
-	var scroll = ScrollContainer.new()
-	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	add_child(scroll)
-
-	var root = VBoxContainer.new()
-	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	root.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	scroll.add_child(root)
 
 	var title = Label.new()
 	title.text = "Hex Map Edit"
-	root.add_child(title)
+	add_child(title)
 
 	_paint_workspace_summary_label = _new_detail_label()
-	root.add_child(_wrap_labeled("Paint Workspace", _paint_workspace_summary_label))
+	add_child(_wrap_labeled("Paint Workspace", _paint_workspace_summary_label))
 	_paint_affordance_label = _new_detail_label()
-	root.add_child(_wrap_labeled("Paint Affordances", _paint_affordance_label))
+	add_child(_wrap_labeled("Paint Affordances", _paint_affordance_label))
 
 	var document_actions_row = HBoxContainer.new()
 	_document_new_button = Button.new()
@@ -1244,22 +1234,22 @@ func _build_ui() -> void:
 	_document_validate_button.pressed.connect(_on_validate_document_pressed)
 	document_actions_row.add_child(_document_validate_button)
 	document_actions_row.visible = false
-	root.add_child(document_actions_row)
+	add_child(document_actions_row)
 
 	_document_label = Label.new()
 	_document_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_document_label.visible = false
-	root.add_child(_document_label)
+	add_child(_document_label)
 	_document_inspector = HexMapDocumentInspector.new()
 	_document_inspector.visible = false
-	root.add_child(_document_inspector)
+	add_child(_document_inspector)
 	if _can_use_editor_resource_picker():
 		_document_resource_picker = EditorResourcePicker.new()
 		_document_resource_picker.base_type = "HexMapDocumentResource"
 		_document_resource_picker.resource_changed.connect(_on_document_resource_changed)
 		var document_resource_row = _wrap_labeled("Document Resource", _document_resource_picker)
 		document_resource_row.visible = false
-		root.add_child(document_resource_row)
+		add_child(document_resource_row)
 	var document_path_row = HBoxContainer.new()
 	document_path_row.visible = false
 	_document_path_edit = LineEdit.new()
@@ -1268,7 +1258,7 @@ func _build_ui() -> void:
 	_document_path_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_document_path_edit.tooltip_text = "Saved location. Use Document Resource, Browse, or Save As to change it."
 	document_path_row.add_child(_wrap_labeled("Saved", _document_path_edit))
-	root.add_child(document_path_row)
+	add_child(document_path_row)
 
 	var import_resource_row = HBoxContainer.new()
 	import_resource_row.visible = false
@@ -1294,7 +1284,7 @@ func _build_ui() -> void:
 		_import_map_button.text = "Convert"
 		_import_map_button.pressed.connect(_on_import_map_pressed)
 		import_resource_row.add_child(_import_map_button)
-	root.add_child(import_resource_row)
+	add_child(import_resource_row)
 	var import_path_row = HBoxContainer.new()
 	import_path_row.visible = false
 	_import_map_path_edit = LineEdit.new()
@@ -1303,7 +1293,7 @@ func _build_ui() -> void:
 	_import_map_path_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_import_map_path_edit.tooltip_text = "Saved location of the selected import resource."
 	import_path_row.add_child(_wrap_labeled("Import Saved", _import_map_path_edit))
-	root.add_child(import_path_row)
+	add_child(import_path_row)
 
 	var export_path_row = HBoxContainer.new()
 	export_path_row.visible = false
@@ -1321,10 +1311,10 @@ func _build_ui() -> void:
 	_export_save_as_button.text = "Export As..."
 	_export_save_as_button.pressed.connect(_on_export_save_as_pressed)
 	export_path_row.add_child(_export_save_as_button)
-	root.add_child(export_path_row)
+	add_child(export_path_row)
 
 	_target_label = Label.new()
-	root.add_child(_target_label)
+	add_child(_target_label)
 	var target_row = HBoxContainer.new()
 	_target_option = OptionButton.new()
 	_target_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1334,19 +1324,19 @@ func _build_ui() -> void:
 	_target_refresh_button.text = "Refresh"
 	_target_refresh_button.pressed.connect(_on_target_refresh_pressed)
 	target_row.add_child(_target_refresh_button)
-	root.add_child(target_row)
+	add_child(target_row)
 
 	_mode_option = OptionButton.new()
 	for mode_name in EDIT_MODE_NAMES:
 		_mode_option.add_item(mode_name)
 	_mode_option.select(_edit_mode)
 	_mode_option.item_selected.connect(_on_mode_selected)
-	root.add_child(_wrap_labeled("Edit Mode", _mode_option))
+	add_child(_wrap_labeled("Edit Mode", _mode_option))
 
 	var layer_stack_title = Label.new()
 	layer_stack_title.text = "Layer Stack"
 	layer_stack_title.visible = false
-	root.add_child(layer_stack_title)
+	add_child(layer_stack_title)
 	_layer_stack_template_option = OptionButton.new()
 	_layer_stack_template_option.add_item("Standard Authoring")
 	_layer_stack_template_option.set_item_metadata(0, "standard")
@@ -1355,7 +1345,7 @@ func _build_ui() -> void:
 	_layer_stack_template_option.item_selected.connect(_on_layer_stack_template_selected)
 	var layer_stack_template_row = _wrap_labeled("Template", _layer_stack_template_option)
 	layer_stack_template_row.visible = false
-	root.add_child(layer_stack_template_row)
+	add_child(layer_stack_template_row)
 	_layer_stack_role_tree = Tree.new()
 	_layer_stack_role_tree.hide_root = true
 	_layer_stack_role_tree.columns = 6
@@ -1370,11 +1360,11 @@ func _build_ui() -> void:
 	_layer_stack_role_tree.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_layer_stack_role_tree.item_selected.connect(_on_layer_stack_role_selected)
 	_layer_stack_role_tree.visible = false
-	root.add_child(_layer_stack_role_tree)
+	add_child(_layer_stack_role_tree)
 	_layer_stack_status_label = _new_detail_label()
 	var layer_stack_status_row = _wrap_labeled("Layer Stack Status", _layer_stack_status_label)
 	layer_stack_status_row.visible = false
-	root.add_child(layer_stack_status_row)
+	add_child(layer_stack_status_row)
 	var layer_stack_actions = HBoxContainer.new()
 	layer_stack_actions.visible = false
 	_layer_stack_create_missing_button = Button.new()
@@ -1389,28 +1379,28 @@ func _build_ui() -> void:
 	_layer_stack_clear_role_button.text = "Clear Role"
 	_layer_stack_clear_role_button.pressed.connect(_on_clear_layer_stack_role_pressed)
 	layer_stack_actions.add_child(_layer_stack_clear_role_button)
-	root.add_child(layer_stack_actions)
+	add_child(layer_stack_actions)
 
 	var catalog_title = Label.new()
 	catalog_title.text = "Catalog"
-	root.add_child(catalog_title)
+	add_child(catalog_title)
 	if _can_use_editor_resource_picker():
 		_catalog_resource_picker = EditorResourcePicker.new()
 		_catalog_resource_picker.base_type = "HexTileCatalogResource"
 		_catalog_resource_picker.resource_changed.connect(_on_catalog_resource_changed)
-		root.add_child(_wrap_labeled("Catalog Resource", _catalog_resource_picker))
+		add_child(_wrap_labeled("Catalog Resource", _catalog_resource_picker))
 
 		_catalog_tile_set_picker = EditorResourcePicker.new()
 		_catalog_tile_set_picker.base_type = "TileSet"
 		_catalog_tile_set_picker.resource_changed.connect(_on_catalog_tile_set_changed)
-		root.add_child(_wrap_labeled("TileSet", _catalog_tile_set_picker))
+		add_child(_wrap_labeled("TileSet", _catalog_tile_set_picker))
 
 		_catalog_scene_picker = EditorResourcePicker.new()
 		_catalog_scene_picker.base_type = "PackedScene"
 		_catalog_scene_picker.resource_changed.connect(_on_catalog_scene_changed)
 		var scene_entry_resource_row = _wrap_labeled("Scene Entry Resource", _catalog_scene_picker)
 		scene_entry_resource_row.visible = false
-		root.add_child(scene_entry_resource_row)
+		add_child(scene_entry_resource_row)
 
 	_catalog_entries_tree = Tree.new()
 	_catalog_entries_tree.hide_root = true
@@ -1424,11 +1414,11 @@ func _build_ui() -> void:
 	_catalog_entries_tree.custom_minimum_size = Vector2(0, 132)
 	_catalog_entries_tree.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_catalog_entries_tree.visible = false
-	root.add_child(_catalog_entries_tree)
+	add_child(_catalog_entries_tree)
 	_catalog_status_label = _new_detail_label()
 	var catalog_status_row = _wrap_labeled("Catalog Status", _catalog_status_label)
 	catalog_status_row.visible = false
-	root.add_child(catalog_status_row)
+	add_child(catalog_status_row)
 	var catalog_actions_row = HBoxContainer.new()
 	catalog_actions_row.visible = false
 	_catalog_add_atlas_button = Button.new()
@@ -1443,11 +1433,11 @@ func _build_ui() -> void:
 	_catalog_validate_button.text = "Validate Catalog"
 	_catalog_validate_button.pressed.connect(_on_validate_catalog_pressed)
 	catalog_actions_row.add_child(_catalog_validate_button)
-	root.add_child(catalog_actions_row)
+	add_child(catalog_actions_row)
 
 	var default_tiles_title = Label.new()
 	default_tiles_title.text = "Default Target Tiles"
-	root.add_child(default_tiles_title)
+	add_child(default_tiles_title)
 	var default_catalog_row = HBoxContainer.new()
 	_default_floor_catalog_option = _new_catalog_option("floor")
 	_default_floor_catalog_option.item_selected.connect(_on_default_floor_catalog_selected)
@@ -1455,7 +1445,7 @@ func _build_ui() -> void:
 	_default_wall_catalog_option = _new_catalog_option("wall")
 	_default_wall_catalog_option.item_selected.connect(_on_default_wall_catalog_selected)
 	default_catalog_row.add_child(_wrap_labeled("Wall Catalog", _default_wall_catalog_option))
-	root.add_child(default_catalog_row)
+	add_child(default_catalog_row)
 	var default_floor_row = HBoxContainer.new()
 	_default_floor_source_spin = _new_int_spin(0, -1, 4096)
 	_default_floor_atlas_x_spin = _new_int_spin(0, -1, 4096)
@@ -1469,7 +1459,7 @@ func _build_ui() -> void:
 	default_floor_row.add_child(_wrap_labeled("Atlas X", _default_floor_atlas_x_spin))
 	default_floor_row.add_child(_wrap_labeled("Atlas Y", _default_floor_atlas_y_spin))
 	default_floor_row.add_child(_wrap_labeled("Alt", _default_floor_alternative_spin))
-	root.add_child(default_floor_row)
+	add_child(default_floor_row)
 
 	var default_wall_row = HBoxContainer.new()
 	_default_wall_source_spin = _new_int_spin(0, -1, 4096)
@@ -1484,7 +1474,7 @@ func _build_ui() -> void:
 	default_wall_row.add_child(_wrap_labeled("Atlas X", _default_wall_atlas_x_spin))
 	default_wall_row.add_child(_wrap_labeled("Atlas Y", _default_wall_atlas_y_spin))
 	default_wall_row.add_child(_wrap_labeled("Alt", _default_wall_alternative_spin))
-	root.add_child(default_wall_row)
+	add_child(default_wall_row)
 
 	var default_tile_action_row = HBoxContainer.new()
 	_default_tile_read_button = Button.new()
@@ -1495,16 +1485,16 @@ func _build_ui() -> void:
 	_default_tile_apply_button.text = "Apply Target Tiles"
 	_default_tile_apply_button.pressed.connect(_on_apply_default_tiles_pressed)
 	default_tile_action_row.add_child(_default_tile_apply_button)
-	root.add_child(default_tile_action_row)
+	add_child(default_tile_action_row)
 
 	var target_asset_title = Label.new()
 	target_asset_title.text = "Target TileSet / Atlas"
-	root.add_child(target_asset_title)
+	add_child(target_asset_title)
 	if _can_use_editor_resource_picker():
 		_target_tile_set_picker = EditorResourcePicker.new()
 		_target_tile_set_picker.base_type = "TileSet"
 		_target_tile_set_picker.resource_changed.connect(_on_target_tile_set_changed)
-		root.add_child(_wrap_labeled("TileSet", _target_tile_set_picker))
+		add_child(_wrap_labeled("TileSet", _target_tile_set_picker))
 	var target_atlas_row = HBoxContainer.new()
 	_target_atlas_path_edit = LineEdit.new()
 	_target_atlas_path_edit.placeholder_text = "res://path/to/tiles.png"
@@ -1520,7 +1510,7 @@ func _build_ui() -> void:
 	_target_atlas_apply_button.text = "Apply Atlas"
 	_target_atlas_apply_button.pressed.connect(_on_apply_target_atlas_pressed)
 	target_atlas_row.add_child(_target_atlas_apply_button)
-	root.add_child(target_atlas_row)
+	add_child(target_atlas_row)
 
 	var sample_row = HBoxContainer.new()
 	_target_sample_row = sample_row
@@ -1536,14 +1526,14 @@ func _build_ui() -> void:
 	_select_display_layer_button.text = "Select Internal TileMapLayer"
 	_select_display_layer_button.pressed.connect(_on_select_display_layer_pressed)
 	sample_row.add_child(_select_display_layer_button)
-	root.add_child(sample_row)
+	add_child(sample_row)
 
 	_tile_catalog_option = _new_catalog_option("floor")
 	_tile_catalog_option.item_selected.connect(_on_tile_catalog_selected)
-	root.add_child(_wrap_labeled("Tile Catalog", _tile_catalog_option))
+	add_child(_wrap_labeled("Tile Catalog", _tile_catalog_option))
 	_tile_source_spin = _new_int_spin(0, -1, 4096)
 	_tile_source_spin.value_changed.connect(_on_tile_payload_changed)
-	root.add_child(_wrap_labeled("Tile Source", _tile_source_spin))
+	add_child(_wrap_labeled("Tile Source", _tile_source_spin))
 	var atlas_row = HBoxContainer.new()
 	_tile_atlas_x_spin = _new_int_spin(0, 0, 4096)
 	_tile_atlas_y_spin = _new_int_spin(0, 0, 4096)
@@ -1554,43 +1544,43 @@ func _build_ui() -> void:
 	atlas_row.add_child(_wrap_labeled("Atlas X", _tile_atlas_x_spin))
 	atlas_row.add_child(_wrap_labeled("Atlas Y", _tile_atlas_y_spin))
 	atlas_row.add_child(_wrap_labeled("Alt", _tile_alternative_spin))
-	root.add_child(atlas_row)
+	add_child(atlas_row)
 
 	_overlay_item_key_edit = LineEdit.new()
 	_overlay_item_key_edit.placeholder_text = "overlay item key"
 	_overlay_item_key_edit.text = _overlay_item_key
 	_overlay_item_key_edit.text_changed.connect(_on_overlay_item_key_changed)
-	root.add_child(_wrap_labeled("Overlay Item Raw", _overlay_item_key_edit))
+	add_child(_wrap_labeled("Overlay Item Raw", _overlay_item_key_edit))
 	_overlay_item_key_option = OptionButton.new()
 	_overlay_item_key_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_overlay_item_key_option.item_selected.connect(_on_overlay_item_key_option_selected)
-	root.add_child(_wrap_labeled("Overlay Item", _overlay_item_key_option))
+	add_child(_wrap_labeled("Overlay Item", _overlay_item_key_option))
 
 	_object_id_edit = LineEdit.new()
 	_object_id_edit.placeholder_text = "object_id"
 	_object_id_edit.text_changed.connect(_on_object_payload_changed)
 	_object_catalog_option = _new_catalog_option("object")
 	_object_catalog_option.item_selected.connect(_on_object_catalog_selected)
-	root.add_child(_wrap_labeled("Object Key", _object_catalog_option))
-	root.add_child(_wrap_labeled("Object", _object_id_edit))
+	add_child(_wrap_labeled("Object Key", _object_catalog_option))
+	add_child(_wrap_labeled("Object", _object_id_edit))
 	_object_rotation_spin = _new_int_spin(0, -360, 360)
 	_object_rotation_spin.value_changed.connect(_on_object_rotation_changed)
 	_object_variant_edit = LineEdit.new()
 	_object_variant_edit.placeholder_text = "variant"
 	_object_variant_edit.text_changed.connect(_on_object_payload_changed)
-	root.add_child(_wrap_labeled("Variant Raw", _object_variant_edit))
+	add_child(_wrap_labeled("Variant Raw", _object_variant_edit))
 	_object_variant_option = OptionButton.new()
 	_object_variant_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_object_variant_option.item_selected.connect(_on_object_variant_option_selected)
 	var object_variant_row = HBoxContainer.new()
 	object_variant_row.add_child(_wrap_labeled("Rotation", _object_rotation_spin))
 	object_variant_row.add_child(_wrap_labeled("Variant", _object_variant_option))
-	root.add_child(object_variant_row)
+	add_child(object_variant_row)
 	if _can_use_editor_resource_picker():
 		_object_database_picker = EditorResourcePicker.new()
 		_object_database_picker.base_type = "HexObjectDatabaseResource"
 		_object_database_picker.resource_changed.connect(_on_object_database_changed)
-		root.add_child(_wrap_labeled("Object DB", _object_database_picker))
+		add_child(_wrap_labeled("Object DB", _object_database_picker))
 	_object_definition_tree = Tree.new()
 	_object_definition_tree.hide_root = true
 	_object_definition_tree.columns = 4
@@ -1602,27 +1592,29 @@ func _build_ui() -> void:
 	_object_definition_tree.custom_minimum_size = Vector2(0, 120)
 	_object_definition_tree.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_object_definition_tree.item_selected.connect(_on_object_definition_tree_selected)
-	root.add_child(_object_definition_tree)
+	var tree_wrapper = VBoxContainer.new()
+	tree_wrapper.add_child(_object_definition_tree)
+	add_child(tree_wrapper)
 	if _can_use_editor_resource_picker():
 		_object_definition_scene_picker = EditorResourcePicker.new()
 		_object_definition_scene_picker.base_type = "PackedScene"
 		_object_definition_scene_picker.resource_changed.connect(_on_object_definition_scene_changed)
-		root.add_child(_wrap_labeled("Definition Scene", _object_definition_scene_picker))
+		add_child(_wrap_labeled("Definition Scene", _object_definition_scene_picker))
 	var object_definition_actions = HBoxContainer.new()
 	_object_add_definition_button = Button.new()
 	_object_add_definition_button.text = "Add Object Definition"
 	_object_add_definition_button.pressed.connect(_on_add_object_definition_pressed)
 	object_definition_actions.add_child(_object_add_definition_button)
-	root.add_child(object_definition_actions)
+	add_child(object_definition_actions)
 	_object_palette_status_label = _new_detail_label()
-	root.add_child(_wrap_labeled("Object Palette", _object_palette_status_label))
+	add_child(_wrap_labeled("Object Palette", _object_palette_status_label))
 	_object_properties_edit = LineEdit.new()
 	_object_properties_edit.placeholder_text = "{\"key\":\"value\"}"
 	_object_properties_edit.text_changed.connect(_on_object_payload_changed)
-	root.add_child(_wrap_labeled("Properties", _object_properties_edit))
+	add_child(_wrap_labeled("Properties", _object_properties_edit))
 	_object_property_editor = VBoxContainer.new()
 	_object_property_editor.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	root.add_child(_wrap_labeled("Placement Properties", _object_property_editor))
+	add_child(_wrap_labeled("Placement Properties", _object_property_editor))
 	_object_properties_table = Tree.new()
 	_object_properties_table.columns = 2
 	_object_properties_table.hide_root = true
@@ -1630,25 +1622,25 @@ func _build_ui() -> void:
 	_object_properties_table.set_column_title(0, "Key")
 	_object_properties_table.set_column_title(1, "Value")
 	_object_properties_table.set_column_titles_visible(true)
-	root.add_child(_wrap_labeled("Property Table", _object_properties_table))
+	add_child(_wrap_labeled("Property Table", _object_properties_table))
 	_object_spawn_condition_edit = LineEdit.new()
 	_object_spawn_condition_edit.placeholder_text = "spawn condition"
 	_object_spawn_condition_edit.text_changed.connect(_on_object_payload_changed)
-	root.add_child(_wrap_labeled("Spawn Raw", _object_spawn_condition_edit))
+	add_child(_wrap_labeled("Spawn Raw", _object_spawn_condition_edit))
 	_object_spawn_condition_option = OptionButton.new()
 	_object_spawn_condition_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_object_spawn_condition_option.item_selected.connect(_on_object_spawn_condition_option_selected)
-	root.add_child(_wrap_labeled("Spawn", _object_spawn_condition_option))
+	add_child(_wrap_labeled("Spawn", _object_spawn_condition_option))
 
 	_label_id_edit = LineEdit.new()
 	_label_id_edit.placeholder_text = "label_id"
 	_label_id_edit.text_changed.connect(_on_label_payload_changed)
-	root.add_child(_wrap_labeled("Label ID", _label_id_edit))
+	add_child(_wrap_labeled("Label ID", _label_id_edit))
 	if _can_use_editor_resource_picker():
 		_label_database_picker = EditorResourcePicker.new()
 		_label_database_picker.base_type = "HexLabelDatabaseResource"
 		_label_database_picker.resource_changed.connect(_on_label_database_changed)
-		root.add_child(_wrap_labeled("Label DB", _label_database_picker))
+		add_child(_wrap_labeled("Label DB", _label_database_picker))
 	_label_definition_tree = Tree.new()
 	_label_definition_tree.columns = 4
 	_label_definition_tree.hide_root = true
@@ -1659,31 +1651,31 @@ func _build_ui() -> void:
 	_label_definition_tree.set_column_title(3, "tags")
 	_label_definition_tree.set_column_titles_visible(true)
 	_label_definition_tree.item_selected.connect(_on_label_definition_tree_selected)
-	root.add_child(_wrap_labeled("Label Definitions", _label_definition_tree))
+	add_child(_wrap_labeled("Label Definitions", _label_definition_tree))
 
 	_label_text_edit = LineEdit.new()
 	_label_text_edit.placeholder_text = "label text"
 	_label_text_edit.text_changed.connect(_on_label_payload_changed)
-	root.add_child(_wrap_labeled("Text", _label_text_edit))
+	add_child(_wrap_labeled("Text", _label_text_edit))
 
 	_status_label = Label.new()
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	root.add_child(_status_label)
+	add_child(_status_label)
 	_target_status_label = _new_detail_label()
-	root.add_child(_wrap_labeled("Target Status", _target_status_label))
+	add_child(_wrap_labeled("Target Status", _target_status_label))
 	_last_edit_detail_label = _new_detail_label()
-	root.add_child(_wrap_labeled("Last Edit", _last_edit_detail_label))
+	add_child(_wrap_labeled("Last Edit", _last_edit_detail_label))
 	_persistence_detail_label = _new_detail_label()
-	root.add_child(_wrap_labeled("Save / Export", _persistence_detail_label))
+	add_child(_wrap_labeled("Save / Export", _persistence_detail_label))
 	_validation_dashboard = HexMapValidationDashboard.new()
 	_validation_dashboard.validate_requested.connect(_on_validate_document_pressed)
 	_validation_dashboard.issue_selected.connect(_on_validation_issue_selected)
 	_validation_dashboard.visible = false
-	root.add_child(_validation_dashboard)
+	add_child(_validation_dashboard)
 	_copy_debug_report_button = Button.new()
 	_copy_debug_report_button.text = "Copy Debug Report"
 	_copy_debug_report_button.pressed.connect(_on_copy_debug_report_pressed)
-	root.add_child(_copy_debug_report_button)
+	add_child(_copy_debug_report_button)
 	_sync_resource_pickers()
 	_refresh_layer_stack_screen()
 	_refresh_catalog_entries()
@@ -3227,7 +3219,7 @@ func _set_control_row_visible(control, visible: bool) -> void:
 		return
 	if control is Control:
 		var parent = (control as Control).get_parent()
-		if parent is Control:
+		if parent is Control and parent != self:
 			(parent as Control).visible = visible
 		else:
 			(control as Control).visible = visible

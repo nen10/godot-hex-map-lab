@@ -4877,16 +4877,8 @@ func _test_map_edit_tool_builds_dock_controls() -> void:
 	tool.refresh_target_layer_options(scene_root)
 
 	_assert_eq(tool.name, "Hex Map Edit", "map edit tool keeps stable standalone component name")
-	var scroll = tool.get_child(0) as ScrollContainer
-	_assert_true(scroll != null, "map edit tool wraps dock controls in a ScrollContainer")
-	_assert_eq(scroll.anchor_right, 1.0, "map edit tool ScrollContainer fills dock width")
-	_assert_eq(scroll.anchor_bottom, 1.0, "map edit tool ScrollContainer fills dock height")
-	_assert_true(scroll.get_child(0) is VBoxContainer, "map edit tool ScrollContainer owns the controls container")
-	_assert_eq(
-		(scroll.get_child(0) as VBoxContainer).size_flags_vertical,
-		Control.SIZE_SHRINK_BEGIN,
-		"map edit tool controls keep vertical minimum size inside ScrollContainer"
-	)
+	_assert_true(tool is VBoxContainer, "map edit tool is a VBoxContainer for native child layout")
+	_assert_true(tool.get_child_count() > 0, "map edit tool owns dock controls directly as children")
 	if tool._can_use_editor_resource_picker():
 		_assert_true(tool._document_resource_picker != null, "map edit tool keeps non-primary document resource picker")
 	else:

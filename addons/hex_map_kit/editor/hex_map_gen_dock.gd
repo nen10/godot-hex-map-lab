@@ -1,6 +1,6 @@
 @tool
 class_name HexMapGenDock
-extends Control
+extends VBoxContainer
 
 signal generation_finished(cancelled: bool)
 
@@ -626,16 +626,7 @@ func _reload_save_apply_purpose_clear(actions: Dictionary) -> bool:
 
 
 func _build_ui() -> void:
-	var scroll = ScrollContainer.new()
-	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	add_child(scroll)
-
-	var root = VBoxContainer.new()
-	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(root)
-
-	root.add_child(_build_section_label("Hex Map Kit"))
+	add_child(_build_section_label("Hex Map Kit"))
 
 	var input_section := _build_generate_layout_section(GENERATE_LAYOUT_SECTION_INPUT, "Input")
 	var profile_source_section := _build_generate_layout_section(GENERATE_LAYOUT_SECTION_PROFILE_SOURCE, "Profile / Source")
@@ -643,11 +634,13 @@ func _build_ui() -> void:
 	var apply_save_section := _build_generate_layout_section(GENERATE_LAYOUT_SECTION_APPLY_SAVE, "Apply / Save")
 	var performance_section := _build_generate_layout_section(GENERATE_LAYOUT_SECTION_PERFORMANCE, "Performance")
 
-	root.add_child(input_section)
-	root.add_child(profile_source_section)
-	root.add_child(preview_section)
-	root.add_child(apply_save_section)
-	root.add_child(performance_section)
+	add_child(input_section)
+	add_child(profile_source_section)
+	add_child(preview_section)
+	add_child(apply_save_section)
+	add_child(performance_section)
+
+	# ── Input ──────────────────────────────────────────────
 
 	var target_row = HBoxContainer.new()
 	target_row.add_child(_build_small_label("Target Layer"))
@@ -789,6 +782,8 @@ func _build_ui() -> void:
 
 	_wall_prob_row = _build_wall_probability_controls()
 	_add_to_generate_layout_section(input_section, _wall_prob_row)
+
+	# ── Profile / Source ───────────────────────────────────
 
 	_sym_options_container = VBoxContainer.new()
 	_sym_options_container.visible = false
