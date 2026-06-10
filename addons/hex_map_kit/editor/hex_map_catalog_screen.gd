@@ -2,6 +2,8 @@
 class_name HexMapCatalogScreen
 extends RefCounted
 
+const HexTileCatalogPreviewControl = preload("res://addons/hex_map_kit/editor/hex_tile_catalog_preview_control.gd")
+
 const TAB_NAME := "Catalog"
 const WORKFLOW_OWNER := "Catalog"
 const USER_TASK := "Manage catalog entries, previews, tags, and catalog validation."
@@ -52,10 +54,26 @@ static func build_catalog_detail_panel() -> Dictionary:
 	var entry_label := _wrapped_label()
 	panel.add_child(entry_label)
 
+	var preview_row := HBoxContainer.new()
+	preview_row.name = "Catalog Entry Preview Row"
+	preview_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.add_child(preview_row)
+
+	var preview_control := HexTileCatalogPreviewControl.new()
+	preview_control.name = "Catalog Entry Preview"
+	preview_row.add_child(preview_control)
+
+	var badge_label := _wrapped_label()
+	badge_label.name = "Catalog Entry Preview Badge"
+	badge_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	preview_row.add_child(badge_label)
+
 	return {
 		"root": panel,
 		"status_label": status_label,
 		"entry_label": entry_label,
+		"preview_control": preview_control,
+		"preview_badge_label": badge_label,
 	}
 
 

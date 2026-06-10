@@ -57,6 +57,7 @@ const HexMapSampleSettingsPanel = preload("res://addons/hex_map_kit/editor/hex_m
 const HexMapResourcesScreen = preload("res://addons/hex_map_kit/editor/hex_map_resources_screen.gd")
 const HexMapCatalogScreen = preload("res://addons/hex_map_kit/editor/hex_map_catalog_screen.gd")
 const HexMapCatalogEditorComponent = preload("res://addons/hex_map_kit/editor/hex_map_catalog_editor_component.gd")
+const HexTileCatalogPreviewControl = preload("res://addons/hex_map_kit/editor/hex_tile_catalog_preview_control.gd")
 const HexMapLayersScreen = preload("res://addons/hex_map_kit/editor/hex_map_layers_screen.gd")
 const HexMapValidateScreen = preload("res://addons/hex_map_kit/editor/hex_map_validate_screen.gd")
 const HexMapQAScreen = preload("res://addons/hex_map_kit/editor/hex_map_qa_screen.gd")
@@ -1818,6 +1819,7 @@ func _test_catalog_asset_screen_manages_project_catalog_without_samples() -> voi
 		)
 	_assert_true(catalog_owner_ids.has("catalog_entry_list"), "CAT-NEXT-10 Catalog component owns entry list")
 	_assert_true(catalog_owner_ids.has("catalog_entry_detail"), "CAT-NEXT-10 Catalog component owns entry detail")
+	_assert_true(catalog_owner_ids.has("catalog_entry_preview"), "CAT-NEXT-11 Catalog component owns entry preview")
 	_assert_true(catalog_owner_ids.has("catalog_entry_create"), "CAT-NEXT-10 Catalog component owns entry create actions")
 	_assert_true(catalog_owner_ids.has("catalog_entry_validate"), "CAT-NEXT-10 Catalog component owns entry validation")
 	_assert_true(bool(snapshot["entry_list_visible"]), "SCREEN-20 Catalog exposes entry list state")
@@ -1828,6 +1830,16 @@ func _test_catalog_asset_screen_manages_project_catalog_without_samples() -> voi
 	_assert_eq(workspace.generation_dock().tile_catalog(), null, "Catalog screen does not inject generation sample catalog")
 	var missing_detail = snapshot["entry_detail"] as Dictionary
 	_assert_true(not bool(missing_detail["preview_available"]), "TAB-52 Catalog screen starts with unavailable preview")
+	_assert_eq(
+		String(missing_detail["preview_render_kind"]),
+		HexTileCatalogPreviewControl.RENDER_UNAVAILABLE,
+		"CAT-NEXT-11 missing Catalog detail uses unavailable preview render kind"
+	)
+	_assert_eq(
+		String(missing_detail["preview_badge_text"]),
+		"Preview unavailable",
+		"CAT-NEXT-11 missing Catalog detail exposes preview badge"
+	)
 	_assert_eq(
 		String(missing_detail["preview_unavailable_reason"]),
 		"No Tile Catalog selected.",
@@ -1899,7 +1911,16 @@ func _test_catalog_asset_screen_manages_project_catalog_without_samples() -> voi
 	_assert_eq(String(atlas_detail["type_label"]), "Tile", "TAB-52 Catalog atlas detail has human type label")
 	_assert_true(bool(atlas_detail["preview_available"]), "TAB-52 Catalog atlas detail has tile preview")
 	_assert_eq(String(atlas_detail["preview_kind"]), "tile", "TAB-52 Catalog atlas detail reports tile preview kind")
+	_assert_eq(
+		String(atlas_detail["preview_render_kind"]),
+		HexTileCatalogPreviewControl.RENDER_ATLAS_TEXTURE_REGION,
+		"CAT-NEXT-11 Catalog atlas detail renders a TileSet atlas texture region"
+	)
 	_assert_true(String(atlas_detail["preview_text"]).contains("Tile source 0"), "TAB-52 Catalog atlas preview describes tile source")
+	var atlas_preview = atlas_detail["preview"] as Dictionary
+	_assert_true(atlas_preview.get("texture", null) is Texture2D, "CAT-NEXT-11 Catalog atlas preview carries texture")
+	_assert_true(atlas_preview.get("texture_region", null) is Rect2, "CAT-NEXT-11 Catalog atlas preview carries texture region")
+	_assert_true(not bool(atlas_preview.get("sample_source", true)), "CAT-NEXT-11 Catalog atlas preview does not use sample fallback")
 	var atlas_metadata = atlas_detail["metadata"] as Dictionary
 	_assert_eq(int(atlas_metadata["source_id"]), 0, "TAB-52 Catalog atlas source id is metadata")
 	_assert_eq(atlas_metadata["atlas_coords"], Vector2i.ZERO, "TAB-52 Catalog atlas coords are metadata")
@@ -1908,9 +1929,38 @@ func _test_catalog_asset_screen_manages_project_catalog_without_samples() -> voi
 	_assert_eq(String(scene_detail["type_label"]), "Scene", "TAB-52 Catalog scene detail has human type label")
 	_assert_true(bool(scene_detail["preview_available"]), "TAB-52 Catalog scene detail has scene preview")
 	_assert_eq(String(scene_detail["preview_kind"]), "scene", "TAB-52 Catalog scene detail reports scene preview kind")
+	_assert_eq(
+		String(scene_detail["preview_render_kind"]),
+		HexTileCatalogPreviewControl.RENDER_SCENE_RESOURCE,
+		"CAT-NEXT-11 Catalog scene detail renders a scene resource preview"
+	)
+	var scene_preview = scene_detail["preview"] as Dictionary
+	_assert_eq(String(scene_preview["scene_root_type"]), "Node2D", "CAT-NEXT-11 Catalog scene preview records scene root type")
 	snapshot = workspace.catalog_screen_snapshot()
 	_assert_true(bool(snapshot["tile_preview_visible"]), "SCREEN-20 Catalog exposes tile preview state")
 	_assert_true(not bool(snapshot["scene_preview_visible"]), "SCREEN-20 default selected entry keeps scene preview inactive until selected")
+	_assert_true(bool(snapshot["mounted_preview_present"]), "CAT-NEXT-11 Catalog detail mounts preview control")
+	var mounted_preview = snapshot["mounted_preview_snapshot"] as Dictionary
+	_assert_eq(
+		String(mounted_preview["render_kind"]),
+		HexTileCatalogPreviewControl.RENDER_ATLAS_TEXTURE_REGION,
+		"CAT-NEXT-11 mounted Catalog preview renders default selected atlas entry"
+	)
+	var mounted_preview_control := _find_catalog_preview_control(workspace, "Catalog Entry Preview")
+	_assert_true(mounted_preview_control is HexTileCatalogPreviewControl, "CAT-NEXT-11 Catalog mounted preview control is present")
+	_assert_eq(
+		String(mounted_preview_control.preview_snapshot()["render_kind"]),
+		HexTileCatalogPreviewControl.RENDER_ATLAS_TEXTURE_REGION,
+		"CAT-NEXT-11 mounted preview control stores atlas snapshot"
+	)
+	workspace.select_catalog_entry("object.spawn")
+	snapshot = workspace.catalog_screen_snapshot()
+	_assert_true(bool(snapshot["scene_preview_visible"]), "CAT-NEXT-11 selecting scene entry activates scene preview")
+	_assert_eq(
+		String((snapshot["mounted_preview_snapshot"] as Dictionary)["render_kind"]),
+		HexTileCatalogPreviewControl.RENDER_SCENE_RESOURCE,
+		"CAT-NEXT-11 mounted Catalog preview stores scene snapshot after selection"
+	)
 	var validation = workspace.validate_tile_catalog()
 	_assert_true(validation is HexMapValidationResult, "Catalog screen validate returns validation result")
 	_assert_eq(validation.issue_count(), 0, "Catalog screen validates project catalog with selected TileSet and PackedScene")
@@ -1920,13 +1970,24 @@ func _test_catalog_asset_screen_manages_project_catalog_without_samples() -> voi
 	placeholder_entry.display_name = "Unassigned Tile"
 	placeholder_entry.entry_type = HexTileCatalogEntry.TYPE_PLACEHOLDER
 	catalog.add_entry(placeholder_entry)
-	var placeholder_detail = workspace.catalog_entry_detail("placeholder.todo")
+	var placeholder_detail = workspace.select_catalog_entry("placeholder.todo")
 	_assert_eq(String(placeholder_detail["meaning"]), "Unassigned Tile", "TAB-52 Catalog placeholder detail exposes display name meaning")
 	_assert_true(not bool(placeholder_detail["preview_available"]), "TAB-52 Catalog placeholder preview is unavailable")
+	_assert_eq(
+		String(placeholder_detail["preview_badge_text"]),
+		"Preview unavailable",
+		"CAT-NEXT-11 Catalog placeholder exposes unavailable preview badge"
+	)
 	_assert_eq(
 		String(placeholder_detail["preview_unavailable_reason"]),
 		"Placeholder entry has no preview.",
 		"TAB-52 Catalog placeholder explains preview absence"
+	)
+	snapshot = workspace.catalog_screen_snapshot()
+	_assert_eq(
+		String(snapshot["mounted_preview_badge_tooltip"]),
+		"Placeholder entry has no preview.",
+		"CAT-NEXT-11 mounted Catalog badge tooltip explains placeholder preview absence"
 	)
 
 	var open_result = workspace.open_tile_catalog()
@@ -9050,6 +9111,16 @@ func _find_preview_thumbnail(node: Node, node_name: String) -> HexMapPreviewThum
 		return node as HexMapPreviewThumbnail
 	for child in node.get_children():
 		var found := _find_preview_thumbnail(child, node_name)
+		if found != null:
+			return found
+	return null
+
+
+func _find_catalog_preview_control(node: Node, node_name: String) -> HexTileCatalogPreviewControl:
+	if node is HexTileCatalogPreviewControl and node.name == node_name:
+		return node as HexTileCatalogPreviewControl
+	for child in node.get_children():
+		var found := _find_catalog_preview_control(child, node_name)
 		if found != null:
 			return found
 	return null

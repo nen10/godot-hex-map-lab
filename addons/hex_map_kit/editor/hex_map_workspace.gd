@@ -37,6 +37,7 @@ const HexMapExportScreen = preload("res://addons/hex_map_kit/editor/hex_map_expo
 const HexMapPaintScreen = preload("res://addons/hex_map_kit/editor/hex_map_paint_screen.gd")
 const HexMapSettingsScreen = preload("res://addons/hex_map_kit/editor/hex_map_settings_screen.gd")
 const HexMapPreviewThumbnail = preload("res://addons/hex_map_kit/editor/hex_map_preview_thumbnail.gd")
+const HexTileCatalogPreviewControl = preload("res://addons/hex_map_kit/editor/hex_tile_catalog_preview_control.gd")
 const HexMapValidationDashboard = preload("res://addons/hex_map_kit/editor/hex_map_validation_dashboard.gd")
 const HexMapValidationWorkflowState = preload("res://addons/hex_map_kit/editor/hex_map_validation_workflow_state.gd")
 const HexMapExportWorkflowState = preload("res://addons/hex_map_kit/editor/hex_map_export_workflow_state.gd")
@@ -60,6 +61,9 @@ var _resources_group_labels: Dictionary = {}
 var _catalog_detail_panel: VBoxContainer
 var _catalog_detail_status_label: Label
 var _catalog_detail_entry_label: Label
+var _catalog_detail_preview_control: HexTileCatalogPreviewControl
+var _catalog_detail_preview_badge_label: Label
+var _selected_catalog_entry_key := ""
 var _layer_stack_role_panel: VBoxContainer
 var _layer_stack_role_status_label: Label
 var _layer_stack_role_relationship_label: Label
@@ -1715,7 +1719,7 @@ func catalog_screen_snapshot() -> Dictionary:
 		HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG
 	)
 	var entry_rows := catalog_entry_rows()
-	var entry_detail := catalog_entry_detail()
+	var entry_detail := catalog_entry_detail(_selected_catalog_entry_key)
 	var validation_status := _catalog_validation_status(catalog)
 	var empty_state := _catalog_tab_empty_state(entry_rows, entry_detail)
 	return {
@@ -1741,6 +1745,13 @@ func catalog_screen_snapshot() -> Dictionary:
 		"entry_keys": catalog.keys() if catalog != null else PackedStringArray(),
 		"entry_rows": entry_rows,
 		"entry_detail": entry_detail,
+		"selected_entry_key": String(entry_detail.get("key", "")),
+		"entry_preview": entry_detail.get("preview", {}),
+		"entry_preview_badge": entry_detail.get("preview_badge", {}),
+		"mounted_preview_present": _catalog_detail_preview_control != null,
+		"mounted_preview_snapshot": _catalog_detail_preview_control.preview_snapshot() if _catalog_detail_preview_control != null else HexTileCatalogPreviewControl.unavailable_preview("not_mounted"),
+		"mounted_preview_badge_text": _catalog_detail_preview_badge_label.text if _catalog_detail_preview_badge_label != null else "",
+		"mounted_preview_badge_tooltip": _catalog_detail_preview_badge_label.tooltip_text if _catalog_detail_preview_badge_label != null else "",
 		"selected_entry": entry_detail,
 		"catalog_entry_workflow_owner": String(ownership.get("catalog_entry_workflow_owner", "Catalog")),
 		"entry_list_visible": true,
@@ -1790,6 +1801,13 @@ func catalog_entry_rows() -> Array[Dictionary]:
 func catalog_entry_detail(entry_key: String = "") -> Dictionary:
 	var catalog := workspace_asset_context().tile_catalog
 	return HexMapCatalogEditorComponent.entry_detail(catalog, entry_key)
+
+
+func select_catalog_entry(entry_key: String) -> Dictionary:
+	_selected_catalog_entry_key = entry_key.strip_edges()
+	var detail := catalog_entry_detail(_selected_catalog_entry_key)
+	_refresh_catalog_detail_panel()
+	return detail
 
 
 func create_tile_catalog(path: String) -> Dictionary:
@@ -3192,6 +3210,8 @@ func _mount_catalog_detail_panel() -> void:
 	_catalog_detail_panel = built.get("root", null) as VBoxContainer
 	_catalog_detail_status_label = built.get("status_label", null) as Label
 	_catalog_detail_entry_label = built.get("entry_label", null) as Label
+	_catalog_detail_preview_control = built.get("preview_control", null) as HexTileCatalogPreviewControl
+	_catalog_detail_preview_badge_label = built.get("preview_badge_label", null) as Label
 
 	(page as Control).add_child(_catalog_detail_panel)
 	_register_tab_component(
@@ -4251,7 +4271,7 @@ func _refresh_catalog_detail_panel() -> void:
 		if bool(entry_detail.get("present", false)):
 			var preview_text := String(entry_detail.get("preview_text", ""))
 			if preview_text == "":
-				preview_text = String(entry_detail.get("preview_unavailable_reason", "No preview."))
+				preview_text = String(entry_detail.get("preview_badge_text", entry_detail.get("preview_unavailable_reason", "No preview.")))
 			_catalog_detail_entry_label.text = "%s | %s | %s" % [
 				String(entry_detail.get("meaning", "")),
 				String(entry_detail.get("type_label", "")),
@@ -4260,7 +4280,16 @@ func _refresh_catalog_detail_panel() -> void:
 		else:
 			_catalog_detail_entry_label.text = _empty_state_inline_text(empty_state) \
 				if bool(empty_state.get("visible", false)) else String(entry_detail.get("preview_unavailable_reason", "No catalog entry selected."))
-		_catalog_detail_entry_label.tooltip_text = String(empty_state.get("help_tooltip", ""))
+		_catalog_detail_entry_label.tooltip_text = String(entry_detail.get("preview_badge_tooltip", empty_state.get("help_tooltip", "")))
+	if _catalog_detail_preview_control != null:
+		var preview = entry_detail.get("preview", {})
+		if preview is Dictionary:
+			_catalog_detail_preview_control.set_preview_snapshot(preview as Dictionary)
+		else:
+			_catalog_detail_preview_control.clear_preview("no_catalog_entry_preview")
+	if _catalog_detail_preview_badge_label != null:
+		_catalog_detail_preview_badge_label.text = String(entry_detail.get("preview_badge_text", "Preview unavailable"))
+		_catalog_detail_preview_badge_label.tooltip_text = String(entry_detail.get("preview_badge_tooltip", entry_detail.get("preview_unavailable_reason", "")))
 
 
 func _catalog_tile_set_tooltip() -> String:

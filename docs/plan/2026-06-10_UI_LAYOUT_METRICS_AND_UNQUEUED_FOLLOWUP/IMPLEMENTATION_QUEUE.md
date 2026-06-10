@@ -77,7 +77,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 |---|---|---|---|---|---|---|
 | `GEN-NEXT-10` | `COMPLETE` | `ARCH-NEXT-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GEN-NEXT-10_GENERATE_TAB_LAYOUT_REDESIGN/` | Full Generate tab layout redesign | Generate components, UI metric tests | Input/Profile/Preview/Apply/Save/Performance state are visually separated; reload/save/apply purpose is clear. |
 | `GEN-NEXT-11` | `COMPLETE` | `GEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GEN-NEXT-11_GENERATE_QA_PREVIEW_THUMBNAILS/` | Generate / QA preview thumbnails | Generate/QA preview components, cache/budget tests | Generate candidate thumbnail and QA score row preview are connected; thumbnail is from project document/candidate data, not sample fallback. |
-| `CAT-NEXT-11` | `READY` | `CAT-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/CAT-NEXT-11_CATALOG_TILE_SCENE_PREVIEW_UI/` | Rich tile / scene preview UI | Catalog entry detail, TileSet/scene preview tests | Atlas tile and scene preview render in detail; invalid/missing preview uses badge/tooltip. |
+| `CAT-NEXT-11` | `COMPLETE` | `CAT-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/CAT-NEXT-11_CATALOG_TILE_SCENE_PREVIEW_UI/` | Rich tile / scene preview UI | Catalog entry detail, TileSet/scene preview tests | Atlas tile and scene preview render in detail; invalid/missing preview uses badge/tooltip. |
 | `SCREEN-NEXT-10` | `READY` | `ARCH-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/SCREEN-NEXT-10_RESOURCES_LAYERS_EXPORT_VISUAL_REDESIGN/` | Rich Resources / Layers / Export visual redesign | Resources/Layers/Export screens, tests | Resources, Layers, and Export become clearer task surfaces for node/document/dependency, role tree, and runtime handoff state. |
 | `LAYER-NEXT-10` | `BACKLOG` | `SCREEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/LAYER-NEXT-10_LAYER_ROLE_EDITOR/` | Fine-grained Layer role editor | Layer screen/resource/tests | Role visible/locked/z-index/writable source can be edited and reflected in LayerStack/selected node state. |
 | `PAINT-NEXT-10` | `BACKLOG` | `SCREEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PAINT-NEXT-10_VIEWPORT_AFFORDANCE_POLISH/` | Paint viewport affordance polish | Paint tab, viewport adapter, tests | Brush cursor, selected cell, target layer, mode, and last edit feedback sync between viewport and Paint tab. |
@@ -140,7 +140,7 @@ acceptance / test path:
 
 ## 9. Current pointer
 
-Current recommended next task: `CAT-NEXT-11`.
+Current recommended next task: `SCREEN-NEXT-10`.
 
 Reason:
 
@@ -166,7 +166,7 @@ Reason:
 - Phase M3 review is recorded at `docs/review/roadmap/UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP_M3_PHASE_REVIEW_2026-06-10.md`.
 - `GEN-NEXT-10` is complete.
 - `GEN-NEXT-11` is complete.
-- `CAT-NEXT-11` is READY because `CAT-NEXT-10` is complete.
+- `CAT-NEXT-11` is complete.
 - `SCREEN-NEXT-10` is READY because `ARCH-NEXT-10` is complete.
 - `QA-NEXT-10` is READY because `GEN-NEXT-11` is complete.
 - `PERF-NEXT-11` is READY because `PERF-NEXT-10` is complete.
@@ -584,3 +584,24 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_workspace.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/GEN-NEXT-11_TEST_RESULT_2026-06-10.md`
+
+### CAT-NEXT-11 Catalog tile / scene preview UI
+
+proof:
+  plan: `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/CAT-NEXT-11_CATALOG_TILE_SCENE_PREVIEW_UI/`
+  review: `docs/review/autopilot/CAT-NEXT-11_SELF_REVIEW_2026-06-10.md`
+  execution:
+    - `docs/review/autopilot/CAT-NEXT-11_SELF_REVIEW_2026-06-10.md`
+  ui_metrics:
+    - `.godot_user/ui-metrics/20260610-195943-72258/workspace_layout_metrics.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_tile_catalog_preview_control.gd`
+    - `addons/hex_map_kit/editor/hex_map_catalog_editor_component.gd`
+    - `addons/hex_map_kit/editor/hex_map_catalog_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/CAT-NEXT-11_TEST_RESULT_2026-06-10.md`

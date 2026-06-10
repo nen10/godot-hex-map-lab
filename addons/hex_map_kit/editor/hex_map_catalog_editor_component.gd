@@ -7,6 +7,7 @@ const HexMapValidationResult = preload("res://addons/hex_map_kit/adapter/hex_map
 const HexTileCatalogEntry = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd")
 const HexTileCatalogResource = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd")
 const HexTileCatalogValidator = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_validator.gd")
+const HexTileCatalogPreviewControl = preload("res://addons/hex_map_kit/editor/hex_tile_catalog_preview_control.gd")
 
 const SCREEN_SCRIPT := "hex_map_catalog_editor_component.gd"
 const SCREEN_ROLE_SOURCE := "HexMapCatalogEditorComponent"
@@ -17,6 +18,7 @@ static func component_owner_rows() -> Array[Dictionary]:
 	return [
 		_component_owner("catalog_entry_list", "HexMapCatalogEditorComponent", "CatalogEntryList"),
 		_component_owner("catalog_entry_detail", "HexMapCatalogEditorComponent", "CatalogEntryDetail"),
+		_component_owner("catalog_entry_preview", "HexMapCatalogEditorComponent", "CatalogEntryPreview"),
 		_component_owner("catalog_entry_create", "HexMapCatalogEditorComponent", "CatalogEntryCreateActions"),
 		_component_owner("catalog_entry_validate", "HexMapCatalogEditorComponent", "CatalogEntryValidation"),
 	]
@@ -154,8 +156,12 @@ static func entry_detail_from_entry(catalog: HexTileCatalogResource, entry) -> D
 		"preview": preview,
 		"preview_available": bool(preview.get("available", false)),
 		"preview_kind": String(preview.get("kind", "")),
+		"preview_render_kind": String(preview.get("render_kind", "")),
 		"preview_text": String(preview.get("text", "")),
 		"preview_unavailable_reason": String(preview.get("unavailable_reason", "")),
+		"preview_badge": preview.get("badge", {}),
+		"preview_badge_text": String(preview.get("badge_text", "")),
+		"preview_badge_tooltip": String(preview.get("badge_tooltip", "")),
 		"metadata": {
 			"source_id": int(entry_value(entry, "source_id", 0)),
 			"atlas_coords": entry_value(entry, "atlas_coords", Vector2i.ZERO),
@@ -180,13 +186,22 @@ static func missing_entry_detail(reason: String) -> Dictionary:
 		"preview": {
 			"available": false,
 			"kind": "none",
+			"render_kind": HexTileCatalogPreviewControl.RENDER_UNAVAILABLE,
 			"text": "",
 			"unavailable_reason": reason,
+			"badge": _preview_badge(false, reason),
+			"badge_text": "Preview unavailable",
+			"badge_tooltip": reason,
+			"sample_source": false,
 		},
 		"preview_available": false,
 		"preview_kind": "none",
+		"preview_render_kind": HexTileCatalogPreviewControl.RENDER_UNAVAILABLE,
 		"preview_text": "",
 		"preview_unavailable_reason": reason,
+		"preview_badge": _preview_badge(false, reason),
+		"preview_badge_text": "Preview unavailable",
+		"preview_badge_tooltip": reason,
 		"metadata": {},
 		"raw_coordinate_controls_primary": false,
 	}
@@ -201,36 +216,93 @@ static func entry_preview(catalog: HexTileCatalogResource, entry) -> Dictionary:
 			var source_id := int(entry_value(entry, "source_id", 0))
 			if not catalog.tile_set.has_source(source_id):
 				return preview_unavailable("tile", "TileSet source %d is missing." % source_id)
-			return {
-				"available": true,
-				"kind": "tile",
-				"text": "Tile source %d at %s" % [
-					source_id,
-					atlas_text(entry_value(entry, "atlas_coords", Vector2i.ZERO)),
-				],
-				"unavailable_reason": "",
-			}
+			var source = catalog.tile_set.get_source(source_id)
+			if not source is TileSetAtlasSource:
+				return preview_unavailable("tile", "TileSet source %d is not an atlas source." % source_id)
+			var atlas_source := source as TileSetAtlasSource
+			var atlas_coords: Vector2i = entry_value(entry, "atlas_coords", Vector2i.ZERO)
+			if not atlas_source.has_tile(atlas_coords):
+				return preview_unavailable("tile", "Atlas tile %s is missing." % atlas_text(atlas_coords))
+			return atlas_preview(catalog.tile_set, atlas_source, entry)
 		HexTileCatalogEntry.TYPE_SCENE:
 			var scene = entry_value(entry, "scene", null)
 			if not scene is PackedScene:
 				return preview_unavailable("scene", "PackedScene is not assigned.")
-			return {
-				"available": true,
-				"kind": "scene",
-				"text": "Scene %s" % entry_scene_path(entry),
-				"unavailable_reason": "",
-			}
+			return scene_preview(entry)
 		HexTileCatalogEntry.TYPE_PLACEHOLDER:
 			return preview_unavailable("placeholder", "Placeholder entry has no preview.")
 	return preview_unavailable("invalid", "Entry type is not recognized.")
 
 
+static func atlas_preview(tile_set: TileSet, atlas_source: TileSetAtlasSource, entry) -> Dictionary:
+	var source_id := int(entry_value(entry, "source_id", 0))
+	var atlas_coords: Vector2i = entry_value(entry, "atlas_coords", Vector2i.ZERO)
+	var alternative_tile := int(entry_value(entry, "alternative_tile", 0))
+	var region_size := atlas_source.texture_region_size
+	var region := Rect2(
+		Vector2(atlas_coords.x * region_size.x, atlas_coords.y * region_size.y),
+		Vector2(region_size)
+	)
+	var text := "Tile source %d at %s" % [source_id, atlas_text(atlas_coords)]
+	var badge := _preview_badge(true, "Atlas tile preview")
+	return {
+		"available": true,
+		"kind": "tile",
+		"render_kind": HexTileCatalogPreviewControl.RENDER_ATLAS_TEXTURE_REGION,
+		"text": text,
+		"unavailable_reason": "",
+		"badge": badge,
+		"badge_text": String(badge.get("text", "")),
+		"badge_tooltip": String(badge.get("tooltip", "")),
+		"sample_source": false,
+		"tile_set": tile_set,
+		"source_id": source_id,
+		"atlas_coords": atlas_coords,
+		"alternative_tile": alternative_tile,
+		"texture": atlas_source.texture,
+		"texture_region": region,
+		"texture_region_size": region_size,
+	}
+
+
+static func scene_preview(entry) -> Dictionary:
+	var scene = entry_value(entry, "scene", null) as PackedScene
+	var root_type := _scene_root_type(scene)
+	var scene_tile_id := -1
+	var atlas_coords = entry_value(entry, "atlas_coords", Vector2i(-1, 0))
+	if atlas_coords is Vector2i:
+		scene_tile_id = int(atlas_coords.x)
+	var text := "Scene %s" % root_type
+	var badge := _preview_badge(true, "Scene preview")
+	return {
+		"available": true,
+		"kind": "scene",
+		"render_kind": HexTileCatalogPreviewControl.RENDER_SCENE_RESOURCE,
+		"text": text,
+		"unavailable_reason": "",
+		"badge": badge,
+		"badge_text": String(badge.get("text", "")),
+		"badge_tooltip": String(badge.get("tooltip", "")),
+		"sample_source": false,
+		"scene": scene,
+		"scene_resource_path": entry_scene_path(entry),
+		"scene_root_type": root_type,
+		"scene_tile_id": scene_tile_id,
+	}
+
+
 static func preview_unavailable(kind: String, reason: String) -> Dictionary:
+	var badge := _preview_badge(false, reason)
 	return {
 		"available": false,
 		"kind": kind,
+		"render_kind": HexTileCatalogPreviewControl.RENDER_UNAVAILABLE,
 		"text": "",
 		"unavailable_reason": reason,
+		"badge": badge,
+		"badge_text": String(badge.get("text", "")),
+		"badge_tooltip": String(badge.get("tooltip", "")),
+		"sample_source": false,
 	}
 
 
@@ -268,6 +340,27 @@ static func entry_scene_path(entry) -> String:
 		var path := String((scene as PackedScene).resource_path)
 		return path if path != "" else "unsaved PackedScene"
 	return ""
+
+
+static func _scene_root_type(scene: PackedScene) -> String:
+	if scene == null:
+		return "PackedScene"
+	if scene.can_instantiate():
+		var instance := scene.instantiate()
+		if instance != null:
+			var result := instance.get_class()
+			instance.free()
+			return result
+	return "PackedScene"
+
+
+static func _preview_badge(available: bool, tooltip: String) -> Dictionary:
+	return {
+		"available": available,
+		"text": "Preview ready" if available else "Preview unavailable",
+		"tone": "ok" if available else "warning",
+		"tooltip": tooltip,
+	}
 
 
 static func atlas_text(value) -> String:
