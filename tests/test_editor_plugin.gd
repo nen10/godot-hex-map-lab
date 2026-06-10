@@ -55,6 +55,7 @@ const HexMapSampleAssetDuplicator = preload("res://addons/hex_map_kit/editor/hex
 const HexMapSampleSettingsPanel = preload("res://addons/hex_map_kit/editor/hex_map_sample_settings_panel.gd")
 const HexMapResourcesScreen = preload("res://addons/hex_map_kit/editor/hex_map_resources_screen.gd")
 const HexMapCatalogScreen = preload("res://addons/hex_map_kit/editor/hex_map_catalog_screen.gd")
+const HexMapCatalogEditorComponent = preload("res://addons/hex_map_kit/editor/hex_map_catalog_editor_component.gd")
 const HexMapLayersScreen = preload("res://addons/hex_map_kit/editor/hex_map_layers_screen.gd")
 const HexMapValidateScreen = preload("res://addons/hex_map_kit/editor/hex_map_validate_screen.gd")
 const HexMapQAScreen = preload("res://addons/hex_map_kit/editor/hex_map_qa_screen.gd")
@@ -1751,6 +1752,35 @@ func _test_catalog_asset_screen_manages_project_catalog_without_samples() -> voi
 	)
 	_assert_true(not bool(snapshot["sample_candidates_visible"]), "Catalog screen hides sample catalog candidates while sample mode is OFF")
 	_assert_eq(String(snapshot["catalog_entry_workflow_owner"]), "Catalog", "SCREEN-20 Catalog owns catalog entry workflow")
+	_assert_eq(
+		String(snapshot["catalog_editor_component_owner"]),
+		"HexMapCatalogEditorComponent",
+		"CAT-NEXT-10 Catalog screen reports dedicated editor component owner"
+	)
+	var catalog_owner_rows = snapshot["catalog_component_owner_rows"] as Array
+	_assert_eq(
+		catalog_owner_rows.size(),
+		HexMapCatalogEditorComponent.component_owner_rows().size(),
+		"CAT-NEXT-10 Catalog editor component owner row count"
+	)
+	var catalog_owner_ids := PackedStringArray()
+	for row in catalog_owner_rows:
+		var row_data := row as Dictionary
+		catalog_owner_ids.append(String(row_data.get("component_id", "")))
+		_assert_eq(
+			String(row_data.get("screen_role_source", "")),
+			"HexMapCatalogEditorComponent",
+			"CAT-NEXT-10 Catalog editor owner row source"
+		)
+		_assert_eq(
+			String(row_data.get("component_class", "")),
+			"HexMapCatalogEditorComponent",
+			"CAT-NEXT-10 Catalog editor owner row class"
+		)
+	_assert_true(catalog_owner_ids.has("catalog_entry_list"), "CAT-NEXT-10 Catalog component owns entry list")
+	_assert_true(catalog_owner_ids.has("catalog_entry_detail"), "CAT-NEXT-10 Catalog component owns entry detail")
+	_assert_true(catalog_owner_ids.has("catalog_entry_create"), "CAT-NEXT-10 Catalog component owns entry create actions")
+	_assert_true(catalog_owner_ids.has("catalog_entry_validate"), "CAT-NEXT-10 Catalog component owns entry validation")
 	_assert_true(bool(snapshot["entry_list_visible"]), "SCREEN-20 Catalog exposes entry list state")
 	_assert_true(bool(snapshot["entry_detail_visible"]), "SCREEN-20 Catalog exposes entry detail state")
 	_assert_true(bool(snapshot["tags_status_visible"]), "SCREEN-20 Catalog exposes tags/status state")

@@ -15,6 +15,7 @@ const HexMapPaintScreen = preload("res://addons/hex_map_kit/editor/hex_map_paint
 const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
 const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
 const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
+const HexMapCatalogEditorComponent = preload("res://addons/hex_map_kit/editor/hex_map_catalog_editor_component.gd")
 const HexMapValidationDashboard = preload("res://addons/hex_map_kit/editor/hex_map_validation_dashboard.gd")
 const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
 const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
@@ -23,7 +24,6 @@ const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_
 const HexObjectDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_object_definition_resource.gd")
 const HexTileCatalogEntry = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd")
 const HexTileCatalogResource = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd")
-const HexTileCatalogValidator = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_validator.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 
@@ -2801,12 +2801,19 @@ func _on_add_catalog_atlas_entry_pressed() -> void:
 	if catalog == null:
 		_set_status("No catalog selected.")
 		return
-	var entry = HexTileCatalogEntry.new()
-	entry.key = _unique_catalog_key("atlas.entry")
-	entry.display_name = entry.key
-	entry.entry_type = HexTileCatalogEntry.TYPE_ATLAS
-	entry.tags = PackedStringArray(["terrain"])
-	catalog.add_entry(entry)
+	var result := HexMapCatalogEditorComponent.create_atlas_entry(
+		catalog,
+		_unique_catalog_key("atlas.entry"),
+		catalog.tile_set,
+		0,
+		Vector2i.ZERO
+	)
+	if not bool(result.get("ok", false)):
+		_set_status("Cannot add atlas catalog entry without a TileSet.")
+		return
+	var entry = result.get("entry", null)
+	if entry != null:
+		entry.tags = PackedStringArray(["terrain"])
 	_last_catalog_validation_result = null
 	_refresh_catalog_options()
 	_refresh_catalog_entries()
@@ -2818,13 +2825,17 @@ func _on_add_catalog_scene_entry_pressed() -> void:
 	if catalog == null:
 		_set_status("No catalog selected.")
 		return
-	var entry = HexTileCatalogEntry.new()
-	entry.key = _unique_catalog_key("scene.entry")
-	entry.display_name = entry.key
-	entry.entry_type = HexTileCatalogEntry.TYPE_SCENE
-	entry.scene = _catalog_scene_resource
-	entry.tags = PackedStringArray(["object"])
-	catalog.add_entry(entry)
+	var result := HexMapCatalogEditorComponent.create_scene_entry(
+		catalog,
+		_unique_catalog_key("scene.entry"),
+		_catalog_scene_resource
+	)
+	if not bool(result.get("ok", false)):
+		_set_status("Cannot add scene catalog entry without a PackedScene.")
+		return
+	var entry = result.get("entry", null)
+	if entry != null:
+		entry.tags = PackedStringArray(["object"])
 	_last_catalog_validation_result = null
 	_refresh_catalog_options()
 	_refresh_catalog_entries()
@@ -2833,7 +2844,7 @@ func _on_add_catalog_scene_entry_pressed() -> void:
 
 func _on_validate_catalog_pressed() -> void:
 	var catalog = _ensure_tile_catalog()
-	_last_catalog_validation_result = HexTileCatalogValidator.validate_catalog(catalog)
+	_last_catalog_validation_result = HexMapCatalogEditorComponent.validation_result(catalog)
 	_selected_validation_issue.clear()
 	_validation_focus_status.clear()
 	if _validation_dashboard != null:
@@ -5073,41 +5084,11 @@ func catalog_entry_rows() -> Array[Dictionary]:
 	var catalog = _ensure_tile_catalog()
 	if catalog == null:
 		return []
-	var validation = _catalog_validation_result()
-	var status_by_index = _catalog_status_by_entry_index(validation)
-	var rows: Array[Dictionary] = []
-	for index in range(catalog.entries.size()):
-		var entry = catalog.entries[index]
-		if entry == null:
-			rows.append({
-				"key": "<missing>",
-				"type": "",
-				"preview": "",
-				"tags": "",
-				"status": String(status_by_index.get(index, "warning")),
-			})
-			continue
-		rows.append({
-			"key": String(entry.get("key")),
-			"type": String(entry.get("entry_type")),
-			"preview": _catalog_entry_preview_text(entry),
-			"tags": _catalog_entry_tags_text(entry),
-			"status": String(status_by_index.get(index, "ok")),
-		})
-	return rows
+	return HexMapCatalogEditorComponent.paint_entry_rows(catalog, _catalog_validation_result())
 
 
 func catalog_validation_summary() -> Dictionary:
-	var validation = _catalog_validation_result()
-	if validation == null:
-		return {}
-	return {
-		"errors": validation.error_count(),
-		"warnings": validation.warning_count(),
-		"issues": validation.issue_count(),
-		"entries": int(validation.summary.get("entries", 0)),
-		"tile_set_present": bool(validation.summary.get("tile_set_present", false)),
-	}
+	return HexMapCatalogEditorComponent.validation_summary(_ensure_tile_catalog(), _catalog_validation_result())
 
 
 func _refresh_catalog_entries() -> void:
@@ -5122,72 +5103,16 @@ func _refresh_catalog_entries() -> void:
 			item.set_text(3, String(row.get("tags", "")))
 			item.set_text(4, String(row.get("status", "")))
 	if _catalog_status_label != null:
-		_catalog_status_label.text = _catalog_status_text()
+		_catalog_status_label.text = HexMapCatalogEditorComponent.paint_status_text(
+			_ensure_tile_catalog(),
+			_catalog_validation_result()
+		)
 
 
 func _catalog_validation_result():
 	if _last_catalog_validation_result == null:
-		_last_catalog_validation_result = HexTileCatalogValidator.validate_catalog(_ensure_tile_catalog())
+		_last_catalog_validation_result = HexMapCatalogEditorComponent.validation_result(_ensure_tile_catalog())
 	return _last_catalog_validation_result
-
-
-func _catalog_status_by_entry_index(validation) -> Dictionary:
-	var statuses := {}
-	if validation == null:
-		return statuses
-	for issue in validation.issues:
-		if not issue is Dictionary:
-			continue
-		var metadata = issue.get("metadata", {})
-		if not metadata is Dictionary or not metadata.has("entry_index"):
-			continue
-		var entry_index = int(metadata.get("entry_index", -1))
-		if entry_index < 0:
-			continue
-		var severity = String(issue.get("severity", ""))
-		if severity == HexMapValidationResult.SEVERITY_ERROR:
-			statuses[entry_index] = "error"
-		elif not statuses.has(entry_index):
-			statuses[entry_index] = "warning"
-	return statuses
-
-
-func _catalog_entry_preview_text(entry) -> String:
-	var entry_type = String(entry.get("entry_type"))
-	if entry_type == HexTileCatalogEntry.TYPE_ATLAS:
-		return "tile %d %s alt %d" % [
-			int(entry.get("source_id")),
-			_atlas_text(entry.get("atlas_coords")),
-			int(entry.get("alternative_tile")),
-		]
-	if entry_type == HexTileCatalogEntry.TYPE_SCENE:
-		var scene = entry.get("scene")
-		return "scene" if scene is PackedScene else "missing scene"
-	if entry_type == HexTileCatalogEntry.TYPE_PLACEHOLDER:
-		return "placeholder"
-	return "invalid"
-
-
-func _catalog_entry_tags_text(entry) -> String:
-	var tags: PackedStringArray = entry.get("tags")
-	return ",".join(tags)
-
-
-func _catalog_status_text() -> String:
-	var catalog = _ensure_tile_catalog()
-	if catalog == null:
-		return "No catalog selected."
-	var validation = _catalog_validation_result()
-	var label = String(catalog.display_name if catalog.display_name != "" else catalog.catalog_id)
-	if label == "":
-		label = "unnamed catalog"
-	return "%s entries=%d TileSet=%s errors=%d warnings=%d" % [
-		label,
-		catalog.entries.size(),
-		"yes" if catalog.tile_set != null else "no",
-		validation.error_count() if validation != null else 0,
-		validation.warning_count() if validation != null else 0,
-	]
 
 
 func _unique_catalog_key(prefix: String) -> String:
