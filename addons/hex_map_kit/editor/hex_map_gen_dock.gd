@@ -29,6 +29,7 @@ const HexMapGenRunControls = preload("res://addons/hex_map_kit/editor/hex_map_ge
 const HexMapGenSourceControls = preload("res://addons/hex_map_kit/editor/hex_map_gen_source_controls.gd")
 const HexMapGenOutputControls = preload("res://addons/hex_map_kit/editor/hex_map_gen_output_controls.gd")
 const HexMapGenResultControls = preload("res://addons/hex_map_kit/editor/hex_map_gen_result_controls.gd")
+const HexMapPreviewThumbnail = preload("res://addons/hex_map_kit/editor/hex_map_preview_thumbnail.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const HexToricCoordinate = preload("res://addons/hex_map_kit/core/hex_toric_coordinate.gd")
 const HexRandomizer = preload("res://addons/hex_map_kit/core/hex_randomizer.gd")
@@ -157,7 +158,7 @@ const GENERATE_LAYOUT_SECTION_DEFINITIONS := [
 		"section_id": "preview",
 		"label": "Preview",
 		"state_role": "Inspect generated preview/result state before document mutation.",
-		"component_ids": ["generate_seed_lab", "generate_result_summary"],
+		"component_ids": ["generate_seed_lab", "generate_candidate_thumbnail", "generate_result_summary"],
 		"action_purposes": [
 			"run_seed_batch",
 			"promote_seed_to_document",
@@ -211,6 +212,7 @@ var _seed_lab_count_spin: SpinBox
 var _seed_lab_run_button: Button
 var _seed_lab_score_tree: Tree
 var _seed_lab_preview_label: Label
+var _seed_lab_preview_thumbnail: HexMapPreviewThumbnail
 var _seed_lab_promote_button: Button
 var _seed_lab_status_label: Label
 var _seed_lab_selected_row: Dictionary = {}
@@ -306,6 +308,7 @@ var _generate_button: Button
 var _save_button: Button
 var _apply_layer_button: Button
 var _stats_label: Label
+var _candidate_preview_thumbnail: HexMapPreviewThumbnail
 var _generation_progress_container: HBoxContainer
 var _generation_progress_status_label: Label
 var _generation_progress_bar: ProgressBar
@@ -755,6 +758,7 @@ func _build_ui() -> void:
 	_add_to_generate_layout_section(input_section, generate_methods)
 
 	_add_to_generate_layout_section(input_section, _build_seed_controls())
+	_add_to_generate_layout_section(preview_section, _build_candidate_thumbnail_controls())
 	_add_to_generate_layout_section(preview_section, _build_seed_lab_controls())
 	_add_to_generate_layout_section(performance_section, _build_generation_progress_controls())
 
@@ -921,6 +925,15 @@ func _build_result_summary_controls() -> Control:
 	return root
 
 
+func _build_candidate_thumbnail_controls() -> Control:
+	var built := HexMapGenResultControls.build_candidate_thumbnail()
+	var root = built.get("root", null) as Control
+	_candidate_preview_thumbnail = built.get("thumbnail", null) as HexMapPreviewThumbnail
+	_register_generation_component("generate_candidate_thumbnail", root)
+	_refresh_candidate_preview_thumbnail()
+	return root
+
+
 func output_target_snapshot() -> Dictionary:
 	var selected_layer := _selected_hex_tile_map_layer()
 	var selected_document = selected_layer.level_document_resource if selected_layer != null else null
@@ -941,6 +954,7 @@ func output_target_snapshot() -> Dictionary:
 		"document_generation_metadata": relationship_metadata,
 		"last_apply": _last_output_apply_result.duplicate(true),
 		"last_tile_map_apply_report": _last_tile_map_apply_report.duplicate(true),
+		"candidate_preview": candidate_preview_snapshot(),
 	}
 	snapshot["preview_result_state"] = _output_preview_result_state(snapshot)
 	snapshot["document_result_state"] = _output_document_result_state(snapshot)
@@ -1106,6 +1120,43 @@ func _selected_document_output_block_reason() -> String:
 
 func _generated_output_present() -> bool:
 	return _current_data != null or _current_overlay_data != null
+
+
+func candidate_preview_snapshot() -> Dictionary:
+	if _overlay_mode_enabled() and _current_overlay_data != null:
+		return HexMapPreviewThumbnail.preview_from_overlay_data(_current_overlay_data, {
+			"source_context": "generate_current_candidate",
+			"seed": int(_seed_spin.value) if _seed_spin != null else 0,
+		})
+	if _current_data != null:
+		return HexMapPreviewThumbnail.preview_from_map_data(_current_data, {
+			"source_context": "generate_current_candidate",
+			"seed": int(_seed_spin.value) if _seed_spin != null else 0,
+		})
+	return HexMapPreviewThumbnail.unavailable_preview("no_generated_candidate", {
+		"source_context": "generate_current_candidate",
+		"seed": int(_seed_spin.value) if _seed_spin != null else 0,
+	})
+
+
+func _refresh_candidate_preview_thumbnail() -> void:
+	if _candidate_preview_thumbnail == null:
+		return
+	_candidate_preview_thumbnail.set_preview_snapshot(candidate_preview_snapshot())
+
+
+func _selected_seed_preview_snapshot() -> Dictionary:
+	if _seed_lab_selected_row.is_empty():
+		return HexMapPreviewThumbnail.unavailable_preview("no_selected_seed", {
+			"source_context": "generate_seed_lab_selection",
+		})
+	var preview = _seed_lab_selected_row.get("preview", {}) as Dictionary
+	if preview.is_empty():
+		return HexMapPreviewThumbnail.unavailable_preview("selected_seed_has_no_preview", {
+			"source_context": "generate_seed_lab_selection",
+			"seed": int(_seed_lab_selected_row.get("seed", 0)),
+		})
+	return preview.duplicate(true)
 
 
 func _node_display_path(node: Node) -> String:
@@ -1480,6 +1531,9 @@ func _build_seed_lab_controls() -> Control:
 	_seed_lab_score_tree = built.get("score_tree", null) as Tree
 	_seed_lab_score_tree.item_selected.connect(_on_seed_lab_score_selected)
 	_seed_lab_preview_label = built.get("preview_label", null) as Label
+	_seed_lab_preview_thumbnail = built.get("preview_thumbnail", null) as HexMapPreviewThumbnail
+	if _seed_lab_preview_thumbnail != null:
+		_seed_lab_preview_thumbnail.set_meta("hex_generate_layout_section_id", GENERATE_LAYOUT_SECTION_PREVIEW)
 	_seed_lab_status_label = built.get("status_label", null) as Label
 	_register_generation_component("generate_seed_lab", box)
 	_refresh_seed_lab_screen()
@@ -3279,6 +3333,8 @@ func _refresh_seed_lab_preview() -> void:
 		return
 	if _seed_lab_selected_row.is_empty():
 		_seed_lab_preview_label.text = "Selected Seed: none"
+		if _seed_lab_preview_thumbnail != null:
+			_seed_lab_preview_thumbnail.clear_preview("no_selected_seed")
 		return
 	_seed_lab_preview_label.text = "Selected Seed: %d  score=%.2f  cells=%d  status=%s" % [
 		int(_seed_lab_selected_row.get("seed", 0)),
@@ -3286,6 +3342,8 @@ func _refresh_seed_lab_preview() -> void:
 		int(_seed_lab_selected_row.get("cells", 0)),
 		String(_seed_lab_selected_row.get("status", "")),
 	]
+	if _seed_lab_preview_thumbnail != null:
+		_seed_lab_preview_thumbnail.set_preview_snapshot(_selected_seed_preview_snapshot())
 
 
 func _seed_lab_validation_text(row: Dictionary) -> String:
@@ -3538,6 +3596,10 @@ func _batch_blocked_row(index: int, snapshot: Dictionary, block_reason: String) 
 		"validation_summary": _batch_validation_summary(null, false),
 		"validation_errors": 0,
 		"validation_warnings": 0,
+		"preview": HexMapPreviewThumbnail.unavailable_preview("blocked", {
+			"source_context": "generate_batch_row",
+			"seed": int(snapshot.get("seed", 0)),
+		}),
 	}
 
 
@@ -3559,11 +3621,19 @@ func _batch_result_row(index: int, snapshot: Dictionary, data, options: Dictiona
 	}
 	if data == null:
 		row["score"] = -100000.0
+		row["preview"] = HexMapPreviewThumbnail.unavailable_preview("generation_failed", {
+			"source_context": "generate_batch_row",
+			"seed": int(snapshot.get("seed", 0)),
+		})
 		return row
 	if overlay_mode:
 		row["cells"] = data.cells.size()
 		row["occupied"] = data.occupied_cells().size()
 		row["item_counts"] = _overlay_item_counts(data)
+		row["preview"] = HexMapPreviewThumbnail.preview_from_overlay_data(data, {
+			"source_context": "generate_batch_row",
+			"seed": int(snapshot.get("seed", 0)),
+		})
 	else:
 		var floors = data.floor_cells().size()
 		var walls = data.walls.size()
@@ -3573,6 +3643,10 @@ func _batch_result_row(index: int, snapshot: Dictionary, data, options: Dictiona
 		row["floors"] = floors
 		row["wall_ratio"] = float(walls) / float(cells) if cells > 0 else 0.0
 		row["connected"] = HexMapGenerator.is_floor_connected(data)
+		row["preview"] = HexMapPreviewThumbnail.preview_from_map_data(data, {
+			"source_context": "generate_batch_row",
+			"seed": int(snapshot.get("seed", 0)),
+		})
 	row["score"] = _batch_score(row, options)
 	return row
 
@@ -5446,6 +5520,7 @@ func _set_control_disabled(control: Control, disabled: bool) -> void:
 
 
 func _update_stats() -> void:
+	_refresh_candidate_preview_thumbnail()
 	if _overlay_mode_enabled() and _current_overlay_data != null:
 		var item_parts: Array = []
 		for item_key in _current_overlay_data.item_keys():

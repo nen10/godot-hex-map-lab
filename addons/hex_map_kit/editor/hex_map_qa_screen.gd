@@ -2,6 +2,8 @@
 class_name HexMapQAScreen
 extends RefCounted
 
+const HexMapPreviewThumbnail = preload("res://addons/hex_map_kit/editor/hex_map_preview_thumbnail.gd")
+
 const TAB_NAME := "QA"
 const WORKFLOW_OWNER := "QA"
 const USER_TASK := "Compare generated seed candidates and promote one result to the Level Document."
@@ -53,6 +55,10 @@ static func build_seed_lab_panel() -> Dictionary:
 	var selected_label := _wrapped_label()
 	panel.add_child(selected_label)
 
+	var selected_thumbnail := HexMapPreviewThumbnail.new()
+	selected_thumbnail.name = "QA Selected Seed Thumbnail"
+	panel.add_child(selected_thumbnail)
+
 	var rows_label := _wrapped_label()
 	panel.add_child(rows_label)
 
@@ -60,6 +66,7 @@ static func build_seed_lab_panel() -> Dictionary:
 		"root": panel,
 		"status_label": status_label,
 		"selected_label": selected_label,
+		"selected_thumbnail": selected_thumbnail,
 		"rows_label": rows_label,
 	}
 

@@ -2,6 +2,8 @@
 class_name HexMapGenResultControls
 extends RefCounted
 
+const HexMapPreviewThumbnail = preload("res://addons/hex_map_kit/editor/hex_map_preview_thumbnail.gd")
+
 const SCREEN_SCRIPT := "hex_map_gen_result_controls.gd"
 const SCREEN_ROLE_SOURCE := "HexMapGenResultControls"
 const LAYOUT_SECTION_PREVIEW := "preview"
@@ -10,6 +12,7 @@ const LAYOUT_SECTION_PREVIEW := "preview"
 static func component_owner_rows() -> Array[Dictionary]:
 	return [
 		_component_owner("generate_seed_lab", "VBoxContainer", "GenerateSeedLab", "build_seed_lab_controls", LAYOUT_SECTION_PREVIEW),
+		_component_owner("generate_candidate_thumbnail", "HexMapPreviewThumbnail", "GenerateCandidateThumbnail", "build_candidate_thumbnail", LAYOUT_SECTION_PREVIEW),
 		_component_owner("generate_result_summary", "Label", "GenerateResultSummary", "build_result_summary_label", LAYOUT_SECTION_PREVIEW),
 	]
 
@@ -58,6 +61,11 @@ static func build_seed_lab_controls() -> Dictionary:
 	var preview_label := _wrapped_label()
 	root.add_child(preview_label)
 
+	var preview_thumbnail := HexMapPreviewThumbnail.new()
+	preview_thumbnail.name = "Generate Seed Lab Preview Thumbnail"
+	preview_thumbnail.set_meta("hex_generate_action_purpose", "selected_seed_preview")
+	root.add_child(preview_thumbnail)
+
 	var status_label := _wrapped_label()
 	root.add_child(status_label)
 
@@ -68,7 +76,22 @@ static func build_seed_lab_controls() -> Dictionary:
 		"promote_button": promote_button,
 		"score_tree": score_tree,
 		"preview_label": preview_label,
+		"preview_thumbnail": preview_thumbnail,
 		"status_label": status_label,
+	}
+
+
+static func build_candidate_thumbnail() -> Dictionary:
+	var thumbnail := HexMapPreviewThumbnail.new()
+	thumbnail.name = "Generate Candidate Thumbnail"
+	thumbnail.set_meta("hex_generate_component_id", "generate_candidate_thumbnail")
+	thumbnail.set_meta("hex_generate_component_script", SCREEN_SCRIPT)
+	thumbnail.set_meta("hex_generate_component_role_source", SCREEN_ROLE_SOURCE)
+	thumbnail.set_meta("hex_generate_component_builder", "build_candidate_thumbnail")
+	thumbnail.set_meta("hex_generate_layout_section_id", LAYOUT_SECTION_PREVIEW)
+	return {
+		"root": thumbnail,
+		"thumbnail": thumbnail,
 	}
 
 

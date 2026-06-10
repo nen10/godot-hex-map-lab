@@ -33,6 +33,7 @@ const HexMapGenRunControls = preload("res://addons/hex_map_kit/editor/hex_map_ge
 const HexMapGenSourceControls = preload("res://addons/hex_map_kit/editor/hex_map_gen_source_controls.gd")
 const HexMapGenOutputControls = preload("res://addons/hex_map_kit/editor/hex_map_gen_output_controls.gd")
 const HexMapGenResultControls = preload("res://addons/hex_map_kit/editor/hex_map_gen_result_controls.gd")
+const HexMapPreviewThumbnail = preload("res://addons/hex_map_kit/editor/hex_map_preview_thumbnail.gd")
 const HexMapEditTool = preload("res://addons/hex_map_kit/editor/hex_map_edit_tool.gd")
 const HexMapEditMutationBuilder = preload("res://addons/hex_map_kit/editor/hex_map_edit_mutation_builder.gd")
 const HexMapEditViewportInputAdapter = preload("res://addons/hex_map_kit/editor/hex_map_edit_viewport_input_adapter.gd")
@@ -513,6 +514,12 @@ func _assert_generation_dock_internal_component_contract(dock: HexMapGenDock) ->
 			"builder": "build_seed_lab_controls",
 			"layout_section": "preview",
 		},
+		"generate_candidate_thumbnail": {
+			"screen_script": "hex_map_gen_result_controls.gd",
+			"screen_role_source": "HexMapGenResultControls",
+			"builder": "build_candidate_thumbnail",
+			"layout_section": "preview",
+		},
 		"generate_result_summary": {
 			"screen_script": "hex_map_gen_result_controls.gd",
 			"screen_role_source": "HexMapGenResultControls",
@@ -563,6 +570,7 @@ func _assert_generation_dock_internal_component_contract(dock: HexMapGenDock) ->
 	_assert_true(((sections_by_id["input"] as Dictionary)["component_ids"] as PackedStringArray).has("generate_run_controls"), "GEN-NEXT-10 Input section owns run controls")
 	_assert_true(((sections_by_id["profile_source"] as Dictionary)["component_ids"] as PackedStringArray).has("generate_source_registry"), "GEN-NEXT-10 Profile/Source section owns source registry")
 	_assert_true(((sections_by_id["preview"] as Dictionary)["component_ids"] as PackedStringArray).has("generate_result_summary"), "GEN-NEXT-10 Preview section owns result summary")
+	_assert_true(((sections_by_id["preview"] as Dictionary)["component_ids"] as PackedStringArray).has("generate_candidate_thumbnail"), "GEN-NEXT-11 Preview section owns candidate thumbnail")
 	_assert_true(((sections_by_id["apply_save"] as Dictionary)["component_ids"] as PackedStringArray).has("generate_output_target"), "GEN-NEXT-10 Apply/Save section owns output target")
 	_assert_true(((sections_by_id["performance"] as Dictionary)["component_ids"] as PackedStringArray).has("generate_progress_controls"), "GEN-NEXT-10 Performance section owns progress controls")
 	var actions = layout["actions"] as Dictionary
@@ -2675,14 +2683,25 @@ func _test_qa_asset_screen_manages_profiles_and_score_context_without_samples() 
 	var score_rows = batch_result["score_rows"] as Array
 	_assert_eq(score_rows.size(), 2, "TAB-55 QA Seed Lab records score rows")
 	_assert_true(not (batch_result["selected_seed_row"] as Dictionary).is_empty(), "TAB-55 QA Seed Lab selects top row after batch")
+	var qa_row_preview = (score_rows[0] as Dictionary)["preview"] as Dictionary
+	_assert_true(bool(qa_row_preview["available"]), "GEN-NEXT-11 QA score row carries preview")
+	_assert_eq(String(qa_row_preview["source_kind"]), HexMapPreviewThumbnail.SOURCE_MAP_DATA, "GEN-NEXT-11 QA score row preview comes from generated map data")
+	_assert_true(not bool(qa_row_preview["sample_source"]), "GEN-NEXT-11 QA score row preview does not use sample source")
 	snapshot = workspace.qa_screen_snapshot()
 	seed_lab = snapshot["seed_lab"] as Dictionary
 	_assert_eq(int(seed_lab["score_row_count"]), 2, "TAB-55 QA snapshot reports score row count")
 	_assert_eq(int(snapshot["score_table_row_count"]), 2, "SCREEN-24 QA screen reports score table row count")
 	_assert_true((snapshot["score_rows"] as Array).size() == 2, "TAB-55 QA screen exposes score rows")
+	_assert_eq((snapshot["score_row_previews"] as Array).size(), 2, "GEN-NEXT-11 QA screen exposes score row previews")
+	var qa_selected_preview = snapshot["selected_seed_preview"] as Dictionary
+	_assert_true(bool(qa_selected_preview["available"]), "GEN-NEXT-11 QA selected seed preview is available")
+	_assert_eq(String(qa_selected_preview["source_context"]), "qa_selected_seed", "GEN-NEXT-11 QA selected preview is context-bound")
 	_assert_true(bool(snapshot["selected_seed_available"]), "SCREEN-24 QA screen reports selected seed after batch")
 	_assert_true(bool(seed_lab["can_promote"]), "TAB-55 QA Seed Lab can promote selected row")
 	_assert_true(bool(snapshot["promote_to_document_available"]), "SCREEN-24 QA screen enables promotion after seed selection")
+	var mounted_qa_thumbnail := _find_preview_thumbnail(workspace, "QA Selected Seed Thumbnail")
+	_assert_true(mounted_qa_thumbnail != null, "GEN-NEXT-11 mounted QA thumbnail exists")
+	_assert_true(bool(mounted_qa_thumbnail.preview_snapshot()["available"]), "GEN-NEXT-11 mounted QA thumbnail uses selected seed preview")
 
 	var seed_select = workspace.select_qa_seed_row(1)
 	_assert_true(bool(seed_select["ok"]), "TAB-55 QA Seed Lab selects score row")
@@ -7052,6 +7071,12 @@ func _test_generation_dock_batch_runner_scores_and_sorts() -> void:
 		_assert_true(bool(summary.get("validated", false)), "generation batch row records validation summary")
 		_assert_true(bool(summary.get("passed", false)), "generation batch row passes validation")
 		_assert_eq(int(row.get("validation_errors", -1)), 0, "generation batch row flattens validation errors")
+		var preview = row["preview"] as Dictionary
+		_assert_true(bool(preview["available"]), "GEN-NEXT-11 generation batch row exposes preview")
+		_assert_eq(String(preview["source_kind"]), HexMapPreviewThumbnail.SOURCE_MAP_DATA, "GEN-NEXT-11 batch preview comes from generated map data")
+		_assert_eq(int(preview["cell_count"]), int(row.get("cells", 0)), "GEN-NEXT-11 batch preview matches row cell count")
+		_assert_true(int(preview["entry_count"]) <= int(preview["budget"]), "GEN-NEXT-11 batch preview respects budget")
+		_assert_true(not bool(preview["sample_source"]), "GEN-NEXT-11 batch preview does not use sample source")
 
 	var score_table = dock.generation_batch_score_table("score", true)
 	_assert_eq(score_table.size(), 3, "score table returns every batch row")
@@ -7078,6 +7103,9 @@ func _test_generation_dock_batch_runner_scores_and_sorts() -> void:
 	first_score_item.select(0)
 	dock._on_seed_lab_score_selected()
 	_assert_true(dock._seed_lab_preview_label.text.contains("Selected Seed:"), "Seed Lab selection updates preview")
+	var selected_preview = dock._seed_lab_preview_thumbnail.preview_snapshot()
+	_assert_true(bool(selected_preview["available"]), "GEN-NEXT-11 Seed Lab selected row thumbnail is available")
+	_assert_eq(String(selected_preview["source_context"]), "generate_batch_row", "GEN-NEXT-11 Seed Lab selected thumbnail uses row preview")
 	dock._on_seed_lab_promote_pressed()
 	_assert_true(dock.promoted_generation_document() is HexMapDocumentResource, "Seed Lab promotes selected row to document")
 	_assert_true(dock._seed_lab_status_label.text.contains("Dirty: yes"), "Seed Lab promotion displays dirty state")
@@ -7828,6 +7856,12 @@ func _test_generation_dock_output_target_preview_and_selected_document() -> void
 	_assert_eq(layer.level_document_resource, document, "NODE-24 preview keeps selected node document reference")
 	var preview_output = dock.output_target_snapshot()
 	_assert_true(bool(preview_output["generated_document_present"]), "NODE-24 preview snapshot records generated output")
+	var candidate_preview = preview_output["candidate_preview"] as Dictionary
+	_assert_true(bool(candidate_preview["available"]), "GEN-NEXT-11 Generate candidate preview is available after generation")
+	_assert_eq(String(candidate_preview["source_kind"]), HexMapPreviewThumbnail.SOURCE_MAP_DATA, "GEN-NEXT-11 Generate candidate preview uses generated map data")
+	_assert_eq(int(candidate_preview["cell_count"]), 2, "GEN-NEXT-11 Generate candidate preview records generated cell count")
+	_assert_true(not bool(candidate_preview["sample_source"]), "GEN-NEXT-11 Generate candidate preview does not use sample source")
+	_assert_eq(String(dock._candidate_preview_thumbnail.preview_snapshot()["source_context"]), "generate_current_candidate", "GEN-NEXT-11 mounted candidate thumbnail uses current candidate")
 	_assert_true(not bool((preview_output["document_generation_metadata"] as Dictionary)["present"]), "NODE-24 preview does not mark document generated")
 	_assert_eq(String(preview_output["preview_result_state"]), "ready", "UI-03 preview result state is visible after generation")
 	_assert_eq(String(preview_output["document_result_state"]), "unchanged_preview_only", "UI-03 document state stays unchanged in preview-only mode")
@@ -7836,7 +7870,9 @@ func _test_generation_dock_output_target_preview_and_selected_document() -> void
 	_assert_true(dock._output_target_status_label.text.contains("Preview: ready"), "UI-03 output target label exposes preview result")
 	var preview_screen = workspace.generation_screen_snapshot()
 	var preview_result = preview_screen["result_summary"] as Dictionary
+	var screen_candidate_preview = preview_screen["candidate_preview"] as Dictionary
 	_assert_eq(String(preview_result["preview_result_state"]), "ready", "UI-03 screen result summary exposes preview readiness")
+	_assert_true(bool(screen_candidate_preview["available"]), "GEN-NEXT-11 workspace Generate snapshot exposes candidate preview")
 	_assert_eq(String(preview_result["document_result_state"]), "unchanged_preview_only", "UI-03 screen result summary exposes document state")
 	_assert_eq(String(preview_result["save_result_state"]), "available", "UI-03 screen result summary exposes save state")
 
@@ -9004,6 +9040,16 @@ func _button_with_text(node: Node, text: String) -> Button:
 		return node as Button
 	for child in node.get_children():
 		var found := _button_with_text(child, text)
+		if found != null:
+			return found
+	return null
+
+
+func _find_preview_thumbnail(node: Node, node_name: String) -> HexMapPreviewThumbnail:
+	if node is HexMapPreviewThumbnail and node.name == node_name:
+		return node as HexMapPreviewThumbnail
+	for child in node.get_children():
+		var found := _find_preview_thumbnail(child, node_name)
 		if found != null:
 			return found
 	return null

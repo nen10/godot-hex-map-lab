@@ -36,6 +36,7 @@ const HexMapQAScreen = preload("res://addons/hex_map_kit/editor/hex_map_qa_scree
 const HexMapExportScreen = preload("res://addons/hex_map_kit/editor/hex_map_export_screen.gd")
 const HexMapPaintScreen = preload("res://addons/hex_map_kit/editor/hex_map_paint_screen.gd")
 const HexMapSettingsScreen = preload("res://addons/hex_map_kit/editor/hex_map_settings_screen.gd")
+const HexMapPreviewThumbnail = preload("res://addons/hex_map_kit/editor/hex_map_preview_thumbnail.gd")
 const HexMapValidationDashboard = preload("res://addons/hex_map_kit/editor/hex_map_validation_dashboard.gd")
 const HexMapValidationWorkflowState = preload("res://addons/hex_map_kit/editor/hex_map_validation_workflow_state.gd")
 const HexMapExportWorkflowState = preload("res://addons/hex_map_kit/editor/hex_map_export_workflow_state.gd")
@@ -84,6 +85,7 @@ var _selected_validate_issue_navigation: Dictionary = {}
 var _qa_seed_lab_panel: VBoxContainer
 var _qa_seed_lab_status_label: Label
 var _qa_seed_lab_selected_label: Label
+var _qa_seed_lab_selected_thumbnail: HexMapPreviewThumbnail
 var _qa_seed_lab_rows_label: Label
 var _qa_selected_seed_row: Dictionary = {}
 var _qa_promoted_document: HexMapDocumentResource = null
@@ -276,6 +278,7 @@ func generation_screen_snapshot() -> Dictionary:
 		"generation_state": generation_state,
 		"progress_state": progress_state,
 		"output_target": output_target,
+		"candidate_preview": output_target.get("candidate_preview", {}),
 		"layout": layout_snapshot,
 		"layout_sections": layout_snapshot.get("sections", []),
 		"generate_layout_section_ids": layout_snapshot.get("section_ids", PackedStringArray()),
@@ -2516,9 +2519,11 @@ func qa_screen_snapshot() -> Dictionary:
 		"score_table_context": qa_score_table_context(),
 		"seed_lab": seed_lab,
 		"score_rows": seed_lab.get("score_rows", []),
+		"score_row_previews": seed_lab.get("score_row_previews", []),
 		"score_table_visible": true,
 		"score_table_row_count": score_row_count,
 		"selected_seed_row": _qa_selected_seed_row.duplicate(true),
+		"selected_seed_preview": seed_lab.get("selected_seed_preview", {}),
 		"selected_seed_visible": true,
 		"selected_seed_available": not _qa_selected_seed_row.is_empty(),
 		"promoted_document": _qa_promoted_document,
@@ -2549,6 +2554,7 @@ func qa_score_table_context() -> Dictionary:
 		"generation_profile": generation_profile_context,
 		"validation_rule_suite": validation_rule_suite_context,
 		"score_rows": _qa_score_rows(),
+		"score_row_previews": _qa_score_row_previews(_qa_score_rows()),
 		"score_table_visible": true,
 		"generation_profile_used": context.generation_profile != null,
 		"generation_profile_source": String(generation_profile_context.get("source_badge", "")),
@@ -2570,9 +2576,11 @@ func qa_seed_lab_context() -> Dictionary:
 		"generation_profile": generation_profile_context,
 		"validation_rule_suite": validation_rule_suite_context,
 		"score_rows": score_rows,
+		"score_row_previews": _qa_score_row_previews(score_rows),
 		"score_table_visible": true,
 		"score_row_count": score_rows.size(),
 		"selected_seed_row": _qa_selected_seed_row.duplicate(true),
+		"selected_seed_preview": _qa_selected_preview_snapshot(),
 		"selected_seed_visible": true,
 		"selected_seed": int(_qa_selected_seed_row.get("seed", 0)) if not _qa_selected_seed_row.is_empty() else 0,
 		"selected_score": float(_qa_selected_seed_row.get("score", 0.0)) if not _qa_selected_seed_row.is_empty() else 0.0,
@@ -2595,6 +2603,34 @@ func _qa_score_rows() -> Array:
 	for row in _generation_dock.generation_batch_score_table("score", true):
 		rows.append(row)
 	return rows
+
+
+func _qa_score_row_previews(rows: Array) -> Array:
+	var previews: Array = []
+	for row in rows:
+		if row is Dictionary:
+			var preview = (row as Dictionary).get("preview", {})
+			if preview is Dictionary:
+				previews.append((preview as Dictionary).duplicate(true))
+			else:
+				previews.append(HexMapPreviewThumbnail.unavailable_preview("row_has_no_preview"))
+	return previews
+
+
+func _qa_selected_preview_snapshot() -> Dictionary:
+	if _qa_selected_seed_row.is_empty():
+		return HexMapPreviewThumbnail.unavailable_preview("no_selected_seed", {
+			"source_context": "qa_selected_seed",
+		})
+	var preview = _qa_selected_seed_row.get("preview", {}) as Dictionary
+	if preview.is_empty():
+		return HexMapPreviewThumbnail.unavailable_preview("selected_seed_has_no_preview", {
+			"source_context": "qa_selected_seed",
+			"seed": int(_qa_selected_seed_row.get("seed", 0)),
+		})
+	var result := preview.duplicate(true)
+	result["source_context"] = "qa_selected_seed"
+	return result
 
 
 func run_qa_seed_lab(seed_count: int, options: Dictionary = {}) -> Dictionary:
@@ -3256,6 +3292,7 @@ func _mount_qa_seed_lab_panel() -> void:
 	_qa_seed_lab_panel = built.get("root", null) as VBoxContainer
 	_qa_seed_lab_status_label = built.get("status_label", null) as Label
 	_qa_seed_lab_selected_label = built.get("selected_label", null) as Label
+	_qa_seed_lab_selected_thumbnail = built.get("selected_thumbnail", null) as HexMapPreviewThumbnail
 	_qa_seed_lab_rows_label = built.get("rows_label", null) as Label
 
 	(page as Control).add_child(_qa_seed_lab_panel)
@@ -4360,6 +4397,10 @@ func _refresh_qa_seed_lab_panel() -> void:
 				int(selected.get("validation_errors", 0)),
 				int(selected.get("validation_warnings", 0)),
 			]
+	if _qa_seed_lab_selected_thumbnail != null:
+		_qa_seed_lab_selected_thumbnail.set_preview_snapshot(
+			context.get("selected_seed_preview", {}) as Dictionary
+		)
 	if _qa_seed_lab_rows_label != null:
 		_qa_seed_lab_rows_label.text = _qa_seed_lab_rows_text(context.get("score_rows", []) as Array)
 

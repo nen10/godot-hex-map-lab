@@ -76,13 +76,13 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
 | `GEN-NEXT-10` | `COMPLETE` | `ARCH-NEXT-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GEN-NEXT-10_GENERATE_TAB_LAYOUT_REDESIGN/` | Full Generate tab layout redesign | Generate components, UI metric tests | Input/Profile/Preview/Apply/Save/Performance state are visually separated; reload/save/apply purpose is clear. |
-| `GEN-NEXT-11` | `READY` | `GEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GEN-NEXT-11_GENERATE_QA_PREVIEW_THUMBNAILS/` | Generate / QA preview thumbnails | Generate/QA preview components, cache/budget tests | Generate candidate thumbnail and QA score row preview are connected; thumbnail is from project document/candidate data, not sample fallback. |
+| `GEN-NEXT-11` | `COMPLETE` | `GEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GEN-NEXT-11_GENERATE_QA_PREVIEW_THUMBNAILS/` | Generate / QA preview thumbnails | Generate/QA preview components, cache/budget tests | Generate candidate thumbnail and QA score row preview are connected; thumbnail is from project document/candidate data, not sample fallback. |
 | `CAT-NEXT-11` | `READY` | `CAT-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/CAT-NEXT-11_CATALOG_TILE_SCENE_PREVIEW_UI/` | Rich tile / scene preview UI | Catalog entry detail, TileSet/scene preview tests | Atlas tile and scene preview render in detail; invalid/missing preview uses badge/tooltip. |
 | `SCREEN-NEXT-10` | `READY` | `ARCH-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/SCREEN-NEXT-10_RESOURCES_LAYERS_EXPORT_VISUAL_REDESIGN/` | Rich Resources / Layers / Export visual redesign | Resources/Layers/Export screens, tests | Resources, Layers, and Export become clearer task surfaces for node/document/dependency, role tree, and runtime handoff state. |
 | `LAYER-NEXT-10` | `BACKLOG` | `SCREEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/LAYER-NEXT-10_LAYER_ROLE_EDITOR/` | Fine-grained Layer role editor | Layer screen/resource/tests | Role visible/locked/z-index/writable source can be edited and reflected in LayerStack/selected node state. |
 | `PAINT-NEXT-10` | `BACKLOG` | `SCREEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PAINT-NEXT-10_VIEWPORT_AFFORDANCE_POLISH/` | Paint viewport affordance polish | Paint tab, viewport adapter, tests | Brush cursor, selected cell, target layer, mode, and last edit feedback sync between viewport and Paint tab. |
 | `VAL-NEXT-10` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/VAL-NEXT-10_VALIDATE_RICH_ISSUE_TABLE_ACTIONS/` | Rich Validate issue table and actions | Validate screen, validation dashboard, tests | Issue table has severity/domain/scope/target/suggestion columns and only real per-issue actions. |
-| `QA-NEXT-10` | `BACKLOG` | `GEN-NEXT-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/QA-NEXT-10_SCORE_TABLE_VISUAL_REDESIGN/` | QA scored table visual redesign | QA screen/table/tests | Seed rows, score columns, validation status, selected seed, preview, and promotion state are easy to compare. |
+| `QA-NEXT-10` | `READY` | `GEN-NEXT-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/QA-NEXT-10_SCORE_TABLE_VISUAL_REDESIGN/` | QA scored table visual redesign | QA screen/table/tests | Seed rows, score columns, validation status, selected seed, preview, and promotion state are easy to compare. |
 | `SETTINGS-NEXT-10` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/SETTINGS-NEXT-10_SETTINGS_GROUPING_TOGGLE_STYLING/` | Settings grouping and toggle styling | Settings/sample panels, tests | Sample Learning, Debug, Project Defaults, and UI Preferences are separated; booleans use toggles/checks with tooltip detail. |
 | `SAMPLE-NEXT-10` | `BACKLOG` | `SETTINGS-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/SAMPLE-NEXT-10_SAMPLE_DETAIL_DRAWER/` | Sample detail drawer | Settings sample detail UI/tests | Sample asset type, dependencies, duplicate target, and learning use are inspectable without injecting samples into production flow. |
 
@@ -93,7 +93,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
 | `PERF-NEXT-11` | `READY` | `PERF-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PERF-NEXT-11_LARGE_MAP_VALIDATION_PROGRESS/` | Large-map validation progress | validator/progress state/tests | Validation traversal reports phase/progress and connects to Validate/Generate busy state. |
-| `GENPIPE-NEXT-10` | `BACKLOG` | `GEN-NEXT-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GENPIPE-NEXT-10_GENERATION_RESULT_RESOURCE_AND_REPLAY_API/` | GenerationResultResource and replay API | new Resource/API/tests | primary/overlay/filter/candidate/validation result scope is defined; Generate/QA can replay/promote result resources. |
+| `GENPIPE-NEXT-10` | `READY` | `GEN-NEXT-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GENPIPE-NEXT-10_GENERATION_RESULT_RESOURCE_AND_REPLAY_API/` | GenerationResultResource and replay API | new Resource/API/tests | primary/overlay/filter/candidate/validation result scope is defined; Generate/QA can replay/promote result resources. |
 | `GENPIPE-NEXT-20` | `BACKLOG` | `GENPIPE-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GENPIPE-NEXT-20_PIPELINE_GRAPH_UI_RESEARCH_AND_SPIKE/` | Pipeline graph UI research/spike | review docs/prototype if needed | Resource pass / linear pipeline / node graph options are updated; pass graph is either scoped or explicitly rejected. |
 | `PROFILE-NEXT-10` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROFILE-NEXT-10_CONCRETE_PROFILE_BEHAVIOR_SCHEMAS/` | Concrete profile behavior schemas | profile Resources, editors/tests | Validation Suite, Generation Profile, and Export Profile gain real behavior schemas and editor/screen connections. |
 | `STATE-NEXT-10` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/STATE-NEXT-10_ROOT_REDUCER_EVENT_MODEL/` | Root reducer / event model expansion | dispatcher/root state/tests | Workspace events are typed; reducer results, side effects, UI state update, and debug report proof are separated. |
@@ -140,7 +140,7 @@ acceptance / test path:
 
 ## 9. Current pointer
 
-Current recommended next task: `GEN-NEXT-11`.
+Current recommended next task: `CAT-NEXT-11`.
 
 Reason:
 
@@ -165,10 +165,12 @@ Reason:
 - `PERF-NEXT-10` is complete.
 - Phase M3 review is recorded at `docs/review/roadmap/UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP_M3_PHASE_REVIEW_2026-06-10.md`.
 - `GEN-NEXT-10` is complete.
-- `GEN-NEXT-11` is READY because `GEN-NEXT-10` is complete.
+- `GEN-NEXT-11` is complete.
 - `CAT-NEXT-11` is READY because `CAT-NEXT-10` is complete.
 - `SCREEN-NEXT-10` is READY because `ARCH-NEXT-10` is complete.
+- `QA-NEXT-10` is READY because `GEN-NEXT-11` is complete.
 - `PERF-NEXT-11` is READY because `PERF-NEXT-10` is complete.
+- `GENPIPE-NEXT-10` is READY because `GEN-NEXT-11` is complete.
 - `ARCH-NEXT-20` is READY because `ARCH-NEXT-10` is complete.
 - `TEST-NEXT-10` remains READY because `UI-METRIC-08` is complete.
 
@@ -560,3 +562,25 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_workspace.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/GEN-NEXT-10_TEST_RESULT_2026-06-10.md`
+
+### GEN-NEXT-11 Generate / QA preview thumbnails
+
+proof:
+  plan: `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GEN-NEXT-11_GENERATE_QA_PREVIEW_THUMBNAILS/`
+  review: `docs/review/autopilot/GEN-NEXT-11_SELF_REVIEW_2026-06-10.md`
+  execution:
+    - `docs/review/autopilot/GEN-NEXT-11_SELF_REVIEW_2026-06-10.md`
+  ui_metrics:
+    - `.godot_user/ui-metrics/20260610-194911-55751/workspace_layout_metrics.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_preview_thumbnail.gd`
+    - `addons/hex_map_kit/editor/hex_map_gen_dock.gd`
+    - `addons/hex_map_kit/editor/hex_map_gen_result_controls.gd`
+    - `addons/hex_map_kit/editor/hex_map_qa_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/GEN-NEXT-11_TEST_RESULT_2026-06-10.md`
