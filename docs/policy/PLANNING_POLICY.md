@@ -20,6 +20,46 @@ docs/plan/<YYYY-MM-DD>_<ROADMAP_ID>/<TASK_ID>_<slug>/
 
 大きい task のみ `TEST_PLAN.md` を追加してよい。
 
+## Task Complexity Class
+
+各 `SUB_TASKS.md` は task の complexity class を明記する。complexity は「作業量」だけでなく、UX/API影響範囲、状態数、fallback/mirror有無、test proof の広さで決める。
+
+| class | scope | required planning artifacts |
+|---|---|---|
+| `C1` | 1文書または1箇所の小修正。既存方針に従うだけで判断余地が少ない。 | Complexity header、短い task resolution、test/proof path。 |
+| `C2` | 1つのUX/API slice。複数候補の採否はあるが、状態境界は小さい。 | Complexity header、Task Resolution、Scheduled Task Audit、UX Candidate Matrix、fallback/mirror有無の確認。 |
+| `C3` | 複数ファイルまたは複数画面にまたがる slice。既存状態やtestsとの干渉がある。 | C2 artifacts + dependency/test matrix + state/invariant table。 |
+| `C4` | 画面再設計、architecture split、process gate、performance pathなど、複数の実装フローを含む大きい task。 | C3 artifacts + fallback/mirror table必須 + rejected/deferred itemのqueue化判定必須。 |
+| `C5` | roadmap/phase級。複数の完了境界を含み、このまま実装すると proof が曖昧になる task。 | C4 artifacts + `SUB_TASKS.md` で task分解し、必要なら queue に scheduled task を追加する。 |
+
+### Complexity header template
+
+`SUB_TASKS.md` の先頭に以下を置く。
+
+```md
+## Complexity
+
+Class: C<n>
+Reason:
+- ...
+
+Required artifacts:
+- ...
+```
+
+### C4/C5 mandatory tables
+
+C4/C5 task では次を必須にする。
+
+- `SUB_TASKS.md`: task resolution candidate matrix。
+- `SUB_TASKS.md`: Scheduled Task Audit。
+- `UX.md`: UX Candidate Matrix。
+- `POLICY.md`: Fallback / Mirror Handling table。
+- `POLICY.md`: State / Invariant Table。
+- `IMPLEMENTATION_PLAN.md`: dependency / test matrix。
+
+C5 task は、1つの completion commit で説明できない場合、implementation へ進む前に sub-task を queue 化する。`RESOLUTED` 系 status を使う場合は、`docs/process/QUEUE_OPERATION_RULES.md` に従い、分離 task の完了状態を proof に含める。
+
 ## 0. SUB_TASKS.md
 
 目標の完結と価値最大化に向けて task resolution を行う
@@ -40,7 +80,6 @@ task resolution : [
 ### Scheduled Task Audit
 
 ```
-
 | deferred / rejected item | existing queue id | decision | reason |
 |---|---|---|---|
 ```
@@ -112,6 +151,15 @@ UX Candidate Matrixを作成し、その後目標を experience steps として�
 |---|---|---|---|---|
 ```
 
+### State / Invariant Table
+
+C3以上、または状態遷移・UI表示・fallback/mirror を扱う task では、必要に応じて以下を追加する。C4/C5では必須。
+
+```
+| state/source | invariant | risk | proof/test |
+|---|---|---|---|
+```
+
 ## 3. IMPLEMENTATION_PLAN.md
 
 目標を実現するため、採用設計を基準に実装を計画する。
@@ -126,10 +174,20 @@ UX Candidate Matrixを作成し、その後目標を experience steps として�
 - docs 更新。
 - completion checklist。
 
+### Dependency / Test Matrix
+
+C3以上で、複数の依存や test proof がある場合に追加する。C4/C5では必須。
+
+```
+| dependency / area | risk | proof / test |
+|---|---|---|
+```
+
 ## Review before implementation
 
 `UX.md`, `POLICY.md`, `IMPLEMENTATION_PLAN.md` を確認する:
 
+- complexity class に対して必要な planning artifacts が揃っているか。
 - Roadmap と矛盾しないか。
 - task の完了状態が test または review で確認できるか。
 - 旧互換や旧 UI を理由なく守っていないか。

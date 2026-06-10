@@ -30,8 +30,8 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
 | `NEXT-00` | `COMPLETE` | none | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/NEXT-00_ADOPT_UI_METRIC_AND_UNQUEUED_FEEDBACKS/` | Feedback adoption proof, roadmap, and queue source-of-truth | `ROADMAP.md`, `IMPLEMENTATION_QUEUE.md`, feedback docs | Both feedback files are represented in the roadmap and queue; intentional non-queue items are recorded; `./tools/test.sh` passed. |
-| `PROCESS-10` | `READY` | `NEXT-00` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-10_COMPLEXITY_CLASS_FOR_TASK_PLANS/` | Complexity class for task plans | `docs/policy/PLANNING_POLICY.md`, plan templates, review docs | C1-C5 complexity classes exist; `SUB_TASKS.md` template has complexity header; C4/C5 require candidate matrix, fallback table, and state table. |
-| `PROCESS-11` | `BACKLOG` | `PROCESS-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-11_PHASE_REVIEW_MATRIX/` | Phase review matrix process | `docs/process/QUEUE_OPERATION_RULES.md`, review template docs | Phase completion records task score, debt, evidence, and next readiness; prose-only defer is converted to queue candidate. |
+| `PROCESS-10` | `COMPLETE` | `NEXT-00` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-10_COMPLEXITY_CLASS_FOR_TASK_PLANS/` | Complexity class for task plans | `docs/policy/PLANNING_POLICY.md`, plan templates, review docs | C1-C5 complexity classes exist; `SUB_TASKS.md` template has complexity header; C4/C5 require candidate matrix, fallback table, and state table. |
+| `PROCESS-11` | `READY` | `PROCESS-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-11_PHASE_REVIEW_MATRIX/` | Phase review matrix process | `docs/process/QUEUE_OPERATION_RULES.md`, review template docs | Phase completion records task score, debt, evidence, and next readiness; prose-only defer is converted to queue candidate. |
 | `PROCESS-12` | `BACKLOG` | `PROCESS-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-12_FALLBACK_LEDGER/` | Fallback / mirror / debug ledger | `docs/review/roadmap/FALLBACK_LEDGER_2026-06-10.md`, planning/review docs | fallback, mirror, legacy, debug, sample, and manual override entries have owner/status/removal condition/test proof. |
 | `PROCESS-13` | `BACKLOG` | `PROCESS-12` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-13_PLAN_EXECUTION_BOUNDARY/` | Plan/execution proof boundary | planning policy, self-review templates, queue proof docs | `IMPLEMENTATION_PLAN.md` stays pre-execution; executed checklist/deviation moves to self-review or execution log. |
 
@@ -140,13 +140,14 @@ acceptance / test path:
 
 ## 9. Current pointer
 
-Current recommended next task: `PROCESS-10`.
+Current recommended next task: `PROCESS-11`.
 
 Reason:
 
 - `NEXT-00` is complete.
-- `PROCESS-10` is READY because `NEXT-00` is complete.
-- `PROCESS-10` is the first READY task in queue order.
+- `PROCESS-10` is complete.
+- `PROCESS-11` is READY because `PROCESS-10` is complete.
+- `PROCESS-11` is the first READY task in queue order.
 
 ---
 
@@ -168,3 +169,19 @@ proof:
     - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/NEXT-00_ADOPT_UI_METRIC_AND_UNQUEUED_FEEDBACKS/POLICY.md`
     - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/NEXT-00_ADOPT_UI_METRIC_AND_UNQUEUED_FEEDBACKS/IMPLEMENTATION_PLAN.md`
     - `docs/review/autopilot/NEXT-00_TEST_RESULT_2026-06-10.md`
+
+### PROCESS-10 Complexity class for task plans
+
+proof:
+  plan: `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-10_COMPLEXITY_CLASS_FOR_TASK_PLANS/`
+  review: `docs/review/autopilot/PROCESS-10_SELF_REVIEW_2026-06-10.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/policy/PLANNING_POLICY.md`
+  major files:
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-10_COMPLEXITY_CLASS_FOR_TASK_PLANS/SUB_TASKS.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-10_COMPLEXITY_CLASS_FOR_TASK_PLANS/UX.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-10_COMPLEXITY_CLASS_FOR_TASK_PLANS/POLICY.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-10_COMPLEXITY_CLASS_FOR_TASK_PLANS/IMPLEMENTATION_PLAN.md`
+    - `docs/review/autopilot/PROCESS-10_TEST_RESULT_2026-06-10.md`
