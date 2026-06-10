@@ -45,7 +45,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | `UI-METRIC-01` | `COMPLETE` | `UI-METRIC-00` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-01_WORKSPACE_STATE_MATRIX/` | Workspace state matrix | `docs/ui/WORKSPACE_STATE_MATRIX.md` | no selected node, selected node without resources, selected with resources, sample on/off, generate preview, validation errors, QA, Export, Settings states define expected and forbidden visible output. |
 | `UI-METRIC-02` | `COMPLETE` | `UI-METRIC-00` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-02_STATIC_UI_AUDIT/` | Static UI audit tool | `tools/ui_static_audit.py`, docs/TEST.md | Detects suspicious buttons without pressed connection, forbidden button text, visible debug label patterns, generic ResourcePicker patterns, and tab constructor without ScrollContainer suspicion. |
 | `UI-METRIC-03` | `COMPLETE` | `UI-METRIC-00`, `UI-METRIC-01` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-03_LAYOUT_SNAPSHOT_COLLECTOR/` | Runtime layout snapshot collector | `addons/hex_map_kit/editor/testing/`, `tests/test_workspace_layout_metrics.gd` | Workspace can be built across scenarios/sizes; visible Control rect/minimum/text/base_type/tooltip/scroll parent/metadata can be serialized to JSON; report only, not fail gate. |
-| `UI-METRIC-04` | `READY` | `UI-METRIC-03` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-04_LAYOUT_METRIC_EVALUATOR_WARN_ONLY/` | Layout metric evaluator in warn-only mode | metric evaluator, layout metric tests, docs/TEST.md | text truncation, resource row, scroll, dead area, debug leakage, no-op, picker specificity, and state contradiction produce WARN report without failing tests. |
+| `UI-METRIC-04` | `COMPLETE` | `UI-METRIC-03` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-04_LAYOUT_METRIC_EVALUATOR_WARN_ONLY/` | Layout metric evaluator in warn-only mode | metric evaluator, layout metric tests, docs/TEST.md | text truncation, resource row, scroll, dead area, debug leakage, no-op, picker specificity, and state contradiction produce WARN report without failing tests. |
 
 ---
 
@@ -53,7 +53,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `UI-METRIC-05` | `BACKLOG` | `UI-METRIC-04` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-05_P0_ACCEPTANCE_GATE/` | P0 UI metric acceptance gate | metric evaluator, tests, docs/TEST.md | visible no-op button, missing required scroll, state contradiction, sample fallback in production, debug leakage, required generic Resource picker, and unreachable primary action fail P0. |
+| `UI-METRIC-05` | `READY` | `UI-METRIC-04` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-05_P0_ACCEPTANCE_GATE/` | P0 UI metric acceptance gate | metric evaluator, tests, docs/TEST.md | visible no-op button, missing required scroll, state contradiction, sample fallback in production, debug leakage, required generic Resource picker, and unreachable primary action fail P0. |
 | `UI-METRIC-06` | `BACKLOG` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-06_P1_ACCEPTANCE_GATE/` | P1 UI metric acceptance gate | metric evaluator, tests, docs/TEST.md | resource row compression, normal width label truncation, large dead area, disabled action without tooltip, and summary-only task tab are P1 fail/report conditions. |
 | `UI-METRIC-07` | `BACKLOG` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-07_TEST_SH_INTEGRATION/` | P0 metric integration in standard tests | `tools/test.sh`, metric report output docs | `tools/test.sh` runs P0 gate; P1 can stay separate initially; JSON/MD report is written under `.godot_user/ui-metrics/<run-id>/`. |
 | `UI-METRIC-08` | `BACKLOG` | `UI-METRIC-05`, `PROCESS-13` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-08_AUTOPILOT_ACCEPTANCE_TEMPLATE_UPDATE/` | Autopilot UI acceptance template update | policy/process docs, self-review templates | UI task self-review references UI metric report; UI task completion includes P0 failures = 0. |
@@ -140,7 +140,7 @@ acceptance / test path:
 
 ## 9. Current pointer
 
-Current recommended next task: `UI-METRIC-04`.
+Current recommended next task: `UI-METRIC-05`.
 
 Reason:
 
@@ -153,8 +153,9 @@ Reason:
 - `UI-METRIC-01` is complete.
 - `UI-METRIC-02` is complete.
 - `UI-METRIC-03` is complete.
-- `UI-METRIC-04` is READY because `UI-METRIC-03` is complete.
-- `UI-METRIC-04` is the first READY task in queue order.
+- `UI-METRIC-04` is complete.
+- `UI-METRIC-05` is READY because `UI-METRIC-04` is complete.
+- `UI-METRIC-05` is the first READY task in queue order.
 
 ---
 
@@ -325,3 +326,24 @@ proof:
     - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-03_LAYOUT_SNAPSHOT_COLLECTOR/POLICY.md`
     - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-03_LAYOUT_SNAPSHOT_COLLECTOR/IMPLEMENTATION_PLAN.md`
     - `docs/review/autopilot/UI-METRIC-03_TEST_RESULT_2026-06-10.md`
+
+### UI-METRIC-04 Layout metric evaluator warn-only
+
+proof:
+  plan: `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-04_LAYOUT_METRIC_EVALUATOR_WARN_ONLY/`
+  review: `docs/review/autopilot/UI-METRIC-04_SELF_REVIEW_2026-06-10.md`
+  execution:
+    - `docs/review/autopilot/UI-METRIC-04_SELF_REVIEW_2026-06-10.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/testing/hex_ui_layout_metric_evaluator.gd`
+    - `tests/test_workspace_layout_metric_evaluator.gd`
+    - `tools/test.sh`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-04_LAYOUT_METRIC_EVALUATOR_WARN_ONLY/SUB_TASKS.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-04_LAYOUT_METRIC_EVALUATOR_WARN_ONLY/UX.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-04_LAYOUT_METRIC_EVALUATOR_WARN_ONLY/POLICY.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-04_LAYOUT_METRIC_EVALUATOR_WARN_ONLY/IMPLEMENTATION_PLAN.md`
+    - `docs/review/autopilot/UI-METRIC-04_TEST_RESULT_2026-06-10.md`
