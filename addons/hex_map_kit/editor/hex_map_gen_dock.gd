@@ -9,6 +9,7 @@ const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
 const HexMapDocumentValidator = preload("res://addons/hex_map_kit/adapter/hex_map_document_validator.gd")
+const HexGenerationResultResource = preload("res://addons/hex_map_kit/adapter/hex_generation_result_resource.gd")
 const HexMapDocumentInspector = preload("res://addons/hex_map_kit/editor/hex_map_document_inspector.gd")
 const HexMapDocumentTerrainLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_terrain_layer_resource.gd")
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
@@ -3419,11 +3420,52 @@ func promoted_generation_document():
 func promote_generation_batch_row(row: Dictionary, options: Dictionary = {}):
 	if row.is_empty():
 		return null
+	var result_resource = generation_result_for_row(row)
+	if result_resource != null and result_resource.can_replay():
+		var replay_options = options.duplicate(true)
+		if row.has("snapshot") and row["snapshot"] is Dictionary:
+			replay_options["snapshot"] = (row["snapshot"] as Dictionary).duplicate(true)
+		replay_options["score_row"] = row.duplicate(true)
+		return promote_generation_result(result_resource, replay_options)
 	var promote_options = options.duplicate(true)
 	if row.has("snapshot") and row["snapshot"] is Dictionary:
 		promote_options["snapshot"] = (row["snapshot"] as Dictionary).duplicate(true)
 	promote_options["score_row"] = row.duplicate(true)
 	return promote_generation_seed_to_document(int(row.get("seed", 0)), promote_options)
+
+
+func generation_result_for_row(row: Dictionary):
+	var value = row.get("generation_result", null)
+	return value if value is HexGenerationResultResource else null
+
+
+func replay_generation_result_document(result_resource):
+	if result_resource == null or not result_resource is HexGenerationResultResource:
+		return null
+	return (result_resource as HexGenerationResultResource).replay_document()
+
+
+func promote_generation_result(result_resource, options: Dictionary = {}):
+	if result_resource == null or not result_resource is HexGenerationResultResource:
+		return null
+	var generation_result := result_resource as HexGenerationResultResource
+	if not generation_result.can_replay():
+		return null
+	var document = generation_result.replay_document()
+	if document == null:
+		return null
+	var snapshot := generation_result.source_snapshot.duplicate(true)
+	if snapshot.is_empty():
+		snapshot = generation_result.generation_snapshot.duplicate(true)
+	var validation_summary := generation_result.validation_summary.duplicate(true)
+	var promote_options := options.duplicate(true)
+	if not promote_options.has("score_row"):
+		promote_options["score_row"] = generation_result.to_score_row()
+	_attach_generation_metadata(document, snapshot, generation_result.seed, validation_summary, promote_options)
+	document.metadata.custom_properties["generation_result_id"] = generation_result.result_id
+	document.metadata.custom_properties["generation_result_source"] = "HexGenerationResultResource"
+	_last_promoted_generation_document = document
+	return document
 
 
 func promote_generation_seed_to_document(seed: int, options: Dictionary = {}):
@@ -3621,7 +3663,7 @@ func _batch_seed_list(seed_count: int, options: Dictionary) -> Array[int]:
 
 
 func _batch_blocked_row(index: int, snapshot: Dictionary, block_reason: String) -> Dictionary:
-	return {
+	var row := {
 		"index": index,
 		"seed": int(snapshot.get("seed", 0)),
 		"status": "blocked",
@@ -3638,11 +3680,15 @@ func _batch_blocked_row(index: int, snapshot: Dictionary, block_reason: String) 
 			"seed": int(snapshot.get("seed", 0)),
 		}),
 	}
+	_attach_generation_result_resource_to_row(row, null, null, null, null)
+	return row
 
 
 func _batch_result_row(index: int, snapshot: Dictionary, data, options: Dictionary) -> Dictionary:
 	var overlay_mode = bool(snapshot.get("overlay_mode", false))
-	var document = _generated_document_snapshot_for_data(_current_data if overlay_mode else data, data if overlay_mode else null)
+	var primary_data = _current_data if overlay_mode else data
+	var overlay_data = data if overlay_mode else null
+	var document = _generated_document_snapshot_for_data(primary_data, overlay_data)
 	var validation_result = HexMapDocumentValidator.validate_document(document, _generation_validation_options())
 	var validation_summary = _batch_validation_summary(validation_result, document != null)
 	var row: Dictionary = {
@@ -3662,6 +3708,7 @@ func _batch_result_row(index: int, snapshot: Dictionary, data, options: Dictiona
 			"source_context": "generate_batch_row",
 			"seed": int(snapshot.get("seed", 0)),
 		})
+		_attach_generation_result_resource_to_row(row, null, validation_result, null, null)
 		return row
 	if overlay_mode:
 		row["cells"] = data.cells.size()
@@ -3685,7 +3732,49 @@ func _batch_result_row(index: int, snapshot: Dictionary, data, options: Dictiona
 			"seed": int(snapshot.get("seed", 0)),
 		})
 	row["score"] = _batch_score(row, options)
+	_attach_generation_result_resource_to_row(row, document, validation_result, primary_data, overlay_data)
 	return row
+
+
+func _attach_generation_result_resource_to_row(
+	row: Dictionary,
+	document,
+	validation_result,
+	primary_data,
+	overlay_data
+) -> void:
+	var result_resource := HexGenerationResultResource.new()
+	result_resource.result_id = _generation_result_id(row)
+	result_resource.seed = int(row.get("seed", 0))
+	result_resource.status = String(row.get("status", ""))
+	result_resource.overlay_mode = bool(row.get("overlay_mode", false))
+	result_resource.score = float(row.get("score", 0.0))
+	if primary_data != null:
+		result_resource.primary_map = HexMapResource.from_map_data(primary_data, _current_orientation)
+	if overlay_data != null:
+		result_resource.overlay_map = HexOverlayResource.from_overlay_data(overlay_data, _current_orientation)
+	result_resource.candidate_document = document
+	result_resource.validation_result = validation_result
+	result_resource.validation_summary = (row.get("validation_summary", {}) as Dictionary).duplicate(true)
+	result_resource.generation_snapshot = (row.get("generation_snapshot", {}) as Dictionary).duplicate(true)
+	result_resource.source_snapshot = (row.get("snapshot", {}) as Dictionary).duplicate(true)
+	result_resource.preview = (row.get("preview", {}) as Dictionary).duplicate(true)
+	result_resource.metadata = {
+		"source_context": "generate_batch_row",
+		"candidate_scope": "overlay" if bool(row.get("overlay_mode", false)) else "primary",
+	}
+	result_resource.score_row = row.duplicate(true)
+	row["generation_result"] = result_resource
+	row["generation_result_id"] = result_resource.result_id
+	row["result_scope"] = result_resource.scope_snapshot()
+	row["replay_available"] = result_resource.can_replay()
+
+
+func _generation_result_id(row: Dictionary) -> String:
+	return "seed_%d_index_%d" % [
+		int(row.get("seed", 0)),
+		int(row.get("index", -1)),
+	]
 
 
 func _batch_validation_summary(result, generated_map_present: bool) -> Dictionary:

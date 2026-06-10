@@ -17,6 +17,7 @@ const HexMapDocumentTerrainLayerResource = preload("res://addons/hex_map_kit/ada
 const HexMapDocumentZoneResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_zone_resource.gd")
 const HexMapValidationResult = preload("res://addons/hex_map_kit/adapter/hex_map_validation_result.gd")
 const HexMapDocumentValidator = preload("res://addons/hex_map_kit/adapter/hex_map_document_validator.gd")
+const HexGenerationResultResource = preload("res://addons/hex_map_kit/adapter/hex_generation_result_resource.gd")
 const HexMovementProfileResource = preload("res://addons/hex_map_kit/adapter/hex_movement_profile_resource.gd")
 const HexGenerationProfileResource = preload("res://addons/hex_map_kit/adapter/hex_generation_profile_resource.gd")
 const HexExportProfileResource = preload("res://addons/hex_map_kit/adapter/hex_export_profile_resource.gd")
@@ -77,6 +78,7 @@ func _run() -> void:
 	_test_hex_map_document_dependency_service_crud_hydrates_and_validates()
 	_test_hex_map_document_summary_reports_canonical_counts()
 	_test_hex_map_validation_result_serializes_summary_and_warnings()
+	_test_hex_generation_result_resource_serializes_scope_and_replay()
 	_test_hex_map_document_validator_reports_core_rules()
 	_test_hex_map_document_validator_reports_phase_progress()
 	_test_hex_map_document_validator_rule_matrix()
@@ -1091,6 +1093,70 @@ func _test_hex_map_validation_result_serializes_summary_and_warnings() -> void:
 	_assert_eq(loaded.warning_count(), 2, "loaded validation result counts warnings")
 	_assert_eq(loaded.summary["warnings"], 2, "loaded validation result preserves summary")
 	_assert_eq(loaded.issues[1]["rule_id"], "document.dependencies_empty", "loaded validation result preserves issues")
+
+
+func _test_hex_generation_result_resource_serializes_scope_and_replay() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	var document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(data))
+	var validation_result = HexMapDocumentValidator.validate_document(document)
+	var result_resource := HexGenerationResultResource.new()
+	result_resource.result_id = "seed_42_index_0"
+	result_resource.seed = 42
+	result_resource.status = "generated"
+	result_resource.score = 1002.5
+	result_resource.primary_map = HexMapResource.from_map_data(data)
+	result_resource.candidate_document = document
+	result_resource.validation_result = validation_result
+	result_resource.validation_summary = {
+		"validated": true,
+		"passed": validation_result.error_count() == 0,
+		"errors": validation_result.error_count(),
+		"warnings": validation_result.warning_count(),
+	}
+	result_resource.generation_snapshot = {
+		"seed": 42,
+		"rect_width": 2,
+		"rect_height": 1,
+	}
+	result_resource.source_snapshot = result_resource.generation_snapshot.duplicate(true)
+	result_resource.score_row = {
+		"seed": 42,
+		"score": 1002.5,
+	}
+	result_resource.preview = {
+		"available": true,
+		"source_kind": "map_data",
+		"cell_count": 2,
+	}
+	result_resource.metadata = {
+		"source_context": "test",
+	}
+
+	var scope = result_resource.scope_snapshot()
+	_assert_eq(result_resource.can_replay(), true, "generation result can replay generated candidate")
+	_assert_eq(bool(scope["primary_map_present"]), true, "generation result scope includes primary map")
+	_assert_eq(bool(scope["candidate_document_present"]), true, "generation result scope includes candidate document")
+	_assert_eq(bool(scope["validation_result_present"]), true, "generation result scope includes validation result")
+	_assert_eq(bool(scope["preview_available"]), true, "generation result scope includes preview availability")
+	var replayed = result_resource.replay_document()
+	_assert_eq(replayed is HexMapDocumentResource, true, "generation result replays to document resource")
+	_assert_eq(
+		(replayed as HexMapDocumentResource).terrain_layers[0].map.to_map_data().cells.size(),
+		2,
+		"generation result replay preserves candidate map"
+	)
+	var row = result_resource.to_score_row()
+	_assert_eq(String(row["generation_result_id"]), "seed_42_index_0", "generation result score row exposes result id")
+	_assert_eq(row["generation_result"], result_resource, "generation result score row keeps resource reference")
+	_assert_eq(bool(row["replay_available"]), true, "generation result score row exposes replay availability")
+
+	var path = _test_resource_path("test_generation_result_resource.tres")
+	var error = ResourceSaver.save(result_resource, path)
+	var loaded = load(path)
+	_assert_eq(error, OK, "generation result resource saves")
+	_assert_eq(loaded is HexGenerationResultResource, true, "generation result resource loads as typed resource")
+	_assert_eq(String(loaded.result_id), "seed_42_index_0", "loaded generation result keeps result id")
+	_assert_eq(loaded.replay_document() is HexMapDocumentResource, true, "loaded generation result replays document")
 
 
 func _test_hex_map_document_validator_reports_core_rules() -> void:

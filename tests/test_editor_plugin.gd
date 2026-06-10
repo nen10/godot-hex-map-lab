@@ -22,6 +22,7 @@ const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_laye
 const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
 const HexObjectDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_object_definition_resource.gd")
 const HexGenerationProfileResource = preload("res://addons/hex_map_kit/adapter/hex_generation_profile_resource.gd")
+const HexGenerationResultResource = preload("res://addons/hex_map_kit/adapter/hex_generation_result_resource.gd")
 const HexLabelDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_label_database_resource.gd")
 const HexLabelDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_label_definition_resource.gd")
 const HexMovementProfileResource = preload("res://addons/hex_map_kit/adapter/hex_movement_profile_resource.gd")
@@ -2945,6 +2946,13 @@ func _test_qa_asset_screen_manages_profiles_and_score_context_without_samples() 
 	var top_scored_row = scored_rows[0] as Dictionary
 	_assert_true(bool(top_scored_row["selected"]), "QA-NEXT-10 top scored row is selected after batch")
 	_assert_true(bool(top_scored_row["preview_available"]), "QA-NEXT-10 scored row exposes preview availability")
+	_assert_true(String(top_scored_row["generation_result_id"]) != "", "GENPIPE-NEXT-10 QA scored row exposes result id")
+	_assert_true(bool(top_scored_row["result_resource_present"]), "GENPIPE-NEXT-10 QA scored row reports result resource")
+	_assert_true(bool(top_scored_row["replay_available"]), "GENPIPE-NEXT-10 QA scored row reports replay availability")
+	_assert_true(
+		bool((top_scored_row["result_scope"] as Dictionary).get("candidate_document_present", false)),
+		"GENPIPE-NEXT-10 QA scored row exposes candidate scope"
+	)
 	_assert_eq(
 		String(top_scored_row["validation"]),
 		"%dE/%dW" % [
@@ -2970,11 +2978,22 @@ func _test_qa_asset_screen_manages_profiles_and_score_context_without_samples() 
 	var selected_scored_rows = selected_scored_table["rows"] as Array
 	_assert_eq(String((selected_scored_rows[1] as Dictionary)["selected_state"]), "selected", "QA-NEXT-10 selected row text state updates")
 	var selected_seed = int((seed_select["selected_seed_row"] as Dictionary).get("seed", 0))
+	var selected_generation_result_id = String((seed_select["selected_seed_row"] as Dictionary).get("generation_result_id", ""))
 	var promote_result = workspace.promote_qa_selected_seed_to_document()
 	_assert_true(bool(promote_result["ok"]), "TAB-55 QA Seed Lab promotes selected row")
 	var promoted_document = promote_result["document"] as HexMapDocumentResource
 	_assert_true(promoted_document is HexMapDocumentResource, "TAB-55 promotion creates Level Document")
 	_assert_eq(promoted_document.metadata.generation_seed, selected_seed, "TAB-55 promoted document records selected seed")
+	_assert_eq(
+		String(promoted_document.metadata.custom_properties.get("generation_result_id", "")),
+		selected_generation_result_id,
+		"GENPIPE-NEXT-10 promoted document records generation result id"
+	)
+	_assert_eq(
+		String(promoted_document.metadata.custom_properties.get("generation_result_source", "")),
+		"HexGenerationResultResource",
+		"GENPIPE-NEXT-10 promoted document records result resource source"
+	)
 	_assert_eq(workspace.workspace_asset_context().level_document, promoted_document, "TAB-55 promotion updates Resources Level Document context")
 	snapshot = workspace.qa_screen_snapshot()
 	_assert_true(bool(snapshot["promotion_updates_resources"]), "TAB-55 QA snapshot reports Resources document update")
@@ -2989,6 +3008,11 @@ func _test_qa_asset_screen_manages_profiles_and_score_context_without_samples() 
 	_assert_true(String(snapshot["mounted_score_table_rows_text"]).contains("promotion promoted"), "QA-NEXT-10 mounted table text exposes promoted state")
 	seed_lab = snapshot["seed_lab"] as Dictionary
 	_assert_true(bool((seed_lab["promotion_target"] as Dictionary).get("promoted", false)), "TAB-55 promotion target marks promoted document")
+	_assert_eq(
+		String((seed_lab["promotion_target"] as Dictionary).get("generation_result_id", "")),
+		selected_generation_result_id,
+		"GENPIPE-NEXT-10 QA promotion target exposes result id"
+	)
 
 	var clear_profile = workspace.clear_generation_profile()
 	_assert_true(bool(clear_profile["ok"]), "QA screen clears Generation Profile")
@@ -7422,9 +7446,18 @@ func _test_generation_dock_batch_runner_scores_and_sorts() -> void:
 	_assert_eq(dock._current_data.cells.size(), 1, "generation batch does not promote candidate into current map")
 	for row in rows:
 		var summary: Dictionary = row["validation_summary"]
+		var generation_result = row.get("generation_result", null) as HexGenerationResultResource
 		_assert_eq(String(row.get("status", "")), "generated", "generation batch row records generated status")
 		_assert_eq(int(row.get("cells", 0)), 6, "generation batch row records generated cell count")
 		_assert_true(row.has("score"), "generation batch row records score")
+		_assert_true(generation_result is HexGenerationResultResource, "GENPIPE-NEXT-10 batch row carries generation result resource")
+		_assert_eq(String(row.get("generation_result_id", "")), generation_result.result_id, "GENPIPE-NEXT-10 batch row exposes result id")
+		_assert_true(bool(row.get("replay_available", false)), "GENPIPE-NEXT-10 generated row is replayable")
+		_assert_true(generation_result.replay_document() is HexMapDocumentResource, "GENPIPE-NEXT-10 result resource replays candidate document")
+		var result_scope = row.get("result_scope", {}) as Dictionary
+		_assert_true(bool(result_scope.get("primary_map_present", false)), "GENPIPE-NEXT-10 result scope exposes primary map")
+		_assert_true(bool(result_scope.get("candidate_document_present", false)), "GENPIPE-NEXT-10 result scope exposes candidate document")
+		_assert_true(bool(result_scope.get("validation_result_present", false)), "GENPIPE-NEXT-10 result scope exposes validation result")
 		_assert_true(bool(summary.get("validated", false)), "generation batch row records validation summary")
 		_assert_true(bool(summary.get("passed", false)), "generation batch row passes validation")
 		_assert_eq(int(row.get("validation_errors", -1)), 0, "generation batch row flattens validation errors")
@@ -7483,6 +7516,9 @@ func _test_generation_dock_promotes_batch_seed_to_canonical_document() -> void:
 
 	dock.run_generation_batch(2, {"seeds": [801, 802]})
 	var chosen = dock.generation_batch_score_table("score", true)[0]
+	var chosen_result = chosen.get("generation_result", null) as HexGenerationResultResource
+	_assert_true(chosen_result is HexGenerationResultResource, "GENPIPE-NEXT-10 score row carries result resource")
+	_assert_true(dock.replay_generation_result_document(chosen_result) is HexMapDocumentResource, "GENPIPE-NEXT-10 dock replays result resource document")
 	var document = dock.promote_generation_batch_row(chosen)
 	_assert_true(document is HexMapDocumentResource, "promoted seed creates a document resource")
 	_assert_true(document.metadata != null, "promoted seed creates document metadata")
@@ -7512,6 +7548,11 @@ func _test_generation_dock_promotes_batch_seed_to_canonical_document() -> void:
 	_assert_true(
 		document.metadata.custom_properties.get("generation_validation_summary", {}) is Dictionary,
 		"promoted metadata stores validation summary"
+	)
+	_assert_eq(
+		String(document.metadata.custom_properties.get("generation_result_id", "")),
+		chosen_result.result_id,
+		"GENPIPE-NEXT-10 promoted metadata stores result id"
 	)
 
 	var path = _test_resource_path("test_generation_seed_promoted_document.tres")

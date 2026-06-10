@@ -3126,6 +3126,9 @@ func qa_seed_lab_context() -> Dictionary:
 		"selected_seed_visible": true,
 		"selected_seed": int(_qa_selected_seed_row.get("seed", 0)) if not _qa_selected_seed_row.is_empty() else 0,
 		"selected_score": float(_qa_selected_seed_row.get("score", 0.0)) if not _qa_selected_seed_row.is_empty() else 0.0,
+		"selected_generation_result_id": String(_qa_selected_seed_row.get("generation_result_id", "")),
+		"selected_result_scope": _qa_selected_result_scope(),
+		"selected_replay_available": bool(_qa_selected_seed_row.get("replay_available", false)),
 		"can_run_batch": _generation_dock != null,
 		"can_promote": _generation_dock != null and not _qa_selected_seed_row.is_empty(),
 		"promotion_target": _qa_promotion_target_context(context),
@@ -3145,6 +3148,11 @@ func _qa_score_rows() -> Array:
 	for row in _generation_dock.generation_batch_score_table("score", true):
 		rows.append(row)
 	return rows
+
+
+func _qa_selected_result_scope() -> Dictionary:
+	var value = _qa_selected_seed_row.get("result_scope", {})
+	return (value as Dictionary).duplicate(true) if value is Dictionary else {}
 
 
 func _qa_score_row_previews(rows: Array) -> Array:
@@ -3182,6 +3190,7 @@ func _qa_scored_table_rows(score_rows: Array) -> Array[Dictionary]:
 			continue
 		var score_row := (row as Dictionary)
 		var preview = score_row.get("preview", {}) as Dictionary
+		var result_scope = score_row.get("result_scope", {}) as Dictionary
 		var seed := int(score_row.get("seed", 0))
 		var selected := _qa_score_row_matches(score_row, _qa_selected_seed_row)
 		var promoted := promoted_seed != 0 and promoted_seed == seed
@@ -3201,6 +3210,10 @@ func _qa_scored_table_rows(score_rows: Array) -> Array[Dictionary]:
 			"preview": preview.duplicate(true),
 			"preview_available": bool(preview.get("available", false)),
 			"preview_text": _qa_score_row_preview_text(score_row),
+			"generation_result_id": String(score_row.get("generation_result_id", "")),
+			"result_resource_present": score_row.get("generation_result", null) != null,
+			"replay_available": bool(score_row.get("replay_available", false)),
+			"result_scope": result_scope.duplicate(true),
 			"promotion_state": promotion_state,
 			"promotion_available": selected and _generation_dock != null and not promoted,
 			"promoted": promoted,
@@ -4500,6 +4513,8 @@ func _qa_promotion_target_context(context: HexMapWorkspaceAssetContext) -> Dicti
 		"resource_path": document.resource_path if document != null else "",
 		"promoted": document != null and document == _qa_promoted_document,
 		"generation_seed": document.metadata.generation_seed if document != null and document.metadata != null else 0,
+		"generation_result_id": String(document.metadata.custom_properties.get("generation_result_id", "")) \
+			if document != null and document.metadata != null else "",
 	}
 
 
