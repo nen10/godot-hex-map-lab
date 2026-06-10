@@ -1470,6 +1470,7 @@ func validate_screen_snapshot() -> Dictionary:
 	var issue_rows := validate_screen_issue_rows(_last_workspace_validation_result)
 	var empty_state := _validate_tab_empty_state(issue_rows)
 	var validation_state := validation_workflow_state_snapshot()
+	var issue_table := _validate_issue_table(issue_rows)
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_VALIDATE,
 		"screen_role": screen_role,
@@ -1513,6 +1514,10 @@ func validate_screen_snapshot() -> Dictionary:
 		"paint_validation_dashboard_visible": false,
 		"last_result": _last_workspace_validation_result,
 		"issue_rows": issue_rows,
+		"issue_table": issue_table,
+		"issue_table_columns": issue_table.get("columns", PackedStringArray()),
+		"issue_table_rows_text": String(issue_table.get("rows_text", "")),
+		"mounted_issue_table_text": _validation_issue_rows_label.text if _validation_issue_rows_label != null else "",
 		"issue_count": issue_rows.size(),
 		"error_count": _last_workspace_validation_result.error_count() if _last_workspace_validation_result != null else 0,
 		"warning_count": _last_workspace_validation_result.warning_count() if _last_workspace_validation_result != null else 0,
@@ -1536,12 +1541,14 @@ func run_validate_screen() -> Dictionary:
 	_selected_validate_issue_row.clear()
 	_selected_validate_issue_navigation.clear()
 	var rows := validate_screen_issue_rows(_last_workspace_validation_result)
+	var issue_table := _validate_issue_table(rows)
 	_refresh_validation_issue_navigator()
 	var validation_state := validation_workflow_state_snapshot()
 	return {
 		"ok": true,
 		"result": _last_workspace_validation_result,
 		"issue_rows": rows,
+		"issue_table": issue_table,
 		"validation_state": validation_state,
 		"view_state": validation_state.get("view_state", {}),
 	}
@@ -1625,6 +1632,7 @@ func validate_screen_issue_rows(result: HexMapValidationResult) -> Array[Diction
 			"severity": String((issue as Dictionary).get("severity", "")),
 			"severity_label": HexMapValidationDashboard.issue_severity_label(issue as Dictionary),
 			"domain": HexMapValidationDashboard.issue_domain(issue as Dictionary),
+			"scope": String((issue as Dictionary).get("scope", "")),
 			"rule_id": String((issue as Dictionary).get("rule_id", "")),
 			"message": String((issue as Dictionary).get("message", "")),
 			"focus_target": HexMapValidationDashboard.issue_focus_target(issue as Dictionary),
@@ -1639,9 +1647,79 @@ func validate_screen_issue_rows(result: HexMapValidationResult) -> Array[Diction
 		row["destination_slot_id"] = String(navigation.get("target_slot_id", ""))
 		row["focus_type"] = String(navigation.get("focus_type", ""))
 		row["suggested_action"] = String(navigation.get("suggested_action", ""))
+		row["target_text"] = _validate_issue_target_text(row)
+		row["suggestion"] = String(row.get("fix_suggestion", ""))
+		row["available_actions"] = _validate_issue_available_actions(navigation)
+		row["action_count"] = (row["available_actions"] as Array).size()
+		row["real_actions_only"] = _validate_issue_actions_are_real(row["available_actions"] as Array)
 		rows.append(row)
 		issue_index += 1
 	return rows
+
+
+func _validate_issue_table(issue_rows: Array) -> Dictionary:
+	var action_count := 0
+	var real_actions_only := true
+	for row in issue_rows:
+		if not row is Dictionary:
+			continue
+		var actions = (row as Dictionary).get("available_actions", []) as Array
+		action_count += actions.size()
+		if not _validate_issue_actions_are_real(actions):
+			real_actions_only = false
+	return {
+		"surface_id": "validate_issue_table",
+		"visible": true,
+		"columns": PackedStringArray(["severity", "domain", "scope", "target", "suggestion", "actions"]),
+		"rows": issue_rows,
+		"row_count": issue_rows.size(),
+		"action_count": action_count,
+		"real_actions_only": real_actions_only,
+		"rows_text": _validate_issue_table_rows_text(issue_rows),
+		"primary_path_text_visible": false,
+	}
+
+
+func _validate_issue_target_text(row: Dictionary) -> String:
+	var focus_target := String(row.get("focus_target", ""))
+	if focus_target != "":
+		return focus_target
+	var destination_tab := String(row.get("destination_tab", ""))
+	var destination_slot := String(row.get("destination_slot_id", ""))
+	if destination_tab != "" and destination_slot != "":
+		return "%s %s" % [destination_tab, destination_slot]
+	if destination_tab != "":
+		return destination_tab
+	return String(row.get("rule_id", ""))
+
+
+func _validate_issue_available_actions(navigation: Dictionary) -> Array[Dictionary]:
+	var target_tab := String(navigation.get("target_tab", ""))
+	if target_tab == "":
+		return []
+	return [{
+		"id": "focus_issue",
+		"label": "Focus in %s" % target_tab,
+		"target_tab": target_tab,
+		"target_component_id": String(navigation.get("target_component_id", "")),
+		"target_slot_id": String(navigation.get("target_slot_id", "")),
+		"focus_type": String(navigation.get("focus_type", "")),
+		"action": "select_validate_issue",
+		"real": true,
+	}]
+
+
+func _validate_issue_actions_are_real(actions: Array) -> bool:
+	for action in actions:
+		if not action is Dictionary:
+			return false
+		if String((action as Dictionary).get("id", "")) == "":
+			return false
+		if String((action as Dictionary).get("target_tab", "")) == "":
+			return false
+		if not bool((action as Dictionary).get("real", false)):
+			return false
+	return true
 
 
 func select_validate_issue(index: int) -> Dictionary:
@@ -4888,20 +4966,32 @@ func _refresh_validation_issue_navigator() -> void:
 				String(navigation.get("suggested_action", "")),
 			]
 	if _validation_issue_rows_label != null:
-		_validation_issue_rows_label.text = _validate_issue_rows_text(snapshot.get("issue_rows", []) as Array)
+		var issue_table = snapshot.get("issue_table", {}) as Dictionary
+		_validation_issue_rows_label.text = String(issue_table.get("rows_text", _validate_issue_rows_text(snapshot.get("issue_rows", []) as Array)))
 
 
 func _validate_issue_rows_text(rows: Array) -> String:
+	return _validate_issue_table_rows_text(rows)
+
+
+func _validate_issue_table_rows_text(rows: Array) -> String:
 	if rows.is_empty():
 		return "No validation issues listed."
 	var parts := PackedStringArray()
 	for row in rows:
 		if not row is Dictionary:
 			continue
-		parts.append("%s %s -> %s" % [
+		var actions = (row as Dictionary).get("available_actions", []) as Array
+		var action_label := "no action"
+		if not actions.is_empty() and actions[0] is Dictionary:
+			action_label = String((actions[0] as Dictionary).get("label", ""))
+		parts.append("%s | %s | %s | %s | %s | %s" % [
 			String((row as Dictionary).get("severity_label", "")),
-			String((row as Dictionary).get("rule_id", "")),
-			String((row as Dictionary).get("destination_tab", "")),
+			String((row as Dictionary).get("domain", "")),
+			String((row as Dictionary).get("scope", "")),
+			String((row as Dictionary).get("target_text", "")),
+			String((row as Dictionary).get("suggestion", "")),
+			action_label,
 		])
 	return _join_text(parts, " | ")
 

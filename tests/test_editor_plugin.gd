@@ -2636,9 +2636,24 @@ func _test_validate_asset_screen_reports_missing_project_assets_without_samples(
 	_assert_true(result is HexMapValidationResult, "Validate screen returns validation result")
 	_assert_eq(result.error_count(), 5, "Validate screen reports required missing project assets as errors")
 	var rows = validate_result["issue_rows"] as Array
+	var issue_table = validate_result["issue_table"] as Dictionary
+	var issue_columns = issue_table["columns"] as PackedStringArray
+	for column in ["severity", "domain", "scope", "target", "suggestion", "actions"]:
+		_assert_true(issue_columns.has(column), "VAL-NEXT-10 issue table exposes column: %s" % column)
+	_assert_eq(String(issue_table["surface_id"]), "validate_issue_table", "VAL-NEXT-10 Validate exposes issue table surface")
+	_assert_eq(int(issue_table["row_count"]), rows.size(), "VAL-NEXT-10 issue table row count matches issue rows")
+	_assert_true(bool(issue_table["real_actions_only"]), "VAL-NEXT-10 issue table only exposes real row actions")
 	var document_row = _validation_issue_row_for_rule(rows, "workspace.level_document_missing")
 	_assert_eq(String(document_row["severity_label"]), "Error", "SCREEN-23 issue row exposes severity label")
 	_assert_true(String(document_row["domain"]) != "", "SCREEN-23 issue row exposes domain/scope grouping")
+	_assert_eq(String(document_row["scope"]), HexMapValidationResult.SCOPE_DEPENDENCY, "VAL-NEXT-10 missing document row exposes scope column")
+	_assert_true(String(document_row["target_text"]) != "", "VAL-NEXT-10 missing document row exposes target column")
+	_assert_eq(String(document_row["suggestion"]), String(document_row["fix_suggestion"]), "VAL-NEXT-10 missing document row exposes suggestion column")
+	var document_actions = document_row["available_actions"] as Array
+	_assert_eq(document_actions.size(), 1, "VAL-NEXT-10 missing document row exposes one real focus action")
+	_assert_eq(String((document_actions[0] as Dictionary)["id"]), "focus_issue", "VAL-NEXT-10 missing document action is focus_issue")
+	_assert_eq(String((document_actions[0] as Dictionary)["target_tab"]), "Resources", "VAL-NEXT-10 missing document action targets Resources")
+	_assert_true(bool((document_actions[0] as Dictionary)["real"]), "VAL-NEXT-10 missing document action is marked real")
 	_assert_true(String(document_row["focus_target"]) != "", "SCREEN-23 issue row exposes focus target")
 	_assert_true(String(document_row["fix_suggestion"]) != "", "SCREEN-23 issue row exposes fix suggestion")
 	_assert_eq(document_row["target_tab"], "Resources", "missing document points to Resources tab")
@@ -2706,6 +2721,9 @@ func _test_validate_asset_screen_reports_missing_project_assets_without_samples(
 	_assert_eq(selection["selected_tab"], "Layers", "TAB-54 selecting layer issue moves to Layers")
 	var invalid_selection = workspace.select_validate_issue(999)
 	_assert_true(not bool(invalid_selection["ok"]), "TAB-54 invalid issue selection is rejected")
+	snapshot = workspace.validate_screen_snapshot()
+	_assert_true(String(snapshot["issue_table_rows_text"]).contains("Focus in Resources"), "VAL-NEXT-10 issue table rows text includes real focus action")
+	_assert_true(String(snapshot["mounted_issue_table_text"]).contains("Error | Document"), "VAL-NEXT-10 mounted issue table text includes rich columns")
 
 	var cell_document := _sample_editor_document()
 	(cell_document.object_placements[0] as HexMapDocumentObjectPlacementResource).cell = Vector3i(1, 0, 0)
@@ -2715,6 +2733,11 @@ func _test_validate_asset_screen_reports_missing_project_assets_without_samples(
 	var wall_row = _validation_issue_row_for_rule(cell_rows, "document.object_on_wall")
 	_assert_eq(wall_row["destination_tab"], "Paint", "TAB-54 cell-scoped issue routes to Paint")
 	_assert_eq(wall_row["focus_type"], "cell", "TAB-54 cell-scoped issue records cell focus")
+	_assert_true(String(wall_row["target_text"]).contains("Cell"), "VAL-NEXT-10 cell-scoped issue exposes target cell")
+	_assert_true(String(wall_row["suggestion"]).contains("floor"), "VAL-NEXT-10 cell-scoped issue exposes fix suggestion")
+	var wall_actions = wall_row["available_actions"] as Array
+	_assert_eq(wall_actions.size(), 1, "VAL-NEXT-10 cell-scoped issue exposes one real focus action")
+	_assert_eq(String((wall_actions[0] as Dictionary)["target_tab"]), "Paint", "VAL-NEXT-10 cell-scoped action targets Paint")
 	_assert_true(String(wall_row["suggested_action"]).contains("Paint"), "TAB-54 cell-scoped issue suggests Paint inspection")
 	selection = workspace.select_validate_issue(int(wall_row["index"]))
 	_assert_eq(selection["selected_tab"], "Paint", "TAB-54 selecting cell issue moves to Paint")
