@@ -52,6 +52,78 @@ proof:
     - ...
 ```
 
+## Phase review matrix
+
+Phase を閉じる、または queue pointer を次 phase へ進める前に、phase review matrix を作成する。
+
+Template:
+
+- `docs/review/roadmap/PHASE_REVIEW_MATRIX_TEMPLATE.md`
+
+Recommended output path:
+
+```text
+docs/review/roadmap/<ROADMAP_ID>_<PHASE_ID>_PHASE_REVIEW_<date>.md
+```
+
+### Phase close condition
+
+Phase review は次の条件を満たした時点で作成する。
+
+1. 対象 phase の task に `READY`, `RUNNING`, `VERIFYING`, `REPAIR_NOW`, `RESOLUTED_RUNNING`, `RESOLUTED_VERIFYING`, `RESOLUTED_REPAIR_NOW`, `SPLIT_REQUIRED`, `BLOCKED_BY_TEST_ENV` が残っていない。
+2. 対象 phase の `BACKLOG` task は、未完了 dependency を持つため待機しているか、phase review で次 action が明記されている。
+3. `COMPLETE_WITH_BACKLOG` task は、backlog item の queue id、dynamic follow-up item、または ledger entry を持つ。
+
+### Required matrix fields
+
+Phase review matrix は task ごとに次を記録する。
+
+| field | required meaning |
+|---|---|
+| task id | Queue task id. |
+| status | Final status at phase review time. |
+| score | `3`, `2`, `1`, or `0` according to the score scale. |
+| evidence | Plan, self-review, test-result, proof log, or changed docs/code. |
+| debt / follow-up | `none`, queue id, dynamic follow-up id, fallback ledger entry, explicit reject, or policy-deferred reason. |
+| next readiness | `closed`, `ready-next`, `needs-follow-up`, `repair-now`, `blocked`, or `split-required`. |
+
+Score scale:
+
+| score | meaning |
+|---|---|
+| `3` | Acceptance is complete, tests/proof are linked, and no follow-up is required. |
+| `2` | Acceptance is complete, but tracked nonblocking backlog or ledger work remains. |
+| `1` | Completion is partial, blocked, or split; the phase cannot be treated as cleanly closed. |
+| `0` | Acceptance is not met or evidence is missing. |
+
+### Prose-only defer conversion
+
+Phase review must inspect the phase's queue rows, `SUB_TASKS.md`, `UX.md`, `POLICY.md`, `IMPLEMENTATION_PLAN.md`, self-review docs, test-result docs, and proof log for deferred wording.
+
+The following words are not accepted as final phase proof unless mapped in the deferred conversion table:
+
+- deferred
+- future
+- later
+- follow-up
+- fallback
+- mirror
+- debug-only
+- sample-only
+- manual override
+- legacy
+- temporary
+
+Each prose-only item must become one of:
+
+1. Existing queue id.
+2. New queue candidate in the Dynamic follow-up area.
+3. Fallback ledger entry.
+4. Explicit reject with reason.
+5. Policy-deferred reason with owner and revisit condition.
+
+If an item cannot be classified, the current task or phase is not complete. Mark the relevant task `REPAIR_NOW` or add a scheduled task before advancing the pointer.
+
 ## Dependency sweep
 
 Task を閉じたら、queue 全体を一度確認する。
@@ -61,7 +133,8 @@ Task を閉じたら、queue 全体を一度確認する。
 3. `BACKLOG` task の dependencies を確認する。
 4. すべて満たされた task を `READY` にする。
 5. dependencies を満たさない `READY` は `BACKLOG` に戻し、理由を記録する。
-6. Current pointer を先頭の `READY` task に合わせる。
+6. Phase を閉じる場合は、Phase review matrix が score / debt / evidence / next readiness を記録していることを確認する。
+7. Current pointer を先頭の `READY` task に合わせる。
 
 ## Follow-up
 
