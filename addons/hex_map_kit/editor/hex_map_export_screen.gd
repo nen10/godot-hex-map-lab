@@ -57,6 +57,10 @@ static func build_export_purpose_panel() -> Dictionary:
 	var status_label := _wrapped_label()
 	panel.add_child(status_label)
 
+	var runtime_handoff_summary_label := _wrapped_label()
+	runtime_handoff_summary_label.name = "Runtime Handoff Summary"
+	panel.add_child(runtime_handoff_summary_label)
+
 	var mode_label := _wrapped_label()
 	panel.add_child(mode_label)
 
@@ -66,6 +70,7 @@ static func build_export_purpose_panel() -> Dictionary:
 	return {
 		"root": panel,
 		"status_label": status_label,
+		"runtime_handoff_summary_label": runtime_handoff_summary_label,
 		"mode_label": mode_label,
 		"backlog_label": backlog_label,
 	}

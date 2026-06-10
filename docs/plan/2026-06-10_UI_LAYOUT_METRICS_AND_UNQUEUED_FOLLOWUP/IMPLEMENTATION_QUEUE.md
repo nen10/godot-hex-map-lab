@@ -78,9 +78,9 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | `GEN-NEXT-10` | `COMPLETE` | `ARCH-NEXT-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GEN-NEXT-10_GENERATE_TAB_LAYOUT_REDESIGN/` | Full Generate tab layout redesign | Generate components, UI metric tests | Input/Profile/Preview/Apply/Save/Performance state are visually separated; reload/save/apply purpose is clear. |
 | `GEN-NEXT-11` | `COMPLETE` | `GEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GEN-NEXT-11_GENERATE_QA_PREVIEW_THUMBNAILS/` | Generate / QA preview thumbnails | Generate/QA preview components, cache/budget tests | Generate candidate thumbnail and QA score row preview are connected; thumbnail is from project document/candidate data, not sample fallback. |
 | `CAT-NEXT-11` | `COMPLETE` | `CAT-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/CAT-NEXT-11_CATALOG_TILE_SCENE_PREVIEW_UI/` | Rich tile / scene preview UI | Catalog entry detail, TileSet/scene preview tests | Atlas tile and scene preview render in detail; invalid/missing preview uses badge/tooltip. |
-| `SCREEN-NEXT-10` | `READY` | `ARCH-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/SCREEN-NEXT-10_RESOURCES_LAYERS_EXPORT_VISUAL_REDESIGN/` | Rich Resources / Layers / Export visual redesign | Resources/Layers/Export screens, tests | Resources, Layers, and Export become clearer task surfaces for node/document/dependency, role tree, and runtime handoff state. |
-| `LAYER-NEXT-10` | `BACKLOG` | `SCREEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/LAYER-NEXT-10_LAYER_ROLE_EDITOR/` | Fine-grained Layer role editor | Layer screen/resource/tests | Role visible/locked/z-index/writable source can be edited and reflected in LayerStack/selected node state. |
-| `PAINT-NEXT-10` | `BACKLOG` | `SCREEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PAINT-NEXT-10_VIEWPORT_AFFORDANCE_POLISH/` | Paint viewport affordance polish | Paint tab, viewport adapter, tests | Brush cursor, selected cell, target layer, mode, and last edit feedback sync between viewport and Paint tab. |
+| `SCREEN-NEXT-10` | `COMPLETE` | `ARCH-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/SCREEN-NEXT-10_RESOURCES_LAYERS_EXPORT_VISUAL_REDESIGN/` | Rich Resources / Layers / Export visual redesign | Resources/Layers/Export screens, tests | Resources, Layers, and Export become clearer task surfaces for node/document/dependency, role tree, and runtime handoff state. |
+| `LAYER-NEXT-10` | `READY` | `SCREEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/LAYER-NEXT-10_LAYER_ROLE_EDITOR/` | Fine-grained Layer role editor | Layer screen/resource/tests | Role visible/locked/z-index/writable source can be edited and reflected in LayerStack/selected node state. |
+| `PAINT-NEXT-10` | `READY` | `SCREEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PAINT-NEXT-10_VIEWPORT_AFFORDANCE_POLISH/` | Paint viewport affordance polish | Paint tab, viewport adapter, tests | Brush cursor, selected cell, target layer, mode, and last edit feedback sync between viewport and Paint tab. |
 | `VAL-NEXT-10` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/VAL-NEXT-10_VALIDATE_RICH_ISSUE_TABLE_ACTIONS/` | Rich Validate issue table and actions | Validate screen, validation dashboard, tests | Issue table has severity/domain/scope/target/suggestion columns and only real per-issue actions. |
 | `QA-NEXT-10` | `READY` | `GEN-NEXT-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/QA-NEXT-10_SCORE_TABLE_VISUAL_REDESIGN/` | QA scored table visual redesign | QA screen/table/tests | Seed rows, score columns, validation status, selected seed, preview, and promotion state are easy to compare. |
 | `SETTINGS-NEXT-10` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/SETTINGS-NEXT-10_SETTINGS_GROUPING_TOGGLE_STYLING/` | Settings grouping and toggle styling | Settings/sample panels, tests | Sample Learning, Debug, Project Defaults, and UI Preferences are separated; booleans use toggles/checks with tooltip detail. |
@@ -109,7 +109,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | `ARCH-NEXT-21` | `BACKLOG` | `ARCH-NEXT-20` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-21_GAMEPLAY_QUERY_SERVICE_EXTRACTION/` | Gameplay query service extraction | path/range/connectivity services/tests | Runtime query helpers move to service/facade boundary; runtime samples use service path. |
 | `ARCH-NEXT-22` | `BACKLOG` | `ARCH-NEXT-20` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-22_DEBUG_OVERLAY_RENDERER_EXTRACTION/` | Debug overlay renderer extraction | debug overlay/validation focus/tests | Debug overlay rendering is separated from normal gameplay rendering and connects to Validate/debug report paths. |
 | `TEST-NEXT-10` | `READY` | `UI-METRIC-08` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/TEST-NEXT-10_CONTINUE_EDITOR_TEST_FILE_SPLIT/` | Continue editor integration test split | tests/test_editor_plugin.gd, new test files, tools/test.sh | Remaining integration tests split by feature family; `test_editor_plugin.gd` becomes workflow smoke; no old private widget shape expansion. |
-| `EXPORT-NEXT-10` | `BACKLOG` | `SCREEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/EXPORT-NEXT-10_PACKAGE_BUILD_UI_DECISION/` | Package build UI product decision | Export docs/screen/process docs | Decide whether package build belongs in editor Export UI or remains process-only; manual/process are updated accordingly. |
+| `EXPORT-NEXT-10` | `READY` | `SCREEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/EXPORT-NEXT-10_PACKAGE_BUILD_UI_DECISION/` | Package build UI product decision | Export docs/screen/process docs | Decide whether package build belongs in editor Export UI or remains process-only; manual/process are updated accordingly. |
 | `DOC-NEXT-90` | `BACKLOG` | `UI-METRIC-08`, `TEST-NEXT-10`, `EXPORT-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/DOC-NEXT-90_MANUAL_AND_PROCESS_UPDATE/` | Manual/process update for metric and follow-up work | manuals, docs/TEST.md, README.md | Manuals explain UI metric gates, new surfaces, fallback ledger, and sample/debug boundaries; no analog test is added. |
 | `PROC-NEXT-90` | `BACKLOG` | `DOC-NEXT-90` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROC-NEXT-90_FINAL_DIST_REGENERATION/` | Final dist regeneration | `tools/package_addon.sh`, `dist/`, self-review/test-result docs | `tools/package_addon.sh` runs; manifest/zip match current addon tree; dist freshness remains outside normal test gate. |
 
@@ -140,7 +140,7 @@ acceptance / test path:
 
 ## 9. Current pointer
 
-Current recommended next task: `SCREEN-NEXT-10`.
+Current recommended next task: `LAYER-NEXT-10`.
 
 Reason:
 
@@ -167,11 +167,14 @@ Reason:
 - `GEN-NEXT-10` is complete.
 - `GEN-NEXT-11` is complete.
 - `CAT-NEXT-11` is complete.
-- `SCREEN-NEXT-10` is READY because `ARCH-NEXT-10` is complete.
+- `SCREEN-NEXT-10` is complete.
+- `LAYER-NEXT-10` is READY because `SCREEN-NEXT-10` is complete.
+- `PAINT-NEXT-10` is READY because `SCREEN-NEXT-10` is complete.
 - `QA-NEXT-10` is READY because `GEN-NEXT-11` is complete.
 - `PERF-NEXT-11` is READY because `PERF-NEXT-10` is complete.
 - `GENPIPE-NEXT-10` is READY because `GEN-NEXT-11` is complete.
 - `ARCH-NEXT-20` is READY because `ARCH-NEXT-10` is complete.
+- `EXPORT-NEXT-10` is READY because `SCREEN-NEXT-10` is complete.
 - `TEST-NEXT-10` remains READY because `UI-METRIC-08` is complete.
 
 ---
@@ -605,3 +608,24 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_workspace.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/CAT-NEXT-11_TEST_RESULT_2026-06-10.md`
+
+### SCREEN-NEXT-10 Resources / Layers / Export visual redesign
+
+proof:
+  plan: `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/SCREEN-NEXT-10_RESOURCES_LAYERS_EXPORT_VISUAL_REDESIGN/`
+  review: `docs/review/autopilot/SCREEN-NEXT-10_SELF_REVIEW_2026-06-10.md`
+  execution:
+    - `docs/review/autopilot/SCREEN-NEXT-10_SELF_REVIEW_2026-06-10.md`
+  ui_metrics:
+    - `.godot_user/ui-metrics/20260610-200929-88986/workspace_layout_metrics.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_resources_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_layers_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_export_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/SCREEN-NEXT-10_TEST_RESULT_2026-06-10.md`

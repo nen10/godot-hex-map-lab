@@ -55,6 +55,7 @@ var _selected_hex_tile_map_status_label: Label
 var _selected_hex_tile_map_auto_link_label: Label
 var _resources_context_panel: VBoxContainer
 var _resources_context_status_label: Label
+var _resources_readiness_label: Label
 var _resources_context_next_actions_label: Label
 var _resources_source_badges_label: Label
 var _resources_group_labels: Dictionary = {}
@@ -67,6 +68,7 @@ var _selected_catalog_entry_key := ""
 var _layer_stack_role_panel: VBoxContainer
 var _layer_stack_role_status_label: Label
 var _layer_stack_role_relationship_label: Label
+var _layer_stack_role_tree_summary_label: Label
 var _layer_stack_role_rows_label: Label
 var _missing_unique_resources_panel: VBoxContainer
 var _missing_unique_resources_status_label: Label
@@ -95,6 +97,7 @@ var _qa_selected_seed_row: Dictionary = {}
 var _qa_promoted_document: HexMapDocumentResource = null
 var _export_purpose_panel: VBoxContainer
 var _export_purpose_status_label: Label
+var _export_runtime_handoff_summary_label: Label
 var _export_purpose_mode_label: Label
 var _export_purpose_backlog_label: Label
 var _export_destination_panel: VBoxContainer
@@ -1099,6 +1102,7 @@ func resources_screen_snapshot() -> Dictionary:
 	var groups := resource_group_rows()
 	var source_badge_rows := _resource_source_badge_rows(groups, selected_snapshot)
 	var next_actions := _resources_next_actions(selected_snapshot, missing_snapshot)
+	var visual_summary := _resources_visual_summary(selected_snapshot, groups, source_badge_rows, next_actions)
 	var document_slot := tab_asset_slot_snapshot(
 		HexMapWorkspaceComponentRegistry.TAB_DOCUMENT,
 		HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT
@@ -1141,6 +1145,9 @@ func resources_screen_snapshot() -> Dictionary:
 		"last_dependency_hydration": _last_document_dependency_hydration.duplicate(true),
 		"selected_hex_tile_map": selected_snapshot,
 		"selected_hex_tile_map_summary": _selected_hex_tile_map_summary(selected_snapshot, missing_snapshot),
+		"resources_visual_summary": visual_summary,
+		"resources_readiness_rows": visual_summary.get("readiness_rows", []),
+		"mounted_resources_readiness_text": _resources_readiness_label.text if _resources_readiness_label != null else "",
 		"resource_groups": groups,
 		"source_badge_rows": source_badge_rows,
 		"source_badge_explanations": _resource_source_badge_explanations(),
@@ -1194,6 +1201,68 @@ func _resources_next_actions(selected_snapshot: Dictionary, missing_snapshot: Di
 	if String(writeback.get("blocked_reason", "")) == "":
 		actions.append("Review source badges")
 	return actions
+
+
+func _resources_visual_summary(
+	selected_snapshot: Dictionary,
+	groups: Array,
+	source_badge_rows: Array,
+	next_actions: PackedStringArray
+) -> Dictionary:
+	var selected := bool(selected_snapshot.get("selected", false))
+	var document_ready := workspace_asset_context().level_document != null
+	var dependency_ready := 0
+	var dependency_total := 0
+	for row in source_badge_rows:
+		if not row is Dictionary:
+			continue
+		dependency_total += 1
+		if bool((row as Dictionary).get("selected", false)):
+			dependency_ready += 1
+	var rows: Array[Dictionary] = [
+		{
+			"id": "selected_node",
+			"label": "Node",
+			"status": "ready" if selected else "missing",
+			"visible_text": "Node: %s" % ("Selected" if selected else "Missing"),
+		},
+		{
+			"id": "level_document",
+			"label": "Level Document",
+			"status": "ready" if document_ready else "missing",
+			"visible_text": "Level Document: %s" % ("Ready" if document_ready else "Missing"),
+		},
+		{
+			"id": "dependency_groups",
+			"label": "Dependencies",
+			"status": "ready" if dependency_ready == dependency_total and dependency_total > 0 else "incomplete",
+			"visible_text": "Dependencies: %d/%d ready" % [dependency_ready, dependency_total],
+		},
+		{
+			"id": "next_actions",
+			"label": "Next",
+			"status": "ready" if next_actions.is_empty() else "action",
+			"visible_text": _resources_next_actions_text(next_actions),
+		},
+	]
+	var group_texts := PackedStringArray()
+	for group in groups:
+		if not group is Dictionary:
+			continue
+		group_texts.append("%s %s" % [
+			String((group as Dictionary).get("label", "")),
+			String((group as Dictionary).get("status_text", "")),
+		])
+	return {
+		"surface_id": "resources_readiness_board",
+		"visible": true,
+		"readiness_rows": rows,
+		"group_summary_text": _join_text(group_texts, " | "),
+		"source_badge_text": _source_badge_rows_text(source_badge_rows),
+		"visible_text": _readiness_rows_text(rows),
+		"node_path_visible": false,
+		"primary_path_text_visible": false,
+	}
 
 
 func _resource_source_badge_rows(groups: Array, selected_snapshot: Dictionary) -> Array[Dictionary]:
@@ -1294,6 +1363,17 @@ func _resources_next_actions_text(actions: PackedStringArray) -> String:
 	if actions.is_empty():
 		return "Next: Review resource rows."
 	return "Next: %s." % _join_text(actions, " / ")
+
+
+func _readiness_rows_text(rows: Array) -> String:
+	var parts := PackedStringArray()
+	for row in rows:
+		if not row is Dictionary:
+			continue
+		var text := String((row as Dictionary).get("visible_text", ""))
+		if text != "":
+			parts.append(text)
+	return _join_text(parts, " | ")
 
 
 func resource_group_rows() -> Array[Dictionary]:
@@ -1912,6 +1992,7 @@ func layer_stack_screen_snapshot() -> Dictionary:
 	var role_status_counts := _layer_stack_role_status_counts(role_rows)
 	var relationship := _layer_stack_relationship_snapshot(stack)
 	var empty_state := _layers_tab_empty_state(role_rows, relationship)
+	var role_tree_summary := _layer_role_tree_summary(role_rows, role_status_counts, relationship)
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_LAYERS,
 		"screen_role": screen_role,
@@ -1933,6 +2014,9 @@ func layer_stack_screen_snapshot() -> Dictionary:
 		"required_role_names": _layer_stack_required_role_names(),
 		"role_rows": role_rows,
 		"role_status_counts": role_status_counts,
+		"role_tree_summary": role_tree_summary,
+		"role_tree_rows_text": String(role_tree_summary.get("role_rows_text", "")),
+		"mounted_role_tree_summary_text": _layer_stack_role_tree_summary_label.text if _layer_stack_role_tree_summary_label != null else "",
 		"target_status": target_status,
 		"target_layer": _edit_tool.target_layer() if _edit_tool != null else null,
 		"selected_hex_tile_map": selected_hex_tile_map_snapshot(),
@@ -2062,6 +2146,33 @@ func _layer_stack_action_availability(
 		"apply_document": stack != null and target_is_hex and document_present,
 		"clear_role": stack != null and target_is_hex and ok_count > 0,
 		"blocked_reason": blocked_reason,
+	}
+
+
+func _layer_role_tree_summary(
+	role_rows: Array,
+	counts: Dictionary,
+	relationship: Dictionary
+) -> Dictionary:
+	var visible_text := "Relationship: %s | Roles: %d | Missing: %d | Writable: %d" % [
+		String(relationship.get("status", "")),
+		int(counts.get("total", 0)),
+		int(counts.get("missing", 0)),
+		int(counts.get("writable", 0)),
+	]
+	return {
+		"surface_id": "layer_role_tree",
+		"visible": true,
+		"relationship_status": String(relationship.get("status", "")),
+		"relationship_text": String(relationship.get("message", "")),
+		"role_count": int(counts.get("total", 0)),
+		"missing_count": int(counts.get("missing", 0)),
+		"writable_count": int(counts.get("writable", 0)),
+		"locked_count": int(counts.get("locked", 0)),
+		"visible_text": visible_text,
+		"role_rows": role_rows,
+		"role_rows_text": _layer_stack_role_rows_text(role_rows),
+		"primary_path_text_visible": false,
 	}
 
 
@@ -2832,6 +2943,13 @@ func export_screen_snapshot() -> Dictionary:
 	var can_export := context.level_document != null and session.export_saved_path != ""
 	var export_state := export_workflow_state_snapshot()
 	var export_view_state = export_state.get("view_state", {}) as Dictionary
+	var runtime_handoff_summary := _export_runtime_handoff_summary(
+		context,
+		destination,
+		output_type,
+		export_state,
+		can_export
+	)
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_EXPORT,
 		"screen_role": screen_role,
@@ -2856,6 +2974,9 @@ func export_screen_snapshot() -> Dictionary:
 		"export_type_taxonomy_visible": true,
 		"runtime_handoff_purpose": String(output_type.get("result_purpose_text", "")),
 		"runtime_handoff_result_usage": String(output_type.get("result_usage", "")),
+		"runtime_handoff_summary": runtime_handoff_summary,
+		"runtime_handoff_readiness_rows": runtime_handoff_summary.get("readiness_rows", []),
+		"mounted_runtime_handoff_summary_text": _export_runtime_handoff_summary_label.text if _export_runtime_handoff_summary_label != null else "",
 		"package_support_boundary": String(output_type.get("package_support_boundary", "")),
 		"debug_export_boundary": String(output_type.get("debug_report_boundary", "")),
 		"level_document": context.level_document,
@@ -3189,6 +3310,7 @@ func _mount_resources_context_panel() -> void:
 	var built := HexMapResourcesScreen.build_resources_context_panel(resource_group_rows())
 	_resources_context_panel = built.get("root", null) as VBoxContainer
 	_resources_context_status_label = built.get("status_label", null) as Label
+	_resources_readiness_label = built.get("readiness_label", null) as Label
 	_resources_group_labels = built.get("group_labels", {}) as Dictionary
 	_resources_source_badges_label = built.get("source_badges_label", null) as Label
 	_resources_context_next_actions_label = built.get("next_actions_label", null) as Label
@@ -3230,6 +3352,7 @@ func _mount_layer_stack_role_panel() -> void:
 	_layer_stack_role_panel = built.get("root", null) as VBoxContainer
 	_layer_stack_role_status_label = built.get("status_label", null) as Label
 	_layer_stack_role_relationship_label = built.get("relationship_label", null) as Label
+	_layer_stack_role_tree_summary_label = built.get("role_tree_summary_label", null) as Label
 	_layer_stack_role_rows_label = built.get("rows_label", null) as Label
 
 	(page as Control).add_child(_layer_stack_role_panel)
@@ -3331,6 +3454,7 @@ func _mount_export_purpose_panel() -> void:
 	var built := HexMapExportScreen.build_export_purpose_panel()
 	_export_purpose_panel = built.get("root", null) as VBoxContainer
 	_export_purpose_status_label = built.get("status_label", null) as Label
+	_export_runtime_handoff_summary_label = built.get("runtime_handoff_summary_label", null) as Label
 	_export_purpose_mode_label = built.get("mode_label", null) as Label
 	_export_purpose_backlog_label = built.get("backlog_label", null) as Label
 
@@ -3871,6 +3995,63 @@ func _export_output_type_context(context: HexMapWorkspaceAssetContext, destinati
 	}
 
 
+func _export_runtime_handoff_summary(
+	context: HexMapWorkspaceAssetContext,
+	destination: Dictionary,
+	output_type: Dictionary,
+	export_state: Dictionary,
+	can_export: bool
+) -> Dictionary:
+	var profile_selected := context.export_profile != null
+	var export_view_state = export_state.get("view_state", {}) as Dictionary
+	var rows: Array[Dictionary] = [
+		{
+			"id": "source_document",
+			"label": "Source",
+			"status": "ready" if context.level_document != null else "missing",
+			"visible_text": "Source: %s" % ("Level Document ready" if context.level_document != null else "Level Document missing"),
+		},
+		{
+			"id": "destination",
+			"label": "Destination",
+			"status": "ready" if bool(destination.get("selected", false)) else "missing",
+			"visible_text": "Destination: %s" % ("Selected" if bool(destination.get("selected", false)) else "Missing"),
+		},
+		{
+			"id": "export_profile",
+			"label": "Export Profile",
+			"status": "selected" if profile_selected else "optional",
+			"visible_text": "Export Profile: %s" % ("Selected" if profile_selected else "Optional"),
+		},
+		{
+			"id": "output_type",
+			"label": "Output",
+			"status": "available",
+			"visible_text": "Output: %s" % String(output_type.get("label", "Runtime Handoff")),
+		},
+		{
+			"id": "run_action",
+			"label": "Action",
+			"status": "ready" if can_export else "blocked",
+			"visible_text": "Action: %s" % ("Ready" if can_export else "Blocked"),
+		},
+		{
+			"id": "result_state",
+			"label": "Result",
+			"status": String(export_state.get("state_id", "")),
+			"visible_text": "Result: %s" % String(export_view_state.get("status_text", export_state.get("state_id", ""))),
+		},
+	]
+	return {
+		"surface_id": "runtime_handoff_summary",
+		"visible": true,
+		"readiness_rows": rows,
+		"visible_text": _readiness_rows_text(rows),
+		"destination_path_visible": false,
+		"primary_path_text_visible": false,
+	}
+
+
 func _export_output_modes() -> Array[Dictionary]:
 	return [
 		{
@@ -4236,6 +4417,10 @@ func _refresh_resources_context_panel() -> void:
 		_resources_context_status_label.text = _empty_state_inline_text(empty_state) \
 			if bool(empty_state.get("visible", false)) else String(summary.get("visible_text", "No HexTileMap selected"))
 		_resources_context_status_label.tooltip_text = String(empty_state.get("help_tooltip", _selected_hex_tile_map_tooltip(snapshot)))
+	if _resources_readiness_label != null:
+		var visual_summary = screen.get("resources_visual_summary", {}) as Dictionary
+		_resources_readiness_label.text = String(visual_summary.get("visible_text", ""))
+		_resources_readiness_label.tooltip_text = "Resources readiness groups selected node, Level Document, dependencies, and next action."
 	var groups = screen.get("resource_groups", []) as Array
 	for group in groups:
 		var group_id := String(group.get("group_id", ""))
@@ -4318,6 +4503,10 @@ func _refresh_layer_stack_role_panel() -> void:
 			_bool_label(bool(actions.get("create_missing_layers", false))),
 			_bool_label(bool(actions.get("apply_document", false))),
 		]
+	if _layer_stack_role_tree_summary_label != null:
+		var role_tree_summary = snapshot.get("role_tree_summary", {}) as Dictionary
+		_layer_stack_role_tree_summary_label.text = String(role_tree_summary.get("visible_text", ""))
+		_layer_stack_role_tree_summary_label.tooltip_text = String(role_tree_summary.get("relationship_text", ""))
 	if _layer_stack_role_rows_label != null:
 		var rows = snapshot.get("role_rows", []) as Array
 		_layer_stack_role_rows_label.text = _empty_state_inline_text(empty_state) \
@@ -4494,6 +4683,10 @@ func _refresh_export_purpose_panel() -> void:
 	if _export_purpose_status_label != null:
 		_export_purpose_status_label.text = String(snapshot.get("purpose_text", ""))
 		_export_purpose_status_label.tooltip_text = String(empty_state.get("help_tooltip", ""))
+	if _export_runtime_handoff_summary_label != null:
+		var runtime_handoff_summary = snapshot.get("runtime_handoff_summary", {}) as Dictionary
+		_export_runtime_handoff_summary_label.text = String(runtime_handoff_summary.get("visible_text", ""))
+		_export_runtime_handoff_summary_label.tooltip_text = "Runtime handoff readiness groups source, destination, profile, output, action, and result state."
 	if _export_purpose_mode_label != null:
 		_export_purpose_mode_label.text = "%s | Source: %s | Target: %s%s" % [
 			String(output_type.get("label", "")),

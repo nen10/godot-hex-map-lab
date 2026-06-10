@@ -52,6 +52,10 @@ static func build_layer_stack_role_panel() -> Dictionary:
 	var relationship_label := _wrapped_label()
 	panel.add_child(relationship_label)
 
+	var role_tree_summary_label := _wrapped_label()
+	role_tree_summary_label.name = "Layer Role Tree Summary"
+	panel.add_child(role_tree_summary_label)
+
 	var rows_label := _wrapped_label()
 	panel.add_child(rows_label)
 
@@ -59,6 +63,7 @@ static func build_layer_stack_role_panel() -> Dictionary:
 		"root": panel,
 		"status_label": status_label,
 		"relationship_label": relationship_label,
+		"role_tree_summary_label": role_tree_summary_label,
 		"rows_label": rows_label,
 	}
 

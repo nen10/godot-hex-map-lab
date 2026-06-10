@@ -1710,6 +1710,13 @@ func _test_document_asset_screen_manages_project_document_without_samples() -> v
 	var selected_summary = snapshot["selected_hex_tile_map_summary"] as Dictionary
 	_assert_eq(String(selected_summary["visible_text"]), "No HexTileMap selected", "SCREEN-10 Resources summary starts with no-selection state")
 	_assert_true(not bool(selected_summary["node_path_visible"]), "SCREEN-10 Resources summary keeps node path out of primary text")
+	var resources_visual = snapshot["resources_visual_summary"] as Dictionary
+	_assert_eq(String(resources_visual["surface_id"]), "resources_readiness_board", "SCREEN-NEXT-10 Resources exposes readiness board")
+	_assert_true(not bool(resources_visual["primary_path_text_visible"]), "SCREEN-NEXT-10 Resources readiness keeps paths out of primary text")
+	var resources_readiness_rows = _entries_by_id(resources_visual["readiness_rows"] as Array)
+	_assert_eq(String((resources_readiness_rows["selected_node"] as Dictionary)["status"]), "missing", "SCREEN-NEXT-10 Resources node readiness starts missing")
+	_assert_eq(String((resources_readiness_rows["level_document"] as Dictionary)["status"]), "missing", "SCREEN-NEXT-10 Resources document readiness starts missing")
+	_assert_true(String(snapshot["mounted_resources_readiness_text"]).contains("Node: Missing"), "SCREEN-NEXT-10 mounted Resources readiness label shows node state")
 	_assert_true((snapshot["next_actions"] as PackedStringArray).has("Select a HexTileMap node"), "SCREEN-10 Resources next action points to node selection")
 	_assert_true(bool(snapshot["clear_next_actions_beyond_resource_rows"]), "SCREEN-10 Resources exposes next actions beyond resource rows")
 	var source_badge_rows = _rows_by_slot(snapshot["source_badge_rows"] as Array)
@@ -1731,6 +1738,11 @@ func _test_document_asset_screen_manages_project_document_without_samples() -> v
 	_assert_eq(workspace.workspace_asset_context().level_document, document, "created document enters workspace context")
 	_assert_eq(session.current_document(), document, "created document enters editor session")
 	_assert_eq(session.document_saved_path, document_path, "created document updates session saved path")
+	snapshot = workspace.document_screen_snapshot()
+	resources_visual = snapshot["resources_visual_summary"] as Dictionary
+	resources_readiness_rows = _entries_by_id(resources_visual["readiness_rows"] as Array)
+	_assert_eq(String((resources_readiness_rows["level_document"] as Dictionary)["status"]), "ready", "SCREEN-NEXT-10 Resources document readiness becomes ready")
+	_assert_true(String(snapshot["mounted_resources_readiness_text"]).contains("Level Document: Ready"), "SCREEN-NEXT-10 mounted Resources readiness updates after document creation")
 	_assert_eq(
 		workspace.tab_asset_slot_snapshot("Document", HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT).get("current_source", ""),
 		HexMapEditorAssetSlotState.SOURCE_PROJECT,
@@ -2052,6 +2064,11 @@ func _test_layer_stack_asset_screen_manages_project_stack_without_samples() -> v
 	_assert_eq(initial_relationship["status"], "no_selected_hex_tile_map", "TAB-53 Layers starts with selected node empty state")
 	var initial_counts = snapshot["role_status_counts"] as Dictionary
 	_assert_eq(initial_counts["total"], 0, "TAB-53 Layers does not fake role rows before a project stack is selected")
+	var initial_role_tree = snapshot["role_tree_summary"] as Dictionary
+	_assert_eq(String(initial_role_tree["surface_id"]), "layer_role_tree", "SCREEN-NEXT-10 Layers exposes role tree summary")
+	_assert_eq(String(initial_role_tree["relationship_status"]), "no_selected_hex_tile_map", "SCREEN-NEXT-10 Layers role tree starts with no target")
+	_assert_true(not bool(initial_role_tree["primary_path_text_visible"]), "SCREEN-NEXT-10 Layers role tree keeps paths out of primary text")
+	_assert_true(String(snapshot["mounted_role_tree_summary_text"]).contains("Roles: 0"), "SCREEN-NEXT-10 mounted Layers role tree starts empty")
 	var initial_actions = snapshot["layer_actions"] as Dictionary
 	_assert_true(not bool(initial_actions["create_missing_layers"]), "TAB-53 Create Missing Layers starts unavailable")
 	_assert_true(not bool(initial_actions["apply_document"]), "TAB-53 Apply Document starts unavailable")
@@ -2128,6 +2145,11 @@ func _test_layer_stack_asset_screen_manages_project_stack_without_samples() -> v
 	var status_counts = snapshot["role_status_counts"] as Dictionary
 	_assert_eq(status_counts["total"], 7, "TAB-53 Layers counts standard stack role rows")
 	_assert_true(int(status_counts["missing"]) > 0, "TAB-53 Layers counts missing child role layers")
+	var role_tree = snapshot["role_tree_summary"] as Dictionary
+	_assert_eq(int(role_tree["role_count"]), 7, "SCREEN-NEXT-10 Layers role tree counts role rows")
+	_assert_true(int(role_tree["missing_count"]) > 0, "SCREEN-NEXT-10 Layers role tree reports missing roles")
+	_assert_true(String(role_tree["role_rows_text"]).contains(HexLayerStackResource.ROLE_TERRAIN), "SCREEN-NEXT-10 Layers role tree text includes terrain role")
+	_assert_true(String(snapshot["mounted_role_tree_summary_text"]).contains("Roles: 7"), "SCREEN-NEXT-10 mounted Layers role tree shows role count")
 	var terrain_row = _layer_stack_row_for_role(snapshot["role_rows"], HexLayerStackResource.ROLE_TERRAIN)
 	_assert_eq(terrain_row["status"], "missing", "Layers screen reports missing terrain role before create")
 	_assert_true(bool(terrain_row["visible"]), "TAB-53 terrain row shows visibility")
@@ -2158,6 +2180,8 @@ func _test_layer_stack_asset_screen_manages_project_stack_without_samples() -> v
 	snapshot = workspace.layer_stack_screen_snapshot()
 	status_counts = snapshot["role_status_counts"] as Dictionary
 	_assert_eq(status_counts["missing"], 0, "TAB-53 Layers reports no missing roles after creating child layers")
+	role_tree = snapshot["role_tree_summary"] as Dictionary
+	_assert_eq(int(role_tree["missing_count"]), 0, "SCREEN-NEXT-10 Layers role tree reports no missing roles after creation")
 	action_state = snapshot["layer_actions"] as Dictionary
 	_assert_true(not bool(action_state["create_missing_layers"]), "TAB-53 Create Missing Layers disables after all child layers exist")
 	var terrain_node = layer.layer_for_stack_role(HexLayerStackResource.ROLE_TERRAIN) as TileMapLayer
@@ -2819,6 +2843,14 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 	_assert_eq(String(snapshot["export_result_state"]), HexMapExportWorkflowState.STATE_NO_DESTINATION, "SCREEN-25 Export starts with result state")
 	_assert_eq(String(snapshot["export_result_state_source"]), "HexMapExportWorkflowState", "SCREEN-25 Export result state names source")
 	_assert_true(not bool(snapshot["resource_reference_only"]), "SCREEN-25 Export is not resource-reference-only")
+	var handoff_summary = snapshot["runtime_handoff_summary"] as Dictionary
+	_assert_eq(String(handoff_summary["surface_id"]), "runtime_handoff_summary", "SCREEN-NEXT-10 Export exposes runtime handoff summary")
+	_assert_true(not bool(handoff_summary["primary_path_text_visible"]), "SCREEN-NEXT-10 Export handoff summary keeps path out of primary text")
+	var handoff_rows = _entries_by_id(handoff_summary["readiness_rows"] as Array)
+	_assert_eq(String((handoff_rows["source_document"] as Dictionary)["status"]), "missing", "SCREEN-NEXT-10 Export source readiness starts missing")
+	_assert_eq(String((handoff_rows["destination"] as Dictionary)["status"]), "missing", "SCREEN-NEXT-10 Export destination readiness starts missing")
+	_assert_eq(String((handoff_rows["run_action"] as Dictionary)["status"]), "blocked", "SCREEN-NEXT-10 Export action readiness starts blocked")
+	_assert_true(String(snapshot["mounted_runtime_handoff_summary_text"]).contains("Source: Level Document missing"), "SCREEN-NEXT-10 mounted Export handoff summary shows missing source")
 	var output_type = snapshot["output_type"] as Dictionary
 	_assert_eq(output_type["label"], "Runtime Handoff Resource", "TAB-56 Export names output type")
 	_assert_eq(output_type["source"], "Current Level Document", "TAB-56 Export names source")
@@ -2952,6 +2984,12 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 	_assert_true(bool(output_type["source_ready"]), "TAB-56 Export source becomes ready")
 	_assert_true(bool(output_type["destination_ready"]), "TAB-56 Export destination becomes ready")
 	_assert_eq(snapshot["cannot_export_reason"], "", "TAB-56 Export clears blocked reason when ready")
+	handoff_summary = snapshot["runtime_handoff_summary"] as Dictionary
+	handoff_rows = _entries_by_id(handoff_summary["readiness_rows"] as Array)
+	_assert_eq(String((handoff_rows["source_document"] as Dictionary)["status"]), "ready", "SCREEN-NEXT-10 Export source readiness becomes ready")
+	_assert_eq(String((handoff_rows["destination"] as Dictionary)["status"]), "ready", "SCREEN-NEXT-10 Export destination readiness becomes ready")
+	_assert_eq(String((handoff_rows["run_action"] as Dictionary)["status"]), "ready", "SCREEN-NEXT-10 Export action readiness becomes ready")
+	_assert_true(String(snapshot["mounted_runtime_handoff_summary_text"]).contains("Action: Ready"), "SCREEN-NEXT-10 mounted Export handoff summary shows ready action")
 
 	var export_result = workspace.export_selected_document_to_destination()
 	_assert_true(bool(export_result["ok"]), "Export screen writes selected document handoff")
@@ -2970,6 +3008,9 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 	snapshot = workspace.export_screen_snapshot()
 	_assert_eq(String(snapshot["export_result_state"]), HexMapExportWorkflowState.STATE_EXPORTED, "SCREEN-25 Export snapshot reports exported result state")
 	_assert_true(String(snapshot["export_result_status_text"]).contains("Exported Runtime Handoff"), "SCREEN-25 Export snapshot reports exported status")
+	handoff_summary = snapshot["runtime_handoff_summary"] as Dictionary
+	handoff_rows = _entries_by_id(handoff_summary["readiness_rows"] as Array)
+	_assert_eq(String((handoff_rows["result_state"] as Dictionary)["status"]), HexMapExportWorkflowState.STATE_EXPORTED, "SCREEN-NEXT-10 Export readiness result reports exported state")
 
 	var next_export_path = "%s/runtime_handoff_next.tres" % output_dir
 	var next_destination = workspace.select_export_destination(next_export_path)

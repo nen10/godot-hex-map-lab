@@ -50,6 +50,10 @@ static func build_resources_context_panel(resource_groups: Array) -> Dictionary:
 	var status_label := _wrapped_label()
 	panel.add_child(status_label)
 
+	var readiness_label := _wrapped_label()
+	readiness_label.name = "Resources Readiness Summary"
+	panel.add_child(readiness_label)
+
 	var group_labels := {}
 	for group in resource_groups:
 		var group_data := group as Dictionary
@@ -73,6 +77,7 @@ static func build_resources_context_panel(resource_groups: Array) -> Dictionary:
 	return {
 		"root": panel,
 		"status_label": status_label,
+		"readiness_label": readiness_label,
 		"group_labels": group_labels,
 		"source_badges_label": source_badges_label,
 		"next_actions_label": next_actions_label,
