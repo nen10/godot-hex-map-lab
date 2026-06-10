@@ -74,7 +74,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
 | `UI-00` | `COMPLETE` | `STATE-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-00_CREATE_WORKSPACE_UI_CONTRACTS/` | Workspace UI visible contracts | `WORKSPACE_SCREEN_CONTRACT.md`, `WORKSPACE_STATE_MACHINE.md`, `VISIBLE_CONTROL_INVENTORY.md`, `RESOURCE_ROW_SPEC.md`, `DEBUG_LABEL_POLICY.md` | Each tab separates always-visible information from tooltip/debug detail; debug/filepath/internal state are not normal UI; Generate tab caution is documented before changes; `./tools/test.sh` passed. |
-| `UI-01` | `READY` | `STATE-20`, `UI-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-01_RESOURCE_ROW_REDESIGN/` | Compact/adaptive Resource row redesign | asset slot control/state, workspace asset panel, row tests | Resource rows work as compact one-line or narrow adaptive two-line controls; status text moves to icon+tooltip; filepath/node path/debug state are hidden by default; Details button is removed unless replaced by a real detail surface. |
+| `UI-01` | `COMPLETE` | `STATE-20`, `UI-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-01_RESOURCE_ROW_REDESIGN/` | Compact/adaptive Resource row redesign | asset slot control/state, workspace asset panel, row tests | Resource rows work as compact one-line or narrow adaptive two-line controls; status text moves to icon+tooltip; filepath/node path/debug state are hidden by default; Details button is removed unless replaced by a real detail surface; `./tools/test.sh` passed. |
 | `UI-02` | `READY` | `UI-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-02_SETTINGS_LABEL_SIMPLIFICATION/` | Settings label and debug text simplification | `HexMapWorkspace`, `HexMapSampleSettingsPanel`, settings/debug UI, editor tests | Boolean state is represented by checkbox/toggle controls, not always-on true/false text; debug payload moves to copy/debug report flow. |
 | `UI-03` | `READY` | `STATE-10`, `UI-00` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-03_GENERATE_EMPTY_AREA_AND_STATUS_REPAIR/` | Generate empty-area and result-status repair | `hex_map_gen_dock.gd`, workspace Generate tab, generation state/tests | Generate screen no longer contains unexplained dead space; preview/apply/document/save result state is visible; any reload action has a clear state purpose. |
 
@@ -84,7 +84,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `SCREEN-10` | `BACKLOG` | `RES-11`, `STATE-30`, `UI-01` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-10_RESOURCES_TAB_AS_CONTEXT_CENTER/` | Resources tab as selected node/document/dependency center | Resources tab/workspace screen, asset context, binding/dependency services, editor tests | Resources tab shows selected HexTileMap summary, required resource status, missing-resource actions, source badges, and clear next actions beyond resource rows. |
+| `SCREEN-10` | `READY` | `RES-11`, `STATE-30`, `UI-01` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-10_RESOURCES_TAB_AS_CONTEXT_CENTER/` | Resources tab as selected node/document/dependency center | Resources tab/workspace screen, asset context, binding/dependency services, editor tests | Resources tab shows selected HexTileMap summary, required resource status, missing-resource actions, source badges, and clear next actions beyond resource rows. |
 | `SCREEN-20` | `BACKLOG` | `SCREEN-10`, `UI-01` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-20_CATALOG_CONTROLS_OUT_OF_PAINT/` | Catalog editing controls moved out of Paint | Catalog tab/screen, Paint tab, catalog resource UI/tests | Catalog tab owns entry list, tile/scene preview, tags/status, create/edit entry, and catalog validation; Paint consumes catalog key and does not expose raw source_id/atlas coords as primary UI. |
 | `SCREEN-21` | `BACKLOG` | `SCREEN-10` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-21_LAYER_DOCUMENT_EXPORT_CONTROLS_OUT_OF_PAINT/` | Layer, Document, and Export controls moved to responsible tabs | Paint tab, Layers tab, Resources tab, Export tab, editor tests | Layer roles live in Layers; document save/dependency/dirty state lives in Resources; export destination/type lives in Export; Paint has no non-paint responsibility controls. |
 | `SCREEN-22` | `BACKLOG` | `STATE-40`, `SCREEN-20`, `SCREEN-21` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-22_PAINT_TAB_BRUSH_SURFACE/` | Paint tab as real brush editing surface | Paint screen, edit tool, viewport input adapter, editor tests | Paint tab has empty state, active brush, target layer, selected cell, and last edit; viewport editing updates Paint state; tab does not regress to resource references only. |
@@ -148,7 +148,7 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `UI-01`.
+Current recommended next task: `UI-02`.
 
 Reason:
 
@@ -170,12 +170,14 @@ Reason:
 - `STATE-50` is complete.
 - `STATE-60` is complete.
 - `UI-00` is complete.
-- `UI-01`, `UI-02`, and `UI-03` are READY because `UI-00` is complete.
+- `UI-01` is complete.
+- `UI-02` and `UI-03` are READY because `UI-00` is complete.
+- `SCREEN-10` is READY because `RES-11`, `STATE-30`, and `UI-01` are complete.
 - `SCREEN-24`, `SCREEN-25`, `ARCH-40`, `ARCH-50`, and `PERF-60` remain READY.
 - `SCREEN-22` remains BACKLOG because `SCREEN-20` and `SCREEN-21` are not complete.
 - `SCREEN-23` remains BACKLOG because `SCREEN-10` is not complete.
 - `TEST-80` remains BACKLOG because `ARCH-41` is not complete.
-- `UI-01` is the first READY task in queue order after completed `UI-00`.
+- `UI-02` is the first READY task in queue order after completed `UI-01`.
 
 ---
 
@@ -515,3 +517,21 @@ proof:
     - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-00_CREATE_WORKSPACE_UI_CONTRACTS/RESOURCE_ROW_SPEC.md`
     - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-00_CREATE_WORKSPACE_UI_CONTRACTS/DEBUG_LABEL_POLICY.md`
     - `docs/review/autopilot/UI-00_TEST_RESULT_2026-06-10.md`
+
+### UI-01 Resource row redesign
+
+proof:
+  plan: `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-01_RESOURCE_ROW_REDESIGN/`
+  review: `docs/review/autopilot/UI-01_SELF_REVIEW_2026-06-10.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_editor_asset_slot_control.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-01_RESOURCE_ROW_REDESIGN/SUB_TASKS.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-01_RESOURCE_ROW_REDESIGN/UX.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-01_RESOURCE_ROW_REDESIGN/POLICY.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-01_RESOURCE_ROW_REDESIGN/IMPLEMENTATION_PLAN.md`
+    - `docs/review/autopilot/UI-01_TEST_RESULT_2026-06-10.md`

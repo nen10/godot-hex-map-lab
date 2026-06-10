@@ -20,10 +20,12 @@ signal slot_state_changed(snapshot: Dictionary)
 
 var _state: HexMapEditorAssetSlotState = HexMapEditorAssetSlotState.new()
 var _compact_row: HBoxContainer
+var _input_row: HBoxContainer
 var _title_label: Label
 var _current_label: Label
 var _type_label: Label
 var _status_label: Label
+var _status_indicator: ColorRect
 var _messages_label: Label
 var _details_button: Button
 var _details_container: VBoxContainer
@@ -111,11 +113,16 @@ func slot_layout_snapshot() -> Dictionary:
 	var view_state := _state.view_state()
 	return {
 		"compact_row": _compact_row != null,
+		"adaptive_two_line": _input_row != null,
 		"details_visible": _details_container != null and _details_container.visible,
 		"details_button_text": _details_button.text if _details_button != null else "",
 		"details_button_visible": _details_button != null and _details_button.visible,
 		"status_text": _status_label.text if _status_label != null else "",
+		"status_text_visible": _status_label != null and _status_label.visible,
+		"status_icon_visible": _status_indicator != null and _status_indicator.visible,
 		"status_tooltip": _status_label.tooltip_text if _status_label != null else "",
+		"status_indicator_tooltip": _status_indicator.tooltip_text if _status_indicator != null else "",
+		"status_indicator_color": _status_indicator.color if _status_indicator != null else Color.TRANSPARENT,
 		"title_text": _title_label.text if _title_label != null else "",
 		"title_tooltip": _title_label.tooltip_text if _title_label != null else "",
 		"current_detail_text": _current_label.text if _current_label != null else "",
@@ -242,20 +249,31 @@ func _build_ui() -> void:
 
 	_title_label = Label.new()
 	_title_label.custom_minimum_size = Vector2(132, 0)
+	_title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_title_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_compact_row.add_child(_title_label)
+
+	_status_indicator = ColorRect.new()
+	_status_indicator.custom_minimum_size = Vector2(14, 14)
+	_status_indicator.size_flags_horizontal = Control.SIZE_SHRINK_END
+	_status_indicator.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_status_indicator.mouse_filter = Control.MOUSE_FILTER_PASS
+	_compact_row.add_child(_status_indicator)
+
+	_input_row = HBoxContainer.new()
+	_input_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	add_child(_input_row)
 
 	if _can_use_editor_resource_picker():
 		_resource_picker = EditorResourcePicker.new()
 		_resource_picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		_resource_picker.resource_changed.connect(_on_resource_changed)
-		_compact_row.add_child(_resource_picker)
+		_input_row.add_child(_resource_picker)
 
 	_status_label = Label.new()
-	_status_label.custom_minimum_size = Vector2(72, 0)
-	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_status_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	_compact_row.add_child(_status_label)
+	_status_label.visible = false
+	_status_label.custom_minimum_size = Vector2.ZERO
+	add_child(_status_label)
 
 	_details_container = VBoxContainer.new()
 	_details_container.visible = false
@@ -273,7 +291,8 @@ func _build_ui() -> void:
 	_details_container.add_child(_messages_label)
 
 	_actions_container = HBoxContainer.new()
-	add_child(_actions_container)
+	_actions_container.size_flags_horizontal = Control.SIZE_SHRINK_END
+	_input_row.add_child(_actions_container)
 
 	_create_button = Button.new()
 	_create_button.text = "Create New..."
@@ -295,8 +314,13 @@ func _refresh() -> void:
 	_title_label.tooltip_text = String(view_state.get("title_tooltip", ""))
 	_current_label.text = String(view_state.get("current_detail_text", "Current: Not selected"))
 	_type_label.text = String(view_state.get("type_detail_text", "Type: Resource"))
-	_status_label.text = String(view_state.get("status_text", _compact_status_text(snapshot)))
+	_status_label.text = ""
+	_status_label.visible = false
 	_status_label.tooltip_text = String(view_state.get("status_tooltip", ""))
+	if _status_indicator != null:
+		_status_indicator.visible = true
+		_status_indicator.tooltip_text = String(view_state.get("status_tooltip", ""))
+		_status_indicator.color = _status_indicator_color(String(view_state.get("status_kind", "")))
 	_messages_label.text = String(view_state.get("message_detail_text", ""))
 	_messages_label.visible = _messages_label.text != ""
 	if _resource_picker != null:
@@ -385,6 +409,20 @@ func _compact_status_text(snapshot: Dictionary) -> String:
 			return "Warn"
 		_:
 			return "Missing" if bool(snapshot.get("is_required", true)) else "Optional"
+
+
+func _status_indicator_color(kind: String) -> Color:
+	match kind:
+		HexMapEditorAssetSlotState.STATUS_KIND_OK:
+			return Color(0.2, 0.72, 0.38)
+		HexMapEditorAssetSlotState.STATUS_KIND_ERROR:
+			return Color(0.86, 0.18, 0.18)
+		HexMapEditorAssetSlotState.STATUS_KIND_WARNING:
+			return Color(0.94, 0.64, 0.18)
+		HexMapEditorAssetSlotState.STATUS_KIND_OPTIONAL:
+			return Color(0.42, 0.48, 0.58)
+		_:
+			return Color(0.76, 0.28, 0.22)
 
 
 func _detail_text(snapshot: Dictionary) -> String:
