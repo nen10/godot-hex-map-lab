@@ -4,20 +4,23 @@ extends RefCounted
 
 const SCREEN_SCRIPT := "hex_map_gen_run_controls.gd"
 const SCREEN_ROLE_SOURCE := "HexMapGenRunControls"
+const LAYOUT_SECTION_INPUT := "input"
+const LAYOUT_SECTION_PERFORMANCE := "performance"
 
 
 static func component_owner_rows() -> Array[Dictionary]:
 	return [
-		_component_owner("generate_run_controls", "HBoxContainer", "GenerateRunControls", "build_run_controls"),
-		_component_owner("generate_progress_controls", "HBoxContainer", "GenerateProgressControls", "build_progress_controls"),
+		_component_owner("generate_run_controls", "HBoxContainer", "GenerateRunControls", "build_run_controls", LAYOUT_SECTION_INPUT),
+		_component_owner("generate_progress_controls", "HBoxContainer", "GenerateProgressControls", "build_progress_controls", LAYOUT_SECTION_PERFORMANCE),
 	]
 
 
 static func build_run_controls() -> Dictionary:
-	var row := _component_root("generate_run_controls", "Generate Run Controls", "build_run_controls")
+	var row := _component_root("generate_run_controls", "Generate Run Controls", "build_run_controls", LAYOUT_SECTION_INPUT)
 
 	var generate_button := Button.new()
 	generate_button.text = "Primary Generation"
+	_apply_action_purpose(generate_button, "generate_preview")
 	row.add_child(generate_button)
 
 	var label := Label.new()
@@ -33,14 +36,17 @@ static func build_run_controls() -> Dictionary:
 
 	var seed_random_button := Button.new()
 	seed_random_button.text = "Rand"
+	_apply_action_purpose(seed_random_button, "randomize_seed")
 	row.add_child(seed_random_button)
 
 	var history_check := CheckButton.new()
 	history_check.text = "History"
+	_apply_action_purpose(history_check, "toggle_generation_history")
 	row.add_child(history_check)
 
 	var history_dir_button := Button.new()
 	history_dir_button.text = "History Dir"
+	_apply_action_purpose(history_dir_button, "choose_history_directory")
 	row.add_child(history_dir_button)
 
 	return {
@@ -54,7 +60,7 @@ static func build_run_controls() -> Dictionary:
 
 
 static func build_progress_controls() -> Dictionary:
-	var row := _component_root("generate_progress_controls", "Generate Progress Controls", "build_progress_controls")
+	var row := _component_root("generate_progress_controls", "Generate Progress Controls", "build_progress_controls", LAYOUT_SECTION_PERFORMANCE)
 	row.visible = false
 
 	var status_label := Label.new()
@@ -74,6 +80,7 @@ static func build_progress_controls() -> Dictionary:
 	var cancel_button := Button.new()
 	cancel_button.text = "Cancel"
 	cancel_button.disabled = true
+	_apply_action_purpose(cancel_button, "cancel_generation")
 	cancel_row.add_child(cancel_button)
 	row.add_child(cancel_row)
 
@@ -85,21 +92,32 @@ static func build_progress_controls() -> Dictionary:
 	}
 
 
-static func _component_root(component_id: String, node_name: String, builder_id: String) -> HBoxContainer:
+static func _component_root(
+	component_id: String,
+	node_name: String,
+	builder_id: String,
+	layout_section: String
+) -> HBoxContainer:
 	var root := HBoxContainer.new()
 	root.name = node_name
 	root.set_meta("hex_generate_component_id", component_id)
 	root.set_meta("hex_generate_component_script", SCREEN_SCRIPT)
 	root.set_meta("hex_generate_component_role_source", SCREEN_ROLE_SOURCE)
 	root.set_meta("hex_generate_component_builder", builder_id)
+	root.set_meta("hex_generate_layout_section_id", layout_section)
 	return root
+
+
+static func _apply_action_purpose(control: Control, purpose: String) -> void:
+	control.set_meta("hex_generate_action_purpose", purpose)
 
 
 static func _component_owner(
 	component_id: String,
 	component_class: String,
 	responsibility: String,
-	builder_id: String
+	builder_id: String,
+	layout_section: String
 ) -> Dictionary:
 	return {
 		"component_id": component_id,
@@ -108,4 +126,5 @@ static func _component_owner(
 		"screen_script": SCREEN_SCRIPT,
 		"screen_role_source": SCREEN_ROLE_SOURCE,
 		"builder": builder_id,
+		"layout_section": layout_section,
 	}

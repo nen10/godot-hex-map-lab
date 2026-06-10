@@ -251,6 +251,7 @@ func generation_screen_snapshot() -> Dictionary:
 	var generation_state: Dictionary = _generation_dock.generation_status() if _generation_dock != null else {}
 	var progress_state: Dictionary = _generation_dock.generation_progress_snapshot() if _generation_dock != null else {}
 	var output_target: Dictionary = _generation_dock.output_target_snapshot() if _generation_dock != null else {}
+	var layout_snapshot: Dictionary = _generation_dock.generation_layout_snapshot() if _generation_dock != null else {}
 	var empty_text := String(view_state.get("block_reason", ""))
 	var actions := PackedStringArray()
 	if empty_text != "":
@@ -275,6 +276,9 @@ func generation_screen_snapshot() -> Dictionary:
 		"generation_state": generation_state,
 		"progress_state": progress_state,
 		"output_target": output_target,
+		"layout": layout_snapshot,
+		"layout_sections": layout_snapshot.get("sections", []),
+		"generate_layout_section_ids": layout_snapshot.get("section_ids", PackedStringArray()),
 		"result_summary": _generation_result_summary(view_state, generation_state, progress_state, output_target),
 		"view_state": view_state,
 	}

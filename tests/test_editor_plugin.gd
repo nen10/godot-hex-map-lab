@@ -481,36 +481,43 @@ func _assert_generation_dock_internal_component_contract(dock: HexMapGenDock) ->
 			"screen_script": "hex_map_gen_run_controls.gd",
 			"screen_role_source": "HexMapGenRunControls",
 			"builder": "build_run_controls",
+			"layout_section": "input",
 		},
 		"generate_progress_controls": {
 			"screen_script": "hex_map_gen_run_controls.gd",
 			"screen_role_source": "HexMapGenRunControls",
 			"builder": "build_progress_controls",
+			"layout_section": "performance",
 		},
 		"generate_source_registry": {
 			"screen_script": "hex_map_gen_source_controls.gd",
 			"screen_role_source": "HexMapGenSourceControls",
 			"builder": "build_source_registry_controls",
+			"layout_section": "profile_source",
 		},
 		"generate_output_target": {
 			"screen_script": "hex_map_gen_output_controls.gd",
 			"screen_role_source": "HexMapGenOutputControls",
 			"builder": "build_output_target_controls",
+			"layout_section": "apply_save",
 		},
 		"generate_save_apply_controls": {
 			"screen_script": "hex_map_gen_output_controls.gd",
 			"screen_role_source": "HexMapGenOutputControls",
 			"builder": "build_save_apply_controls",
+			"layout_section": "apply_save",
 		},
 		"generate_seed_lab": {
 			"screen_script": "hex_map_gen_result_controls.gd",
 			"screen_role_source": "HexMapGenResultControls",
 			"builder": "build_seed_lab_controls",
+			"layout_section": "preview",
 		},
 		"generate_result_summary": {
 			"screen_script": "hex_map_gen_result_controls.gd",
 			"screen_role_source": "HexMapGenResultControls",
 			"builder": "build_result_summary_label",
+			"layout_section": "preview",
 		},
 	}
 	var script_rows := []
@@ -533,6 +540,7 @@ func _assert_generation_dock_internal_component_contract(dock: HexMapGenDock) ->
 		_assert_eq(String(row_data.get("screen_script", "")), String(expected_row["screen_script"]), "ARCH-NEXT-11 %s script row owner" % component_id)
 		_assert_eq(String(row_data.get("screen_role_source", "")), String(expected_row["screen_role_source"]), "ARCH-NEXT-11 %s script row role" % component_id)
 		_assert_eq(String(row_data.get("builder", "")), String(expected_row["builder"]), "ARCH-NEXT-11 %s script row builder" % component_id)
+		_assert_eq(String(row_data.get("layout_section", "")), String(expected_row["layout_section"]), "GEN-NEXT-10 %s script row layout section" % component_id)
 	for component_id in expected.keys():
 		var expected_row_data = expected[component_id] as Dictionary
 		_assert_true(dock.generation_component_ids().has(String(component_id)), "ARCH-NEXT-11 Generate component id exists: %s" % component_id)
@@ -540,6 +548,28 @@ func _assert_generation_dock_internal_component_contract(dock: HexMapGenDock) ->
 		_assert_eq(String(mounted.get("screen_script", "")), String(expected_row_data["screen_script"]), "ARCH-NEXT-11 %s mounted script owner" % component_id)
 		_assert_eq(String(mounted.get("screen_role_source", "")), String(expected_row_data["screen_role_source"]), "ARCH-NEXT-11 %s mounted role owner" % component_id)
 		_assert_eq(String(mounted.get("builder", "")), String(expected_row_data["builder"]), "ARCH-NEXT-11 %s mounted builder owner" % component_id)
+		_assert_eq(String(mounted.get("layout_section", "")), String(expected_row_data["layout_section"]), "GEN-NEXT-10 %s mounted layout section" % component_id)
+	var layout = dock.generation_layout_snapshot()
+	_assert_true(bool(layout["input_profile_preview_apply_save_performance_separated"]), "GEN-NEXT-10 Generate layout sections are all mounted")
+	_assert_true(bool(layout["reload_save_apply_purpose_clear"]), "GEN-NEXT-10 Generate reload/save/apply purposes are classified")
+	_assert_eq((layout["missing_section_ids"] as PackedStringArray).size(), 0, "GEN-NEXT-10 Generate layout has no missing sections")
+	var section_ids = layout["section_ids"] as PackedStringArray
+	for section_id in ["input", "profile_source", "preview", "apply_save", "performance"]:
+		_assert_true(section_ids.has(String(section_id)), "GEN-NEXT-10 Generate layout section exists: %s" % String(section_id))
+	var sections_by_id := {}
+	for section in layout["sections"] as Array:
+		var section_data := section as Dictionary
+		sections_by_id[String(section_data["section_id"])] = section_data
+	_assert_true(((sections_by_id["input"] as Dictionary)["component_ids"] as PackedStringArray).has("generate_run_controls"), "GEN-NEXT-10 Input section owns run controls")
+	_assert_true(((sections_by_id["profile_source"] as Dictionary)["component_ids"] as PackedStringArray).has("generate_source_registry"), "GEN-NEXT-10 Profile/Source section owns source registry")
+	_assert_true(((sections_by_id["preview"] as Dictionary)["component_ids"] as PackedStringArray).has("generate_result_summary"), "GEN-NEXT-10 Preview section owns result summary")
+	_assert_true(((sections_by_id["apply_save"] as Dictionary)["component_ids"] as PackedStringArray).has("generate_output_target"), "GEN-NEXT-10 Apply/Save section owns output target")
+	_assert_true(((sections_by_id["performance"] as Dictionary)["component_ids"] as PackedStringArray).has("generate_progress_controls"), "GEN-NEXT-10 Performance section owns progress controls")
+	var actions = layout["actions"] as Dictionary
+	_assert_eq(String((actions["target_refresh"] as Dictionary)["purpose"]), "refresh_target_layers", "GEN-NEXT-10 target refresh purpose is explicit")
+	_assert_eq(String((actions["source_load"] as Dictionary)["purpose"]), "browse_mapdata_source", "GEN-NEXT-10 source browse purpose is explicit")
+	_assert_eq(String((actions["output_apply"] as Dictionary)["purpose"]), "apply_to_selected_document", "GEN-NEXT-10 output apply purpose is explicit")
+	_assert_eq(String((actions["save_as"] as Dictionary)["purpose"]), "save_generated_resource_as_tres", "GEN-NEXT-10 save purpose is explicit")
 
 
 func _test_workspace_selected_hex_tile_map_auto_binding() -> void:
@@ -7783,9 +7813,13 @@ func _test_generation_dock_output_target_preview_and_selected_document() -> void
 	_assert_true(String(initial_output["visible_status_text"]).contains("Preview: none"), "UI-03 output status exposes no-preview state")
 	var initial_screen = workspace.generation_screen_snapshot()
 	var initial_result = initial_screen["result_summary"] as Dictionary
+	var initial_layout = initial_screen["layout"] as Dictionary
 	_assert_true(not bool(initial_screen["empty_state_visible"]), "UI-03 unblocked Generate screen has no visible empty-state placeholder")
 	_assert_true(not bool(initial_screen["unexplained_empty_area_visible"]), "UI-03 unblocked Generate screen has no unexplained dead-space marker")
 	_assert_true(String(initial_result["visible_text"]).contains("Save: waiting for preview"), "UI-03 screen summary exposes initial save state")
+	_assert_true(bool(initial_layout["input_profile_preview_apply_save_performance_separated"]), "GEN-NEXT-10 workspace Generate snapshot exposes separated layout")
+	_assert_true((initial_screen["generate_layout_section_ids"] as PackedStringArray).has("apply_save"), "GEN-NEXT-10 workspace Generate snapshot exposes Apply/Save section")
+	_assert_true((initial_screen["layout_sections"] as Array).size() >= 5, "GEN-NEXT-10 workspace Generate snapshot exposes layout sections")
 
 	_assert_true(await dock._generate_map(), "NODE-24 preview output generation succeeds")
 	_assert_true(layer.hex_map is HexMapResource, "NODE-24 preview writes runtime HexTileMap map")
@@ -8203,6 +8237,9 @@ func _test_generation_dock_mapdata_source_registry_load_reload_clear() -> void:
 	_assert_eq(dock._mapdata_sources[0]["item_keys"], ["Tree"], "source registry exposes overlay item keys")
 	_assert_true(_has_button_text(dock, "Refresh Source"), "UI-03 source registry reload action explains source-file refresh")
 	_assert_true(not _has_button_text(dock, "Reload"), "UI-03 source registry removes ambiguous reload wording")
+	var refresh_source_button := _button_with_text(dock, "Refresh Source")
+	_assert_true(refresh_source_button != null, "GEN-NEXT-10 source registry refresh action is mounted")
+	_assert_eq(String(refresh_source_button.get_meta("hex_generate_action_purpose", "")), "refresh_mapdata_source", "GEN-NEXT-10 source registry refresh purpose is explicit")
 	_assert_true(
 		dock._source_entry_details_text(dock._mapdata_sources[0]).contains("Tree: 1"),
 		"source registry details show overlay item cell count"
@@ -8960,6 +8997,16 @@ func _has_button_text(node: Node, text: String) -> bool:
 		if _has_button_text(child, text):
 			return true
 	return false
+
+
+func _button_with_text(node: Node, text: String) -> Button:
+	if node is Button and node.text == text:
+		return node as Button
+	for child in node.get_children():
+		var found := _button_with_text(child, text)
+		if found != null:
+			return found
+	return null
 
 
 func _entries_by_id(entries: Array) -> Dictionary:

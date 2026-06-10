@@ -4,12 +4,13 @@ extends RefCounted
 
 const SCREEN_SCRIPT := "hex_map_gen_output_controls.gd"
 const SCREEN_ROLE_SOURCE := "HexMapGenOutputControls"
+const LAYOUT_SECTION_APPLY_SAVE := "apply_save"
 
 
 static func component_owner_rows() -> Array[Dictionary]:
 	return [
-		_component_owner("generate_output_target", "VBoxContainer", "GenerateOutputTarget", "build_output_target_controls"),
-		_component_owner("generate_save_apply_controls", "HBoxContainer", "GenerateSaveApplyControls", "build_save_apply_controls"),
+		_component_owner("generate_output_target", "VBoxContainer", "GenerateOutputTarget", "build_output_target_controls", LAYOUT_SECTION_APPLY_SAVE),
+		_component_owner("generate_save_apply_controls", "HBoxContainer", "GenerateSaveApplyControls", "build_save_apply_controls", LAYOUT_SECTION_APPLY_SAVE),
 	]
 
 
@@ -28,6 +29,7 @@ static func build_output_target_controls(modes: Array, labels: Array) -> Diction
 
 	var apply_button := Button.new()
 	apply_button.text = "Apply to Document"
+	apply_button.set_meta("hex_generate_action_purpose", "apply_to_selected_document")
 	row.add_child(apply_button)
 	root.add_child(row)
 
@@ -54,10 +56,12 @@ static func build_save_apply_controls() -> Dictionary:
 	var apply_layer_button := Button.new()
 	apply_layer_button.text = "Advanced Apply"
 	apply_layer_button.visible = false
+	apply_layer_button.set_meta("hex_generate_action_purpose", "advanced_apply_to_tile_map")
 	row.add_child(apply_layer_button)
 
 	var save_button := Button.new()
 	save_button.text = "Save As .tres"
+	save_button.set_meta("hex_generate_action_purpose", "save_generated_resource_as_tres")
 	row.add_child(save_button)
 
 	return {
@@ -86,6 +90,7 @@ static func _apply_meta(root: Control, component_id: String, builder_id: String)
 	root.set_meta("hex_generate_component_script", SCREEN_SCRIPT)
 	root.set_meta("hex_generate_component_role_source", SCREEN_ROLE_SOURCE)
 	root.set_meta("hex_generate_component_builder", builder_id)
+	root.set_meta("hex_generate_layout_section_id", LAYOUT_SECTION_APPLY_SAVE)
 
 
 static func _small_label(text: String) -> Label:
@@ -100,7 +105,8 @@ static func _component_owner(
 	component_id: String,
 	component_class: String,
 	responsibility: String,
-	builder_id: String
+	builder_id: String,
+	layout_section: String
 ) -> Dictionary:
 	return {
 		"component_id": component_id,
@@ -109,4 +115,5 @@ static func _component_owner(
 		"screen_script": SCREEN_SCRIPT,
 		"screen_role_source": SCREEN_ROLE_SOURCE,
 		"builder": builder_id,
+		"layout_section": layout_section,
 	}

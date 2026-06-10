@@ -4,11 +4,12 @@ extends RefCounted
 
 const SCREEN_SCRIPT := "hex_map_gen_source_controls.gd"
 const SCREEN_ROLE_SOURCE := "HexMapGenSourceControls"
+const LAYOUT_SECTION_PROFILE_SOURCE := "profile_source"
 
 
 static func component_owner_rows() -> Array[Dictionary]:
 	return [
-		_component_owner("generate_source_registry", "VBoxContainer", "GenerateSourceRegistry", "build_source_registry_controls"),
+		_component_owner("generate_source_registry", "VBoxContainer", "GenerateSourceRegistry", "build_source_registry_controls", LAYOUT_SECTION_PROFILE_SOURCE),
 	]
 
 
@@ -19,6 +20,7 @@ static func build_source_registry_controls() -> Dictionary:
 	var row := HBoxContainer.new()
 	var source_load_button := Button.new()
 	source_load_button.text = "Browse .tres"
+	source_load_button.set_meta("hex_generate_action_purpose", "browse_mapdata_source")
 	row.add_child(source_load_button)
 
 	var history_dir_label := Label.new()
@@ -51,6 +53,7 @@ static func _component_root(component_id: String, node_name: String, builder_id:
 	root.set_meta("hex_generate_component_script", SCREEN_SCRIPT)
 	root.set_meta("hex_generate_component_role_source", SCREEN_ROLE_SOURCE)
 	root.set_meta("hex_generate_component_builder", builder_id)
+	root.set_meta("hex_generate_layout_section_id", LAYOUT_SECTION_PROFILE_SOURCE)
 	return root
 
 
@@ -66,7 +69,8 @@ static func _component_owner(
 	component_id: String,
 	component_class: String,
 	responsibility: String,
-	builder_id: String
+	builder_id: String,
+	layout_section: String
 ) -> Dictionary:
 	return {
 		"component_id": component_id,
@@ -75,4 +79,5 @@ static func _component_owner(
 		"screen_script": SCREEN_SCRIPT,
 		"screen_role_source": SCREEN_ROLE_SOURCE,
 		"builder": builder_id,
+		"layout_section": layout_section,
 	}

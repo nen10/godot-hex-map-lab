@@ -4,12 +4,13 @@ extends RefCounted
 
 const SCREEN_SCRIPT := "hex_map_gen_result_controls.gd"
 const SCREEN_ROLE_SOURCE := "HexMapGenResultControls"
+const LAYOUT_SECTION_PREVIEW := "preview"
 
 
 static func component_owner_rows() -> Array[Dictionary]:
 	return [
-		_component_owner("generate_seed_lab", "VBoxContainer", "GenerateSeedLab", "build_seed_lab_controls"),
-		_component_owner("generate_result_summary", "Label", "GenerateResultSummary", "build_result_summary_label"),
+		_component_owner("generate_seed_lab", "VBoxContainer", "GenerateSeedLab", "build_seed_lab_controls", LAYOUT_SECTION_PREVIEW),
+		_component_owner("generate_result_summary", "Label", "GenerateResultSummary", "build_result_summary_label", LAYOUT_SECTION_PREVIEW),
 	]
 
 
@@ -31,10 +32,12 @@ static func build_seed_lab_controls() -> Dictionary:
 
 	var run_button := Button.new()
 	run_button.text = "Run Batch"
+	run_button.set_meta("hex_generate_action_purpose", "run_seed_batch")
 	action_row.add_child(run_button)
 
 	var promote_button := Button.new()
 	promote_button.text = "Promote to Document"
+	promote_button.set_meta("hex_generate_action_purpose", "promote_seed_to_document")
 	action_row.add_child(promote_button)
 	root.add_child(action_row)
 
@@ -78,6 +81,7 @@ static func build_result_summary_label() -> Dictionary:
 	label.set_meta("hex_generate_component_script", SCREEN_SCRIPT)
 	label.set_meta("hex_generate_component_role_source", SCREEN_ROLE_SOURCE)
 	label.set_meta("hex_generate_component_builder", "build_result_summary_label")
+	label.set_meta("hex_generate_layout_section_id", LAYOUT_SECTION_PREVIEW)
 	return {
 		"root": label,
 		"stats_label": label,
@@ -91,6 +95,7 @@ static func _component_root(component_id: String, node_name: String, builder_id:
 	root.set_meta("hex_generate_component_script", SCREEN_SCRIPT)
 	root.set_meta("hex_generate_component_role_source", SCREEN_ROLE_SOURCE)
 	root.set_meta("hex_generate_component_builder", builder_id)
+	root.set_meta("hex_generate_layout_section_id", LAYOUT_SECTION_PREVIEW)
 	return root
 
 
@@ -112,7 +117,8 @@ static func _component_owner(
 	component_id: String,
 	component_class: String,
 	responsibility: String,
-	builder_id: String
+	builder_id: String,
+	layout_section: String
 ) -> Dictionary:
 	return {
 		"component_id": component_id,
@@ -121,4 +127,5 @@ static func _component_owner(
 		"screen_script": SCREEN_SCRIPT,
 		"screen_role_source": SCREEN_ROLE_SOURCE,
 		"builder": builder_id,
+		"layout_section": layout_section,
 	}

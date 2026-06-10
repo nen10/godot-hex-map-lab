@@ -123,6 +123,65 @@ const OUTPUT_TARGET_LABELS := [
 	"Preview only",
 	"Apply to selected Document",
 ]
+const GENERATE_LAYOUT_SECTION_INPUT := "input"
+const GENERATE_LAYOUT_SECTION_PROFILE_SOURCE := "profile_source"
+const GENERATE_LAYOUT_SECTION_PREVIEW := "preview"
+const GENERATE_LAYOUT_SECTION_APPLY_SAVE := "apply_save"
+const GENERATE_LAYOUT_SECTION_PERFORMANCE := "performance"
+const GENERATE_LAYOUT_SECTION_DEFINITIONS := [
+	{
+		"section_id": "input",
+		"label": "Input",
+		"state_role": "Configure generator, target, shape, size, seed, and run mode.",
+		"component_ids": ["generate_run_controls"],
+		"action_purposes": [
+			"generate_preview",
+			"randomize_seed",
+			"refresh_target_layers",
+			"toggle_generation_history",
+			"choose_history_directory",
+		],
+	},
+	{
+		"section_id": "profile_source",
+		"label": "Profile / Source",
+		"state_role": "Configure generation profile, source registry, tile settings, and overlay inputs.",
+		"component_ids": ["generate_source_registry"],
+		"action_purposes": [
+			"browse_mapdata_source",
+			"refresh_mapdata_source",
+			"clear_mapdata_source",
+		],
+	},
+	{
+		"section_id": "preview",
+		"label": "Preview",
+		"state_role": "Inspect generated preview/result state before document mutation.",
+		"component_ids": ["generate_seed_lab", "generate_result_summary"],
+		"action_purposes": [
+			"run_seed_batch",
+			"promote_seed_to_document",
+		],
+	},
+	{
+		"section_id": "apply_save",
+		"label": "Apply / Save",
+		"state_role": "Choose output target, apply to selected document, or save generated resource.",
+		"component_ids": ["generate_output_target", "generate_save_apply_controls"],
+		"action_purposes": [
+			"apply_to_selected_document",
+			"advanced_apply_to_tile_map",
+			"save_generated_resource_as_tres",
+		],
+	},
+	{
+		"section_id": "performance",
+		"label": "Performance",
+		"state_role": "Show generation/apply progress, busy state, and cancellation.",
+		"component_ids": ["generate_progress_controls"],
+		"action_purposes": ["cancel_generation"],
+	},
+]
 
 var _generator_row: HBoxContainer
 var _generate_option: OptionButton
@@ -287,6 +346,7 @@ var _current_overlay_data = null
 var _editor_session_state: HexMapEditorSessionState = null
 var _workspace_asset_context: HexMapWorkspaceAssetContext = null
 var _generation_components: Dictionary = {}
+var _generation_layout_sections: Dictionary = {}
 var _last_generation_validation_result = null
 var _last_generation_validation_summary: Dictionary = {}
 var _generation_event_order := 0
@@ -375,6 +435,41 @@ func mounted_generation_component_owner_for(component_id: String) -> Dictionary:
 		"screen_script": String(node.get_meta("hex_generate_component_script", "")),
 		"screen_role_source": String(node.get_meta("hex_generate_component_role_source", "")),
 		"builder": String(node.get_meta("hex_generate_component_builder", "")),
+		"layout_section": String(node.get_meta("hex_generate_layout_section_id", "")),
+	}
+
+
+func generation_layout_snapshot() -> Dictionary:
+	var sections := []
+	var mounted_ids := PackedStringArray()
+	var missing_ids := PackedStringArray()
+	for definition in GENERATE_LAYOUT_SECTION_DEFINITIONS:
+		var definition_data := definition as Dictionary
+		var section_id := String(definition_data.get("section_id", ""))
+		var section = _generation_layout_sections.get(section_id, null) as Control
+		if section == null:
+			missing_ids.append(section_id)
+		else:
+			mounted_ids.append(section_id)
+		sections.append({
+			"section_id": section_id,
+			"label": String(definition_data.get("label", "")),
+			"state_role": String(definition_data.get("state_role", "")),
+			"visible": section != null and section.visible,
+			"mounted": section != null,
+			"component_ids": _mounted_component_ids_for_section(section_id, definition_data),
+			"action_purposes": _packed_string_array_from_array(definition_data.get("action_purposes", [])),
+		})
+	var actions := _generation_action_purpose_snapshot()
+	return {
+		"section_ids": mounted_ids,
+		"required_section_ids": _required_generation_layout_section_ids(),
+		"missing_section_ids": missing_ids,
+		"sections": sections,
+		"actions": actions,
+		"action_purposes": _action_purpose_ids(actions),
+		"input_profile_preview_apply_save_performance_separated": missing_ids.is_empty(),
+		"reload_save_apply_purpose_clear": _reload_save_apply_purpose_clear(actions),
 	}
 
 
@@ -417,6 +512,115 @@ func _register_generation_component(component_id: String, control: Control) -> v
 	_generation_components[component_id] = control
 
 
+func _build_generate_layout_section(section_id: String, title: String) -> VBoxContainer:
+	var box := VBoxContainer.new()
+	box.name = "Generate %s Section" % title.replace(" / ", " ")
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.set_meta("hex_generate_layout_section_id", section_id)
+	box.add_child(_build_section_label(title))
+	_generation_layout_sections[section_id] = box
+	return box
+
+
+func _add_to_generate_layout_section(section: VBoxContainer, control: Control) -> void:
+	if section == null or control == null:
+		return
+	control.set_meta("hex_generate_layout_section_id", String(section.get_meta("hex_generate_layout_section_id", "")))
+	section.add_child(control)
+
+
+func _mark_generate_action(control: Control, purpose: String, layout_section: String = "") -> void:
+	if control == null:
+		return
+	control.set_meta("hex_generate_action_purpose", purpose)
+	if layout_section != "":
+		control.set_meta("hex_generate_layout_section_id", layout_section)
+
+
+func _required_generation_layout_section_ids() -> PackedStringArray:
+	var ids := PackedStringArray()
+	for definition in GENERATE_LAYOUT_SECTION_DEFINITIONS:
+		var definition_data := definition as Dictionary
+		ids.append(String(definition_data.get("section_id", "")))
+	return ids
+
+
+func _mounted_component_ids_for_section(section_id: String, definition: Dictionary) -> PackedStringArray:
+	var result := PackedStringArray()
+	for component_id_value in definition.get("component_ids", []):
+		var component_id := String(component_id_value)
+		var component = _generation_components.get(component_id, null) as Control
+		if component != null and String(component.get_meta("hex_generate_layout_section_id", "")) == section_id:
+			result.append(component_id)
+	return result
+
+
+func _packed_string_array_from_array(values) -> PackedStringArray:
+	var result := PackedStringArray()
+	for value in values:
+		result.append(String(value))
+	return result
+
+
+func _generation_action_purpose_snapshot() -> Dictionary:
+	return {
+		"generate": _control_action_snapshot(_generate_button),
+		"target_refresh": _control_action_snapshot(_tile_layer_refresh_button),
+		"source_load": _control_action_snapshot(_source_load_button),
+		"output_apply": _control_action_snapshot(_output_target_apply_button),
+		"advanced_apply": _control_action_snapshot(_apply_layer_button),
+		"save_as": _control_action_snapshot(_save_button),
+		"cancel": _control_action_snapshot(_generation_progress_cancel_button),
+		"history_dir": _control_action_snapshot(_generate_history_dir_button),
+		"seed_random": _control_action_snapshot(_seed_random_button),
+	}
+
+
+func _control_action_snapshot(control: Control) -> Dictionary:
+	if control == null:
+		return {
+			"present": false,
+		}
+	var text := ""
+	var disabled := false
+	if control is Button:
+		text = (control as Button).text
+		disabled = (control as Button).disabled
+	elif control is CheckButton:
+		text = (control as CheckButton).text
+		disabled = (control as CheckButton).disabled
+	return {
+		"present": true,
+		"text": text,
+		"purpose": String(control.get_meta("hex_generate_action_purpose", "")),
+		"layout_section": String(control.get_meta("hex_generate_layout_section_id", "")),
+		"visible": control.visible,
+		"disabled": disabled,
+		"tooltip": control.tooltip_text,
+	}
+
+
+func _action_purpose_ids(actions: Dictionary) -> PackedStringArray:
+	var result := PackedStringArray()
+	for action_id in actions.keys():
+		var action = actions[action_id] as Dictionary
+		var purpose := String(action.get("purpose", ""))
+		if purpose != "":
+			result.append(purpose)
+	return result
+
+
+func _reload_save_apply_purpose_clear(actions: Dictionary) -> bool:
+	var source_load = actions.get("source_load", {}) as Dictionary
+	var target_refresh = actions.get("target_refresh", {}) as Dictionary
+	var output_apply = actions.get("output_apply", {}) as Dictionary
+	var save_as = actions.get("save_as", {}) as Dictionary
+	return String(source_load.get("purpose", "")) == "browse_mapdata_source" \
+		and String(target_refresh.get("purpose", "")) == "refresh_target_layers" \
+		and String(output_apply.get("purpose", "")) == "apply_to_selected_document" \
+		and String(save_as.get("purpose", "")) == "save_generated_resource_as_tres"
+
+
 func _build_ui() -> void:
 	var scroll = ScrollContainer.new()
 	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -429,6 +633,17 @@ func _build_ui() -> void:
 
 	root.add_child(_build_section_label("Hex Map Kit"))
 
+	var input_section := _build_generate_layout_section(GENERATE_LAYOUT_SECTION_INPUT, "Input")
+	var profile_source_section := _build_generate_layout_section(GENERATE_LAYOUT_SECTION_PROFILE_SOURCE, "Profile / Source")
+	var preview_section := _build_generate_layout_section(GENERATE_LAYOUT_SECTION_PREVIEW, "Preview")
+	var apply_save_section := _build_generate_layout_section(GENERATE_LAYOUT_SECTION_APPLY_SAVE, "Apply / Save")
+	var performance_section := _build_generate_layout_section(GENERATE_LAYOUT_SECTION_PERFORMANCE, "Performance")
+
+	root.add_child(input_section)
+	root.add_child(profile_source_section)
+	root.add_child(preview_section)
+	root.add_child(apply_save_section)
+	root.add_child(performance_section)
 
 	var target_row = HBoxContainer.new()
 	target_row.add_child(_build_small_label("Target Layer"))
@@ -437,15 +652,17 @@ func _build_ui() -> void:
 	_tile_layer_option.item_selected.connect(_on_tile_layer_target_selected)
 	target_row.add_child(_tile_layer_option)
 	_tile_layer_refresh_button = Button.new()
-	_tile_layer_refresh_button.text = "Refresh"
+	_tile_layer_refresh_button.text = "Refresh Targets"
+	_tile_layer_refresh_button.tooltip_text = "Refresh selectable HexTileMap targets in the current scene."
+	_mark_generate_action(_tile_layer_refresh_button, "refresh_target_layers", GENERATE_LAYOUT_SECTION_INPUT)
 	_tile_layer_refresh_button.pressed.connect(_on_tile_layer_refresh_pressed)
 	target_row.add_child(_tile_layer_refresh_button)
-	root.add_child(target_row)
+	_add_to_generate_layout_section(input_section, target_row)
 
-	root.add_child(_build_output_target_controls())
+	_add_to_generate_layout_section(apply_save_section, _build_output_target_controls())
 
 	_size_container = HBoxContainer.new()
-	root.add_child(_size_container)
+	_add_to_generate_layout_section(input_section, _size_container)
 
 	_shape_option_simple = OptionButton.new()
 	for name in SHAPE_NAMES_SIMPLE:
@@ -535,22 +752,24 @@ func _build_ui() -> void:
 	generate_method_rows.add_child(_generator_row)
 	generate_methods.add_child(generate_method_rows)
 
-	root.add_child(generate_methods)
+	_add_to_generate_layout_section(input_section, generate_methods)
 
-	root.add_child(_build_seed_controls())
-	root.add_child(_build_seed_lab_controls())
-	root.add_child(_build_generation_progress_controls())
+	_add_to_generate_layout_section(input_section, _build_seed_controls())
+	_add_to_generate_layout_section(preview_section, _build_seed_lab_controls())
+	_add_to_generate_layout_section(performance_section, _build_generation_progress_controls())
 
 	var mode_row = HBoxContainer.new()
 
 	_overlay_adjacency_check = CheckButton.new()
 	_overlay_adjacency_check.text = " Adjacency Rules"
 	_overlay_adjacency_check.button_pressed = false
+	_mark_generate_action(_overlay_adjacency_check, "toggle_adjacency_rules", GENERATE_LAYOUT_SECTION_INPUT)
 	_overlay_adjacency_check.toggled.connect(_on_overlay_adjacency_toggled)
 
 	var limit_row = HBoxContainer.new()
 	_overlay_item_limit_check = CheckButton.new()
 	_overlay_item_limit_check.text = " Generate Combination"
+	_mark_generate_action(_overlay_item_limit_check, "toggle_generation_combination_limit", GENERATE_LAYOUT_SECTION_INPUT)
 	_overlay_item_limit_check.toggled.connect(_on_overlay_item_limit_toggled)
 	limit_row.add_child(_overlay_item_limit_check)
 
@@ -561,10 +780,10 @@ func _build_ui() -> void:
 
 	mode_row.add_child(_overlay_adjacency_check)
 	mode_row.add_child(limit_row)
-	root.add_child(mode_row)
+	_add_to_generate_layout_section(input_section, mode_row)
 
 	_wall_prob_row = _build_wall_probability_controls()
-	root.add_child(_wall_prob_row)
+	_add_to_generate_layout_section(input_section, _wall_prob_row)
 
 	_sym_options_container = VBoxContainer.new()
 	_sym_options_container.visible = false
@@ -582,27 +801,26 @@ func _build_ui() -> void:
 
 	_dist_edit_button = Button.new()
 	_dist_edit_button.text = "Edit"
+	_mark_generate_action(_dist_edit_button, "edit_markov_rule_set", GENERATE_LAYOUT_SECTION_PROFILE_SOURCE)
 	_dist_edit_button.pressed.connect(_on_dist_edit_pressed)
 	dist_row.add_child(_dist_edit_button)
 
 	_sym_options_container.add_child(dist_row)
-	root.add_child(_sym_options_container)
+	_add_to_generate_layout_section(profile_source_section, _sym_options_container)
 
-	root.add_child(_build_overlay_adjacency_controls())
+	_add_to_generate_layout_section(profile_source_section, _build_overlay_adjacency_controls())
 
-	root.add_child(_build_apply_write_controls())
+	_add_to_generate_layout_section(apply_save_section, _build_apply_write_controls())
 
-	root.add_child(_build_separator())
+	_add_to_generate_layout_section(apply_save_section, _build_separator())
 
-	root.add_child(_build_save_apply_controls())
-	root.add_child(_build_result_summary_controls())
+	_add_to_generate_layout_section(apply_save_section, _build_save_apply_controls())
+	_add_to_generate_layout_section(preview_section, _build_result_summary_controls())
 
-	root.add_child(_build_overlay_controls())
+	_add_to_generate_layout_section(profile_source_section, _build_overlay_controls())
 
-
-
-	root.add_child(_build_separator())
-	root.add_child(_build_tile_layer_controls())
+	_add_to_generate_layout_section(profile_source_section, _build_separator())
+	_add_to_generate_layout_section(profile_source_section, _build_tile_layer_controls())
 
 
 func _build_overlay_controls() -> Control:
@@ -673,6 +891,7 @@ func _build_output_target_controls() -> Control:
 	_output_target_option = built.get("output_target_option", null) as OptionButton
 	_output_target_option.item_selected.connect(_on_output_target_selected)
 	_output_target_apply_button = built.get("apply_button", null) as Button
+	_mark_generate_action(_output_target_apply_button, "apply_to_selected_document", GENERATE_LAYOUT_SECTION_APPLY_SAVE)
 	_output_target_apply_button.pressed.connect(_on_apply_to_selected_document_pressed)
 	_output_target_status_label = built.get("status_label", null) as Label
 
@@ -685,8 +904,10 @@ func _build_save_apply_controls() -> Control:
 	var built := HexMapGenOutputControls.build_save_apply_controls()
 	var root = built.get("root", null) as Control
 	_apply_layer_button = built.get("apply_layer_button", null) as Button
+	_mark_generate_action(_apply_layer_button, "advanced_apply_to_tile_map", GENERATE_LAYOUT_SECTION_APPLY_SAVE)
 	_apply_layer_button.pressed.connect(_on_apply_layer_pressed)
 	_save_button = built.get("save_button", null) as Button
+	_mark_generate_action(_save_button, "save_generated_resource_as_tres", GENERATE_LAYOUT_SECTION_APPLY_SAVE)
 	_save_button.pressed.connect(_on_save_pressed)
 	_register_generation_component("generate_save_apply_controls", root)
 	return root
@@ -1013,6 +1234,7 @@ func _build_source_registry_controls() -> Control:
 	var built := HexMapGenSourceControls.build_source_registry_controls()
 	_source_registry_container = built.get("root", null) as VBoxContainer
 	_source_load_button = built.get("source_load_button", null) as Button
+	_mark_generate_action(_source_load_button, "browse_mapdata_source", GENERATE_LAYOUT_SECTION_PROFILE_SOURCE)
 	_source_load_button.pressed.connect(_on_source_load_pressed)
 	_generate_history_dir_label = built.get("history_dir_label", null) as Label
 	_source_registry_list = built.get("source_list", null) as VBoxContainer
@@ -1228,14 +1450,18 @@ func _build_seed_controls() -> Control:
 	var built := HexMapGenRunControls.build_run_controls()
 	var row = built.get("root", null) as Control
 	_generate_button = built.get("generate_button", null) as Button
+	_mark_generate_action(_generate_button, "generate_preview", GENERATE_LAYOUT_SECTION_INPUT)
 	_generate_button.pressed.connect(_on_generate_pressed)
 	_seed_spin = built.get("seed_spin", null) as SpinBox
 	_seed_spin.value_changed.connect(_on_option_changed)
 	_seed_random_button = built.get("seed_random_button", null) as Button
+	_mark_generate_action(_seed_random_button, "randomize_seed", GENERATE_LAYOUT_SECTION_INPUT)
 	_seed_random_button.pressed.connect(_on_seed_randomize)
 	_generate_history_check = built.get("history_check", null) as CheckButton
+	_mark_generate_action(_generate_history_check, "toggle_generation_history", GENERATE_LAYOUT_SECTION_INPUT)
 	_generate_history_check.toggled.connect(_on_generate_history_toggled)
 	_generate_history_dir_button = built.get("history_dir_button", null) as Button
+	_mark_generate_action(_generate_history_dir_button, "choose_history_directory", GENERATE_LAYOUT_SECTION_INPUT)
 	_generate_history_dir_button.pressed.connect(_on_generate_history_dir_pressed)
 	_register_generation_component("generate_run_controls", row)
 	return row
@@ -1246,8 +1472,10 @@ func _build_seed_lab_controls() -> Control:
 	var box = built.get("root", null) as Control
 	_seed_lab_count_spin = built.get("count_spin", null) as SpinBox
 	_seed_lab_run_button = built.get("run_button", null) as Button
+	_mark_generate_action(_seed_lab_run_button, "run_seed_batch", GENERATE_LAYOUT_SECTION_PREVIEW)
 	_seed_lab_run_button.pressed.connect(_on_seed_lab_run_pressed)
 	_seed_lab_promote_button = built.get("promote_button", null) as Button
+	_mark_generate_action(_seed_lab_promote_button, "promote_seed_to_document", GENERATE_LAYOUT_SECTION_PREVIEW)
 	_seed_lab_promote_button.pressed.connect(_on_seed_lab_promote_pressed)
 	_seed_lab_score_tree = built.get("score_tree", null) as Tree
 	_seed_lab_score_tree.item_selected.connect(_on_seed_lab_score_selected)
@@ -1337,6 +1565,7 @@ func _build_generation_progress_controls() -> Control:
 	_generation_progress_status_label = built.get("status_label", null) as Label
 	_generation_progress_bar = built.get("progress_bar", null) as ProgressBar
 	_generation_progress_cancel_button = built.get("cancel_button", null) as Button
+	_mark_generate_action(_generation_progress_cancel_button, "cancel_generation", GENERATE_LAYOUT_SECTION_PERFORMANCE)
 	_generation_progress_cancel_button.pressed.connect(_on_cancel_generation_pressed)
 	_register_generation_component("generate_progress_controls", _generation_progress_container)
 
@@ -1646,11 +1875,14 @@ func _refresh_source_registry_ui() -> void:
 		var reload_button = Button.new()
 		reload_button.text = "Refresh Source"
 		reload_button.tooltip_text = "Re-read this source file and refresh query item counts."
+		_mark_generate_action(reload_button, "refresh_mapdata_source", GENERATE_LAYOUT_SECTION_PROFILE_SOURCE)
 		reload_button.pressed.connect(_on_source_reload_pressed.bind(int(entry["id"])))
 		row.add_child(reload_button)
 
 		var clear_button = Button.new()
 		clear_button.text = "Clear"
+		clear_button.tooltip_text = "Remove this source from the Generate source registry."
+		_mark_generate_action(clear_button, "clear_mapdata_source", GENERATE_LAYOUT_SECTION_PROFILE_SOURCE)
 		clear_button.pressed.connect(_on_source_clear_pressed.bind(int(entry["id"])))
 		row.add_child(clear_button)
 		box.add_child(row)
