@@ -10,7 +10,9 @@ const HexMapDocumentOverlayLayerResource = preload("res://addons/hex_map_kit/ada
 const HexMapDocumentTerrainLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_terrain_layer_resource.gd")
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
 const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
+const HexMapDocumentApplier = preload("res://addons/hex_map_kit/adapter/hex_map_document_applier.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
+const HexTileMapResourceBinding = preload("res://addons/hex_map_kit/adapter/hex_tile_map_resource_binding.gd")
 const HexObjectLayerAdapter = preload("res://addons/hex_map_kit/adapter/hex_object_layer_adapter.gd")
 const HexLayerStackEntryResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_entry_resource.gd")
 const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
@@ -49,6 +51,7 @@ func _init() -> void:
 
 func _run() -> void:
 	await _test_apply_map_and_cell_editing()
+	await _test_hex_tile_map_layer_responsibility_split_helpers()
 	await _test_apply_edit_command_and_inverse_roundtrip()
 	await _test_hex_map_resource_assignment_creates_visible_tiles()
 	await _test_apply_document_payloads_create_visible_tile_and_markers()
@@ -108,6 +111,41 @@ func _test_apply_map_and_cell_editing() -> void:
 	_assert_true(layer.is_wall(HexVector.zero()), "set_wall changes a floor to wall")
 	layer.set_wall(HexVector.apply_basis(9, 0, 9))
 	_assert_eq(layer.get_floor_cells().size(), 5, "editing ignores cells outside the map")
+
+	layer.queue_free()
+	await process_frame
+
+
+func _test_hex_tile_map_layer_responsibility_split_helpers() -> void:
+	var data = HexMapData.rectangle(2, 1)
+	var resource = HexMapResource.from_map_data(data, HexMapResource.ORIENTATION_POINTY_TOP)
+	var binding = HexTileMapResourceBinding.prepare_map_resource(resource)
+	_assert_true(bool(binding["ok"]), "ARCH-50 resource binding prepares map resource")
+	_assert_eq(String(binding["state_source"]), "HexTileMapResourceBinding", "ARCH-50 resource binding has service source")
+	_assert_true(not bool(binding["flat_top"]), "ARCH-50 resource binding preserves pointy orientation")
+	_assert_true(binding["snapshot_resource"] is HexMapResource, "ARCH-50 resource binding returns runtime snapshot resource")
+
+	var document = HexMapDocumentAdapter.from_map_resource(resource)
+	var document_apply = HexMapDocumentApplier.prepare_document_apply(document)
+	_assert_true(bool(document_apply["ok"]), "ARCH-50 document applier prepares document")
+	_assert_eq(String(document_apply["state_source"]), "HexMapDocumentApplier", "ARCH-50 document applier has service source")
+	_assert_true(document_apply["document_snapshot"] is HexMapDocumentResource, "ARCH-50 document applier returns duplicated document snapshot")
+	_assert_true(document_apply["map_resource"] is HexMapResource, "ARCH-50 document applier returns map resource")
+
+	var layer = HexTileMapLayer.new()
+	root.add_child(layer)
+	await process_frame
+	layer.apply_map(resource)
+	var split = layer.responsibility_split_snapshot()
+	_assert_eq(String(split["coordinator"]), "HexTileMapLayer", "ARCH-50 layer reports coordinator role")
+	_assert_eq(String(split["resource_binding_source"]), "HexTileMapResourceBinding", "ARCH-50 layer reports resource binding helper")
+	_assert_eq(String(split["document_applier_source"]), "HexMapDocumentApplier", "ARCH-50 layer reports document applier helper")
+	_assert_true(bool(split["document_apply_separate_from_resource_binding"]), "ARCH-50 document apply is separate from resource binding")
+	_assert_true((split["preserved_runtime_helpers"] as PackedStringArray).has("movement_range"), "ARCH-50 runtime helper value remains declared")
+	_assert_eq(layer.hex_map.orientation, HexMapResource.ORIENTATION_POINTY_TOP, "ARCH-50 apply_map keeps resource orientation through helper")
+	layer.apply_document(document)
+	_assert_eq(layer.level_document_resource, document, "ARCH-50 apply_document keeps layer document binding")
+	_assert_eq(layer.display_used_cell_count(), 2, "ARCH-50 apply_document still redraws display cells")
 
 	layer.queue_free()
 	await process_frame

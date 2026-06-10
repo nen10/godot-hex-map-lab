@@ -9,7 +9,9 @@ const HexMapDocumentObjectPlacementResource = preload("res://addons/hex_map_kit/
 const HexMapDocumentOverlayLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_overlay_layer_resource.gd")
 const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
 const HexMapDocumentTerrainLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_terrain_layer_resource.gd")
+const HexMapDocumentApplier = preload("res://addons/hex_map_kit/adapter/hex_map_document_applier.gd")
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
+const HexTileMapResourceBinding = preload("res://addons/hex_map_kit/adapter/hex_tile_map_resource_binding.gd")
 const HexOverlayTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_overlay_tile_adapter.gd")
 const HexObjectLayerAdapter = preload("res://addons/hex_map_kit/adapter/hex_object_layer_adapter.gd")
 const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
@@ -227,15 +229,16 @@ func _hex_polygon(center: Vector2) -> PackedVector2Array:
 
 
 func apply_map(resource: HexMapResource) -> void:
-	if resource == null:
+	var binding := HexTileMapResourceBinding.prepare_map_resource(resource)
+	if not bool(binding.get("ok", false)):
 		return
-	flat_top = resource.is_flat_top()
+	flat_top = bool(binding.get("flat_top", true))
 	_sync_hex_size_for_current_display()
-	_data = resource.to_map_data()
+	_data = binding.get("map_data", null)
 	_data = _normalize_data(_data)
 	if not _hex_map_setter_suppressed:
 		_hex_map_setter_suppressed = true
-		hex_map = HexMapResource.from_map_data(_data, resource.orientation)
+		hex_map = HexMapResource.from_map_data(_data, int(binding.get("orientation", HexMapResource.ORIENTATION_FLAT_TOP)))
 		_hex_map_setter_suppressed = false
 	_clear_document_payload_display()
 	_highlights.clear()
@@ -283,14 +286,15 @@ func to_document_resource() -> HexMapDocumentResource:
 
 
 func apply_document(document) -> void:
-	if document == null:
+	var apply_state := HexMapDocumentApplier.prepare_document_apply(document)
+	if not bool(apply_state.get("ok", false)):
 		return
 	if document is HexMapDocumentResource and level_document_resource != document:
 		_level_document_setter_suppressed = true
 		level_document_resource = document
 		_level_document_setter_suppressed = false
-	var snapshot = HexMapDocumentAdapter.duplicate_document(document)
-	var resource = HexMapDocumentAdapter.to_map_resource(snapshot)
+	var snapshot = apply_state.get("document_snapshot", null)
+	var resource = apply_state.get("map_resource", null) as HexMapResource
 	_hex_map_setter_suppressed = true
 	hex_map = resource
 	_hex_map_setter_suppressed = false
@@ -306,17 +310,15 @@ func apply_document_to_layer_stack(
 	stack: HexLayerStackResource = null,
 	options: Dictionary = {}
 ) -> bool:
-	if document == null:
+	var requested_stack = stack if stack != null else layer_stack_resource
+	var apply_state := HexMapDocumentApplier.prepare_layer_stack_apply(document, requested_stack)
+	if not bool(apply_state.get("ok", false)):
 		return false
-	var active_stack = stack
-	if active_stack == null:
-		active_stack = layer_stack_resource
-	if active_stack == null:
-		active_stack = HexLayerStackResource.minimal_runtime_template()
+	var active_stack = apply_state.get("layer_stack", null) as HexLayerStackResource
 	layer_stack_resource = active_stack
 
-	var snapshot = HexMapDocumentAdapter.duplicate_document(document)
-	var resource = HexMapDocumentAdapter.to_map_resource(snapshot)
+	var snapshot = apply_state.get("document_snapshot", null)
+	var resource = apply_state.get("map_resource", null) as HexMapResource
 	_hex_map_setter_suppressed = true
 	hex_map = resource
 	_hex_map_setter_suppressed = false
@@ -343,6 +345,29 @@ func apply_document_to_layer_stack(
 	if bool(options.get("apply_object_instances", false)):
 		apply_object_instances(snapshot, null, options)
 	return true
+
+
+func responsibility_split_snapshot() -> Dictionary:
+	return {
+		"coordinator": "HexTileMapLayer",
+		"resource_binding_source": "HexTileMapResourceBinding",
+		"document_applier_source": "HexMapDocumentApplier",
+		"document_apply_separate_from_resource_binding": true,
+		"coordinator_keeps_scene_tree_apply": true,
+		"preserved_runtime_helpers": PackedStringArray([
+			"apply_map",
+			"apply_document",
+			"apply_document_to_layer_stack",
+			"display_state_for_hex",
+			"find_weighted_path",
+			"movement_range",
+		]),
+		"deferred_extractions": PackedStringArray([
+			"object_layer_applier",
+			"gameplay_query_adapter",
+			"debug_overlay_adapter",
+		]),
+	}
 
 
 func layer_for_stack_role(role: String):

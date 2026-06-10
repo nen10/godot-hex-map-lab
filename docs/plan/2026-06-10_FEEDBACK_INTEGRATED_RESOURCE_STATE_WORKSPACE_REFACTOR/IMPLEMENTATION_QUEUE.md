@@ -100,7 +100,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 |---|---|---|---|---|---|---|
 | `ARCH-40` | `COMPLETE` | `NODE-20`, `STATE-30` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-40_WORKSPACE_CONTEXT_HYDRATOR_WRITER_EXTRACTION/` | Workspace context hydrator/writer extraction | `HexMapWorkspace`, binding/dependency services, asset context, tests | `hex_map_workspace.gd` no longer directly assembles node/document/dependency context; hydration/writeback service is testable; UI only renders resulting state; `./tools/test.sh` passed. |
 | `ARCH-41` | `COMPLETE` | `SCREEN-20`, `SCREEN-21`, `SCREEN-22` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-41_SCREEN_COMPONENT_EXTRACTION_BY_UX_ROLE/` | Workspace/EditTool/GenDock component extraction by UX role | new per-screen scripts, `HexMapWorkspace`, `hex_map_edit_tool.gd`, `hex_map_gen_dock.gd`, tests | Extraction is justified by user task ownership, not line count; each screen script maps to a tab/workflow; Paint no longer carries Catalog/Layer/Export/Document responsibility; `./tools/test.sh` passed. |
-| `ARCH-50` | `READY` | `NODE-20`, `NODE-21` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-50_HEX_TILE_MAP_LAYER_RESPONSIBILITY_SPLIT/` | HexTileMapLayer responsibility split | `addons/hex_map_kit/adapter/hex_tile_map_layer.gd`, new adapter helpers, runtime/editor tests | `HexTileMapLayer` moves toward coordinator role; resource binding, document apply, layer stack apply, object display, gameplay query, and debug overlay responsibilities are separated without losing runtime helper value. |
+| `ARCH-50` | `COMPLETE` | `NODE-20`, `NODE-21` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-50_HEX_TILE_MAP_LAYER_RESPONSIBILITY_SPLIT/` | HexTileMapLayer responsibility split | `addons/hex_map_kit/adapter/hex_tile_map_layer.gd`, new adapter helpers, runtime/editor tests | `HexTileMapLayer` moves toward coordinator role; resource binding and document apply preparation are separated without losing runtime helper value; `./tools/test.sh` passed. |
 
 ---
 
@@ -148,7 +148,7 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `ARCH-50`.
+Current recommended next task: `PERF-60`.
 
 Reason:
 
@@ -182,10 +182,11 @@ Reason:
 - `SCREEN-25` is complete.
 - `ARCH-40` is complete.
 - `ARCH-41` is complete.
-- `ARCH-50`, `PERF-60`, `TEST-80`, and `DOC-90` remain READY.
+- `ARCH-50` is complete.
+- `PERF-60`, `TEST-80`, and `DOC-90` remain READY.
 - `TEST-80` is READY because `STATE-60` and `ARCH-41` are complete.
 - `DOC-90` is READY because `SCREEN-10`, `SCREEN-22`, and `SCREEN-25` are complete.
-- `ARCH-50` is the first READY task in queue order after completed `ARCH-41`.
+- `PERF-60` is the first READY task in queue order after completed `ARCH-50`.
 
 ---
 
@@ -756,3 +757,23 @@ proof:
     - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-41_SCREEN_COMPONENT_EXTRACTION_BY_UX_ROLE/POLICY.md`
     - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-41_SCREEN_COMPONENT_EXTRACTION_BY_UX_ROLE/IMPLEMENTATION_PLAN.md`
     - `docs/review/autopilot/ARCH-41_TEST_RESULT_2026-06-10.md`
+
+### ARCH-50 HexTileMapLayer responsibility split
+
+proof:
+  plan: `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-50_HEX_TILE_MAP_LAYER_RESPONSIBILITY_SPLIT/`
+  review: `docs/review/autopilot/ARCH-50_SELF_REVIEW_2026-06-10.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/adapter/hex_tile_map_resource_binding.gd`
+    - `addons/hex_map_kit/adapter/hex_map_document_applier.gd`
+    - `addons/hex_map_kit/adapter/hex_tile_map_layer.gd`
+    - `tests/test_hex_tile_map_layer.gd`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-50_HEX_TILE_MAP_LAYER_RESPONSIBILITY_SPLIT/SUB_TASKS.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-50_HEX_TILE_MAP_LAYER_RESPONSIBILITY_SPLIT/UX.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-50_HEX_TILE_MAP_LAYER_RESPONSIBILITY_SPLIT/POLICY.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-50_HEX_TILE_MAP_LAYER_RESPONSIBILITY_SPLIT/IMPLEMENTATION_PLAN.md`
+    - `docs/review/autopilot/ARCH-50_TEST_RESULT_2026-06-10.md`
