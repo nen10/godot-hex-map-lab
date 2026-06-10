@@ -1020,6 +1020,37 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 				"TEST-41 component row asset slot id is known: %s" % slot_id
 			)
 
+	var expected_screen_roles := {
+		"Resources": "hex_map_resources_screen.gd",
+		"Paint": "hex_map_paint_screen.gd",
+		"Catalog": "hex_map_catalog_screen.gd",
+		"Layers": "hex_map_layers_screen.gd",
+		"Validate": "hex_map_validate_screen.gd",
+		"QA": "hex_map_qa_screen.gd",
+		"Export": "hex_map_export_screen.gd",
+	}
+	var screen_roles := workspace.workspace_screen_role_contracts()
+	_assert_eq(screen_roles.size(), expected_screen_roles.size(), "ARCH-41 screen role registry has one contract per extracted screen script")
+	var screen_snapshots := {
+		"Resources": workspace.resources_screen_snapshot(),
+		"Paint": workspace.paint_brush_screen_snapshot(),
+		"Catalog": workspace.catalog_screen_snapshot(),
+		"Layers": workspace.layer_stack_screen_snapshot(),
+		"Validate": workspace.validate_screen_snapshot(),
+		"QA": workspace.qa_screen_snapshot(),
+		"Export": workspace.export_screen_snapshot(),
+	}
+	for tab_name in expected_screen_roles.keys():
+		var role = workspace.screen_role_contract_for_tab(String(tab_name)) as Dictionary
+		_assert_eq(String(role["tab"]), String(tab_name), "ARCH-41 screen role maps to tab %s" % tab_name)
+		_assert_eq(String(role["screen_script"]), String(expected_screen_roles[tab_name]), "ARCH-41 screen role script maps to %s" % tab_name)
+		_assert_true(String(role["workflow_owner"]) != "", "ARCH-41 screen role has workflow owner")
+		_assert_true(String(role["user_task"]) != "", "ARCH-41 screen role is justified by user task")
+		_assert_true((role["owns"] as PackedStringArray).size() > 0, "ARCH-41 screen role owns at least one workflow section")
+		var screen_snapshot = screen_snapshots[tab_name] as Dictionary
+		_assert_eq(String(screen_snapshot["screen_script"]), String(expected_screen_roles[tab_name]), "ARCH-41 snapshot uses screen script for %s" % tab_name)
+		_assert_eq(String(screen_snapshot["workflow_owner"]), String(role["workflow_owner"]), "ARCH-41 snapshot workflow owner comes from role for %s" % tab_name)
+
 	_assert_true(not workspace.tab_has_component("Paint", "document_asset_panel"), "TEST-41 Paint tab excludes Document setup panel")
 	var resources_contract = expected_contract["Resources"] as Dictionary
 	_assert_eq(
@@ -1997,6 +2028,12 @@ func _test_paint_brush_asset_screen_routes_missing_assets_without_raw_controls()
 	var brush = (terrain_mode["brush"] as Dictionary)
 	var paint_screen = workspace.paint_brush_screen_snapshot()
 	_assert_eq(PackedStringArray(paint_screen["asset_slot_ids"]), PackedStringArray(), "TAB-51 Paint brush screen does not expose ResourcePicker asset rows")
+	_assert_eq(String(paint_screen["screen_role_source"]), "HexMapPaintScreen", "ARCH-41 Paint snapshot uses Paint screen script")
+	_assert_eq(String(paint_screen["screen_script"]), "hex_map_paint_screen.gd", "ARCH-41 Paint snapshot names screen script")
+	var paint_role = paint_screen["screen_role"] as Dictionary
+	var paint_delegates = paint_role["delegates"] as Dictionary
+	_assert_eq(String(paint_delegates["document_management"]), "Resources", "ARCH-41 Paint delegates document management")
+	_assert_eq(String(paint_delegates["catalog_entry_management"]), "Catalog", "ARCH-41 Paint delegates catalog management")
 	_assert_eq(String(paint_screen["paint_surface_owner"]), "Paint", "SCREEN-22 Paint screen owns brush surface")
 	_assert_true(bool(paint_screen["paint_surface_visible"]), "SCREEN-22 Paint screen shows surface summary")
 	_assert_true(bool(paint_screen["empty_state_visible"]), "SCREEN-22 Paint screen exposes empty state before setup")
@@ -4292,6 +4329,8 @@ func _test_map_edit_tool_builds_dock_controls() -> void:
 	_assert_true(tool._layer_stack_apply_document_button != null, "map edit tool keeps non-primary Apply Document layer action")
 	_assert_true(tool._layer_stack_clear_role_button != null, "map edit tool keeps non-primary Clear Role layer action")
 	var paint_workspace = tool.paint_workspace_snapshot()
+	_assert_eq(String(paint_workspace["screen_role_source"]), "HexMapPaintScreen", "ARCH-41 EditTool Paint workspace uses Paint screen script")
+	_assert_eq(String(paint_workspace["workflow_owner"]), "Paint", "ARCH-41 EditTool Paint workspace names Paint owner")
 	_assert_eq(String(paint_workspace["document_workflow_owner"]), "Resources", "SCREEN-21 edit tool routes document workflow to Resources")
 	_assert_eq(String(paint_workspace["layer_workflow_owner"]), "Layers", "SCREEN-21 edit tool routes layer workflow to Layers")
 	_assert_eq(String(paint_workspace["export_workflow_owner"]), "Export", "SCREEN-21 edit tool routes export workflow to Export")

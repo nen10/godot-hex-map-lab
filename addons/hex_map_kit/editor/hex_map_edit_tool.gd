@@ -11,6 +11,7 @@ const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile
 const HexMapEditMutationBuilder = preload("res://addons/hex_map_kit/editor/hex_map_edit_mutation_builder.gd")
 const HexMapEditViewportInputAdapter = preload("res://addons/hex_map_kit/editor/hex_map_edit_viewport_input_adapter.gd")
 const HexMapPaintInteractionState = preload("res://addons/hex_map_kit/editor/hex_map_paint_interaction_state.gd")
+const HexMapPaintScreen = preload("res://addons/hex_map_kit/editor/hex_map_paint_screen.gd")
 const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
 const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
 const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
@@ -471,11 +472,22 @@ func paint_workspace_snapshot() -> Dictionary:
 	var document_management_visible := _document_management_visible()
 	var layer_management_visible := _layer_stack_management_visible()
 	var export_management_visible := _export_management_visible()
+	var screen_role := HexMapPaintScreen.screen_contract()
+	var delegated_ownership := HexMapPaintScreen.delegated_ownership(
+		document_management_visible,
+		layer_management_visible,
+		export_management_visible,
+		_control_effectively_visible(_validation_dashboard)
+	)
 	var last_apply_summary := String(last_apply.get("summary", "none"))
 	var last_apply_message := String(last_apply.get("message", "none"))
 	var selected_cell_present := bool(selected_cell.get("present", false))
 	return {
 		"interaction_state": interaction_state,
+		"screen_role": screen_role,
+		"screen_script": String(screen_role.get("screen_script", "")),
+		"screen_role_source": String(screen_role.get("screen_role_source", "")),
+		"workflow_owner": String(screen_role.get("workflow_owner", "")),
 		"view_state": view_state,
 		"active_document": document_state.get("resource", null),
 		"active_document_status": String(document_state.get("status", "none")),
@@ -503,15 +515,15 @@ func paint_workspace_snapshot() -> Dictionary:
 		"viewport_edit_updates_paint_state": selected_cell_present or not last_edit.is_empty(),
 		"undo_available": _undo_redo != null,
 		"undo_hint": "Use editor Undo/Redo." if _undo_redo != null else "Undo uses editor history when available.",
-		"document_workflow_owner": "Resources",
-		"document_management_visible": document_management_visible,
-		"layer_workflow_owner": "Layers",
-		"layer_management_visible": layer_management_visible,
-		"export_workflow_owner": "Export",
-		"export_management_visible": export_management_visible,
-		"paint_non_paint_management_visible": document_management_visible or layer_management_visible or export_management_visible,
-		"validation_workflow_owner": "Validate",
-		"validation_dashboard_visible": _control_effectively_visible(_validation_dashboard),
+		"document_workflow_owner": String(delegated_ownership.get("document_workflow_owner", "Resources")),
+		"document_management_visible": bool(delegated_ownership.get("document_management_visible", false)),
+		"layer_workflow_owner": String(delegated_ownership.get("layer_workflow_owner", "Layers")),
+		"layer_management_visible": bool(delegated_ownership.get("layer_management_visible", false)),
+		"export_workflow_owner": String(delegated_ownership.get("export_workflow_owner", "Export")),
+		"export_management_visible": bool(delegated_ownership.get("export_management_visible", false)),
+		"paint_non_paint_management_visible": bool(delegated_ownership.get("paint_non_paint_management_visible", false)),
+		"validation_workflow_owner": String(delegated_ownership.get("validation_workflow_owner", "Validate")),
+		"validation_dashboard_visible": bool(delegated_ownership.get("validation_dashboard_visible", false)),
 		"resource_picker_rows_visible": {
 			"object_database": _control_row_is_visible(_object_database_picker),
 			"label_database": _control_row_is_visible(_label_database_picker),
@@ -715,6 +727,7 @@ func paint_brush_snapshot() -> Dictionary:
 	var mode_id := _paint_mode_id_for_edit_mode(_edit_mode)
 	var brush_key := _paint_brush_key_for_current_mode()
 	var cta := _paint_missing_asset_cta(mode_id, brush_key)
+	var catalog_ownership := HexMapPaintScreen.catalog_ownership(_catalog_entry_management_visible())
 	return {
 		"mode": mode_id,
 		"mode_label": EDIT_MODE_NAMES[_edit_mode],
@@ -727,9 +740,9 @@ func paint_brush_snapshot() -> Dictionary:
 		"selected_object_definition_id": _selected_object_definition_id,
 		"selected_label_definition_id": _selected_label_definition_id,
 		"zone_mode_available": false,
-		"catalog_entry_workflow_owner": "Catalog",
-		"catalog_entry_management_visible": _catalog_entry_management_visible(),
-		"paint_consumes_catalog_key": true,
+		"catalog_entry_workflow_owner": String(catalog_ownership.get("catalog_entry_workflow_owner", "Catalog")),
+		"catalog_entry_management_visible": bool(catalog_ownership.get("catalog_entry_management_visible", false)),
+		"paint_consumes_catalog_key": bool(catalog_ownership.get("paint_consumes_catalog_key", true)),
 		"catalog_key_selector_visible": _control_row_is_visible(_tile_catalog_option) \
 			or _control_row_is_visible(_object_catalog_option) \
 			or _control_row_is_visible(_overlay_item_key_option),

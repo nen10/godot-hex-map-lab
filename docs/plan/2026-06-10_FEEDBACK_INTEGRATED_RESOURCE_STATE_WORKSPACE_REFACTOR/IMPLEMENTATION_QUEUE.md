@@ -99,7 +99,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
 | `ARCH-40` | `COMPLETE` | `NODE-20`, `STATE-30` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-40_WORKSPACE_CONTEXT_HYDRATOR_WRITER_EXTRACTION/` | Workspace context hydrator/writer extraction | `HexMapWorkspace`, binding/dependency services, asset context, tests | `hex_map_workspace.gd` no longer directly assembles node/document/dependency context; hydration/writeback service is testable; UI only renders resulting state; `./tools/test.sh` passed. |
-| `ARCH-41` | `READY` | `SCREEN-20`, `SCREEN-21`, `SCREEN-22` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-41_SCREEN_COMPONENT_EXTRACTION_BY_UX_ROLE/` | Workspace/EditTool/GenDock component extraction by UX role | new per-screen scripts, `HexMapWorkspace`, `hex_map_edit_tool.gd`, `hex_map_gen_dock.gd`, tests | Extraction is justified by user task ownership, not line count; each screen script maps to a tab/workflow; Paint no longer carries Catalog/Layer/Export/Document responsibility. |
+| `ARCH-41` | `COMPLETE` | `SCREEN-20`, `SCREEN-21`, `SCREEN-22` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-41_SCREEN_COMPONENT_EXTRACTION_BY_UX_ROLE/` | Workspace/EditTool/GenDock component extraction by UX role | new per-screen scripts, `HexMapWorkspace`, `hex_map_edit_tool.gd`, `hex_map_gen_dock.gd`, tests | Extraction is justified by user task ownership, not line count; each screen script maps to a tab/workflow; Paint no longer carries Catalog/Layer/Export/Document responsibility; `./tools/test.sh` passed. |
 | `ARCH-50` | `READY` | `NODE-20`, `NODE-21` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-50_HEX_TILE_MAP_LAYER_RESPONSIBILITY_SPLIT/` | HexTileMapLayer responsibility split | `addons/hex_map_kit/adapter/hex_tile_map_layer.gd`, new adapter helpers, runtime/editor tests | `HexTileMapLayer` moves toward coordinator role; resource binding, document apply, layer stack apply, object display, gameplay query, and debug overlay responsibilities are separated without losing runtime helper value. |
 
 ---
@@ -117,7 +117,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `TEST-80` | `BACKLOG` | `STATE-60`, `ARCH-41` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/TEST-80_EDITOR_TEST_FILE_SPLIT_AND_STATE_CONTRACTS/` | Editor test split around state/screen contracts | `tests/test_editor_plugin.gd`, new workspace/state/screen tests, `docs/TEST.md` | Old UI shape tests are removed or replaced; tests cover state transitions, hydration/writeback, and screen contracts; no analog test is added; `./tools/test.sh` passes if Godot is available. |
+| `TEST-80` | `READY` | `STATE-60`, `ARCH-41` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/TEST-80_EDITOR_TEST_FILE_SPLIT_AND_STATE_CONTRACTS/` | Editor test split around state/screen contracts | `tests/test_editor_plugin.gd`, new workspace/state/screen tests, `docs/TEST.md` | Old UI shape tests are removed or replaced; tests cover state transitions, hydration/writeback, and screen contracts; no analog test is added; `./tools/test.sh` passes if Godot is available. |
 | `DOC-90` | `READY` | `SCREEN-10`, `SCREEN-22`, `SCREEN-25` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/DOC-90_WORKSPACE_WORKFLOW_MANUAL_UPDATE/` | Manual update for current Workspace workflow | `docs/manual/MANUAL_EDITOR_PLUGIN.md`, `docs/manual/MANUAL_WORKFLOW.md`, `docs/TEST.md`, `README.md` if needed | Manual explains selected HexTileMap -> Resources -> Generate -> Paint -> Catalog -> Validate -> QA -> Export flow, source badges, and sample learning as a separate chapter; no analog test is added. |
 | `PROC-90` | `BACKLOG` | `DOC-90`, `TEST-80` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/PROC-90_FINAL_DIST_REGENERATION/` | Final dist regeneration and manifest proof | `tools/package_addon.sh`, `dist/`, self-review/test-result docs | `tools/package_addon.sh` runs; committed manifest/zip match the current addon tree; diff result is recorded in self-review; dist freshness remains outside normal `tools/test.sh` gate. |
 
@@ -148,7 +148,7 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `ARCH-41`.
+Current recommended next task: `ARCH-50`.
 
 Reason:
 
@@ -181,10 +181,11 @@ Reason:
 - `SCREEN-24` is complete.
 - `SCREEN-25` is complete.
 - `ARCH-40` is complete.
-- `ARCH-41`, `ARCH-50`, `PERF-60`, and `DOC-90` remain READY.
-- `TEST-80` remains BACKLOG because `ARCH-41` is not complete.
+- `ARCH-41` is complete.
+- `ARCH-50`, `PERF-60`, `TEST-80`, and `DOC-90` remain READY.
+- `TEST-80` is READY because `STATE-60` and `ARCH-41` are complete.
 - `DOC-90` is READY because `SCREEN-10`, `SCREEN-22`, and `SCREEN-25` are complete.
-- `ARCH-41` is the first READY task in queue order after completed `ARCH-40`.
+- `ARCH-50` is the first READY task in queue order after completed `ARCH-41`.
 
 ---
 
@@ -729,3 +730,29 @@ proof:
     - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-40_WORKSPACE_CONTEXT_HYDRATOR_WRITER_EXTRACTION/POLICY.md`
     - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-40_WORKSPACE_CONTEXT_HYDRATOR_WRITER_EXTRACTION/IMPLEMENTATION_PLAN.md`
     - `docs/review/autopilot/ARCH-40_TEST_RESULT_2026-06-10.md`
+
+### ARCH-41 Screen component extraction by UX role
+
+proof:
+  plan: `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-41_SCREEN_COMPONENT_EXTRACTION_BY_UX_ROLE/`
+  review: `docs/review/autopilot/ARCH-41_SELF_REVIEW_2026-06-10.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_resources_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_catalog_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_layers_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_validate_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_qa_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_export_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_paint_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `addons/hex_map_kit/editor/hex_map_edit_tool.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-41_SCREEN_COMPONENT_EXTRACTION_BY_UX_ROLE/SUB_TASKS.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-41_SCREEN_COMPONENT_EXTRACTION_BY_UX_ROLE/UX.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-41_SCREEN_COMPONENT_EXTRACTION_BY_UX_ROLE/POLICY.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-41_SCREEN_COMPONENT_EXTRACTION_BY_UX_ROLE/IMPLEMENTATION_PLAN.md`
+    - `docs/review/autopilot/ARCH-41_TEST_RESULT_2026-06-10.md`

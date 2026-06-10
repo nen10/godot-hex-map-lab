@@ -29,6 +29,13 @@ const HexMapWorkspaceAssetPanel = preload("res://addons/hex_map_kit/editor/hex_m
 const HexMapWorkspaceAssetResourceFactory = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_resource_factory.gd")
 const HexMapWorkspaceBindingService = preload("res://addons/hex_map_kit/editor/hex_map_workspace_binding_service.gd")
 const HexMapWorkspaceComponentRegistry = preload("res://addons/hex_map_kit/editor/hex_map_workspace_component_registry.gd")
+const HexMapResourcesScreen = preload("res://addons/hex_map_kit/editor/hex_map_resources_screen.gd")
+const HexMapCatalogScreen = preload("res://addons/hex_map_kit/editor/hex_map_catalog_screen.gd")
+const HexMapLayersScreen = preload("res://addons/hex_map_kit/editor/hex_map_layers_screen.gd")
+const HexMapValidateScreen = preload("res://addons/hex_map_kit/editor/hex_map_validate_screen.gd")
+const HexMapQAScreen = preload("res://addons/hex_map_kit/editor/hex_map_qa_screen.gd")
+const HexMapExportScreen = preload("res://addons/hex_map_kit/editor/hex_map_export_screen.gd")
+const HexMapPaintScreen = preload("res://addons/hex_map_kit/editor/hex_map_paint_screen.gd")
 const HexMapValidationDashboard = preload("res://addons/hex_map_kit/editor/hex_map_validation_dashboard.gd")
 const HexMapValidationWorkflowState = preload("res://addons/hex_map_kit/editor/hex_map_validation_workflow_state.gd")
 const HexMapExportWorkflowState = preload("res://addons/hex_map_kit/editor/hex_map_export_workflow_state.gd")
@@ -424,6 +431,23 @@ func _workspace_root_screen_snapshots() -> Dictionary:
 		HexMapWorkspaceComponentRegistry.TAB_EXPORT: export_screen_snapshot(),
 		HexMapWorkspaceComponentRegistry.TAB_SETTINGS: settings_screen_snapshot(),
 	}
+
+
+func workspace_screen_role_contracts() -> Dictionary:
+	return {
+		HexMapWorkspaceComponentRegistry.TAB_DOCUMENT: HexMapResourcesScreen.screen_contract(),
+		HexMapWorkspaceComponentRegistry.TAB_PAINT: HexMapPaintScreen.screen_contract(),
+		HexMapWorkspaceComponentRegistry.TAB_CATALOG: HexMapCatalogScreen.screen_contract(),
+		HexMapWorkspaceComponentRegistry.TAB_LAYERS: HexMapLayersScreen.screen_contract(),
+		HexMapWorkspaceComponentRegistry.TAB_VALIDATE: HexMapValidateScreen.screen_contract(),
+		HexMapWorkspaceComponentRegistry.TAB_QA: HexMapQAScreen.screen_contract(),
+		HexMapWorkspaceComponentRegistry.TAB_EXPORT: HexMapExportScreen.screen_contract(),
+	}
+
+
+func screen_role_contract_for_tab(tab_name: String) -> Dictionary:
+	var actual_tab := _canonical_tab_name(tab_name)
+	return workspace_screen_role_contracts().get(actual_tab, {}) as Dictionary
 
 
 func set_selected_hex_tile_map_node(node: Node, reason: String = "workspace.selected_hex_tile_map") -> Dictionary:
@@ -1024,6 +1048,8 @@ func document_screen_snapshot() -> Dictionary:
 
 func resources_screen_snapshot() -> Dictionary:
 	var context := workspace_asset_context()
+	var screen_role := HexMapResourcesScreen.screen_contract()
+	var ownership := HexMapResourcesScreen.ownership_fields()
 	var document := context.level_document
 	var selected_snapshot := selected_hex_tile_map_snapshot()
 	var missing_snapshot := missing_unique_resources_snapshot()
@@ -1037,6 +1063,10 @@ func resources_screen_snapshot() -> Dictionary:
 	var empty_state := _resources_tab_empty_state()
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_DOCUMENT,
+		"screen_role": screen_role,
+		"screen_script": String(screen_role.get("screen_script", "")),
+		"screen_role_source": String(screen_role.get("screen_role_source", "")),
+		"workflow_owner": String(screen_role.get("workflow_owner", "")),
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_DOCUMENT),
 		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_DOCUMENT),
 		"purpose_text": String(empty_state.get("purpose_text", "")),
@@ -1055,14 +1085,14 @@ func resources_screen_snapshot() -> Dictionary:
 		"saved_path": document.resource_path if document != null else "",
 		"saved_status": "saved" if document != null and document.resource_path != "" else "unsaved",
 		"dirty": false,
-		"document_workflow_owner": "Resources",
-		"document_management_visible": true,
-		"document_save_dependency_dirty_owner": "Resources",
+		"document_workflow_owner": String(ownership.get("document_workflow_owner", "Resources")),
+		"document_management_visible": bool(ownership.get("document_management_visible", true)),
+		"document_save_dependency_dirty_owner": String(screen_role.get("workflow_owner", "Resources")),
 		"document_save_available": document != null,
 		"document_save_as_available": document != null,
 		"dependency_hydration_visible": true,
 		"dirty_state_visible": true,
-		"paint_document_management_visible": false,
+		"paint_document_management_visible": bool(ownership.get("paint_document_management_visible", false)),
 		"asset_source_snapshot": context.source_snapshot(),
 		"dependency_hydration": _document_dependency_hydration_snapshot(document),
 		"last_dependency_hydration": _last_document_dependency_hydration.duplicate(true),
@@ -1302,11 +1332,17 @@ func validate_level_document():
 
 func validate_screen_snapshot() -> Dictionary:
 	var context := workspace_asset_context()
+	var screen_role := HexMapValidateScreen.screen_contract()
+	var ownership := HexMapValidateScreen.ownership_fields()
 	var issue_rows := validate_screen_issue_rows(_last_workspace_validation_result)
 	var empty_state := _validate_tab_empty_state(issue_rows)
 	var validation_state := validation_workflow_state_snapshot()
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_VALIDATE,
+		"screen_role": screen_role,
+		"screen_script": String(screen_role.get("screen_script", "")),
+		"screen_role_source": String(screen_role.get("screen_role_source", "")),
+		"workflow_owner": String(screen_role.get("workflow_owner", "")),
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_VALIDATE),
 		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_VALIDATE),
 		"purpose_text": String(empty_state.get("purpose_text", "")),
@@ -1330,7 +1366,7 @@ func validate_screen_snapshot() -> Dictionary:
 		),
 		"generation_profile": context.generation_profile,
 		"navigator_component_present": tab_has_component(HexMapWorkspaceComponentRegistry.TAB_VALIDATE, "validation_issue_navigator"),
-		"validation_workflow_owner": "Validate",
+		"validation_workflow_owner": String(ownership.get("validation_workflow_owner", "Validate")),
 		"workflow_validate_action_visible": _validation_run_button != null,
 		"workflow_validate_button_text": _validation_run_button.text if _validation_run_button != null else "",
 		"issue_navigator_visible": _validation_issue_navigator != null,
@@ -1632,6 +1668,8 @@ func _validate_empty_state_text(issue_rows: Array) -> String:
 
 func catalog_screen_snapshot() -> Dictionary:
 	var context := workspace_asset_context()
+	var screen_role := HexMapCatalogScreen.screen_contract()
+	var ownership := HexMapCatalogScreen.ownership_fields()
 	var catalog := context.tile_catalog
 	var catalog_slot := tab_asset_slot_snapshot(
 		HexMapWorkspaceComponentRegistry.TAB_CATALOG,
@@ -1643,6 +1681,10 @@ func catalog_screen_snapshot() -> Dictionary:
 	var empty_state := _catalog_tab_empty_state(entry_rows, entry_detail)
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_CATALOG,
+		"screen_role": screen_role,
+		"screen_script": String(screen_role.get("screen_script", "")),
+		"screen_role_source": String(screen_role.get("screen_role_source", "")),
+		"workflow_owner": String(screen_role.get("workflow_owner", "")),
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_CATALOG),
 		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_CATALOG),
 		"purpose_text": String(empty_state.get("purpose_text", "")),
@@ -1659,7 +1701,7 @@ func catalog_screen_snapshot() -> Dictionary:
 		"entry_rows": entry_rows,
 		"entry_detail": entry_detail,
 		"selected_entry": entry_detail,
-		"catalog_entry_workflow_owner": "Catalog",
+		"catalog_entry_workflow_owner": String(ownership.get("catalog_entry_workflow_owner", "Catalog")),
 		"entry_list_visible": true,
 		"entry_detail_visible": true,
 		"tile_preview_visible": bool(entry_detail.get("preview_available", false)) \
@@ -1672,7 +1714,7 @@ func catalog_screen_snapshot() -> Dictionary:
 		"create_scene_entry_available": catalog != null,
 		"validate_catalog_available": catalog != null,
 		"catalog_validation_status": validation_status,
-		"paint_catalog_entry_management_visible": false,
+		"paint_catalog_entry_management_visible": bool(ownership.get("paint_catalog_entry_management_visible", false)),
 		"primary_input_fields": PackedStringArray([
 			"catalog_resource",
 			"tile_set",
@@ -1865,6 +1907,8 @@ func validate_tile_catalog():
 
 func layer_stack_screen_snapshot() -> Dictionary:
 	var context := workspace_asset_context()
+	var screen_role := HexMapLayersScreen.screen_contract()
+	var ownership := HexMapLayersScreen.ownership_fields()
 	var stack := context.layer_stack
 	var stack_slot := tab_asset_slot_snapshot(
 		HexMapWorkspaceComponentRegistry.TAB_LAYERS,
@@ -1880,6 +1924,10 @@ func layer_stack_screen_snapshot() -> Dictionary:
 	var empty_state := _layers_tab_empty_state(role_rows, relationship)
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_LAYERS,
+		"screen_role": screen_role,
+		"screen_script": String(screen_role.get("screen_script", "")),
+		"screen_role_source": String(screen_role.get("screen_role_source", "")),
+		"workflow_owner": String(screen_role.get("workflow_owner", "")),
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_LAYERS),
 		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_LAYERS),
 		"purpose_text": String(empty_state.get("purpose_text", "")),
@@ -1902,12 +1950,12 @@ func layer_stack_screen_snapshot() -> Dictionary:
 		"layer_actions": _layer_stack_action_availability(stack, target_status, role_status_counts),
 		"template_candidates": PackedStringArray(["standard", "minimal"]),
 		"sample_template_present": false,
-		"layer_workflow_owner": "Layers",
-		"layer_management_visible": true,
-		"role_actions_owner": "Layers",
+		"layer_workflow_owner": String(ownership.get("layer_workflow_owner", "Layers")),
+		"layer_management_visible": bool(ownership.get("layer_management_visible", true)),
+		"role_actions_owner": String(screen_role.get("workflow_owner", "Layers")),
 		"role_list_visible": true,
 		"template_controls_visible": true,
-		"paint_layer_management_visible": false,
+		"paint_layer_management_visible": bool(ownership.get("paint_layer_management_visible", false)),
 	}
 
 
@@ -2349,6 +2397,7 @@ func select_label_definition(label_id: String) -> Dictionary:
 
 
 func paint_brush_screen_snapshot() -> Dictionary:
+	var screen_role := HexMapPaintScreen.screen_contract()
 	var paint_workspace := _edit_tool.paint_workspace_snapshot() if _edit_tool != null else {}
 	var interaction_state = paint_workspace.get("interaction_state", {}) as Dictionary
 	var view_state = paint_workspace.get("view_state", {}) as Dictionary
@@ -2372,6 +2421,10 @@ func paint_brush_screen_snapshot() -> Dictionary:
 	var last_apply_summary := String(last_apply_state.get("summary", paint_workspace.get("last_edit_summary", "none")))
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_PAINT,
+		"screen_role": screen_role,
+		"screen_script": String(screen_role.get("screen_script", "")),
+		"screen_role_source": String(screen_role.get("screen_role_source", "")),
+		"workflow_owner": String(screen_role.get("workflow_owner", "")),
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_PAINT),
 		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_PAINT),
 		"purpose_text": String(empty_state.get("purpose_text", "")),
@@ -2395,7 +2448,7 @@ func paint_brush_screen_snapshot() -> Dictionary:
 		"paint_non_paint_management_visible": bool(paint_workspace.get("paint_non_paint_management_visible", false)),
 		"validation_workflow_owner": String(paint_workspace.get("validation_workflow_owner", "Validate")),
 		"validation_dashboard_visible": bool(paint_workspace.get("validation_dashboard_visible", false)),
-		"paint_surface_owner": "Paint",
+		"paint_surface_owner": String(screen_role.get("workflow_owner", "Paint")),
 		"paint_surface_visible": bool(paint_workspace.get("paint_surface_visible", false)),
 		"paint_workspace_summary_text": String(paint_workspace.get("paint_workspace_summary_text", "")),
 		"empty_state_visible": String(empty_state.get("empty_state_text", "")) != "",
@@ -2451,11 +2504,17 @@ func select_paint_catalog_brush_key(key: String, mode_id: String = "terrain") ->
 
 func qa_screen_snapshot() -> Dictionary:
 	var context := workspace_asset_context()
+	var screen_role := HexMapQAScreen.screen_contract()
+	var ownership := HexMapQAScreen.ownership_fields()
 	var seed_lab := qa_seed_lab_context()
 	var empty_state := _qa_tab_empty_state(seed_lab)
 	var score_row_count := int(seed_lab.get("score_row_count", 0))
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_QA,
+		"screen_role": screen_role,
+		"screen_script": String(screen_role.get("screen_script", "")),
+		"screen_role_source": String(screen_role.get("screen_role_source", "")),
+		"workflow_owner": String(screen_role.get("workflow_owner", "")),
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_QA),
 		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_QA),
 		"purpose_text": String(empty_state.get("purpose_text", "")),
@@ -2463,7 +2522,7 @@ func qa_screen_snapshot() -> Dictionary:
 		"empty_state_text": String(empty_state.get("empty_state_text", "")),
 		"generate_role_text": "Generate previews one candidate; QA compares seed batches and adopts a winner.",
 		"seed_lab_component_present": tab_has_component(HexMapWorkspaceComponentRegistry.TAB_QA, "qa_seed_lab_panel"),
-		"qa_workflow_owner": "QA",
+		"qa_workflow_owner": String(ownership.get("qa_workflow_owner", "QA")),
 		"generation_profile": context.generation_profile,
 		"generation_profile_context": _profile_resource_context(
 			context,
@@ -2739,6 +2798,8 @@ func duplicate_validation_rule_suite_preset_to_project(preset_id: String, path: 
 func export_screen_snapshot() -> Dictionary:
 	var session := _ensure_session_state()
 	var context := workspace_asset_context()
+	var screen_role := HexMapExportScreen.screen_contract()
+	var ownership := HexMapExportScreen.ownership_fields()
 	var destination := _export_destination_context()
 	var output_type := _export_output_type_context(context, destination)
 	var empty_state := _export_tab_empty_state(context, destination)
@@ -2750,6 +2811,10 @@ func export_screen_snapshot() -> Dictionary:
 	var export_view_state = export_state.get("view_state", {}) as Dictionary
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_EXPORT,
+		"screen_role": screen_role,
+		"screen_script": String(screen_role.get("screen_script", "")),
+		"screen_role_source": String(screen_role.get("screen_role_source", "")),
+		"workflow_owner": String(screen_role.get("workflow_owner", "")),
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_EXPORT),
 		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_EXPORT),
 		"purpose_text": String(empty_state.get("purpose_text", "")),
@@ -2808,12 +2873,12 @@ func export_screen_snapshot() -> Dictionary:
 		"sample_candidates_visible": session.show_bundled_samples_in_main_selectors,
 		"sample_destination_available": false,
 		"editable_destination_path_visible": false,
-		"export_workflow_owner": "Export",
-		"export_management_visible": true,
-		"destination_output_type_owner": "Export",
-		"destination_controls_visible": true,
-		"output_type_controls_visible": true,
-		"paint_export_management_visible": false,
+		"export_workflow_owner": String(ownership.get("export_workflow_owner", "Export")),
+		"export_management_visible": bool(ownership.get("export_management_visible", true)),
+		"destination_output_type_owner": String(ownership.get("destination_output_type_owner", "Export")),
+		"destination_controls_visible": bool(ownership.get("destination_controls_visible", true)),
+		"output_type_controls_visible": bool(ownership.get("output_type_controls_visible", true)),
+		"paint_export_management_visible": bool(ownership.get("paint_export_management_visible", false)),
 		"resource_reference_only": false,
 	}
 
