@@ -45,6 +45,8 @@ const HexMapSampleLearningState = preload("res://addons/hex_map_kit/editor/hex_m
 const HexMapWorkspaceRootState = preload("res://addons/hex_map_kit/editor/hex_map_workspace_root_state.gd")
 const HexMapWorkspaceDispatcher = preload("res://addons/hex_map_kit/editor/hex_map_workspace_dispatcher.gd")
 
+const LAYER_ROLE_WRITABLE_SOURCES := ["document", "target", "generated", "readonly"]
+
 var _editor_session_state: HexMapEditorSessionState = null
 var _tabs: TabContainer
 var _sample_learning_cta: HBoxContainer
@@ -70,6 +72,14 @@ var _layer_stack_role_status_label: Label
 var _layer_stack_role_relationship_label: Label
 var _layer_stack_role_tree_summary_label: Label
 var _layer_stack_role_rows_label: Label
+var _layer_stack_role_editor_summary_label: Label
+var _layer_stack_role_editor_role_option: OptionButton
+var _layer_stack_role_editor_visible_check: CheckBox
+var _layer_stack_role_editor_locked_check: CheckBox
+var _layer_stack_role_editor_z_index_spin: SpinBox
+var _layer_stack_role_editor_writable_option: OptionButton
+var _selected_layer_stack_editor_role := ""
+var _updating_layer_role_editor_controls := false
 var _missing_unique_resources_panel: VBoxContainer
 var _missing_unique_resources_status_label: Label
 var _missing_unique_resources_save_directory_label: Label
@@ -1993,6 +2003,7 @@ func layer_stack_screen_snapshot() -> Dictionary:
 	var relationship := _layer_stack_relationship_snapshot(stack)
 	var empty_state := _layers_tab_empty_state(role_rows, relationship)
 	var role_tree_summary := _layer_role_tree_summary(role_rows, role_status_counts, relationship)
+	var role_editor := _layer_role_editor_snapshot(role_rows, relationship)
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_LAYERS,
 		"screen_role": screen_role,
@@ -2017,6 +2028,10 @@ func layer_stack_screen_snapshot() -> Dictionary:
 		"role_tree_summary": role_tree_summary,
 		"role_tree_rows_text": String(role_tree_summary.get("role_rows_text", "")),
 		"mounted_role_tree_summary_text": _layer_stack_role_tree_summary_label.text if _layer_stack_role_tree_summary_label != null else "",
+		"role_editor": role_editor,
+		"selected_role": String(role_editor.get("selected_role", "")),
+		"role_editor_controls": role_editor.get("controls", {}),
+		"mounted_role_editor_text": _layer_stack_role_editor_summary_label.text if _layer_stack_role_editor_summary_label != null else "",
 		"target_status": target_status,
 		"target_layer": _edit_tool.target_layer() if _edit_tool != null else null,
 		"selected_hex_tile_map": selected_hex_tile_map_snapshot(),
@@ -2176,6 +2191,88 @@ func _layer_role_tree_summary(
 	}
 
 
+func _layer_role_editor_snapshot(role_rows: Array, relationship: Dictionary) -> Dictionary:
+	var selected_role := _normalized_layer_stack_editor_role(role_rows)
+	var row := _layer_stack_row_for_role(role_rows, selected_role)
+	var target_role_layer = _target_role_layer_for_role(selected_role)
+	var target_status := "missing"
+	if target_role_layer != null:
+		target_status = "reflected"
+	elif selected_role == "":
+		target_status = "no_role"
+	var visible := bool(row.get("visible", false)) if not row.is_empty() else false
+	var locked := bool(row.get("locked", false)) if not row.is_empty() else false
+	var z_index := int(row.get("z_index", 0)) if not row.is_empty() else 0
+	var writable := String(row.get("writable", "document")) if not row.is_empty() else "document"
+	var visible_text := "Role: %s | Status: %s | Visible: %s | Locked: %s | Z: %d | Writable: %s | Target: %s" % [
+		selected_role if selected_role != "" else "none",
+		String(row.get("status", "unavailable")) if not row.is_empty() else String(relationship.get("status", "")),
+		_bool_label(visible),
+		_bool_label(locked),
+		z_index,
+		writable,
+		target_status,
+	]
+	return {
+		"surface_id": "layer_role_editor",
+		"visible": true,
+		"editable": selected_role != "" and not row.is_empty(),
+		"selected_role": selected_role,
+		"role_row": row,
+		"visible_value": visible,
+		"locked_value": locked,
+		"z_index_value": z_index,
+		"writable_source": writable,
+		"writable_source_options": PackedStringArray(LAYER_ROLE_WRITABLE_SOURCES),
+		"target_reflection_status": target_status,
+		"target_reflected": target_role_layer != null,
+		"target_role_layer": target_role_layer,
+		"target_node_name": target_role_layer.name if target_role_layer != null else "",
+		"target_visible": bool(target_role_layer.visible) if target_role_layer is CanvasItem else false,
+		"target_z_index": int(target_role_layer.z_index) if target_role_layer is CanvasItem else 0,
+		"target_locked": bool(target_role_layer.get_meta("hex_layer_stack_locked", false)) if target_role_layer != null else false,
+		"target_writable_source": String(target_role_layer.get_meta("hex_layer_stack_writable_source", "")) if target_role_layer != null else "",
+		"visible_text": visible_text,
+		"controls": {
+			"role": "OptionButton",
+			"visible": "CheckBox",
+			"locked": "CheckBox",
+			"z_index": "SpinBox",
+			"writable_source": "OptionButton",
+		},
+		"primary_path_text_visible": false,
+	}
+
+
+func _normalized_layer_stack_editor_role(role_rows: Array) -> String:
+	var roles := PackedStringArray()
+	for row in role_rows:
+		if row is Dictionary:
+			var role := String((row as Dictionary).get("role", ""))
+			if role != "":
+				roles.append(role)
+	if roles.has(_selected_layer_stack_editor_role):
+		return _selected_layer_stack_editor_role
+	_selected_layer_stack_editor_role = roles[0] if roles.size() > 0 else ""
+	return _selected_layer_stack_editor_role
+
+
+func _layer_stack_row_for_role(role_rows: Array, role: String) -> Dictionary:
+	for row in role_rows:
+		if row is Dictionary and String((row as Dictionary).get("role", "")) == role:
+			return row as Dictionary
+	return {}
+
+
+func _target_role_layer_for_role(role: String):
+	if role == "" or _edit_tool == null:
+		return null
+	var target = _edit_tool.target_layer()
+	if not target is HexTileMapLayer:
+		return null
+	return (target as HexTileMapLayer).layer_for_stack_role(role)
+
+
 func create_layer_stack(path: String) -> Dictionary:
 	var panel := _layer_stack_asset_panel()
 	if panel == null:
@@ -2264,6 +2361,98 @@ func set_layer_stack_target_layer(layer: Node) -> Dictionary:
 		"target_status": _edit_tool.target_readiness_status(),
 		"role_rows": _edit_tool.layer_stack_rows(),
 	}
+
+
+func select_layer_stack_role(role: String) -> Dictionary:
+	var selected_role := role.strip_edges()
+	if selected_role == "":
+		return _layer_stack_role_edit_result(false, ERR_INVALID_PARAMETER, selected_role, false, null)
+	var stack := workspace_asset_context().layer_stack
+	if stack == null or stack.first_layer_for_role(selected_role) == null:
+		return _layer_stack_role_edit_result(false, ERR_DOES_NOT_EXIST, selected_role, false, null)
+	_selected_layer_stack_editor_role = selected_role
+	_refresh_layer_stack_role_panel()
+	var target_role_layer = _target_role_layer_for_role(selected_role)
+	return _layer_stack_role_edit_result(true, OK, selected_role, target_role_layer != null, target_role_layer)
+
+
+func update_layer_stack_role_properties(role: String, properties: Dictionary) -> Dictionary:
+	var selected_role := role.strip_edges()
+	if selected_role == "":
+		selected_role = _selected_layer_stack_editor_role
+	if selected_role == "":
+		return _layer_stack_role_edit_result(false, ERR_INVALID_PARAMETER, selected_role, false, null)
+	var stack := workspace_asset_context().layer_stack
+	if stack == null:
+		return _layer_stack_role_edit_result(false, ERR_DOES_NOT_EXIST, selected_role, false, null)
+	var entry = stack.first_layer_for_role(selected_role)
+	if entry == null:
+		return _layer_stack_role_edit_result(false, ERR_DOES_NOT_EXIST, selected_role, false, null)
+	var metadata = entry.get("metadata")
+	var next_metadata := (metadata as Dictionary).duplicate(true) if metadata is Dictionary else {}
+	if properties.has("visible"):
+		entry.set("visible", bool(properties.get("visible")))
+	if properties.has("z_index"):
+		entry.set("z_index", int(properties.get("z_index")))
+	if properties.has("locked"):
+		next_metadata["locked"] = bool(properties.get("locked"))
+	var writable_key := "writable_source" if properties.has("writable_source") else "writable"
+	if properties.has(writable_key):
+		var writable_source := _normalized_layer_stack_writable_source(properties.get(writable_key))
+		if writable_source == "":
+			return _layer_stack_role_edit_result(false, ERR_INVALID_PARAMETER, selected_role, false, null)
+		next_metadata["writable_source"] = writable_source
+	entry.set("metadata", next_metadata)
+	if entry.has_method("emit_changed"):
+		entry.emit_changed()
+	if stack.has_method("emit_changed"):
+		stack.emit_changed()
+	_selected_layer_stack_editor_role = selected_role
+	if _edit_tool != null:
+		_edit_tool.set_layer_stack_resource(stack, false)
+	var target_role_layer = _target_role_layer_for_role(selected_role)
+	var reflected := false
+	if target_role_layer != null:
+		_apply_layer_stack_entry_state_to_target_layer(entry, target_role_layer)
+		reflected = true
+	_refresh_layer_stack_role_panel()
+	return _layer_stack_role_edit_result(true, OK, selected_role, reflected, target_role_layer)
+
+
+func _layer_stack_role_edit_result(ok: bool, error: int, role: String, reflected: bool, target_role_layer) -> Dictionary:
+	return {
+		"ok": ok,
+		"error": error,
+		"slot_id": HexMapWorkspaceAssetContext.SLOT_LAYER_STACK,
+		"role": role,
+		"role_rows": _edit_tool.layer_stack_rows() if _edit_tool != null else [],
+		"role_editor": (layer_stack_screen_snapshot().get("role_editor", {}) as Dictionary) if ok else {},
+		"target_reflected": reflected,
+		"target_role_layer": target_role_layer,
+	}
+
+
+func _normalized_layer_stack_writable_source(source) -> String:
+	var value := String(source).strip_edges()
+	if value == "":
+		return "document"
+	var options := PackedStringArray(LAYER_ROLE_WRITABLE_SOURCES)
+	return value if options.has(value) else ""
+
+
+func _apply_layer_stack_entry_state_to_target_layer(entry: Resource, target_role_layer: Node) -> void:
+	if entry == null or target_role_layer == null:
+		return
+	if target_role_layer is CanvasItem:
+		var canvas_item := target_role_layer as CanvasItem
+		canvas_item.visible = bool(entry.get("visible"))
+		canvas_item.z_index = int(entry.get("z_index"))
+	var metadata = entry.get("metadata")
+	var locked := bool((metadata as Dictionary).get("locked", false)) if metadata is Dictionary else false
+	var writable_source := String((metadata as Dictionary).get("writable_source", "document")) if metadata is Dictionary else "document"
+	target_role_layer.set_meta("hex_layer_stack_role", String(entry.get("role")))
+	target_role_layer.set_meta("hex_layer_stack_locked", locked)
+	target_role_layer.set_meta("hex_layer_stack_writable_source", writable_source)
 
 
 func set_layer_stack_document(document: HexMapDocumentResource) -> Dictionary:
@@ -3354,6 +3543,22 @@ func _mount_layer_stack_role_panel() -> void:
 	_layer_stack_role_relationship_label = built.get("relationship_label", null) as Label
 	_layer_stack_role_tree_summary_label = built.get("role_tree_summary_label", null) as Label
 	_layer_stack_role_rows_label = built.get("rows_label", null) as Label
+	_layer_stack_role_editor_summary_label = built.get("editor_summary_label", null) as Label
+	_layer_stack_role_editor_role_option = built.get("role_option", null) as OptionButton
+	_layer_stack_role_editor_visible_check = built.get("visible_check", null) as CheckBox
+	_layer_stack_role_editor_locked_check = built.get("locked_check", null) as CheckBox
+	_layer_stack_role_editor_z_index_spin = built.get("z_index_spin", null) as SpinBox
+	_layer_stack_role_editor_writable_option = built.get("writable_option", null) as OptionButton
+	if _layer_stack_role_editor_role_option != null:
+		_layer_stack_role_editor_role_option.item_selected.connect(_on_layer_stack_editor_role_selected)
+	if _layer_stack_role_editor_visible_check != null:
+		_layer_stack_role_editor_visible_check.toggled.connect(_on_layer_stack_editor_visible_toggled)
+	if _layer_stack_role_editor_locked_check != null:
+		_layer_stack_role_editor_locked_check.toggled.connect(_on_layer_stack_editor_locked_toggled)
+	if _layer_stack_role_editor_z_index_spin != null:
+		_layer_stack_role_editor_z_index_spin.value_changed.connect(_on_layer_stack_editor_z_index_changed)
+	if _layer_stack_role_editor_writable_option != null:
+		_layer_stack_role_editor_writable_option.item_selected.connect(_on_layer_stack_editor_writable_selected)
 
 	(page as Control).add_child(_layer_stack_role_panel)
 	_register_tab_component(
@@ -4326,6 +4531,39 @@ func _on_missing_unique_resources_prefix_changed(_text: String) -> void:
 	_refresh_missing_unique_resources_panel()
 
 
+func _on_layer_stack_editor_role_selected(index: int) -> void:
+	if _updating_layer_role_editor_controls or _layer_stack_role_editor_role_option == null:
+		return
+	select_layer_stack_role(String(_layer_stack_role_editor_role_option.get_item_metadata(index)))
+
+
+func _on_layer_stack_editor_visible_toggled(value: bool) -> void:
+	if _updating_layer_role_editor_controls:
+		return
+	update_layer_stack_role_properties(_selected_layer_stack_editor_role, {"visible": value})
+
+
+func _on_layer_stack_editor_locked_toggled(value: bool) -> void:
+	if _updating_layer_role_editor_controls:
+		return
+	update_layer_stack_role_properties(_selected_layer_stack_editor_role, {"locked": value})
+
+
+func _on_layer_stack_editor_z_index_changed(value: float) -> void:
+	if _updating_layer_role_editor_controls:
+		return
+	update_layer_stack_role_properties(_selected_layer_stack_editor_role, {"z_index": int(value)})
+
+
+func _on_layer_stack_editor_writable_selected(index: int) -> void:
+	if _updating_layer_role_editor_controls or _layer_stack_role_editor_writable_option == null:
+		return
+	update_layer_stack_role_properties(
+		_selected_layer_stack_editor_role,
+		{"writable_source": String(_layer_stack_role_editor_writable_option.get_item_metadata(index))}
+	)
+
+
 func _on_create_missing_unique_resources_pressed() -> void:
 	create_missing_selected_hex_tile_map_resources(
 		_missing_unique_resources_save_directory,
@@ -4512,6 +4750,77 @@ func _refresh_layer_stack_role_panel() -> void:
 		_layer_stack_role_rows_label.text = _empty_state_inline_text(empty_state) \
 			if bool(empty_state.get("visible", false)) else _layer_stack_role_rows_text(rows)
 		_layer_stack_role_rows_label.tooltip_text = String(empty_state.get("help_tooltip", ""))
+	var role_editor = snapshot.get("role_editor", {}) as Dictionary
+	if _layer_stack_role_editor_summary_label != null:
+		_layer_stack_role_editor_summary_label.text = String(role_editor.get("visible_text", ""))
+		_layer_stack_role_editor_summary_label.tooltip_text = "Edit the selected Layer Stack role properties."
+	_refresh_layer_role_editor_controls(snapshot)
+
+
+func _refresh_layer_role_editor_controls(snapshot: Dictionary) -> void:
+	_updating_layer_role_editor_controls = true
+	var role_rows = snapshot.get("role_rows", []) as Array
+	var role_editor = snapshot.get("role_editor", {}) as Dictionary
+	var selected_role := String(role_editor.get("selected_role", ""))
+	var editable := bool(role_editor.get("editable", false))
+	if _layer_stack_role_editor_role_option != null:
+		_layer_stack_role_editor_role_option.clear()
+		var selected_index := -1
+		for row_index in range(role_rows.size()):
+			var row = role_rows[row_index]
+			if not row is Dictionary:
+				continue
+			var role := String((row as Dictionary).get("role", ""))
+			if role == "":
+				continue
+			_layer_stack_role_editor_role_option.add_item(role)
+			var item_index := _layer_stack_role_editor_role_option.item_count - 1
+			_layer_stack_role_editor_role_option.set_item_metadata(item_index, role)
+			if role == selected_role:
+				selected_index = item_index
+		if selected_index >= 0:
+			_layer_stack_role_editor_role_option.select(selected_index)
+		_layer_stack_role_editor_role_option.disabled = role_rows.is_empty()
+	if _layer_stack_role_editor_visible_check != null:
+		_layer_stack_role_editor_visible_check.button_pressed = bool(role_editor.get("visible_value", false))
+		_layer_stack_role_editor_visible_check.disabled = not editable
+	if _layer_stack_role_editor_locked_check != null:
+		_layer_stack_role_editor_locked_check.button_pressed = bool(role_editor.get("locked_value", false))
+		_layer_stack_role_editor_locked_check.disabled = not editable
+	if _layer_stack_role_editor_z_index_spin != null:
+		_layer_stack_role_editor_z_index_spin.value = int(role_editor.get("z_index_value", 0))
+		_layer_stack_role_editor_z_index_spin.editable = editable
+	if _layer_stack_role_editor_writable_option != null:
+		_populate_layer_role_writable_source_option(String(role_editor.get("writable_source", "document")), editable)
+	_updating_layer_role_editor_controls = false
+
+
+func _populate_layer_role_writable_source_option(selected_source: String, editable: bool) -> void:
+	if _layer_stack_role_editor_writable_option == null:
+		return
+	_layer_stack_role_editor_writable_option.clear()
+	var selected_index := 0
+	for source_index in range(LAYER_ROLE_WRITABLE_SOURCES.size()):
+		var source := String(LAYER_ROLE_WRITABLE_SOURCES[source_index])
+		_layer_stack_role_editor_writable_option.add_item(_layer_role_writable_source_label(source))
+		_layer_stack_role_editor_writable_option.set_item_metadata(source_index, source)
+		if source == selected_source:
+			selected_index = source_index
+	_layer_stack_role_editor_writable_option.select(selected_index)
+	_layer_stack_role_editor_writable_option.disabled = not editable
+
+
+func _layer_role_writable_source_label(source: String) -> String:
+	match source:
+		"document":
+			return "Document"
+		"target":
+			return "Target"
+		"generated":
+			return "Generated"
+		"readonly":
+			return "Read Only"
+	return source.capitalize()
 
 
 func _layer_stack_display_label(stack: HexLayerStackResource) -> String:

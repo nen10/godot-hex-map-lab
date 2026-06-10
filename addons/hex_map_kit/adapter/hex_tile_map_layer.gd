@@ -1892,6 +1892,10 @@ func _ensure_layer_stack_layers(stack: HexLayerStackResource) -> Dictionary:
 			var canvas_item = child as CanvasItem
 			canvas_item.z_index = int(layer_entry.get("z_index"))
 			canvas_item.visible = bool(layer_entry.get("visible"))
+		var metadata = layer_entry.get("metadata")
+		child.set_meta("hex_layer_stack_role", role)
+		child.set_meta("hex_layer_stack_locked", bool((metadata as Dictionary).get("locked", false)) if metadata is Dictionary else false)
+		child.set_meta("hex_layer_stack_writable_source", String((metadata as Dictionary).get("writable_source", "document")) if metadata is Dictionary else "document")
 		result[role] = child
 	return result
 

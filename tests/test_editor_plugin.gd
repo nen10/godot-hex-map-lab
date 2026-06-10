@@ -2150,11 +2150,48 @@ func _test_layer_stack_asset_screen_manages_project_stack_without_samples() -> v
 	_assert_true(int(role_tree["missing_count"]) > 0, "SCREEN-NEXT-10 Layers role tree reports missing roles")
 	_assert_true(String(role_tree["role_rows_text"]).contains(HexLayerStackResource.ROLE_TERRAIN), "SCREEN-NEXT-10 Layers role tree text includes terrain role")
 	_assert_true(String(snapshot["mounted_role_tree_summary_text"]).contains("Roles: 7"), "SCREEN-NEXT-10 mounted Layers role tree shows role count")
+	var role_editor = snapshot["role_editor"] as Dictionary
+	_assert_eq(String(role_editor["surface_id"]), "layer_role_editor", "LAYER-NEXT-10 Layers exposes role editor summary")
+	_assert_eq(String(role_editor["selected_role"]), HexLayerStackResource.ROLE_TERRAIN, "LAYER-NEXT-10 role editor selects first role")
+	var role_editor_controls = snapshot["role_editor_controls"] as Dictionary
+	_assert_eq(String(role_editor_controls["visible"]), "CheckBox", "LAYER-NEXT-10 visible role editor uses CheckBox")
+	_assert_eq(String(role_editor_controls["locked"]), "CheckBox", "LAYER-NEXT-10 locked role editor uses CheckBox")
+	_assert_eq(String(role_editor_controls["z_index"]), "SpinBox", "LAYER-NEXT-10 z-index role editor uses SpinBox")
+	_assert_eq(String(role_editor_controls["writable_source"]), "OptionButton", "LAYER-NEXT-10 writable role editor uses OptionButton")
+	_assert_true(String(snapshot["mounted_role_editor_text"]).contains("Role: terrain"), "LAYER-NEXT-10 mounted role editor names selected role")
 	var terrain_row = _layer_stack_row_for_role(snapshot["role_rows"], HexLayerStackResource.ROLE_TERRAIN)
 	_assert_eq(terrain_row["status"], "missing", "Layers screen reports missing terrain role before create")
 	_assert_true(bool(terrain_row["visible"]), "TAB-53 terrain row shows visibility")
 	_assert_eq(terrain_row["locked"], false, "TAB-53 terrain row shows locked state")
 	_assert_eq(terrain_row["writable"], "document", "TAB-53 terrain row shows writable source")
+	var select_role_result = workspace.select_layer_stack_role(HexLayerStackResource.ROLE_OVERLAY)
+	_assert_true(bool(select_role_result["ok"]), "LAYER-NEXT-10 role editor selects explicit role")
+	_assert_eq(
+		String((select_role_result["role_editor"] as Dictionary)["selected_role"]),
+		HexLayerStackResource.ROLE_OVERLAY,
+		"LAYER-NEXT-10 role editor snapshot follows explicit selection"
+	)
+	var edit_missing_role_result = workspace.update_layer_stack_role_properties(
+		HexLayerStackResource.ROLE_TERRAIN,
+		{
+			"visible": false,
+			"locked": true,
+			"z_index": 77,
+			"writable_source": "target",
+		}
+	)
+	_assert_true(bool(edit_missing_role_result["ok"]), "LAYER-NEXT-10 role editor updates missing role resource state")
+	_assert_true(not bool(edit_missing_role_result["target_reflected"]), "LAYER-NEXT-10 missing role edit reports no target reflection")
+	terrain_row = _layer_stack_row_for_role(edit_missing_role_result["role_rows"], HexLayerStackResource.ROLE_TERRAIN)
+	_assert_eq(terrain_row["visible"], false, "LAYER-NEXT-10 missing role edit updates resource visibility")
+	_assert_eq(terrain_row["locked"], true, "LAYER-NEXT-10 missing role edit updates resource locked state")
+	_assert_eq(int(terrain_row["z_index"]), 77, "LAYER-NEXT-10 missing role edit updates resource z-index")
+	_assert_eq(terrain_row["writable"], "target", "LAYER-NEXT-10 missing role edit updates resource writable source")
+	snapshot = workspace.layer_stack_screen_snapshot()
+	role_editor = snapshot["role_editor"] as Dictionary
+	_assert_eq(String(role_editor["selected_role"]), HexLayerStackResource.ROLE_TERRAIN, "LAYER-NEXT-10 edit selects edited role")
+	_assert_eq(String(role_editor["target_reflection_status"]), "missing", "LAYER-NEXT-10 missing role editor shows missing target")
+	_assert_true(String(snapshot["mounted_role_editor_text"]).contains("Writable: target"), "LAYER-NEXT-10 mounted role editor shows edited writable source")
 	var collision_row = _layer_stack_row_for_role(snapshot["role_rows"], HexLayerStackResource.ROLE_COLLISION)
 	_assert_eq(collision_row["visible"], false, "TAB-53 collision row shows hidden visibility state")
 	for role_name in [
@@ -2186,6 +2223,30 @@ func _test_layer_stack_asset_screen_manages_project_stack_without_samples() -> v
 	_assert_true(not bool(action_state["create_missing_layers"]), "TAB-53 Create Missing Layers disables after all child layers exist")
 	var terrain_node = layer.layer_for_stack_role(HexLayerStackResource.ROLE_TERRAIN) as TileMapLayer
 	_assert_true(terrain_node != null, "Layers screen creates terrain target node")
+	_assert_eq(terrain_node.visible, false, "LAYER-NEXT-10 created role node reflects edited visibility")
+	_assert_eq(terrain_node.z_index, 77, "LAYER-NEXT-10 created role node reflects edited z-index")
+	_assert_eq(terrain_node.get_meta("hex_layer_stack_locked", false), true, "LAYER-NEXT-10 created role node reflects locked metadata")
+	_assert_eq(String(terrain_node.get_meta("hex_layer_stack_writable_source", "")), "target", "LAYER-NEXT-10 created role node reflects writable metadata")
+	var edit_existing_role_result = workspace.update_layer_stack_role_properties(
+		HexLayerStackResource.ROLE_TERRAIN,
+		{
+			"visible": true,
+			"locked": false,
+			"z_index": 12,
+			"writable_source": "generated",
+		}
+	)
+	_assert_true(bool(edit_existing_role_result["ok"]), "LAYER-NEXT-10 role editor updates existing target role")
+	_assert_true(bool(edit_existing_role_result["target_reflected"]), "LAYER-NEXT-10 existing role edit reports target reflection")
+	_assert_eq(terrain_node.visible, true, "LAYER-NEXT-10 existing role edit reflects visibility to target")
+	_assert_eq(terrain_node.z_index, 12, "LAYER-NEXT-10 existing role edit reflects z-index to target")
+	_assert_eq(terrain_node.get_meta("hex_layer_stack_locked", true), false, "LAYER-NEXT-10 existing role edit reflects locked metadata")
+	_assert_eq(String(terrain_node.get_meta("hex_layer_stack_writable_source", "")), "generated", "LAYER-NEXT-10 existing role edit reflects writable metadata")
+	snapshot = workspace.layer_stack_screen_snapshot()
+	role_editor = snapshot["role_editor"] as Dictionary
+	_assert_eq(bool(role_editor["target_reflected"]), true, "LAYER-NEXT-10 role editor snapshot marks target reflected")
+	_assert_eq(int(role_editor["target_z_index"]), 12, "LAYER-NEXT-10 role editor snapshot exposes target z-index")
+	_assert_eq(String(role_editor["target_writable_source"]), "generated", "LAYER-NEXT-10 role editor snapshot exposes target writable source")
 
 	var apply_result = workspace.apply_layer_stack_document_to_target()
 	_assert_true(bool(apply_result["ok"]), "Layers screen applies document to target stack")

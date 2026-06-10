@@ -79,7 +79,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | `GEN-NEXT-11` | `COMPLETE` | `GEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GEN-NEXT-11_GENERATE_QA_PREVIEW_THUMBNAILS/` | Generate / QA preview thumbnails | Generate/QA preview components, cache/budget tests | Generate candidate thumbnail and QA score row preview are connected; thumbnail is from project document/candidate data, not sample fallback. |
 | `CAT-NEXT-11` | `COMPLETE` | `CAT-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/CAT-NEXT-11_CATALOG_TILE_SCENE_PREVIEW_UI/` | Rich tile / scene preview UI | Catalog entry detail, TileSet/scene preview tests | Atlas tile and scene preview render in detail; invalid/missing preview uses badge/tooltip. |
 | `SCREEN-NEXT-10` | `COMPLETE` | `ARCH-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/SCREEN-NEXT-10_RESOURCES_LAYERS_EXPORT_VISUAL_REDESIGN/` | Rich Resources / Layers / Export visual redesign | Resources/Layers/Export screens, tests | Resources, Layers, and Export become clearer task surfaces for node/document/dependency, role tree, and runtime handoff state. |
-| `LAYER-NEXT-10` | `READY` | `SCREEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/LAYER-NEXT-10_LAYER_ROLE_EDITOR/` | Fine-grained Layer role editor | Layer screen/resource/tests | Role visible/locked/z-index/writable source can be edited and reflected in LayerStack/selected node state. |
+| `LAYER-NEXT-10` | `COMPLETE` | `SCREEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/LAYER-NEXT-10_LAYER_ROLE_EDITOR/` | Fine-grained Layer role editor | Layer screen/resource/tests | Role visible/locked/z-index/writable source can be edited and reflected in LayerStack/selected node state. |
 | `PAINT-NEXT-10` | `READY` | `SCREEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PAINT-NEXT-10_VIEWPORT_AFFORDANCE_POLISH/` | Paint viewport affordance polish | Paint tab, viewport adapter, tests | Brush cursor, selected cell, target layer, mode, and last edit feedback sync between viewport and Paint tab. |
 | `VAL-NEXT-10` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/VAL-NEXT-10_VALIDATE_RICH_ISSUE_TABLE_ACTIONS/` | Rich Validate issue table and actions | Validate screen, validation dashboard, tests | Issue table has severity/domain/scope/target/suggestion columns and only real per-issue actions. |
 | `QA-NEXT-10` | `READY` | `GEN-NEXT-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/QA-NEXT-10_SCORE_TABLE_VISUAL_REDESIGN/` | QA scored table visual redesign | QA screen/table/tests | Seed rows, score columns, validation status, selected seed, preview, and promotion state are easy to compare. |
@@ -140,7 +140,7 @@ acceptance / test path:
 
 ## 9. Current pointer
 
-Current recommended next task: `LAYER-NEXT-10`.
+Current recommended next task: `PAINT-NEXT-10`.
 
 Reason:
 
@@ -168,7 +168,7 @@ Reason:
 - `GEN-NEXT-11` is complete.
 - `CAT-NEXT-11` is complete.
 - `SCREEN-NEXT-10` is complete.
-- `LAYER-NEXT-10` is READY because `SCREEN-NEXT-10` is complete.
+- `LAYER-NEXT-10` is complete.
 - `PAINT-NEXT-10` is READY because `SCREEN-NEXT-10` is complete.
 - `QA-NEXT-10` is READY because `GEN-NEXT-11` is complete.
 - `PERF-NEXT-11` is READY because `PERF-NEXT-10` is complete.
@@ -629,3 +629,23 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_workspace.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/SCREEN-NEXT-10_TEST_RESULT_2026-06-10.md`
+
+### LAYER-NEXT-10 Fine-grained Layer role editor
+
+proof:
+  plan: `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/LAYER-NEXT-10_LAYER_ROLE_EDITOR/`
+  review: `docs/review/autopilot/LAYER-NEXT-10_SELF_REVIEW_2026-06-10.md`
+  execution:
+    - `docs/review/autopilot/LAYER-NEXT-10_SELF_REVIEW_2026-06-10.md`
+  ui_metrics:
+    - `.godot_user/ui-metrics/20260610-202250-10191/workspace_layout_metrics.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_layers_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `addons/hex_map_kit/adapter/hex_tile_map_layer.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/LAYER-NEXT-10_TEST_RESULT_2026-06-10.md`
