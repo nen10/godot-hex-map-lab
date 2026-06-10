@@ -4,8 +4,10 @@ extends RefCounted
 
 const SCHEMA := "hex_ui_layout_metric_report.v1"
 const P0_SCHEMA := "hex_ui_layout_p0_gate_report.v1"
+const P1_SCHEMA := "hex_ui_layout_p1_gate_report.v1"
 const SEVERITY_WARN := "warn"
 const SEVERITY_P0 := "p0"
+const SEVERITY_P1 := "p1"
 
 const CATEGORY_TEXT_TRUNCATION := "text_truncation"
 const CATEGORY_RESOURCE_ROW_GEOMETRY := "resource_row_geometry"
@@ -17,6 +19,8 @@ const CATEGORY_PICKER_SPECIFICITY := "picker_specificity"
 const CATEGORY_STATE_CONTRADICTION := "state_contradiction"
 const CATEGORY_SAMPLE_FALLBACK_PRODUCTION := "sample_fallback_production"
 const CATEGORY_UNREACHABLE_PRIMARY_ACTION := "unreachable_primary_action"
+const CATEGORY_DISABLED_ACTION_WITHOUT_TOOLTIP := "disabled_action_without_tooltip"
+const CATEGORY_SUMMARY_ONLY_TASK_TAB := "summary_only_task_tab"
 
 const REQUIRED_CATEGORIES := [
 	CATEGORY_TEXT_TRUNCATION,
@@ -45,6 +49,20 @@ const P0_PROMOTED_WARN_CATEGORIES := [
 	CATEGORY_STATE_CONTRADICTION,
 	CATEGORY_DEBUG_LEAKAGE,
 	CATEGORY_PICKER_SPECIFICITY,
+]
+
+const P1_CATEGORIES := [
+	CATEGORY_RESOURCE_ROW_GEOMETRY,
+	CATEGORY_TEXT_TRUNCATION,
+	CATEGORY_DEAD_AREA,
+	CATEGORY_DISABLED_ACTION_WITHOUT_TOOLTIP,
+	CATEGORY_SUMMARY_ONLY_TASK_TAB,
+]
+
+const P1_PROMOTED_WARN_CATEGORIES := [
+	CATEGORY_RESOURCE_ROW_GEOMETRY,
+	CATEGORY_TEXT_TRUNCATION,
+	CATEGORY_DEAD_AREA,
 ]
 
 const DEBUG_TEXT_PATTERNS := [
@@ -130,6 +148,39 @@ static func evaluate_p0(snapshot: Dictionary, options: Dictionary = {}) -> Dicti
 
 
 static func p0_report_to_json(report: Dictionary) -> String:
+	return JSON.stringify(report, "\t")
+
+
+static func evaluate_p1(snapshot: Dictionary, options: Dictionary = {}) -> Dictionary:
+	var warning_report := evaluate(snapshot, options)
+	var controls := _controls(snapshot)
+	var issues: Array[Dictionary] = []
+	for warning in warning_report["warnings"] as Array:
+		var entry := warning as Dictionary
+		var category := String(entry.get("category", ""))
+		if P1_PROMOTED_WARN_CATEGORIES.has(category):
+			_add_issue(
+				issues,
+				category,
+				String(entry.get("path", "")),
+				String(entry.get("message", "")),
+				String(entry.get("evidence", ""))
+			)
+	_evaluate_disabled_actions_without_tooltip(controls, issues)
+	_evaluate_summary_only_task_tabs(controls, issues)
+	return {
+		"schema": P1_SCHEMA,
+		"snapshot_schema": String(snapshot.get("schema", "")),
+		"scenario_id": String(snapshot.get("scenario_id", "unspecified")),
+		"passed": issues.is_empty(),
+		"issue_count": issues.size(),
+		"category_counts": _category_counts(issues),
+		"issues": issues,
+		"warning_report": warning_report,
+	}
+
+
+static func p1_report_to_json(report: Dictionary) -> String:
 	return JSON.stringify(report, "\t")
 
 
@@ -220,6 +271,8 @@ static func _evaluate_dead_area(
 	for control in controls:
 		var entry := control as Dictionary
 		if _path(entry) == ".":
+			continue
+		if String(entry.get("class", "")) == "ScrollContainer":
 			continue
 		var rect := _rect(entry.get("rect", {}))
 		if rect.size.x <= 0.0 or rect.size.y <= 0.0:
@@ -376,6 +429,64 @@ static func _evaluate_unreachable_primary_actions(
 			"Primary action is visible but unreachable from the current UI state.",
 			String(entry.get("text", ""))
 		)
+
+
+static func _evaluate_disabled_actions_without_tooltip(
+	controls: Array,
+	issues: Array[Dictionary]
+) -> void:
+	for control in controls:
+		var entry := control as Dictionary
+		if String(entry.get("class", "")) != "Button":
+			continue
+		var metadata := _metadata(entry)
+		if not bool(metadata.get("hex_metric_disabled", false)):
+			continue
+		if String(entry.get("tooltip", "")).strip_edges() != "":
+			continue
+		_add_issue(
+			issues,
+			CATEGORY_DISABLED_ACTION_WITHOUT_TOOLTIP,
+			_path(entry),
+			"Disabled visible action has no tooltip or blocked reason.",
+			String(entry.get("text", ""))
+		)
+
+
+static func _evaluate_summary_only_task_tabs(
+	controls: Array,
+	issues: Array[Dictionary]
+) -> void:
+	for control in controls:
+		var entry := control as Dictionary
+		var metadata := _metadata(entry)
+		if String(metadata.get("hex_metric_tab_role", "")) != "task_tab":
+			continue
+		if not bool(metadata.get("hex_metric_summary_only", false)):
+			continue
+		_add_issue(
+			issues,
+			CATEGORY_SUMMARY_ONLY_TASK_TAB,
+			_path(entry),
+			"Task tab only exposes summary content without a concrete work surface.",
+			String(entry.get("text", ""))
+		)
+
+
+static func _add_issue(
+	issues: Array[Dictionary],
+	category: String,
+	path: String,
+	message: String,
+	evidence: String
+) -> void:
+	issues.append({
+		"category": category,
+		"severity": SEVERITY_P1,
+		"path": path,
+		"message": message,
+		"evidence": evidence,
+	})
 
 
 static func _add_failure(

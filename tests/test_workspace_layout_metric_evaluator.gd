@@ -5,6 +5,7 @@ const HexUILayoutSnapshotCollector = preload("res://addons/hex_map_kit/editor/te
 const HexUIStateScenarioBuilder = preload("res://addons/hex_map_kit/editor/testing/hex_ui_state_scenario_builder.gd")
 const REPORT_SCHEMA := "hex_ui_layout_metric_report.v1"
 const P0_SCHEMA := "hex_ui_layout_p0_gate_report.v1"
+const P1_SCHEMA := "hex_ui_layout_p1_gate_report.v1"
 const REQUIRED_CATEGORIES := [
 	"text_truncation",
 	"resource_row_geometry",
@@ -24,6 +25,13 @@ const P0_CATEGORIES := [
 	"picker_specificity",
 	"unreachable_primary_action",
 ]
+const P1_CATEGORIES := [
+	"resource_row_geometry",
+	"text_truncation",
+	"dead_area",
+	"disabled_action_without_tooltip",
+	"summary_only_task_tab",
+]
 
 var _failures: Array[String] = []
 
@@ -38,6 +46,9 @@ func _run() -> void:
 	_test_p0_gate_reports_required_fail_categories()
 	_test_p0_gate_clean_snapshot_passes()
 	_test_p0_report_serializes_to_json()
+	_test_p1_gate_reports_required_issue_categories()
+	_test_p1_gate_clean_snapshot_passes()
+	_test_p1_report_serializes_to_json()
 	await _test_runtime_workspace_snapshot_is_warn_only()
 	_finish()
 
@@ -99,6 +110,40 @@ func _test_p0_report_serializes_to_json() -> void:
 	var parsed = JSON.parse_string(json_text)
 	_assert_true(parsed is Dictionary, "P0 report serializes to JSON dictionary")
 	_assert_eq(String((parsed as Dictionary).get("schema", "")), P0_SCHEMA, "serialized P0 report schema survives")
+
+
+func _test_p1_gate_reports_required_issue_categories() -> void:
+	var report := HexUILayoutMetricEvaluator.evaluate_p1(_synthetic_p1_risk_snapshot(), {
+		"expected_state_id": "ready",
+		"require_scroll": true,
+	})
+	_assert_eq(String(report["schema"]), P1_SCHEMA, "P1 report schema")
+	_assert_eq(bool(report["passed"]), false, "P1 report fails risk snapshot")
+	_assert_true(int(report["issue_count"]) >= P1_CATEGORIES.size(), "P1 report has issues")
+	for category in P1_CATEGORIES:
+		_assert_true(_category_count(report, String(category)) > 0, "P1 report category %s" % category)
+	for issue in report["issues"] as Array:
+		_assert_eq(String((issue as Dictionary).get("severity", "")), "p1", "P1 issue severity")
+
+
+func _test_p1_gate_clean_snapshot_passes() -> void:
+	var report := HexUILayoutMetricEvaluator.evaluate_p1(_synthetic_p1_clean_snapshot(), {
+		"expected_state_id": "ready",
+		"require_scroll": true,
+	})
+	_assert_eq(String(report["schema"]), P1_SCHEMA, "clean P1 report schema")
+	_assert_eq(bool(report["passed"]), true, "clean P1 report passes")
+	_assert_eq(int(report["issue_count"]), 0, "clean P1 report has no issues")
+
+
+func _test_p1_report_serializes_to_json() -> void:
+	var report := HexUILayoutMetricEvaluator.evaluate_p1(_synthetic_p1_risk_snapshot(), {
+		"expected_state_id": "ready",
+	})
+	var json_text := HexUILayoutMetricEvaluator.p1_report_to_json(report)
+	var parsed = JSON.parse_string(json_text)
+	_assert_true(parsed is Dictionary, "P1 report serializes to JSON dictionary")
+	_assert_eq(String((parsed as Dictionary).get("schema", "")), P1_SCHEMA, "serialized P1 report schema survives")
 
 
 func _test_runtime_workspace_snapshot_is_warn_only() -> void:
@@ -186,6 +231,61 @@ func _synthetic_p0_clean_snapshot() -> Dictionary:
 	return {
 		"schema": "hex_ui_layout_snapshot.v1",
 		"scenario_id": "synthetic_p0_clean_snapshot",
+		"viewport_size": {"x": 640, "y": 480},
+		"root_class": "Control",
+		"root_name": "Root",
+		"control_count": controls.size(),
+		"controls": controls,
+	}
+
+
+func _synthetic_p1_risk_snapshot() -> Dictionary:
+	var controls := [
+		_control(".", "Root", "Control", 0, 0, 1000, 800, 0, 0, "", {}, "", ""),
+		_control("Scroll", "Scroll", "ScrollContainer", 0, 0, 1000, 800, 0, 0, "", {}, "", ""),
+		_control("TruncatedLabel", "TruncatedLabel", "Label", 10, 10, 80, 16, 180, 16, "Readiness summary", {}, "", "Scroll"),
+		_control("ResourceRow", "ResourceRow", "HBoxContainer", 10, 40, 90, 24, 220, 24, "", {
+			"hex_metric_role": "resource_row",
+			"line_count": 3,
+		}, "", "Scroll"),
+		_control("SmallContent", "SmallContent", "PanelContainer", 10, 80, 120, 80, 120, 80, "", {}, "", "Scroll"),
+		_control("DisabledAction", "DisabledAction", "Button", 10, 180, 120, 24, 120, 24, "Export", {
+			"hex_metric_disabled": true,
+			"action_bound": true,
+		}, "", "Scroll"),
+		_control("SummaryTab", "SummaryTab", "VBoxContainer", 10, 220, 140, 60, 140, 60, "Summary", {
+			"hex_metric_tab_role": "task_tab",
+			"hex_metric_summary_only": true,
+		}, "", "Scroll"),
+	]
+	return {
+		"schema": "hex_ui_layout_snapshot.v1",
+		"scenario_id": "synthetic_p1_risk_snapshot",
+		"viewport_size": {"x": 1000, "y": 800},
+		"root_class": "Control",
+		"root_name": "Root",
+		"control_count": controls.size(),
+		"controls": controls,
+	}
+
+
+func _synthetic_p1_clean_snapshot() -> Dictionary:
+	var controls := [
+		_control(".", "Root", "Control", 0, 0, 640, 480, 0, 0, "", {}, "", ""),
+		_control("Scroll", "Scroll", "ScrollContainer", 0, 0, 640, 480, 0, 0, "", {}, "", ""),
+		_control("WorkSurface", "WorkSurface", "PanelContainer", 0, 0, 640, 480, 0, 0, "", {}, "", "Scroll"),
+		_control("ReadyLabel", "ReadyLabel", "Label", 12, 12, 180, 24, 120, 24, "Ready", {
+			"hex_metric_state_id": "ready",
+		}, "", "Scroll"),
+		_control("DisabledAction", "DisabledAction", "Button", 12, 48, 120, 24, 120, 24, "Export", {
+			"hex_metric_disabled": true,
+			"action_bound": true,
+		}, "", "Scroll"),
+	]
+	controls[4]["tooltip"] = "Choose a destination first."
+	return {
+		"schema": "hex_ui_layout_snapshot.v1",
+		"scenario_id": "synthetic_p1_clean_snapshot",
 		"viewport_size": {"x": 640, "y": 480},
 		"root_class": "Control",
 		"root_name": "Root",
