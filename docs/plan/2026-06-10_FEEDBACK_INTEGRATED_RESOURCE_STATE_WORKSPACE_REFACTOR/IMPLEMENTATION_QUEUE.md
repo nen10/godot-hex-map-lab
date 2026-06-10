@@ -98,7 +98,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `ARCH-40` | `READY` | `NODE-20`, `STATE-30` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-40_WORKSPACE_CONTEXT_HYDRATOR_WRITER_EXTRACTION/` | Workspace context hydrator/writer extraction | `HexMapWorkspace`, binding/dependency services, asset context, tests | `hex_map_workspace.gd` no longer directly assembles node/document/dependency context; hydration/writeback service is testable; UI only renders resulting state. |
+| `ARCH-40` | `COMPLETE` | `NODE-20`, `STATE-30` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-40_WORKSPACE_CONTEXT_HYDRATOR_WRITER_EXTRACTION/` | Workspace context hydrator/writer extraction | `HexMapWorkspace`, binding/dependency services, asset context, tests | `hex_map_workspace.gd` no longer directly assembles node/document/dependency context; hydration/writeback service is testable; UI only renders resulting state; `./tools/test.sh` passed. |
 | `ARCH-41` | `READY` | `SCREEN-20`, `SCREEN-21`, `SCREEN-22` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-41_SCREEN_COMPONENT_EXTRACTION_BY_UX_ROLE/` | Workspace/EditTool/GenDock component extraction by UX role | new per-screen scripts, `HexMapWorkspace`, `hex_map_edit_tool.gd`, `hex_map_gen_dock.gd`, tests | Extraction is justified by user task ownership, not line count; each screen script maps to a tab/workflow; Paint no longer carries Catalog/Layer/Export/Document responsibility. |
 | `ARCH-50` | `READY` | `NODE-20`, `NODE-21` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-50_HEX_TILE_MAP_LAYER_RESPONSIBILITY_SPLIT/` | HexTileMapLayer responsibility split | `addons/hex_map_kit/adapter/hex_tile_map_layer.gd`, new adapter helpers, runtime/editor tests | `HexTileMapLayer` moves toward coordinator role; resource binding, document apply, layer stack apply, object display, gameplay query, and debug overlay responsibilities are separated without losing runtime helper value. |
 
@@ -148,7 +148,7 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `ARCH-40`.
+Current recommended next task: `ARCH-41`.
 
 Reason:
 
@@ -180,10 +180,11 @@ Reason:
 - `SCREEN-23` is complete.
 - `SCREEN-24` is complete.
 - `SCREEN-25` is complete.
-- `ARCH-40`, `ARCH-41`, `ARCH-50`, `PERF-60`, and `DOC-90` remain READY.
+- `ARCH-40` is complete.
+- `ARCH-41`, `ARCH-50`, `PERF-60`, and `DOC-90` remain READY.
 - `TEST-80` remains BACKLOG because `ARCH-41` is not complete.
 - `DOC-90` is READY because `SCREEN-10`, `SCREEN-22`, and `SCREEN-25` are complete.
-- `ARCH-40` is the first READY task in queue order after completed `SCREEN-25`.
+- `ARCH-41` is the first READY task in queue order after completed `ARCH-40`.
 
 ---
 
@@ -709,3 +710,22 @@ proof:
     - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-25_EXPORT_PURPOSE_SCREEN/POLICY.md`
     - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-25_EXPORT_PURPOSE_SCREEN/IMPLEMENTATION_PLAN.md`
     - `docs/review/autopilot/SCREEN-25_TEST_RESULT_2026-06-10.md`
+
+### ARCH-40 Workspace context hydrator writer extraction
+
+proof:
+  plan: `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-40_WORKSPACE_CONTEXT_HYDRATOR_WRITER_EXTRACTION/`
+  review: `docs/review/autopilot/ARCH-40_SELF_REVIEW_2026-06-10.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_workspace_binding_service.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-40_WORKSPACE_CONTEXT_HYDRATOR_WRITER_EXTRACTION/SUB_TASKS.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-40_WORKSPACE_CONTEXT_HYDRATOR_WRITER_EXTRACTION/UX.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-40_WORKSPACE_CONTEXT_HYDRATOR_WRITER_EXTRACTION/POLICY.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/ARCH-40_WORKSPACE_CONTEXT_HYDRATOR_WRITER_EXTRACTION/IMPLEMENTATION_PLAN.md`
+    - `docs/review/autopilot/ARCH-40_TEST_RESULT_2026-06-10.md`

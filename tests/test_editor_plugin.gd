@@ -480,6 +480,8 @@ func _test_workspace_selected_hex_tile_map_auto_binding() -> void:
 	_assert_eq(String(binding_state["state_source"]), "HexMapWorkspaceBindingService", "STATE-30 binding state has explicit source")
 	_assert_eq(String(binding_state["state_id"]), HexMapWorkspaceBindingService.STATE_NO_TARGET, "STATE-30 no-target state is explicit")
 	_assert_true((binding_state["active_state_ids"] as PackedStringArray).has(HexMapWorkspaceBindingService.STATE_NO_TARGET), "STATE-30 active states include no target")
+	var empty_writeback = empty_snapshot["writeback"] as Dictionary
+	_assert_eq(String(empty_writeback["state_source"]), "HexMapWorkspaceBindingService", "ARCH-40 writeback snapshot is service-owned")
 
 	var scene_root = Node2D.new()
 	scene_root.name = "SelectionScene"
@@ -549,6 +551,8 @@ func _test_workspace_selected_hex_tile_map_auto_binding() -> void:
 	_assert_eq(workspace.workspace_asset_context().level_document, dependency_document, "NODE-20 selected node Level Document enters workspace context")
 	_assert_eq(workspace.workspace_asset_context().tile_catalog, dependency_catalog, "NODE-20 selected node document dependencies hydrate shared context")
 	var dependency_resources_snapshot = workspace.resources_screen_snapshot()
+	var dependency_hydration = dependency_resources_snapshot["dependency_hydration"] as Dictionary
+	_assert_eq(String(dependency_hydration["state_source"]), "HexMapWorkspaceBindingService", "ARCH-40 hydration snapshot is service-owned")
 	var dependency_source_badges = _rows_by_slot(dependency_resources_snapshot["source_badge_rows"] as Array)
 	_assert_eq(
 		String((dependency_source_badges[HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG] as Dictionary)["source_badge"]),
@@ -558,6 +562,8 @@ func _test_workspace_selected_hex_tile_map_auto_binding() -> void:
 	binding_state = workspace.selected_hex_tile_map_binding_state_snapshot()
 	_assert_true((binding_state["active_state_ids"] as PackedStringArray).has(HexMapWorkspaceBindingService.STATE_HYDRATED_DEPENDENCIES), "STATE-30 document dependency hydration state is explicit")
 	_assert_true((binding_state["hydrated_dependency_slot_ids"] as PackedStringArray).has(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG), "STATE-30 hydrated dependency records Tile Catalog slot")
+	var last_hydration = binding_state["last_hydration"] as Dictionary
+	_assert_eq(String(last_hydration["state_source"]), "HexMapWorkspaceBindingService", "ARCH-40 binding state keeps service hydration result")
 
 	var invalid_node = Node2D.new()
 	invalid_node.name = "NotAHexTileMap"
@@ -770,6 +776,8 @@ func _test_workspace_asset_selection_writes_back_to_selected_hex_tile_map() -> v
 	_assert_eq(selected_layer.level_document_resource, document, "NODE-23 Document slot writes to selected HexTileMap")
 	_assert_eq(session.current_document(), document, "NODE-23 Document write-back updates session document")
 	var writeback = workspace.selected_hex_tile_map_writeback_snapshot()
+	_assert_eq(String(writeback["state_source"]), "HexMapWorkspaceBindingService", "ARCH-40 selected writeback snapshot is service-owned")
+	_assert_true((writeback["relationship_slot_ids"] as PackedStringArray).has(HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE), "ARCH-40 writeback service covers profile dependency slots")
 	var relationships = writeback["relationships"] as Dictionary
 	var document_relationship = relationships[HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT] as Dictionary
 	_assert_eq(String(document_relationship["status"]), "linked", "NODE-23 Document relationship is visible as linked")
@@ -849,6 +857,14 @@ func _test_workspace_asset_selection_writes_back_to_selected_hex_tile_map() -> v
 		export_profile,
 		"NODE-20 Export Profile writes to selected document dependency"
 	)
+	var direct_dependency_sync = HexMapWorkspaceBindingService.sync_shared_context_to_document_dependencies(
+		selected_layer,
+		workspace.workspace_asset_context(),
+		"test.arch40.direct_sync",
+		false
+	)
+	_assert_eq(String(direct_dependency_sync["state_source"]), "HexMapWorkspaceBindingService", "ARCH-40 shared dependency sync is service-owned")
+	_assert_true((direct_dependency_sync["applied_slot_ids"] as PackedStringArray).has(HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE), "ARCH-40 service sync covers Export Profile dependency")
 	binding_state = workspace.selected_hex_tile_map_binding_state_snapshot()
 	_assert_true((binding_state["active_state_ids"] as PackedStringArray).has(HexMapWorkspaceBindingService.STATE_MANUAL_OVERRIDE), "STATE-30 project resource selections are explicit manual override state")
 	_assert_true((binding_state["active_state_ids"] as PackedStringArray).has(HexMapWorkspaceBindingService.STATE_APPLIED_WRITEBACK), "STATE-30 shared dependency writeback remains explicit applied state")

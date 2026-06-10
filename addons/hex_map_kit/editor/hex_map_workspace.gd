@@ -509,43 +509,11 @@ func selected_hex_tile_map_binding_state_snapshot(writeback_snapshot: Dictionary
 
 func selected_hex_tile_map_writeback_snapshot() -> Dictionary:
 	var session := _ensure_session_state()
-	var layer := session.current_selected_hex_tile_map_layer()
-	var hex_layer := layer as HexTileMapLayer
-	var selected := hex_layer != null
-	var context := workspace_asset_context()
-	var blocked_reason := ""
-	if not selected:
-		blocked_reason = "No HexTileMap selected"
-	elif not session.selected_hex_tile_map_auto_link_enabled():
-		blocked_reason = "Auto-link is off."
-	return {
-		"selected": selected,
-		"auto_link": session.selected_hex_tile_map_auto_link_enabled(),
-		"can_writeback": selected and blocked_reason == "",
-		"blocked_reason": blocked_reason,
-		"relationships": {
-			HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT: _binding_relationship(
-				HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT,
-				"Selected HexTileMap Level Document"
-			),
-			HexMapWorkspaceAssetContext.SLOT_LAYER_STACK: _binding_relationship(
-				HexMapWorkspaceAssetContext.SLOT_LAYER_STACK,
-				"Selected HexTileMap Layer Stack"
-			),
-			HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG: _binding_relationship(
-				HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG,
-				"Shared Tile Catalog"
-			),
-			HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE: _binding_relationship(
-				HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE,
-				"Shared Object Database"
-			),
-			HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE: _binding_relationship(
-				HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE,
-				"Shared Label Database"
-			),
-		},
-	}
+	return HexMapWorkspaceBindingService.selected_writeback_snapshot(
+		session.current_selected_hex_tile_map_layer() as HexTileMapLayer,
+		session.selected_hex_tile_map_auto_link_enabled(),
+		workspace_asset_context()
+	)
 
 
 func apply_workspace_asset_context_to_selected_hex_tile_map(
@@ -3628,13 +3596,11 @@ func _hydrate_workspace_context_from_document_dependencies(document: HexMapDocum
 
 
 func _document_dependency_hydration_snapshot(document: HexMapDocumentResource = null) -> Dictionary:
-	var actual_document := document if document != null else workspace_asset_context().level_document
-	return {
-		"document": actual_document,
-		"hydrated": HexMapDocumentDependencyService.hydrate_dependency_map(actual_document),
-		"asset_source_snapshot": workspace_asset_context().source_snapshot(),
-		"last_result": _last_document_dependency_hydration.duplicate(true),
-	}
+	return HexMapWorkspaceBindingService.document_dependency_hydration_snapshot(
+		workspace_asset_context(),
+		document,
+		_last_document_dependency_hydration
+	)
 
 
 func _sync_layer_stack_from_result(result: Dictionary) -> void:
@@ -4424,20 +4390,16 @@ func _sync_selected_hex_tile_map_resources() -> void:
 
 
 func _apply_workspace_asset_change_to_selected_node(slot_id: String, reason: String) -> Dictionary:
-	var snapshot := selected_hex_tile_map_writeback_snapshot()
-	if not bool(snapshot.get("can_writeback", false)):
-		return {
-			"ok": false,
-			"error": ERR_UNAVAILABLE,
-			"slot_id": slot_id,
-			"blocked_reason": String(snapshot.get("blocked_reason", "")),
-			"policy": HexMapWorkspaceBindingService.writeback_policy_for_slot(slot_id),
-		}
+	var session := _ensure_session_state()
 	var hex_layer := _ensure_session_state().current_selected_hex_tile_map_layer() as HexTileMapLayer
 	var context := workspace_asset_context()
-	var result := HexMapWorkspaceBindingService.apply_context_slot_to_layer(hex_layer, context, slot_id)
+	var result := HexMapWorkspaceBindingService.apply_context_slot_to_selected_layer(
+		hex_layer,
+		session.selected_hex_tile_map_auto_link_enabled(),
+		context,
+		slot_id
+	)
 	if not bool(result.get("ok", false)):
-		result["snapshot"] = selected_hex_tile_map_writeback_snapshot()
 		return result
 	match slot_id:
 		HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT:
@@ -4461,63 +4423,11 @@ func _apply_workspace_asset_change_to_selected_node(slot_id: String, reason: Str
 func _sync_workspace_shared_resources_to_selected_document_dependencies(reason: String) -> Dictionary:
 	var hex_layer := _ensure_session_state().current_selected_hex_tile_map_layer() as HexTileMapLayer
 	var context := workspace_asset_context()
-	var document = context.level_document if context != null else null
-	var result := {
-		"ok": hex_layer != null and context != null and document != null,
-		"error": OK,
-		"reason": reason,
-		"document": document,
-		"applied_slot_ids": PackedStringArray(),
-		"skipped_missing_slot_ids": PackedStringArray(),
-		"slot_results": {},
-		"errors": {},
-		"document_saved": false,
-		"save_error": OK,
-	}
-	if hex_layer == null:
-		result["ok"] = false
-		result["error"] = ERR_DOES_NOT_EXIST
-		result["blocked_reason"] = "No HexTileMap selected"
-		return result
-	if context == null or document == null:
-		result["ok"] = false
-		result["error"] = ERR_UNAVAILABLE
-		result["blocked_reason"] = "No Level Document selected"
-		return result
-
-	var applied := PackedStringArray()
-	var skipped := PackedStringArray()
-	var slot_results := {}
-	var errors := {}
-	for slot_id in HexMapWorkspaceBindingService.shared_dependency_slot_ids():
-		var actual_slot_id := String(slot_id)
-		var resource := context.asset_for_slot(actual_slot_id)
-		if resource == null:
-			skipped.append(actual_slot_id)
-			continue
-		var slot_result := HexMapWorkspaceBindingService.apply_context_slot_to_layer(
-			hex_layer,
-			context,
-			actual_slot_id
-		)
-		slot_results[actual_slot_id] = slot_result
-		if bool(slot_result.get("ok", false)):
-			applied.append(actual_slot_id)
-		else:
-			errors[actual_slot_id] = int(slot_result.get("error", FAILED))
-
-	var save_error := OK
-	if errors.is_empty() and not applied.is_empty() and String(document.resource_path) != "":
-		save_error = ResourceSaver.save(document, document.resource_path)
-	result["ok"] = errors.is_empty() and save_error == OK
-	result["error"] = OK if bool(result["ok"]) else ERR_CANT_CREATE
-	result["applied_slot_ids"] = applied
-	result["skipped_missing_slot_ids"] = skipped
-	result["slot_results"] = slot_results
-	result["errors"] = errors
-	result["document_saved"] = not applied.is_empty() and String(document.resource_path) != "" and save_error == OK
-	result["save_error"] = save_error
-	return result
+	return HexMapWorkspaceBindingService.sync_shared_context_to_document_dependencies(
+		hex_layer,
+		context,
+		reason
+	)
 
 
 func _refresh_selected_hex_tile_map_context() -> void:
@@ -4905,39 +4815,6 @@ func _node_display_name(node: Node) -> String:
 	if node == null or not is_instance_valid(node):
 		return ""
 	return node.name if node.name != "" else "HexTileMap"
-
-
-func _binding_relationship(slot_id: String, label: String) -> Dictionary:
-	var relationship := HexMapWorkspaceBindingService.relationship_for_slot(
-		_ensure_session_state().current_selected_hex_tile_map_layer() as HexTileMapLayer,
-		workspace_asset_context(),
-		slot_id,
-		label
-	)
-	if slot_id == HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT:
-		relationship["generation_metadata"] = _document_generation_metadata_snapshot(
-			relationship.get("node_resource", null) as Resource
-		)
-	return relationship
-
-
-func _document_generation_metadata_snapshot(resource: Resource) -> Dictionary:
-	var document := resource as HexMapDocumentResource
-	if document == null or document.metadata == null:
-		return {
-			"present": false,
-		}
-	var custom: Dictionary = document.metadata.custom_properties
-	return {
-		"present": not document.metadata.generation_snapshot.is_empty() \
-			or custom.has("generation_source"),
-		"generation_seed": document.metadata.generation_seed,
-		"generation_snapshot": document.metadata.generation_snapshot.duplicate(true),
-		"generation_source": String(custom.get("generation_source", "")),
-		"generation_output_target": String(custom.get("generation_output_target", "")),
-		"generation_target_node_path": String(custom.get("generation_target_node_path", "")),
-		"generation_target_document_path": String(custom.get("generation_target_document_path", "")),
-	}
 
 
 func _missing_unique_resources_prefix() -> String:

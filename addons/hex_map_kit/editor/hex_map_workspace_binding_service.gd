@@ -46,6 +46,15 @@ static func shared_dependency_slot_ids() -> PackedStringArray:
 	])
 
 
+static func writable_slot_ids() -> PackedStringArray:
+	var ids := PackedStringArray()
+	for slot_id in node_owned_slot_ids():
+		ids.append(String(slot_id))
+	for slot_id in shared_dependency_slot_ids():
+		ids.append(String(slot_id))
+	return ids
+
+
 static func resolve_hex_tile_map_layer(node: Node) -> HexTileMapLayer:
 	if node == null or not is_instance_valid(node):
 		return null
@@ -95,6 +104,7 @@ static func hydrate_context_from_document_dependencies(
 ) -> Dictionary:
 	var actual_document := document if document != null else (context.level_document if context != null else null)
 	var result := {
+		"state_source": "HexMapWorkspaceBindingService",
 		"ok": context != null,
 		"error": OK if context != null else ERR_INVALID_PARAMETER,
 		"document": actual_document,
@@ -157,6 +167,140 @@ static func hydrate_context_from_document_dependencies(
 	result["invalid_dependency_slot_ids"] = invalid
 	result["skipped_manual_override_slot_ids"] = skipped
 	result["asset_source_snapshot"] = context.source_snapshot()
+	return result
+
+
+static func document_dependency_hydration_snapshot(
+	context: HexMapWorkspaceAssetContext,
+	document: HexMapDocumentResource = null,
+	last_result: Dictionary = {}
+) -> Dictionary:
+	var actual_document := document if document != null else (context.level_document if context != null else null)
+	return {
+		"state_source": "HexMapWorkspaceBindingService",
+		"document": actual_document,
+		"hydrated": HexMapDocumentDependencyService.hydrate_dependency_map(actual_document),
+		"asset_source_snapshot": context.source_snapshot() if context != null else {},
+		"last_result": last_result.duplicate(true),
+	}
+
+
+static func selected_writeback_snapshot(
+	layer: HexTileMapLayer,
+	auto_link: bool,
+	context: HexMapWorkspaceAssetContext
+) -> Dictionary:
+	var selected := layer != null and is_instance_valid(layer)
+	var blocked_reason := ""
+	if not selected:
+		blocked_reason = "No HexTileMap selected"
+	elif not auto_link:
+		blocked_reason = "Auto-link is off."
+	var relationships := {}
+	var relationship_slot_ids := writable_slot_ids()
+	for slot_id in relationship_slot_ids:
+		var relationship := relationship_for_slot(
+			layer,
+			context,
+			String(slot_id),
+			default_relationship_label_for_slot(String(slot_id))
+		)
+		if String(slot_id) == HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT:
+			relationship["generation_metadata"] = _document_generation_metadata_snapshot(
+				relationship.get("node_resource", null) as Resource
+			)
+		relationships[String(slot_id)] = relationship
+	return {
+		"state_source": "HexMapWorkspaceBindingService",
+		"selected": selected,
+		"auto_link": auto_link,
+		"can_writeback": selected and blocked_reason == "",
+		"blocked_reason": blocked_reason,
+		"relationship_slot_ids": relationship_slot_ids,
+		"relationships": relationships,
+	}
+
+
+static func apply_context_slot_to_selected_layer(
+	layer: HexTileMapLayer,
+	auto_link: bool,
+	context: HexMapWorkspaceAssetContext,
+	slot_id: String
+) -> Dictionary:
+	var snapshot := selected_writeback_snapshot(layer, auto_link, context)
+	if not bool(snapshot.get("can_writeback", false)):
+		return {
+			"ok": false,
+			"error": ERR_UNAVAILABLE,
+			"slot_id": slot_id,
+			"blocked_reason": String(snapshot.get("blocked_reason", "")),
+			"policy": writeback_policy_for_slot(slot_id),
+			"snapshot": snapshot,
+		}
+	var result := apply_context_slot_to_layer(layer, context, slot_id)
+	result["snapshot"] = selected_writeback_snapshot(layer, auto_link, context)
+	return result
+
+
+static func sync_shared_context_to_document_dependencies(
+	layer: HexTileMapLayer,
+	context: HexMapWorkspaceAssetContext,
+	reason: String,
+	save_document: bool = true
+) -> Dictionary:
+	var document = context.level_document if context != null else null
+	var result := {
+		"state_source": "HexMapWorkspaceBindingService",
+		"ok": layer != null and context != null and document != null,
+		"error": OK,
+		"reason": reason,
+		"document": document,
+		"applied_slot_ids": PackedStringArray(),
+		"skipped_missing_slot_ids": PackedStringArray(),
+		"slot_results": {},
+		"errors": {},
+		"document_saved": false,
+		"save_error": OK,
+	}
+	if layer == null or not is_instance_valid(layer):
+		result["ok"] = false
+		result["error"] = ERR_DOES_NOT_EXIST
+		result["blocked_reason"] = "No HexTileMap selected"
+		return result
+	if context == null or document == null:
+		result["ok"] = false
+		result["error"] = ERR_UNAVAILABLE
+		result["blocked_reason"] = "No Level Document selected"
+		return result
+
+	var applied := PackedStringArray()
+	var skipped := PackedStringArray()
+	var slot_results := {}
+	var errors := {}
+	for slot_id in shared_dependency_slot_ids():
+		var actual_slot_id := String(slot_id)
+		var resource := context.asset_for_slot(actual_slot_id)
+		if resource == null:
+			skipped.append(actual_slot_id)
+			continue
+		var slot_result := apply_context_slot_to_layer(layer, context, actual_slot_id)
+		slot_results[actual_slot_id] = slot_result
+		if bool(slot_result.get("ok", false)):
+			applied.append(actual_slot_id)
+		else:
+			errors[actual_slot_id] = int(slot_result.get("error", FAILED))
+
+	var save_error := OK
+	if save_document and errors.is_empty() and not applied.is_empty() and String(document.resource_path) != "":
+		save_error = ResourceSaver.save(document, document.resource_path)
+	result["ok"] = errors.is_empty() and save_error == OK
+	result["error"] = OK if bool(result["ok"]) else ERR_CANT_CREATE
+	result["applied_slot_ids"] = applied
+	result["skipped_missing_slot_ids"] = skipped
+	result["slot_results"] = slot_results
+	result["errors"] = errors
+	result["document_saved"] = not applied.is_empty() and String(document.resource_path) != "" and save_error == OK
+	result["save_error"] = save_error
 	return result
 
 
@@ -359,6 +503,29 @@ static func dependency_key_for_slot(slot_id: String) -> String:
 	return ""
 
 
+static func default_relationship_label_for_slot(slot_id: String) -> String:
+	match slot_id:
+		HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT:
+			return "Selected HexTileMap Level Document"
+		HexMapWorkspaceAssetContext.SLOT_LAYER_STACK:
+			return "Selected HexTileMap Layer Stack"
+		HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG:
+			return "Shared Tile Catalog"
+		HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE:
+			return "Shared Object Database"
+		HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE:
+			return "Shared Label Database"
+		HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE:
+			return "Shared Movement Profile"
+		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE:
+			return "Shared Validation Rule Suite"
+		HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE:
+			return "Shared Generation Profile"
+		HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE:
+			return "Shared Export Profile"
+	return "Workspace Asset"
+
+
 static func _apply_node_owned_slot(
 	layer: HexTileMapLayer,
 	context: HexMapWorkspaceAssetContext,
@@ -432,6 +599,25 @@ static func _dependency_resource_matches_slot(slot_id: String, resource: Resourc
 		HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE:
 			return resource is HexExportProfileResource
 	return false
+
+
+static func _document_generation_metadata_snapshot(resource: Resource) -> Dictionary:
+	var document := resource as HexMapDocumentResource
+	if document == null or document.metadata == null:
+		return {
+			"present": false,
+		}
+	var custom: Dictionary = document.metadata.custom_properties
+	return {
+		"present": not document.metadata.generation_snapshot.is_empty() \
+			or custom.has("generation_source"),
+		"generation_seed": document.metadata.generation_seed,
+		"generation_snapshot": document.metadata.generation_snapshot.duplicate(true),
+		"generation_source": String(custom.get("generation_source", "")),
+		"generation_output_target": String(custom.get("generation_output_target", "")),
+		"generation_target_node_path": String(custom.get("generation_target_node_path", "")),
+		"generation_target_document_path": String(custom.get("generation_target_document_path", "")),
+	}
 
 
 static func _is_hex_tile_map_internal_layer(node: Node) -> bool:
