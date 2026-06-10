@@ -41,9 +41,9 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `UI-METRIC-00` | `READY` | `PROCESS-12` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-00_WORKSPACE_UI_CONTRACT/` | Workspace UI metric contract | `docs/ui/WORKSPACE_UI_CONTRACT.md`, docs/tests notes | Each tab has purpose, required components, forbidden visible text, and metric thresholds; Resource row/button/debug/sample contracts are defined. |
-| `UI-METRIC-01` | `BACKLOG` | `UI-METRIC-00` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-01_WORKSPACE_STATE_MATRIX/` | Workspace state matrix | `docs/ui/WORKSPACE_STATE_MATRIX.md` | no selected node, selected node without resources, selected with resources, sample on/off, generate preview, validation errors, QA, Export, Settings states define expected and forbidden visible output. |
-| `UI-METRIC-02` | `BACKLOG` | `UI-METRIC-00` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-02_STATIC_UI_AUDIT/` | Static UI audit tool | `tools/ui_static_audit.py`, docs/TEST.md | Detects suspicious buttons without pressed connection, forbidden button text, visible debug label patterns, generic ResourcePicker patterns, and tab constructor without ScrollContainer suspicion. |
+| `UI-METRIC-00` | `COMPLETE` | `PROCESS-12` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-00_WORKSPACE_UI_CONTRACT/` | Workspace UI metric contract | `docs/ui/WORKSPACE_UI_CONTRACT.md`, docs/tests notes | Each tab has purpose, required components, forbidden visible text, and metric thresholds; Resource row/button/debug/sample contracts are defined. |
+| `UI-METRIC-01` | `READY` | `UI-METRIC-00` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-01_WORKSPACE_STATE_MATRIX/` | Workspace state matrix | `docs/ui/WORKSPACE_STATE_MATRIX.md` | no selected node, selected node without resources, selected with resources, sample on/off, generate preview, validation errors, QA, Export, Settings states define expected and forbidden visible output. |
+| `UI-METRIC-02` | `READY` | `UI-METRIC-00` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-02_STATIC_UI_AUDIT/` | Static UI audit tool | `tools/ui_static_audit.py`, docs/TEST.md | Detects suspicious buttons without pressed connection, forbidden button text, visible debug label patterns, generic ResourcePicker patterns, and tab constructor without ScrollContainer suspicion. |
 | `UI-METRIC-03` | `BACKLOG` | `UI-METRIC-00`, `UI-METRIC-01` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-03_LAYOUT_SNAPSHOT_COLLECTOR/` | Runtime layout snapshot collector | `addons/hex_map_kit/editor/testing/`, `tests/test_workspace_layout_metrics.gd` | Workspace can be built across scenarios/sizes; visible Control rect/minimum/text/base_type/tooltip/scroll parent/metadata can be serialized to JSON; report only, not fail gate. |
 | `UI-METRIC-04` | `BACKLOG` | `UI-METRIC-03` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-04_LAYOUT_METRIC_EVALUATOR_WARN_ONLY/` | Layout metric evaluator in warn-only mode | metric evaluator, layout metric tests, docs/TEST.md | text truncation, resource row, scroll, dead area, debug leakage, no-op, picker specificity, and state contradiction produce WARN report without failing tests. |
 
@@ -140,7 +140,7 @@ acceptance / test path:
 
 ## 9. Current pointer
 
-Current recommended next task: `UI-METRIC-00`.
+Current recommended next task: `UI-METRIC-01`.
 
 Reason:
 
@@ -149,8 +149,10 @@ Reason:
 - `PROCESS-11` is complete.
 - `PROCESS-12` is complete.
 - Phase M0 tasks are complete.
-- `UI-METRIC-00` is READY because `PROCESS-12` is complete.
-- `UI-METRIC-00` is the first READY task in queue order.
+- `UI-METRIC-00` is complete.
+- `UI-METRIC-01` is READY because `UI-METRIC-00` is complete.
+- `UI-METRIC-02` is READY because `UI-METRIC-00` is complete.
+- `UI-METRIC-01` is the first READY task in queue order.
 
 ---
 
@@ -243,3 +245,21 @@ proof:
     - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-13_PLAN_EXECUTION_BOUNDARY/POLICY.md`
     - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROCESS-13_PLAN_EXECUTION_BOUNDARY/IMPLEMENTATION_PLAN.md`
     - `docs/review/autopilot/PROCESS-13_TEST_RESULT_2026-06-10.md`
+
+### UI-METRIC-00 Workspace UI metric contract
+
+proof:
+  plan: `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-00_WORKSPACE_UI_CONTRACT/`
+  review: `docs/review/autopilot/UI-METRIC-00_SELF_REVIEW_2026-06-10.md`
+  execution:
+    - `docs/review/autopilot/UI-METRIC-00_SELF_REVIEW_2026-06-10.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/ui/WORKSPACE_UI_CONTRACT.md`
+  major files:
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-00_WORKSPACE_UI_CONTRACT/SUB_TASKS.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-00_WORKSPACE_UI_CONTRACT/UX.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-00_WORKSPACE_UI_CONTRACT/POLICY.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-00_WORKSPACE_UI_CONTRACT/IMPLEMENTATION_PLAN.md`
+    - `docs/review/autopilot/UI-METRIC-00_TEST_RESULT_2026-06-10.md`
