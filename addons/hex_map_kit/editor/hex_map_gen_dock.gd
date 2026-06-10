@@ -290,6 +290,7 @@ var _last_batch_generation_results: Array[Dictionary] = []
 var _last_promoted_generation_document = null
 var _last_generation_snapshot: Dictionary = {}
 var _last_output_apply_result: Dictionary = {}
+var _last_save_result: Dictionary = {}
 
 
 func _ready() -> void:
@@ -668,7 +669,7 @@ func output_target_snapshot() -> Dictionary:
 	var selected_document = selected_layer.level_document_resource if selected_layer != null else null
 	var relationship_metadata := _document_generation_metadata_snapshot(selected_document)
 	var block_reason := _selected_document_output_block_reason()
-	return {
+	var snapshot := {
 		"mode": _output_target_mode,
 		"label": _output_target_label(_output_target_mode),
 		"selected_node": selected_layer,
@@ -676,11 +677,77 @@ func output_target_snapshot() -> Dictionary:
 		"selected_document": selected_document,
 		"selected_document_path": selected_document.resource_path if selected_document != null else "",
 		"generated_document_present": _generated_output_present(),
+		"save_available": current_resource() != null,
+		"save_result": _last_save_result.duplicate(true),
 		"can_apply_selected_document": block_reason == "",
 		"blocked_reason": block_reason,
 		"document_generation_metadata": relationship_metadata,
 		"last_apply": _last_output_apply_result.duplicate(true),
 	}
+	snapshot["preview_result_state"] = _output_preview_result_state(snapshot)
+	snapshot["document_result_state"] = _output_document_result_state(snapshot)
+	snapshot["save_result_state"] = _output_save_result_state(snapshot)
+	snapshot["visible_status_text"] = _output_target_visible_status_text(snapshot)
+	return snapshot
+
+
+func _output_preview_result_state(snapshot: Dictionary) -> String:
+	return "ready" if bool(snapshot.get("generated_document_present", false)) else "empty"
+
+
+func _output_document_result_state(snapshot: Dictionary) -> String:
+	var last_apply = snapshot.get("last_apply", {}) as Dictionary
+	if bool(last_apply.get("ok", false)):
+		return "updated"
+	if not last_apply.is_empty() and not bool(last_apply.get("ok", false)):
+		return "apply_failed"
+	if String(snapshot.get("mode", "")) == OUTPUT_TARGET_SELECTED_DOCUMENT:
+		return "ready_to_apply" if bool(snapshot.get("can_apply_selected_document", false)) else "blocked"
+	if bool(snapshot.get("generated_document_present", false)):
+		return "unchanged_preview_only"
+	return "waiting_for_preview"
+
+
+func _output_save_result_state(snapshot: Dictionary) -> String:
+	var save_result = snapshot.get("save_result", {}) as Dictionary
+	if bool(save_result.get("ok", false)):
+		return "saved"
+	if not save_result.is_empty() and not bool(save_result.get("ok", false)):
+		return "save_failed"
+	return "available" if bool(snapshot.get("save_available", false)) else "waiting_for_preview"
+
+
+func _output_target_visible_status_text(snapshot: Dictionary) -> String:
+	var preview_state := String(snapshot.get("preview_result_state", "empty"))
+	var preview_text := "Preview: ready" if preview_state == "ready" else "Preview: none"
+	var document_state := String(snapshot.get("document_result_state", "waiting_for_preview"))
+	var document_text := "Document: waiting for preview"
+	match document_state:
+		"updated":
+			document_text = "Document: updated"
+		"apply_failed":
+			document_text = "Document: apply failed"
+		"ready_to_apply":
+			document_text = "Document: ready to apply"
+		"blocked":
+			document_text = "Document: blocked"
+		"unchanged_preview_only":
+			document_text = "Document: unchanged"
+	var save_state := String(snapshot.get("save_result_state", "waiting_for_preview"))
+	var save_text := "Save: waiting for preview"
+	match save_state:
+		"saved":
+			save_text = "Save: saved .tres"
+		"save_failed":
+			save_text = "Save: failed"
+		"available":
+			save_text = "Save: available"
+	return "%s | %s | %s | Target: %s" % [
+		preview_text,
+		document_text,
+		save_text,
+		String(snapshot.get("label", "")),
+	]
 
 
 func set_output_target_mode(mode: String) -> void:
@@ -794,19 +861,7 @@ func _refresh_output_target_status() -> void:
 	if _output_target_status_label == null:
 		return
 	var snapshot := output_target_snapshot()
-	var status_text := ""
-	if String(snapshot.get("mode", "")) == OUTPUT_TARGET_PREVIEW_ONLY:
-		status_text = "Preview only: generated result updates target display; Level Document stays unchanged."
-	else:
-		var block_reason := String(snapshot.get("blocked_reason", ""))
-		if block_reason != "":
-			status_text = "Apply blocked: %s" % block_reason
-		else:
-			status_text = "Ready to apply generated result to the selected Level Document."
-	var last_apply := snapshot.get("last_apply", {}) as Dictionary
-	if bool(last_apply.get("ok", false)) and String(snapshot.get("blocked_reason", "")) == "":
-		status_text = "Applied generated result to selected Level Document."
-	_output_target_status_label.text = status_text
+	_output_target_status_label.text = String(snapshot.get("visible_status_text", ""))
 	_output_target_status_label.tooltip_text = _output_target_status_tooltip(snapshot)
 	if _output_target_apply_button != null:
 		_output_target_apply_button.disabled = _output_target_mode != OUTPUT_TARGET_SELECTED_DOCUMENT \
@@ -822,9 +877,17 @@ func _output_target_status_tooltip(snapshot: Dictionary) -> String:
 	lines.append("Generated preview: %s" % ("Yes" if bool(snapshot.get("generated_document_present", false)) else "No"))
 	var document = snapshot.get("selected_document", null)
 	lines.append("Level Document: %s" % (_resource_display_name(document) if document != null else "None"))
+	lines.append("Save As .tres: %s" % String(snapshot.get("save_result_state", "")))
+	var save_result = snapshot.get("save_result", {}) as Dictionary
+	var save_path := String(save_result.get("path", ""))
+	if save_path != "":
+		lines.append("Last save path: %s" % save_path)
 	var block_reason := String(snapshot.get("blocked_reason", ""))
 	if block_reason != "":
 		lines.append("Apply blocked: %s" % block_reason)
+	var save_block := String(save_result.get("blocked_reason", ""))
+	if save_block != "":
+		lines.append("Save status: %s" % save_block)
 	return _join_lines(lines)
 
 
@@ -1606,7 +1669,8 @@ func _refresh_source_registry_ui() -> void:
 		row.add_child(label)
 
 		var reload_button = Button.new()
-		reload_button.text = "Reload"
+		reload_button.text = "Refresh Source"
+		reload_button.tooltip_text = "Re-read this source file and refresh query item counts."
 		reload_button.pressed.connect(_on_source_reload_pressed.bind(int(entry["id"])))
 		row.add_child(reload_button)
 
@@ -2527,6 +2591,7 @@ func _on_atlas_image_selected(path: String, layer) -> void:
 func _on_save_pressed() -> void:
 	var resource = _resource_for_save_button()
 	if resource == null:
+		_record_save_result(false, ERR_UNAVAILABLE, "", "No generated result to save.")
 		return
 
 	var dialog = HexMapEditorPathSelector.new_dialog(
@@ -2536,16 +2601,30 @@ func _on_save_pressed() -> void:
 	dialog.current_file = "hex_map.tres"
 	dialog.file_selected.connect(_on_save_file_selected.bind(resource))
 	if not HexMapEditorPathSelector.popup_dialog(dialog):
+		_record_save_result(false, ERR_UNAVAILABLE, "", "Save As is available in the editor.")
 		push_error("Save As is available in the editor.")
 
 
 func _on_save_file_selected(path: String, resource: Resource) -> void:
 	var error = ResourceSaver.save(resource, path)
 	if error == OK:
+		_record_save_result(true, OK, path, "")
 		EditorInterface.get_resource_filesystem().scan()
 		print("Hex Map saved to: %s" % path)
 	else:
+		_record_save_result(false, error, path, "Failed to save hex map.")
 		push_error("Failed to save hex map: %d" % error)
+
+
+func _record_save_result(ok: bool, error: int, path: String, blocked_reason: String) -> Dictionary:
+	_last_save_result = {
+		"ok": ok,
+		"error": error,
+		"path": path,
+		"blocked_reason": blocked_reason,
+	}
+	_refresh_output_target_status()
+	return _last_save_result.duplicate(true)
 
 
 func _on_apply_layer_pressed() -> void:
@@ -4116,6 +4195,7 @@ func _generate_map(show_progress: bool = false) -> bool:
 	var snapshot = _create_generation_snapshot()
 	_last_generation_snapshot = snapshot.duplicate(true)
 	_last_output_apply_result.clear()
+	_last_save_result.clear()
 	_refresh_output_target_status()
 	var block_reason = _generation_block_reason_for_snapshot(snapshot)
 	if block_reason != "":

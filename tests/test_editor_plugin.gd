@@ -7292,6 +7292,14 @@ func _test_generation_dock_output_target_preview_and_selected_document() -> void
 	_assert_eq(String(initial_output["mode"]), HexMapGenDock.OUTPUT_TARGET_PREVIEW_ONLY, "NODE-24 preview only is the default output target")
 	_assert_eq(String(initial_output["label"]), "Preview only", "NODE-24 preview target label is visible")
 	_assert_true(not bool(initial_output["generated_document_present"]), "NODE-24 starts without generated output")
+	_assert_eq(String(initial_output["preview_result_state"]), "empty", "UI-03 preview result starts empty")
+	_assert_eq(String(initial_output["save_result_state"]), "waiting_for_preview", "UI-03 save state waits for generated preview")
+	_assert_true(String(initial_output["visible_status_text"]).contains("Preview: none"), "UI-03 output status exposes no-preview state")
+	var initial_screen = workspace.generation_screen_snapshot()
+	var initial_result = initial_screen["result_summary"] as Dictionary
+	_assert_true(not bool(initial_screen["empty_state_visible"]), "UI-03 unblocked Generate screen has no visible empty-state placeholder")
+	_assert_true(not bool(initial_screen["unexplained_empty_area_visible"]), "UI-03 unblocked Generate screen has no unexplained dead-space marker")
+	_assert_true(String(initial_result["visible_text"]).contains("Save: waiting for preview"), "UI-03 screen summary exposes initial save state")
 
 	_assert_true(await dock._generate_map(), "NODE-24 preview output generation succeeds")
 	_assert_true(layer.hex_map is HexMapResource, "NODE-24 preview writes runtime HexTileMap map")
@@ -7301,17 +7309,34 @@ func _test_generation_dock_output_target_preview_and_selected_document() -> void
 	var preview_output = dock.output_target_snapshot()
 	_assert_true(bool(preview_output["generated_document_present"]), "NODE-24 preview snapshot records generated output")
 	_assert_true(not bool((preview_output["document_generation_metadata"] as Dictionary)["present"]), "NODE-24 preview does not mark document generated")
+	_assert_eq(String(preview_output["preview_result_state"]), "ready", "UI-03 preview result state is visible after generation")
+	_assert_eq(String(preview_output["document_result_state"]), "unchanged_preview_only", "UI-03 document state stays unchanged in preview-only mode")
+	_assert_eq(String(preview_output["save_result_state"]), "available", "UI-03 save state is available after generation")
+	_assert_true(String(preview_output["visible_status_text"]).contains("Save: available"), "UI-03 visible status exposes save availability")
+	_assert_true(dock._output_target_status_label.text.contains("Preview: ready"), "UI-03 output target label exposes preview result")
+	var preview_screen = workspace.generation_screen_snapshot()
+	var preview_result = preview_screen["result_summary"] as Dictionary
+	_assert_eq(String(preview_result["preview_result_state"]), "ready", "UI-03 screen result summary exposes preview readiness")
+	_assert_eq(String(preview_result["document_result_state"]), "unchanged_preview_only", "UI-03 screen result summary exposes document state")
+	_assert_eq(String(preview_result["save_result_state"]), "available", "UI-03 screen result summary exposes save state")
 
 	dock.set_output_target_mode(HexMapGenDock.OUTPUT_TARGET_SELECTED_DOCUMENT)
 	var ready_output = dock.output_target_snapshot()
 	_assert_eq(String(ready_output["label"]), "Apply to selected Document", "NODE-24 selected document output target is visible")
 	_assert_true(bool(ready_output["can_apply_selected_document"]), "NODE-24 selected document output can apply when node/document/generated output exist")
+	_assert_eq(String(ready_output["document_result_state"]), "ready_to_apply", "UI-03 document output state is ready to apply")
 	var apply_result = dock.apply_current_generation_to_selected_document()
 	_assert_true(bool(apply_result["ok"]), "NODE-24 applies current generation to selected document")
 	_assert_eq(HexMapDocumentAdapter.document_summary(document)["cells"], 2, "NODE-24 apply replaces selected Level Document terrain")
 	_assert_eq(workspace.workspace_asset_context().level_document, document, "NODE-24 apply updates workspace Level Document relationship")
 	_assert_eq(session.current_document(), document, "NODE-24 apply updates session current document")
-	var metadata = (dock.output_target_snapshot()["document_generation_metadata"] as Dictionary)
+	var applied_output = dock.output_target_snapshot()
+	_assert_eq(String(applied_output["document_result_state"]), "updated", "UI-03 document output state reflects applied generation")
+	_assert_true(String(applied_output["visible_status_text"]).contains("Document: updated"), "UI-03 visible status exposes applied document result")
+	var applied_screen = workspace.generation_screen_snapshot()
+	var applied_result = applied_screen["result_summary"] as Dictionary
+	_assert_eq(String(applied_result["document_result_state"]), "updated", "UI-03 screen summary exposes applied document state")
+	var metadata = (applied_output["document_generation_metadata"] as Dictionary)
 	_assert_true(bool(metadata["present"]), "NODE-24 apply records generated metadata on document")
 	_assert_eq(String(metadata["generation_source"]), "hex_map_gen_dock", "NODE-24 apply records Generate as metadata source")
 	_assert_eq(String(metadata["generation_output_target"]), HexMapGenDock.OUTPUT_TARGET_SELECTED_DOCUMENT, "NODE-24 apply records output target metadata")
@@ -7680,6 +7705,8 @@ func _test_generation_dock_mapdata_source_registry_load_reload_clear() -> void:
 	_assert_eq(dock._mapdata_sources.size(), 1, "source registry stores loaded source")
 	_assert_eq(dock._mapdata_sources[0]["resource_type"], HexMapGenDock.MAPDATA_SOURCE_OVERLAY, "source registry records overlay type")
 	_assert_eq(dock._mapdata_sources[0]["item_keys"], ["Tree"], "source registry exposes overlay item keys")
+	_assert_true(_has_button_text(dock, "Refresh Source"), "UI-03 source registry reload action explains source-file refresh")
+	_assert_true(not _has_button_text(dock, "Reload"), "UI-03 source registry removes ambiguous reload wording")
 	_assert_true(
 		dock._source_entry_details_text(dock._mapdata_sources[0]).contains("Tree: 1"),
 		"source registry details show overlay item cell count"
@@ -7833,6 +7860,11 @@ func _test_generation_dock_mapdata_query_rows_evaluate_offset_and_toric() -> voi
 		dock.generation_status()["status"],
 		HexMapGenDock.GENERATION_BLOCK_STATUS_PREFIX + HexMapGenDock.GENERATION_BLOCK_EMPTY_MASK,
 		"empty Mask query block reason is visible"
+	)
+	_assert_eq(
+		String(dock.generation_run_view_state()["block_reason"]),
+		HexMapGenDock.GENERATION_BLOCK_EMPTY_MASK,
+		"UI-03 blocked Generate state keeps block reason in ViewState"
 	)
 
 	var overlay = HexOverlayData.from_cells(

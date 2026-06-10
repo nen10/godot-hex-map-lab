@@ -230,8 +230,10 @@ func dispatch_workspace_event(event_id: String, payload: Dictionary = {}) -> Dic
 
 
 func generation_screen_snapshot() -> Dictionary:
-	var view_state = _generation_dock.generation_run_view_state() if _generation_dock != null else {}
-	var generation_state = _generation_dock.generation_status() if _generation_dock != null else {}
+	var view_state: Dictionary = _generation_dock.generation_run_view_state() if _generation_dock != null else {}
+	var generation_state: Dictionary = _generation_dock.generation_status() if _generation_dock != null else {}
+	var progress_state: Dictionary = _generation_dock.generation_progress_snapshot() if _generation_dock != null else {}
+	var output_target: Dictionary = _generation_dock.output_target_snapshot() if _generation_dock != null else {}
 	var empty_text := String(view_state.get("block_reason", ""))
 	var actions := PackedStringArray()
 	if empty_text != "":
@@ -250,8 +252,45 @@ func generation_screen_snapshot() -> Dictionary:
 		"purpose_text": String(empty_state.get("purpose_text", "")),
 		"empty_state": empty_state,
 		"empty_state_text": String(empty_state.get("empty_state_text", "")),
+		"empty_state_visible": bool(empty_state.get("visible", false)),
+		"unexplained_empty_area_visible": false,
+		"empty_area_explained": empty_text != "" or not bool(empty_state.get("visible", false)),
 		"generation_state": generation_state,
+		"progress_state": progress_state,
+		"output_target": output_target,
+		"result_summary": _generation_result_summary(view_state, generation_state, progress_state, output_target),
 		"view_state": view_state,
+	}
+
+
+func _generation_result_summary(
+	view_state: Dictionary,
+	generation_state: Dictionary,
+	progress_state: Dictionary,
+	output_target: Dictionary
+) -> Dictionary:
+	var visible_text := String(output_target.get("visible_status_text", ""))
+	if visible_text == "":
+		visible_text = "Preview: none | Document: waiting for preview | Save: waiting for preview"
+	var block_reason := String(view_state.get("block_reason", ""))
+	var apply_reason := String(output_target.get("blocked_reason", ""))
+	var save_result = output_target.get("save_result", {}) as Dictionary
+	return {
+		"visible": true,
+		"visible_text": visible_text,
+		"run_status": String(generation_state.get("status", "")),
+		"run_progress_visible": bool(progress_state.get("visible", false)),
+		"block_reason_visible": block_reason != "",
+		"block_reason": block_reason,
+		"preview_result_state": String(output_target.get("preview_result_state", "empty")),
+		"apply_result_state": String(output_target.get("document_result_state", "waiting_for_preview")),
+		"document_result_state": String(output_target.get("document_result_state", "waiting_for_preview")),
+		"save_result_state": String(output_target.get("save_result_state", "waiting_for_preview")),
+		"save_available": bool(output_target.get("save_available", false)),
+		"last_save_ok": bool(save_result.get("ok", false)),
+		"apply_block_reason_visible": apply_reason != "",
+		"apply_block_reason": apply_reason,
+		"output_target_label": String(output_target.get("label", "")),
 	}
 
 
