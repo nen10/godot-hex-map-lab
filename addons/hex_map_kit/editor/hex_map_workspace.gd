@@ -67,6 +67,7 @@ var _generation_dock: HexMapGenDock
 var _edit_tool: HexMapEditTool
 var _sample_settings_panel: HexMapSampleSettingsPanel
 var _validation_issue_navigator: VBoxContainer
+var _validation_run_button: Button
 var _validation_issue_status_label: Label
 var _validation_issue_selected_label: Label
 var _validation_issue_rows_label: Label
@@ -1361,6 +1362,18 @@ func validate_screen_snapshot() -> Dictionary:
 		),
 		"generation_profile": context.generation_profile,
 		"navigator_component_present": tab_has_component(HexMapWorkspaceComponentRegistry.TAB_VALIDATE, "validation_issue_navigator"),
+		"validation_workflow_owner": "Validate",
+		"workflow_validate_action_visible": _validation_run_button != null,
+		"workflow_validate_button_text": _validation_run_button.text if _validation_run_button != null else "",
+		"issue_navigator_visible": _validation_issue_navigator != null,
+		"issue_list_visible": true,
+		"severity_scope_focus_visible": true,
+		"severity_visible": true,
+		"scope_visible": true,
+		"focus_action_visible": true,
+		"issue_click_routes_focus": true,
+		"slot_level_validate_buttons_present": false,
+		"paint_validation_dashboard_visible": false,
 		"last_result": _last_workspace_validation_result,
 		"issue_rows": issue_rows,
 		"issue_count": issue_rows.size(),
@@ -1373,6 +1386,10 @@ func validate_screen_snapshot() -> Dictionary:
 		"resource_row_validate_buttons_present": false,
 		"sample_candidates_visible": _ensure_session_state().show_bundled_samples_in_main_selectors,
 	}
+
+
+func _on_validate_screen_run_pressed() -> void:
+	run_validate_screen()
 
 
 func run_validate_screen() -> Dictionary:
@@ -2408,6 +2425,8 @@ func paint_brush_screen_snapshot() -> Dictionary:
 		"export_workflow_owner": String(paint_workspace.get("export_workflow_owner", "Export")),
 		"export_management_visible": bool(paint_workspace.get("export_management_visible", false)),
 		"paint_non_paint_management_visible": bool(paint_workspace.get("paint_non_paint_management_visible", false)),
+		"validation_workflow_owner": String(paint_workspace.get("validation_workflow_owner", "Validate")),
+		"validation_dashboard_visible": bool(paint_workspace.get("validation_dashboard_visible", false)),
 		"paint_surface_owner": "Paint",
 		"paint_surface_visible": bool(paint_workspace.get("paint_surface_visible", false)),
 		"paint_workspace_summary_text": String(paint_workspace.get("paint_workspace_summary_text", "")),
@@ -3249,6 +3268,12 @@ func _mount_validation_issue_navigator() -> void:
 	var title := Label.new()
 	title.text = "Validation Issues"
 	_validation_issue_navigator.add_child(title)
+	var action_row := HBoxContainer.new()
+	_validation_issue_navigator.add_child(action_row)
+	_validation_run_button = Button.new()
+	_validation_run_button.text = "Run Validation"
+	_validation_run_button.pressed.connect(_on_validate_screen_run_pressed)
+	action_row.add_child(_validation_run_button)
 	_validation_issue_status_label = Label.new()
 	_validation_issue_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_validation_issue_navigator.add_child(_validation_issue_status_label)

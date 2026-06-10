@@ -88,7 +88,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | `SCREEN-20` | `COMPLETE` | `SCREEN-10`, `UI-01` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-20_CATALOG_CONTROLS_OUT_OF_PAINT/` | Catalog editing controls moved out of Paint | Catalog tab/screen, Paint tab, catalog resource UI/tests | Catalog tab owns entry list, tile/scene preview, tags/status, create/edit entry, and catalog validation; Paint consumes catalog key and does not expose raw source_id/atlas coords as primary UI; `./tools/test.sh` passed. |
 | `SCREEN-21` | `COMPLETE` | `SCREEN-10` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-21_LAYER_DOCUMENT_EXPORT_CONTROLS_OUT_OF_PAINT/` | Layer, Document, and Export controls moved to responsible tabs | Paint tab, Layers tab, Resources tab, Export tab, editor tests | Layer roles live in Layers; document save/dependency/dirty state lives in Resources; export destination/type lives in Export; Paint has no non-paint responsibility controls; `./tools/test.sh` passed. |
 | `SCREEN-22` | `COMPLETE` | `STATE-40`, `SCREEN-20`, `SCREEN-21` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-22_PAINT_TAB_BRUSH_SURFACE/` | Paint tab as real brush editing surface | Paint screen, edit tool, viewport input adapter, editor tests | Paint tab has empty state, active brush, target layer, selected cell, and last edit; viewport editing updates Paint state; tab does not regress to resource references only; `./tools/test.sh` passed. |
-| `SCREEN-23` | `READY` | `STATE-50`, `SCREEN-10` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-23_VALIDATE_ISSUE_NAVIGATOR_REFINEMENT/` | Validate tab issue navigator refinement | validation dashboard, workspace Validate tab, document validator, tests | Validate works as workflow-level issue navigator with list/severity/scope/focus action; slot-level Validate buttons are unnecessary. |
+| `SCREEN-23` | `COMPLETE` | `STATE-50`, `SCREEN-10` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-23_VALIDATE_ISSUE_NAVIGATOR_REFINEMENT/` | Validate tab issue navigator refinement | validation dashboard, workspace Validate tab, document validator, tests | Validate works as workflow-level issue navigator with list/severity/scope/focus action; slot-level Validate buttons are unnecessary; `./tools/test.sh` passed. |
 | `SCREEN-24` | `READY` | `PROFILE-30`, `STATE-10` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-24_QA_SEED_LAB_AND_PROFILE_SCREEN/` | QA Seed Lab and Generation Profile screen | QA tab, generation profile resource, generation results/state, tests | QA uses Generation Profile; score table, selected seed, and promote target are visible; Document source of truth and draft context boundary are clear. |
 | `SCREEN-25` | `READY` | `PROFILE-30`, `STATE-50` | `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-25_EXPORT_PURPOSE_SCREEN/` | Export tab purpose screen | Export tab, export profile resource, dist/export helpers, tests/docs | Export type, output destination, runtime handoff/debug/package purpose, and result state are clear. |
 
@@ -148,7 +148,7 @@ acceptance / test path:
 
 ## 11. Current pointer
 
-Current recommended next task: `SCREEN-23`.
+Current recommended next task: `SCREEN-24`.
 
 Reason:
 
@@ -177,11 +177,11 @@ Reason:
 - `SCREEN-20` is complete.
 - `SCREEN-21` is complete.
 - `SCREEN-22` is complete.
-- `SCREEN-23` is READY because `STATE-50` and `SCREEN-10` are complete.
+- `SCREEN-23` is complete.
 - `SCREEN-24`, `SCREEN-25`, `ARCH-40`, `ARCH-41`, `ARCH-50`, and `PERF-60` remain READY.
 - `TEST-80` remains BACKLOG because `ARCH-41` is not complete.
 - `DOC-90` remains BACKLOG because `SCREEN-25` is not complete.
-- `SCREEN-23` is the first READY task in queue order after completed `SCREEN-22`.
+- `SCREEN-24` is the first READY task in queue order after completed `SCREEN-23`.
 
 ---
 
@@ -652,3 +652,22 @@ proof:
     - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-22_PAINT_TAB_BRUSH_SURFACE/POLICY.md`
     - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-22_PAINT_TAB_BRUSH_SURFACE/IMPLEMENTATION_PLAN.md`
     - `docs/review/autopilot/SCREEN-22_TEST_RESULT_2026-06-10.md`
+
+### SCREEN-23 Validate issue navigator refinement
+
+proof:
+  plan: `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-23_VALIDATE_ISSUE_NAVIGATOR_REFINEMENT/`
+  review: `docs/review/autopilot/SCREEN-23_SELF_REVIEW_2026-06-10.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `addons/hex_map_kit/editor/hex_map_edit_tool.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-23_VALIDATE_ISSUE_NAVIGATOR_REFINEMENT/SUB_TASKS.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-23_VALIDATE_ISSUE_NAVIGATOR_REFINEMENT/UX.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-23_VALIDATE_ISSUE_NAVIGATOR_REFINEMENT/POLICY.md`
+    - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/SCREEN-23_VALIDATE_ISSUE_NAVIGATOR_REFINEMENT/IMPLEMENTATION_PLAN.md`
+    - `docs/review/autopilot/SCREEN-23_TEST_RESULT_2026-06-10.md`

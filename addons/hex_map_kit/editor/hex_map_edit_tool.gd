@@ -510,6 +510,8 @@ func paint_workspace_snapshot() -> Dictionary:
 		"export_workflow_owner": "Export",
 		"export_management_visible": export_management_visible,
 		"paint_non_paint_management_visible": document_management_visible or layer_management_visible or export_management_visible,
+		"validation_workflow_owner": "Validate",
+		"validation_dashboard_visible": _control_effectively_visible(_validation_dashboard),
 		"resource_picker_rows_visible": {
 			"object_database": _control_row_is_visible(_object_database_picker),
 			"label_database": _control_row_is_visible(_label_database_picker),
@@ -1654,6 +1656,7 @@ func _build_ui() -> void:
 	_validation_dashboard = HexMapValidationDashboard.new()
 	_validation_dashboard.validate_requested.connect(_on_validate_document_pressed)
 	_validation_dashboard.issue_selected.connect(_on_validation_issue_selected)
+	_validation_dashboard.visible = false
 	root.add_child(_validation_dashboard)
 	_copy_debug_report_button = Button.new()
 	_copy_debug_report_button.text = "Copy Debug Report"
