@@ -1,61 +1,68 @@
 @tool
-class_name HexMapCatalogScreen
+class_name HexMapSettingsScreen
 extends RefCounted
 
-const TAB_NAME := "Catalog"
-const WORKFLOW_OWNER := "Catalog"
-const USER_TASK := "Manage catalog entries, previews, tags, and catalog validation."
-const SCREEN_SCRIPT := "hex_map_catalog_screen.gd"
+const TAB_NAME := "Settings"
+const WORKFLOW_OWNER := "Settings"
+const USER_TASK := "Manage workspace preferences, sample learning controls, and debug/report boundaries."
+const SCREEN_SCRIPT := "hex_map_settings_screen.gd"
 
 
 static func screen_contract() -> Dictionary:
 	return {
-		"screen_role_source": "HexMapCatalogScreen",
+		"screen_role_source": "HexMapSettingsScreen",
 		"screen_script": SCREEN_SCRIPT,
 		"tab": TAB_NAME,
 		"workflow_owner": WORKFLOW_OWNER,
 		"user_task": USER_TASK,
 		"owns": PackedStringArray([
-			"tile_catalog",
-			"catalog_entry_list",
-			"catalog_entry_detail",
-			"catalog_entry_validation",
+			"workspace_preferences",
+			"sample_learning_controls",
+			"debug_report_boundary",
 		]),
-		"delegates": {},
+		"delegates": {
+			"production_asset_selection": "Resources",
+		},
 	}
 
 
 static func ownership_fields() -> Dictionary:
 	return {
-		"catalog_entry_workflow_owner": WORKFLOW_OWNER,
-		"catalog_entry_management_visible": true,
-		"paint_catalog_entry_management_visible": false,
+		"settings_workflow_owner": WORKFLOW_OWNER,
 	}
 
 
 static func component_owner_rows() -> Array[Dictionary]:
 	return [
-		_component_owner("catalog_detail_panel", "VBoxContainer", "CatalogDetailPanel"),
-		_component_owner("catalog_asset_panel", "HexMapWorkspaceAssetPanel", "CatalogPanel"),
+		_component_owner("settings_preferences_panel", "VBoxContainer", "SettingsPreferencesPanel"),
+		_component_owner("sample_settings_panel", "HexMapSampleSettingsPanel", "SampleSettingsPanel"),
 	]
 
 
-static func build_catalog_detail_panel() -> Dictionary:
-	var panel := _panel("Catalog Detail Panel", "catalog_detail_panel", "build_catalog_detail_panel")
+static func build_settings_preferences_panel() -> Dictionary:
+	var panel := _panel(
+		"Settings Preferences Panel",
+		"settings_preferences_panel",
+		"build_settings_preferences_panel"
+	)
 	var title := Label.new()
-	title.text = "Catalog Entries"
+	title.text = "Settings"
 	panel.add_child(title)
 
 	var status_label := _wrapped_label()
 	panel.add_child(status_label)
 
-	var entry_label := _wrapped_label()
-	panel.add_child(entry_label)
+	var debug_label := _wrapped_label()
+	panel.add_child(debug_label)
+
+	var resource_label := _wrapped_label()
+	panel.add_child(resource_label)
 
 	return {
 		"root": panel,
 		"status_label": status_label,
-		"entry_label": entry_label,
+		"debug_label": debug_label,
+		"resource_label": resource_label,
 	}
 
 
@@ -66,7 +73,7 @@ static func _component_owner(component_id: String, component_class: String, resp
 		"component_class": component_class,
 		"responsibility": responsibility,
 		"screen_script": SCREEN_SCRIPT,
-		"screen_role_source": "HexMapCatalogScreen",
+		"screen_role_source": "HexMapSettingsScreen",
 	}
 
 
@@ -76,7 +83,7 @@ static func _panel(node_name: String, component_id: String, builder_id: String) 
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	panel.set_meta("hex_workspace_component_id", component_id)
 	panel.set_meta("hex_workspace_screen_script", SCREEN_SCRIPT)
-	panel.set_meta("hex_workspace_screen_role_source", "HexMapCatalogScreen")
+	panel.set_meta("hex_workspace_screen_role_source", "HexMapSettingsScreen")
 	panel.set_meta("hex_workspace_builder", builder_id)
 	return panel
 

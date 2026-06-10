@@ -49,6 +49,13 @@ const HexMapWorkspaceRootState = preload("res://addons/hex_map_kit/editor/hex_ma
 const HexMapWorkspaceDispatcher = preload("res://addons/hex_map_kit/editor/hex_map_workspace_dispatcher.gd")
 const HexMapSampleAssetDuplicator = preload("res://addons/hex_map_kit/editor/hex_map_sample_asset_duplicator.gd")
 const HexMapSampleSettingsPanel = preload("res://addons/hex_map_kit/editor/hex_map_sample_settings_panel.gd")
+const HexMapResourcesScreen = preload("res://addons/hex_map_kit/editor/hex_map_resources_screen.gd")
+const HexMapCatalogScreen = preload("res://addons/hex_map_kit/editor/hex_map_catalog_screen.gd")
+const HexMapLayersScreen = preload("res://addons/hex_map_kit/editor/hex_map_layers_screen.gd")
+const HexMapValidateScreen = preload("res://addons/hex_map_kit/editor/hex_map_validate_screen.gd")
+const HexMapQAScreen = preload("res://addons/hex_map_kit/editor/hex_map_qa_screen.gd")
+const HexMapExportScreen = preload("res://addons/hex_map_kit/editor/hex_map_export_screen.gd")
+const HexMapSettingsScreen = preload("res://addons/hex_map_kit/editor/hex_map_settings_screen.gd")
 const HexMapWorkspace = preload("res://addons/hex_map_kit/editor/hex_map_workspace.gd")
 const HexDistEditor = preload("res://addons/hex_map_kit/editor/hex_dist_editor.gd")
 const HexAdjacencyRuleEditor = preload("res://addons/hex_map_kit/editor/hex_adjacency_rule_editor.gd")
@@ -928,6 +935,8 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 	var expected_contract := {
 		"Resources": {
 			"components": PackedStringArray(["resources_context_panel", "document_asset_panel", "missing_unique_resources_panel"]),
+			"screen_script": "hex_map_resources_screen.gd",
+			"screen_role_source": "HexMapResourcesScreen",
 			"slots": PackedStringArray([
 				HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT,
 				HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG,
@@ -939,22 +948,32 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 		},
 		"Generate": {
 			"components": PackedStringArray(["generation_panel"]),
+			"screen_script": "hex_map_gen_dock.gd",
+			"screen_role_source": "HexMapGenDock",
 			"slots": PackedStringArray(),
 		},
 		"Paint": {
 			"components": PackedStringArray(["brush_palette"]),
+			"screen_script": "hex_map_paint_screen.gd",
+			"screen_role_source": "HexMapPaintScreen",
 			"slots": PackedStringArray(),
 		},
 		"Catalog": {
 			"components": PackedStringArray(["catalog_detail_panel", "catalog_asset_panel"]),
+			"screen_script": "hex_map_catalog_screen.gd",
+			"screen_role_source": "HexMapCatalogScreen",
 			"slots": PackedStringArray([HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG]),
 		},
 		"Layers": {
 			"components": PackedStringArray(["layer_stack_role_panel", "layer_stack_asset_panel"]),
+			"screen_script": "hex_map_layers_screen.gd",
+			"screen_role_source": "HexMapLayersScreen",
 			"slots": PackedStringArray([HexMapWorkspaceAssetContext.SLOT_LAYER_STACK]),
 		},
 		"Validate": {
 			"components": PackedStringArray(["validation_asset_panel", "validation_issue_navigator"]),
+			"screen_script": "hex_map_validate_screen.gd",
+			"screen_role_source": "HexMapValidateScreen",
 			"slots": PackedStringArray([
 				HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT,
 				HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE,
@@ -962,6 +981,8 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 		},
 		"QA": {
 			"components": PackedStringArray(["qa_seed_lab_panel", "qa_asset_panel"]),
+			"screen_script": "hex_map_qa_screen.gd",
+			"screen_role_source": "HexMapQAScreen",
 			"slots": PackedStringArray([
 				HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE,
 				HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE,
@@ -970,6 +991,8 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 		},
 		"Export": {
 			"components": PackedStringArray(["export_purpose_panel", "export_asset_panel", "export_destination_panel"]),
+			"screen_script": "hex_map_export_screen.gd",
+			"screen_role_source": "HexMapExportScreen",
 			"slots": PackedStringArray([
 				HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT,
 				HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE,
@@ -977,8 +1000,30 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 		},
 		"Settings": {
 			"components": PackedStringArray(["settings_preferences_panel", "sample_settings_panel"]),
+			"screen_script": "hex_map_settings_screen.gd",
+			"screen_role_source": "HexMapSettingsScreen",
 			"slots": PackedStringArray(),
 		},
+	}
+	var builder_components := {
+		"resources_context_panel": "build_resources_context_panel",
+		"missing_unique_resources_panel": "build_missing_unique_resources_panel",
+		"catalog_detail_panel": "build_catalog_detail_panel",
+		"layer_stack_role_panel": "build_layer_stack_role_panel",
+		"validation_issue_navigator": "build_validation_issue_navigator",
+		"qa_seed_lab_panel": "build_seed_lab_panel",
+		"export_purpose_panel": "build_export_purpose_panel",
+		"export_destination_panel": "build_export_destination_panel",
+		"settings_preferences_panel": "build_settings_preferences_panel",
+	}
+	var screen_script_owner_rows := {
+		"Resources": HexMapResourcesScreen.component_owner_rows(),
+		"Catalog": HexMapCatalogScreen.component_owner_rows(),
+		"Layers": HexMapLayersScreen.component_owner_rows(),
+		"Validate": HexMapValidateScreen.component_owner_rows(),
+		"QA": HexMapQAScreen.component_owner_rows(),
+		"Export": HexMapExportScreen.component_owner_rows(),
+		"Settings": HexMapSettingsScreen.component_owner_rows(),
 	}
 
 	_assert_eq(workspace.workspace_tab_names(), expected_tabs, "TEST-41 workspace tab query exposes expected UX tabs")
@@ -987,6 +1032,8 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 		var contract = expected_contract[tab_name] as Dictionary
 		var expected_components = contract["components"] as PackedStringArray
 		var expected_slots = contract["slots"] as PackedStringArray
+		var expected_screen_script := String(contract["screen_script"])
+		var expected_role_source := String(contract["screen_role_source"])
 		expected_component_row_count += expected_components.size()
 		_assert_eq(workspace.tab_component_ids(tab_name), expected_components, "TEST-41 %s component ids match contract" % tab_name)
 		_assert_eq(workspace.components_for_tab(tab_name).size(), expected_components.size(), "TEST-41 %s component row count matches contract" % tab_name)
@@ -997,22 +1044,49 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 		_assert_eq(workspace.tab_content_root_class(tab_name), "VBoxContainer", "TEST-41 %s content class is VBoxContainer" % tab_name)
 		for component_id in expected_components:
 			_assert_true(workspace.tab_has_component(tab_name, String(component_id)), "TEST-41 %s has component %s" % [tab_name, component_id])
+			var owner := workspace.component_owner_for(tab_name, String(component_id))
+			_assert_eq(String(owner.get("screen_script", "")), expected_screen_script, "ARCH-NEXT-10 %s/%s registry screen owner" % [tab_name, component_id])
+			_assert_eq(String(owner.get("screen_role_source", "")), expected_role_source, "ARCH-NEXT-10 %s/%s registry role owner" % [tab_name, component_id])
+			var mounted_owner := workspace.mounted_component_owner_for(tab_name, String(component_id))
+			_assert_eq(String(mounted_owner.get("screen_script", "")), expected_screen_script, "ARCH-NEXT-10 %s/%s mounted screen owner" % [tab_name, component_id])
+			_assert_eq(String(mounted_owner.get("screen_role_source", "")), expected_role_source, "ARCH-NEXT-10 %s/%s mounted role owner" % [tab_name, component_id])
+			if builder_components.has(String(component_id)):
+				_assert_eq(
+					String(mounted_owner.get("builder", "")),
+					String(builder_components[String(component_id)]),
+					"ARCH-NEXT-10 %s/%s physical builder owner" % [tab_name, component_id]
+				)
 		for slot_id in expected_slots:
 			_assert_true(workspace.tab_asset_slot_ids(tab_name).has(String(slot_id)), "TEST-41 %s has asset slot %s" % [tab_name, slot_id])
+		if screen_script_owner_rows.has(tab_name):
+			var screen_rows = screen_script_owner_rows[tab_name] as Array
+			_assert_eq(screen_rows.size(), expected_components.size(), "ARCH-NEXT-10 %s screen script owner row count" % tab_name)
+			var screen_component_ids := PackedStringArray()
+			for screen_row in screen_rows:
+				var screen_row_data := screen_row as Dictionary
+				screen_component_ids.append(String(screen_row_data.get("component_id", "")))
+				_assert_eq(String(screen_row_data.get("screen_script", "")), expected_screen_script, "ARCH-NEXT-10 %s script row owner" % tab_name)
+				_assert_eq(String(screen_row_data.get("screen_role_source", "")), expected_role_source, "ARCH-NEXT-10 %s script role owner" % tab_name)
+			_assert_eq(screen_component_ids, expected_components, "ARCH-NEXT-10 %s screen script component ids" % tab_name)
 
 	_assert_eq(workspace.component_rows().size(), expected_component_row_count, "TEST-41 component registry row count matches tab contract")
+	_assert_eq(workspace.component_owner_rows().size(), expected_component_row_count, "ARCH-NEXT-10 component owner registry row count matches tab contract")
 	for row in workspace.component_rows():
 		var tab_name := String(row.get("tab", ""))
 		var component_id := String(row.get("component_id", ""))
 		var component_class := String(row.get("component_class", ""))
 		var responsibility := String(row.get("responsibility", ""))
 		var source_owner := String(row.get("source_owner", ""))
+		var screen_script := String(row.get("screen_script", ""))
+		var screen_role_source := String(row.get("screen_role_source", ""))
 		var row_slot_ids := PackedStringArray(row.get("asset_slot_ids", PackedStringArray()))
 		_assert_true(expected_tabs.has(tab_name), "TEST-41 component row tab is registered")
 		_assert_true(component_id != "", "TEST-41 component row has stable component id")
 		_assert_true(component_class != "", "TEST-41 component row has component class")
 		_assert_true(responsibility != "", "TEST-41 component row has responsibility")
 		_assert_true(source_owner != "", "TEST-41 component row has source owner")
+		_assert_true(screen_script != "", "ARCH-NEXT-10 component row has screen script owner")
+		_assert_true(screen_role_source != "", "ARCH-NEXT-10 component row has screen role owner")
 		_assert_true(workspace.tab_component_ids(tab_name).has(component_id), "TEST-41 component row is mounted in tab query")
 		for slot_id in row_slot_ids:
 			_assert_true(
@@ -1028,6 +1102,7 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 		"Validate": "hex_map_validate_screen.gd",
 		"QA": "hex_map_qa_screen.gd",
 		"Export": "hex_map_export_screen.gd",
+		"Settings": "hex_map_settings_screen.gd",
 	}
 	var screen_roles := workspace.workspace_screen_role_contracts()
 	_assert_eq(screen_roles.size(), expected_screen_roles.size(), "ARCH-41 screen role registry has one contract per extracted screen script")
@@ -1039,6 +1114,7 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 		"Validate": workspace.validate_screen_snapshot(),
 		"QA": workspace.qa_screen_snapshot(),
 		"Export": workspace.export_screen_snapshot(),
+		"Settings": workspace.settings_screen_snapshot(),
 	}
 	for tab_name in expected_screen_roles.keys():
 		var role = workspace.screen_role_contract_for_tab(String(tab_name)) as Dictionary

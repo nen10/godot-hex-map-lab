@@ -16,6 +16,16 @@ const TAB_QA := "QA"
 const TAB_EXPORT := "Export"
 const TAB_SETTINGS := "Settings"
 
+const SCREEN_RESOURCES := "hex_map_resources_screen.gd"
+const SCREEN_GENERATE := "hex_map_gen_dock.gd"
+const SCREEN_PAINT := "hex_map_paint_screen.gd"
+const SCREEN_CATALOG := "hex_map_catalog_screen.gd"
+const SCREEN_LAYERS := "hex_map_layers_screen.gd"
+const SCREEN_VALIDATE := "hex_map_validate_screen.gd"
+const SCREEN_QA := "hex_map_qa_screen.gd"
+const SCREEN_EXPORT := "hex_map_export_screen.gd"
+const SCREEN_SETTINGS := "hex_map_settings_screen.gd"
+
 
 static func tab_names() -> PackedStringArray:
 	return PackedStringArray([
@@ -143,6 +153,40 @@ static func components_for_tab(tab_name: String) -> Array[Dictionary]:
 	return result
 
 
+static func component_for_tab_and_id(tab_name: String, component_id: String) -> Dictionary:
+	var actual_tab := canonical_tab_name(tab_name)
+	for row in components_for_tab(actual_tab):
+		if String(row.get("component_id", "")) == component_id:
+			return row.duplicate(true)
+	return {}
+
+
+static func component_owner_rows() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for row in component_rows():
+		result.append({
+			"tab": String(row.get("tab", "")),
+			"component_id": String(row.get("component_id", "")),
+			"component_class": String(row.get("component_class", "")),
+			"screen_script": String(row.get("screen_script", "")),
+			"screen_role_source": String(row.get("screen_role_source", "")),
+		})
+	return result
+
+
+static func component_owner_for(tab_name: String, component_id: String) -> Dictionary:
+	var row := component_for_tab_and_id(tab_name, component_id)
+	if row.is_empty():
+		return {}
+	return {
+		"tab": String(row.get("tab", "")),
+		"component_id": String(row.get("component_id", "")),
+		"component_class": String(row.get("component_class", "")),
+		"screen_script": String(row.get("screen_script", "")),
+		"screen_role_source": String(row.get("screen_role_source", "")),
+	}
+
+
 static func canonical_tab_name(tab_name: String) -> String:
 	return TAB_RESOURCES if tab_name == TAB_DOCUMENT_LEGACY else tab_name
 
@@ -173,11 +217,60 @@ static func _component(
 	source_owner: String,
 	asset_slot_ids: PackedStringArray = PackedStringArray()
 ) -> Dictionary:
+	var actual_tab := canonical_tab_name(tab_name)
 	return {
-		"tab": tab_name,
+		"tab": actual_tab,
 		"component_id": component_id,
 		"component_class": component_class,
 		"responsibility": responsibility,
 		"source_owner": source_owner,
 		"asset_slot_ids": asset_slot_ids.duplicate(),
+		"screen_script": screen_script_for_tab(actual_tab),
+		"screen_role_source": screen_role_source_for_tab(actual_tab),
 	}
+
+
+static func screen_script_for_tab(tab_name: String) -> String:
+	match canonical_tab_name(tab_name):
+		TAB_DOCUMENT:
+			return SCREEN_RESOURCES
+		TAB_GENERATE:
+			return SCREEN_GENERATE
+		TAB_PAINT:
+			return SCREEN_PAINT
+		TAB_CATALOG:
+			return SCREEN_CATALOG
+		TAB_LAYERS:
+			return SCREEN_LAYERS
+		TAB_VALIDATE:
+			return SCREEN_VALIDATE
+		TAB_QA:
+			return SCREEN_QA
+		TAB_EXPORT:
+			return SCREEN_EXPORT
+		TAB_SETTINGS:
+			return SCREEN_SETTINGS
+	return ""
+
+
+static func screen_role_source_for_tab(tab_name: String) -> String:
+	match canonical_tab_name(tab_name):
+		TAB_DOCUMENT:
+			return "HexMapResourcesScreen"
+		TAB_GENERATE:
+			return "HexMapGenDock"
+		TAB_PAINT:
+			return "HexMapPaintScreen"
+		TAB_CATALOG:
+			return "HexMapCatalogScreen"
+		TAB_LAYERS:
+			return "HexMapLayersScreen"
+		TAB_VALIDATE:
+			return "HexMapValidateScreen"
+		TAB_QA:
+			return "HexMapQAScreen"
+		TAB_EXPORT:
+			return "HexMapExportScreen"
+		TAB_SETTINGS:
+			return "HexMapSettingsScreen"
+	return ""

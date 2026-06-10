@@ -64,7 +64,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `ARCH-NEXT-10` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-10_PHYSICAL_WORKSPACE_UI_NODE_EXTRACTION/` | Physical Workspace UI node construction extraction | `HexMapWorkspace`, screen component scripts, tests | Workspace is tab host/context/dispatcher; screen-specific UI node construction moves to screen component classes; screen contract tests cover class ownership. |
+| `ARCH-NEXT-10` | `COMPLETE` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-10_PHYSICAL_WORKSPACE_UI_NODE_EXTRACTION/` | Physical Workspace UI node construction extraction | `HexMapWorkspace`, screen component scripts, tests | Workspace is tab host/context/dispatcher; screen-specific UI node construction moves to screen component classes; screen contract tests cover class ownership. |
 | `ARCH-NEXT-11` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-11_GENERATE_DOCK_INTERNAL_COMPONENT_SPLIT/` | Generate Dock internal component split | `hex_map_gen_dock.gd`, Generate components, tests | Generate run controls, profile/source controls, preview/result summary, output/apply/save controls split; `HexMapGenDock` orchestrates state binding. |
 | `CAT-NEXT-10` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/CAT-NEXT-10_CATALOG_EDITOR_COMPONENT_EXTRACTION/` | Catalog editor component extraction | Catalog screen/components, EditTool helper cleanup, tests | Catalog entry list/detail/create/validate is dedicated component; Paint/EditTool no longer own normal Catalog UI responsibility. |
 | `PERF-NEXT-10` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PERF-NEXT-10_CHUNKED_TILEMAP_APPLY_IMPLEMENTATION/` | Chunked TileMap apply implementation | apply paths, progress/busy state, tests | Target apply scope is explicit; apply advances by chunks; progress/busy state and cancel/interrupt consistency are defined and tested. |
@@ -78,7 +78,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | `GEN-NEXT-10` | `BACKLOG` | `ARCH-NEXT-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GEN-NEXT-10_GENERATE_TAB_LAYOUT_REDESIGN/` | Full Generate tab layout redesign | Generate components, UI metric tests | Input/Profile/Preview/Apply/Save/Performance state are visually separated; reload/save/apply purpose is clear. |
 | `GEN-NEXT-11` | `BACKLOG` | `GEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GEN-NEXT-11_GENERATE_QA_PREVIEW_THUMBNAILS/` | Generate / QA preview thumbnails | Generate/QA preview components, cache/budget tests | Generate candidate thumbnail and QA score row preview are connected; thumbnail is from project document/candidate data, not sample fallback. |
 | `CAT-NEXT-11` | `BACKLOG` | `CAT-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/CAT-NEXT-11_CATALOG_TILE_SCENE_PREVIEW_UI/` | Rich tile / scene preview UI | Catalog entry detail, TileSet/scene preview tests | Atlas tile and scene preview render in detail; invalid/missing preview uses badge/tooltip. |
-| `SCREEN-NEXT-10` | `BACKLOG` | `ARCH-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/SCREEN-NEXT-10_RESOURCES_LAYERS_EXPORT_VISUAL_REDESIGN/` | Rich Resources / Layers / Export visual redesign | Resources/Layers/Export screens, tests | Resources, Layers, and Export become clearer task surfaces for node/document/dependency, role tree, and runtime handoff state. |
+| `SCREEN-NEXT-10` | `READY` | `ARCH-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/SCREEN-NEXT-10_RESOURCES_LAYERS_EXPORT_VISUAL_REDESIGN/` | Rich Resources / Layers / Export visual redesign | Resources/Layers/Export screens, tests | Resources, Layers, and Export become clearer task surfaces for node/document/dependency, role tree, and runtime handoff state. |
 | `LAYER-NEXT-10` | `BACKLOG` | `SCREEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/LAYER-NEXT-10_LAYER_ROLE_EDITOR/` | Fine-grained Layer role editor | Layer screen/resource/tests | Role visible/locked/z-index/writable source can be edited and reflected in LayerStack/selected node state. |
 | `PAINT-NEXT-10` | `BACKLOG` | `SCREEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PAINT-NEXT-10_VIEWPORT_AFFORDANCE_POLISH/` | Paint viewport affordance polish | Paint tab, viewport adapter, tests | Brush cursor, selected cell, target layer, mode, and last edit feedback sync between viewport and Paint tab. |
 | `VAL-NEXT-10` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/VAL-NEXT-10_VALIDATE_RICH_ISSUE_TABLE_ACTIONS/` | Rich Validate issue table and actions | Validate screen, validation dashboard, tests | Issue table has severity/domain/scope/target/suggestion columns and only real per-issue actions. |
@@ -105,7 +105,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `ARCH-NEXT-20` | `BACKLOG` | `ARCH-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-20_OBJECT_LAYER_RENDERING_EXTRACTION/` | Object layer rendering extraction | HexTileMapLayer/object layer adapter/tests | Object placement rendering/runtime instancing boundary is separated; `HexTileMapLayer` remains coordinator. |
+| `ARCH-NEXT-20` | `READY` | `ARCH-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-20_OBJECT_LAYER_RENDERING_EXTRACTION/` | Object layer rendering extraction | HexTileMapLayer/object layer adapter/tests | Object placement rendering/runtime instancing boundary is separated; `HexTileMapLayer` remains coordinator. |
 | `ARCH-NEXT-21` | `BACKLOG` | `ARCH-NEXT-20` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-21_GAMEPLAY_QUERY_SERVICE_EXTRACTION/` | Gameplay query service extraction | path/range/connectivity services/tests | Runtime query helpers move to service/facade boundary; runtime samples use service path. |
 | `ARCH-NEXT-22` | `BACKLOG` | `ARCH-NEXT-20` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-22_DEBUG_OVERLAY_RENDERER_EXTRACTION/` | Debug overlay renderer extraction | debug overlay/validation focus/tests | Debug overlay rendering is separated from normal gameplay rendering and connects to Validate/debug report paths. |
 | `TEST-NEXT-10` | `READY` | `UI-METRIC-08` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/TEST-NEXT-10_CONTINUE_EDITOR_TEST_FILE_SPLIT/` | Continue editor integration test split | tests/test_editor_plugin.gd, new test files, tools/test.sh | Remaining integration tests split by feature family; `test_editor_plugin.gd` becomes workflow smoke; no old private widget shape expansion. |
@@ -140,7 +140,7 @@ acceptance / test path:
 
 ## 9. Current pointer
 
-Current recommended next task: `ARCH-NEXT-10`.
+Current recommended next task: `ARCH-NEXT-11`.
 
 Reason:
 
@@ -159,8 +159,11 @@ Reason:
 - `UI-METRIC-07` is complete.
 - `UI-METRIC-08` is complete.
 - Phase M2 review is recorded at `docs/review/roadmap/UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP_M2_PHASE_REVIEW_2026-06-10.md`.
-- `ARCH-NEXT-10` is the first READY task in queue order.
-- `TEST-NEXT-10` is also READY because `UI-METRIC-08` is complete.
+- `ARCH-NEXT-10` is complete.
+- `ARCH-NEXT-11` is the first READY task in queue order.
+- `SCREEN-NEXT-10` is READY because `ARCH-NEXT-10` is complete.
+- `ARCH-NEXT-20` is READY because `ARCH-NEXT-10` is complete.
+- `TEST-NEXT-10` remains READY because `UI-METRIC-08` is complete.
 
 ---
 
@@ -436,3 +439,29 @@ proof:
     - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-08_AUTOPILOT_ACCEPTANCE_TEMPLATE_UPDATE/IMPLEMENTATION_PLAN.md`
     - `docs/review/roadmap/UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP_M2_PHASE_REVIEW_2026-06-10.md`
     - `docs/review/autopilot/UI-METRIC-08_TEST_RESULT_2026-06-10.md`
+
+### ARCH-NEXT-10 Physical Workspace UI node construction extraction
+
+proof:
+  plan: `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-10_PHYSICAL_WORKSPACE_UI_NODE_EXTRACTION/`
+  review: `docs/review/autopilot/ARCH-NEXT-10_SELF_REVIEW_2026-06-10.md`
+  execution:
+    - `docs/review/autopilot/ARCH-NEXT-10_SELF_REVIEW_2026-06-10.md`
+  ui_metrics:
+    - `.godot_user/ui-metrics/20260610-184324-48462/workspace_layout_metrics.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_resources_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_catalog_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_layers_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_validate_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_qa_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_export_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_settings_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace_component_registry.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/ARCH-NEXT-10_TEST_RESULT_2026-06-10.md`

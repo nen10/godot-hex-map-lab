@@ -36,6 +36,7 @@ const HexMapValidateScreen = preload("res://addons/hex_map_kit/editor/hex_map_va
 const HexMapQAScreen = preload("res://addons/hex_map_kit/editor/hex_map_qa_screen.gd")
 const HexMapExportScreen = preload("res://addons/hex_map_kit/editor/hex_map_export_screen.gd")
 const HexMapPaintScreen = preload("res://addons/hex_map_kit/editor/hex_map_paint_screen.gd")
+const HexMapSettingsScreen = preload("res://addons/hex_map_kit/editor/hex_map_settings_screen.gd")
 const HexMapValidationDashboard = preload("res://addons/hex_map_kit/editor/hex_map_validation_dashboard.gd")
 const HexMapValidationWorkflowState = preload("res://addons/hex_map_kit/editor/hex_map_validation_workflow_state.gd")
 const HexMapExportWorkflowState = preload("res://addons/hex_map_kit/editor/hex_map_export_workflow_state.gd")
@@ -179,8 +180,15 @@ func settings_screen_snapshot() -> Dictionary:
 	var settings_slot_ids := tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_SETTINGS)
 	var resources_slot_ids := tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_DOCUMENT)
 	var empty_state := _settings_tab_empty_state()
+	var screen_role := HexMapSettingsScreen.screen_contract()
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_SETTINGS,
+		"screen_role_source": String(screen_role.get("screen_role_source", "")),
+		"screen_script": String(screen_role.get("screen_script", "")),
+		"workflow_owner": String(screen_role.get("workflow_owner", "Settings")),
+		"user_task": String(screen_role.get("user_task", "")),
+		"owned_sections": screen_role.get("owns", PackedStringArray()),
+		"delegates": screen_role.get("delegates", {}),
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_SETTINGS),
 		"asset_slot_ids": settings_slot_ids,
 		"purpose_text": String(empty_state.get("purpose_text", "")),
@@ -442,6 +450,7 @@ func workspace_screen_role_contracts() -> Dictionary:
 		HexMapWorkspaceComponentRegistry.TAB_VALIDATE: HexMapValidateScreen.screen_contract(),
 		HexMapWorkspaceComponentRegistry.TAB_QA: HexMapQAScreen.screen_contract(),
 		HexMapWorkspaceComponentRegistry.TAB_EXPORT: HexMapExportScreen.screen_contract(),
+		HexMapWorkspaceComponentRegistry.TAB_SETTINGS: HexMapSettingsScreen.screen_contract(),
 	}
 
 
@@ -720,6 +729,30 @@ func component_rows() -> Array[Dictionary]:
 
 func component_for_responsibility(responsibility: String) -> Dictionary:
 	return HexMapWorkspaceComponentRegistry.component_for_responsibility(responsibility)
+
+
+func component_owner_rows() -> Array[Dictionary]:
+	return HexMapWorkspaceComponentRegistry.component_owner_rows()
+
+
+func component_owner_for(tab_name: String, component_id: String) -> Dictionary:
+	return HexMapWorkspaceComponentRegistry.component_owner_for(_canonical_tab_name(tab_name), component_id)
+
+
+func mounted_component_owner_for(tab_name: String, component_id: String) -> Dictionary:
+	var components = _tab_components.get(_canonical_tab_name(tab_name), {})
+	if not components is Dictionary or not components.has(component_id):
+		return {}
+	var node = components[component_id] as Node
+	if node == null:
+		return {}
+	return {
+		"tab": _canonical_tab_name(tab_name),
+		"component_id": component_id,
+		"screen_script": String(node.get_meta("hex_workspace_screen_script", "")),
+		"screen_role_source": String(node.get_meta("hex_workspace_screen_role_source", "")),
+		"builder": String(node.get_meta("hex_workspace_builder", "")),
+	}
 
 
 func components_for_tab(tab_name: String) -> Array[Dictionary]:
@@ -3163,38 +3196,12 @@ func _mount_resources_context_panel() -> void:
 	var page = _tab_pages.get(HexMapWorkspaceComponentRegistry.TAB_DOCUMENT, null)
 	if page == null or _resources_context_panel != null:
 		return
-	_resources_context_panel = VBoxContainer.new()
-	_resources_context_panel.name = "Resources Context Panel"
-	_resources_context_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-	var title := Label.new()
-	title.text = "Selected HexTileMap Resources"
-	_resources_context_panel.add_child(title)
-
-	_resources_context_status_label = Label.new()
-	_resources_context_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_resources_context_panel.add_child(_resources_context_status_label)
-
-	for group in resource_group_rows():
-		var group_id := String(group.get("group_id", ""))
-		var label := Label.new()
-		var slot_labels = group.get("slot_labels", PackedStringArray()) as PackedStringArray
-		label.text = "%s: %s" % [
-			String(group.get("label", "")),
-			_join_text(slot_labels, ", "),
-		]
-		label.tooltip_text = String(group.get("tooltip", ""))
-		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		_resources_context_panel.add_child(label)
-		_resources_group_labels[group_id] = label
-
-	_resources_source_badges_label = Label.new()
-	_resources_source_badges_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_resources_context_panel.add_child(_resources_source_badges_label)
-
-	_resources_context_next_actions_label = Label.new()
-	_resources_context_next_actions_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_resources_context_panel.add_child(_resources_context_next_actions_label)
+	var built := HexMapResourcesScreen.build_resources_context_panel(resource_group_rows())
+	_resources_context_panel = built.get("root", null) as VBoxContainer
+	_resources_context_status_label = built.get("status_label", null) as Label
+	_resources_group_labels = built.get("group_labels", {}) as Dictionary
+	_resources_source_badges_label = built.get("source_badges_label", null) as Label
+	_resources_context_next_actions_label = built.get("next_actions_label", null) as Label
 
 	(page as Control).add_child(_resources_context_panel)
 	_register_tab_component(
@@ -3209,21 +3216,10 @@ func _mount_catalog_detail_panel() -> void:
 	var page = _tab_pages.get(HexMapWorkspaceComponentRegistry.TAB_CATALOG, null)
 	if page == null or _catalog_detail_panel != null:
 		return
-	_catalog_detail_panel = VBoxContainer.new()
-	_catalog_detail_panel.name = "Catalog Detail Panel"
-	_catalog_detail_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-	var title := Label.new()
-	title.text = "Catalog Entries"
-	_catalog_detail_panel.add_child(title)
-
-	_catalog_detail_status_label = Label.new()
-	_catalog_detail_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_catalog_detail_panel.add_child(_catalog_detail_status_label)
-
-	_catalog_detail_entry_label = Label.new()
-	_catalog_detail_entry_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_catalog_detail_panel.add_child(_catalog_detail_entry_label)
+	var built := HexMapCatalogScreen.build_catalog_detail_panel()
+	_catalog_detail_panel = built.get("root", null) as VBoxContainer
+	_catalog_detail_status_label = built.get("status_label", null) as Label
+	_catalog_detail_entry_label = built.get("entry_label", null) as Label
 
 	(page as Control).add_child(_catalog_detail_panel)
 	_register_tab_component(
@@ -3238,25 +3234,11 @@ func _mount_layer_stack_role_panel() -> void:
 	var page = _tab_pages.get(HexMapWorkspaceComponentRegistry.TAB_LAYERS, null)
 	if page == null or _layer_stack_role_panel != null:
 		return
-	_layer_stack_role_panel = VBoxContainer.new()
-	_layer_stack_role_panel.name = "Layer Stack Role Panel"
-	_layer_stack_role_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-	var title := Label.new()
-	title.text = "Layer Stack Roles"
-	_layer_stack_role_panel.add_child(title)
-
-	_layer_stack_role_status_label = Label.new()
-	_layer_stack_role_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_layer_stack_role_panel.add_child(_layer_stack_role_status_label)
-
-	_layer_stack_role_relationship_label = Label.new()
-	_layer_stack_role_relationship_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_layer_stack_role_panel.add_child(_layer_stack_role_relationship_label)
-
-	_layer_stack_role_rows_label = Label.new()
-	_layer_stack_role_rows_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_layer_stack_role_panel.add_child(_layer_stack_role_rows_label)
+	var built := HexMapLayersScreen.build_layer_stack_role_panel()
+	_layer_stack_role_panel = built.get("root", null) as VBoxContainer
+	_layer_stack_role_status_label = built.get("status_label", null) as Label
+	_layer_stack_role_relationship_label = built.get("relationship_label", null) as Label
+	_layer_stack_role_rows_label = built.get("rows_label", null) as Label
 
 	(page as Control).add_child(_layer_stack_role_panel)
 	_register_tab_component(
@@ -3290,42 +3272,16 @@ func _mount_missing_unique_resources_panel() -> void:
 	var page = _tab_pages.get(HexMapWorkspaceComponentRegistry.TAB_DOCUMENT, null)
 	if page == null or _missing_unique_resources_panel != null:
 		return
-	_missing_unique_resources_panel = VBoxContainer.new()
-	_missing_unique_resources_panel.name = "Missing Unique Resources Panel"
-	_missing_unique_resources_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-	var title := Label.new()
-	title.text = "Missing resources for Selected HexTileMap"
-	_missing_unique_resources_panel.add_child(title)
-
-	_missing_unique_resources_status_label = Label.new()
-	_missing_unique_resources_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_missing_unique_resources_panel.add_child(_missing_unique_resources_status_label)
-
-	var directory_row := HBoxContainer.new()
-	_missing_unique_resources_save_directory_label = Label.new()
-	_missing_unique_resources_save_directory_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	directory_row.add_child(_missing_unique_resources_save_directory_label)
-	_missing_unique_resources_choose_directory_button = Button.new()
-	_missing_unique_resources_choose_directory_button.text = "Choose Folder..."
+	var built := HexMapResourcesScreen.build_missing_unique_resources_panel()
+	_missing_unique_resources_panel = built.get("root", null) as VBoxContainer
+	_missing_unique_resources_status_label = built.get("status_label", null) as Label
+	_missing_unique_resources_save_directory_label = built.get("save_directory_label", null) as Label
+	_missing_unique_resources_choose_directory_button = built.get("choose_directory_button", null) as Button
 	_missing_unique_resources_choose_directory_button.pressed.connect(_on_missing_unique_resources_choose_directory_pressed)
-	directory_row.add_child(_missing_unique_resources_choose_directory_button)
-	_missing_unique_resources_panel.add_child(directory_row)
-
-	var prefix_row := HBoxContainer.new()
-	var prefix_label := Label.new()
-	prefix_label.text = "Resource prefix"
-	prefix_row.add_child(prefix_label)
-	_missing_unique_resources_prefix_edit = LineEdit.new()
-	_missing_unique_resources_prefix_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_missing_unique_resources_prefix_edit = built.get("prefix_edit", null) as LineEdit
 	_missing_unique_resources_prefix_edit.text_changed.connect(_on_missing_unique_resources_prefix_changed)
-	prefix_row.add_child(_missing_unique_resources_prefix_edit)
-	_missing_unique_resources_panel.add_child(prefix_row)
-
-	_missing_unique_resources_create_button = Button.new()
-	_missing_unique_resources_create_button.text = "Create Missing Resources"
+	_missing_unique_resources_create_button = built.get("create_button", null) as Button
 	_missing_unique_resources_create_button.pressed.connect(_on_create_missing_unique_resources_pressed)
-	_missing_unique_resources_panel.add_child(_missing_unique_resources_create_button)
 
 	(page as Control).add_child(_missing_unique_resources_panel)
 	_register_tab_component(
@@ -3340,28 +3296,13 @@ func _mount_validation_issue_navigator() -> void:
 	var page = _tab_pages.get(HexMapWorkspaceComponentRegistry.TAB_VALIDATE, null)
 	if page == null or _validation_issue_navigator != null:
 		return
-	_validation_issue_navigator = VBoxContainer.new()
-	_validation_issue_navigator.name = "Validation Issue Navigator"
-	_validation_issue_navigator.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_validation_issue_navigator.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var title := Label.new()
-	title.text = "Validation Issues"
-	_validation_issue_navigator.add_child(title)
-	var action_row := HBoxContainer.new()
-	_validation_issue_navigator.add_child(action_row)
-	_validation_run_button = Button.new()
-	_validation_run_button.text = "Run Validation"
+	var built := HexMapValidateScreen.build_validation_issue_navigator()
+	_validation_issue_navigator = built.get("root", null) as VBoxContainer
+	_validation_run_button = built.get("run_button", null) as Button
 	_validation_run_button.pressed.connect(_on_validate_screen_run_pressed)
-	action_row.add_child(_validation_run_button)
-	_validation_issue_status_label = Label.new()
-	_validation_issue_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_validation_issue_navigator.add_child(_validation_issue_status_label)
-	_validation_issue_selected_label = Label.new()
-	_validation_issue_selected_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_validation_issue_navigator.add_child(_validation_issue_selected_label)
-	_validation_issue_rows_label = Label.new()
-	_validation_issue_rows_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_validation_issue_navigator.add_child(_validation_issue_rows_label)
+	_validation_issue_status_label = built.get("status_label", null) as Label
+	_validation_issue_selected_label = built.get("selected_label", null) as Label
+	_validation_issue_rows_label = built.get("rows_label", null) as Label
 	(page as Control).add_child(_validation_issue_navigator)
 	_register_tab_component(
 		HexMapWorkspaceComponentRegistry.TAB_VALIDATE,
@@ -3375,25 +3316,11 @@ func _mount_qa_seed_lab_panel() -> void:
 	var page = _tab_pages.get(HexMapWorkspaceComponentRegistry.TAB_QA, null)
 	if page == null or _qa_seed_lab_panel != null:
 		return
-	_qa_seed_lab_panel = VBoxContainer.new()
-	_qa_seed_lab_panel.name = "QA Seed Lab Panel"
-	_qa_seed_lab_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-	var title := Label.new()
-	title.text = "Seed Lab"
-	_qa_seed_lab_panel.add_child(title)
-
-	_qa_seed_lab_status_label = Label.new()
-	_qa_seed_lab_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_qa_seed_lab_panel.add_child(_qa_seed_lab_status_label)
-
-	_qa_seed_lab_selected_label = Label.new()
-	_qa_seed_lab_selected_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_qa_seed_lab_panel.add_child(_qa_seed_lab_selected_label)
-
-	_qa_seed_lab_rows_label = Label.new()
-	_qa_seed_lab_rows_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_qa_seed_lab_panel.add_child(_qa_seed_lab_rows_label)
+	var built := HexMapQAScreen.build_seed_lab_panel()
+	_qa_seed_lab_panel = built.get("root", null) as VBoxContainer
+	_qa_seed_lab_status_label = built.get("status_label", null) as Label
+	_qa_seed_lab_selected_label = built.get("selected_label", null) as Label
+	_qa_seed_lab_rows_label = built.get("rows_label", null) as Label
 
 	(page as Control).add_child(_qa_seed_lab_panel)
 	_register_tab_component(
@@ -3408,25 +3335,11 @@ func _mount_export_purpose_panel() -> void:
 	var page = _tab_pages.get(HexMapWorkspaceComponentRegistry.TAB_EXPORT, null)
 	if page == null or _export_purpose_panel != null:
 		return
-	_export_purpose_panel = VBoxContainer.new()
-	_export_purpose_panel.name = "Export Purpose Panel"
-	_export_purpose_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-	var title := Label.new()
-	title.text = "Runtime Handoff"
-	_export_purpose_panel.add_child(title)
-
-	_export_purpose_status_label = Label.new()
-	_export_purpose_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_export_purpose_panel.add_child(_export_purpose_status_label)
-
-	_export_purpose_mode_label = Label.new()
-	_export_purpose_mode_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_export_purpose_panel.add_child(_export_purpose_mode_label)
-
-	_export_purpose_backlog_label = Label.new()
-	_export_purpose_backlog_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_export_purpose_panel.add_child(_export_purpose_backlog_label)
+	var built := HexMapExportScreen.build_export_purpose_panel()
+	_export_purpose_panel = built.get("root", null) as VBoxContainer
+	_export_purpose_status_label = built.get("status_label", null) as Label
+	_export_purpose_mode_label = built.get("mode_label", null) as Label
+	_export_purpose_backlog_label = built.get("backlog_label", null) as Label
 
 	(page as Control).add_child(_export_purpose_panel)
 	_register_tab_component(
@@ -3441,38 +3354,16 @@ func _mount_export_destination_panel() -> void:
 	var page = _tab_pages.get(HexMapWorkspaceComponentRegistry.TAB_EXPORT, null)
 	if page == null:
 		return
-	_export_destination_panel = VBoxContainer.new()
-	_export_destination_panel.name = "Export Destination Panel"
-	_export_destination_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-	var title := Label.new()
-	title.text = "Runtime Handoff Destination"
-	_export_destination_panel.add_child(title)
-
-	_export_destination_label = Label.new()
-	_export_destination_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_export_destination_panel.add_child(_export_destination_label)
-
-	_export_recent_destinations_label = Label.new()
-	_export_recent_destinations_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_export_destination_panel.add_child(_export_recent_destinations_label)
-
-	var actions := HBoxContainer.new()
-	_export_choose_destination_button = Button.new()
-	_export_choose_destination_button.text = "Choose Destination..."
+	var built := HexMapExportScreen.build_export_destination_panel()
+	_export_destination_panel = built.get("root", null) as VBoxContainer
+	_export_destination_label = built.get("destination_label", null) as Label
+	_export_recent_destinations_label = built.get("recent_destinations_label", null) as Label
+	_export_choose_destination_button = built.get("choose_destination_button", null) as Button
 	_export_choose_destination_button.pressed.connect(_on_export_choose_destination_pressed)
-	actions.add_child(_export_choose_destination_button)
-
-	_export_use_recent_button = Button.new()
-	_export_use_recent_button.text = "Use Recent"
+	_export_use_recent_button = built.get("use_recent_button", null) as Button
 	_export_use_recent_button.pressed.connect(_on_export_use_recent_pressed)
-	actions.add_child(_export_use_recent_button)
-
-	_export_run_button = Button.new()
-	_export_run_button.text = "Create Runtime Handoff"
+	_export_run_button = built.get("run_button", null) as Button
 	_export_run_button.pressed.connect(_on_export_run_workspace_pressed)
-	actions.add_child(_export_run_button)
-	_export_destination_panel.add_child(actions)
 
 	(page as Control).add_child(_export_destination_panel)
 	_register_tab_component(
@@ -3487,25 +3378,11 @@ func _mount_settings_preferences_panel() -> void:
 	var page = _tab_pages.get(HexMapWorkspaceComponentRegistry.TAB_SETTINGS, null)
 	if page == null or _settings_preferences_panel != null:
 		return
-	_settings_preferences_panel = VBoxContainer.new()
-	_settings_preferences_panel.name = "Settings Preferences Panel"
-	_settings_preferences_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-	var title := Label.new()
-	title.text = "Settings"
-	_settings_preferences_panel.add_child(title)
-
-	_settings_preferences_status_label = Label.new()
-	_settings_preferences_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_settings_preferences_panel.add_child(_settings_preferences_status_label)
-
-	_settings_preferences_debug_label = Label.new()
-	_settings_preferences_debug_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_settings_preferences_panel.add_child(_settings_preferences_debug_label)
-
-	_settings_preferences_resource_label = Label.new()
-	_settings_preferences_resource_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_settings_preferences_panel.add_child(_settings_preferences_resource_label)
+	var built := HexMapSettingsScreen.build_settings_preferences_panel()
+	_settings_preferences_panel = built.get("root", null) as VBoxContainer
+	_settings_preferences_status_label = built.get("status_label", null) as Label
+	_settings_preferences_debug_label = built.get("debug_label", null) as Label
+	_settings_preferences_resource_label = built.get("resource_label", null) as Label
 
 	(page as Control).add_child(_settings_preferences_panel)
 	_register_tab_component(
@@ -5031,9 +4908,22 @@ func _canonical_tab_name(tab_name: String) -> String:
 
 
 func _register_tab_component(tab_name: String, component_id: String, control: Control) -> void:
-	if not _tab_components.has(tab_name):
-		_tab_components[tab_name] = {}
-	_tab_components[tab_name][component_id] = control
+	var actual_tab := _canonical_tab_name(tab_name)
+	_apply_component_owner_metadata(actual_tab, component_id, control)
+	if not _tab_components.has(actual_tab):
+		_tab_components[actual_tab] = {}
+	_tab_components[actual_tab][component_id] = control
+
+
+func _apply_component_owner_metadata(tab_name: String, component_id: String, control: Control) -> void:
+	if control == null:
+		return
+	var owner := HexMapWorkspaceComponentRegistry.component_owner_for(tab_name, component_id)
+	if owner.is_empty():
+		return
+	control.set_meta("hex_workspace_component_id", component_id)
+	control.set_meta("hex_workspace_screen_script", String(owner.get("screen_script", "")))
+	control.set_meta("hex_workspace_screen_role_source", String(owner.get("screen_role_source", "")))
 
 
 func _refresh_sample_learning_cta() -> void:
