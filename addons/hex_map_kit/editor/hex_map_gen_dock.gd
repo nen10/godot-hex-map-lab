@@ -642,6 +642,44 @@ func _build_ui() -> void:
 
 	# ── Input ──────────────────────────────────────────────
 
+	_build_target_layer_row(input_section)
+	_build_shape_option_rows(input_section)
+	_build_generator_methods_section(input_section)
+	_add_to_generate_layout_section(input_section, _build_seed_controls())
+	_build_mode_adjacency_row(input_section)
+	_wall_prob_row = _build_wall_probability_controls()
+	_add_to_generate_layout_section(input_section, _wall_prob_row)
+
+	# ── Profile / Source ───────────────────────────────────
+
+	_build_markov_mesh_row(profile_source_section)
+	_add_to_generate_layout_section(profile_source_section, _build_overlay_adjacency_controls())
+
+	# ── Apply / Save ───────────────────────────────────────
+
+	_add_to_generate_layout_section(apply_save_section, _build_output_target_controls())
+	_add_to_generate_layout_section(apply_save_section, _build_apply_write_controls())
+	_add_to_generate_layout_section(apply_save_section, _build_separator())
+	_add_to_generate_layout_section(apply_save_section, _build_save_apply_controls())
+
+	# ── Preview ────────────────────────────────────────────
+
+	_add_to_generate_layout_section(preview_section, _build_candidate_thumbnail_controls())
+	_add_to_generate_layout_section(preview_section, _build_seed_lab_controls())
+	_add_to_generate_layout_section(preview_section, _build_result_summary_controls())
+
+	# ── Performance ────────────────────────────────────────
+
+	_add_to_generate_layout_section(performance_section, _build_generation_progress_controls())
+
+	# ── Profile / Source (continued) ───────────────────────
+
+	_add_to_generate_layout_section(profile_source_section, _build_overlay_controls())
+	_add_to_generate_layout_section(profile_source_section, _build_separator())
+	_add_to_generate_layout_section(profile_source_section, _build_tile_layer_controls())
+
+
+func _build_target_layer_row(input_section: VBoxContainer) -> void:
 	var target_row = HBoxContainer.new()
 	target_row.add_child(_build_small_label("Target Layer"))
 	_tile_layer_option = OptionButton.new()
@@ -656,8 +694,8 @@ func _build_ui() -> void:
 	target_row.add_child(_tile_layer_refresh_button)
 	_add_to_generate_layout_section(input_section, target_row)
 
-	_add_to_generate_layout_section(apply_save_section, _build_output_target_controls())
 
+func _build_shape_option_rows(input_section: VBoxContainer) -> void:
 	_size_container = HBoxContainer.new()
 	_add_to_generate_layout_section(input_section, _size_container)
 
@@ -681,12 +719,12 @@ func _build_ui() -> void:
 	_size_container.add_child(_shape_symmetric_row)
 	_shape_symmetric_row.add_child(_wrap_labeled("Shape", _shape_option_symmetric))
 
-
 	_build_rectangle_size_controls()
 	_build_hexagon_size_controls()
 	_build_gen_radius_controls()
 
 
+func _build_generator_methods_section(input_section: VBoxContainer) -> void:
 	var generate_methods = HBoxContainer.new()
 	var generator_labels = VBoxContainer.new()
 	var generate_method_rows = VBoxContainer.new()
@@ -696,11 +734,11 @@ func _build_ui() -> void:
 
 	_deductor_label = Label.new()
 	_deductor_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_deductor_label.text = "Passage Generator" # "Passage Generator / Overlay Deductor"
+	_deductor_label.text = "Passage Generator"
 	generator_labels.add_child(_deductor_label)
 	_generator_label = Label.new()
 	_generator_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_generator_label.text = "Wall Generator" # "Wall Generator / Overlay Generator"
+	_generator_label.text = "Wall Generator"
 	generator_labels.add_child(_generator_label)
 	generate_methods.add_child(generator_labels)
 
@@ -751,11 +789,8 @@ func _build_ui() -> void:
 
 	_add_to_generate_layout_section(input_section, generate_methods)
 
-	_add_to_generate_layout_section(input_section, _build_seed_controls())
-	_add_to_generate_layout_section(preview_section, _build_candidate_thumbnail_controls())
-	_add_to_generate_layout_section(preview_section, _build_seed_lab_controls())
-	_add_to_generate_layout_section(performance_section, _build_generation_progress_controls())
 
+func _build_mode_adjacency_row(input_section: VBoxContainer) -> void:
 	var mode_row = HBoxContainer.new()
 
 	_overlay_adjacency_check = CheckButton.new()
@@ -780,11 +815,8 @@ func _build_ui() -> void:
 	mode_row.add_child(limit_row)
 	_add_to_generate_layout_section(input_section, mode_row)
 
-	_wall_prob_row = _build_wall_probability_controls()
-	_add_to_generate_layout_section(input_section, _wall_prob_row)
 
-	# ── Profile / Source ───────────────────────────────────
-
+func _build_markov_mesh_row(profile_source_section: VBoxContainer) -> void:
 	_sym_options_container = VBoxContainer.new()
 	_sym_options_container.visible = false
 
@@ -807,20 +839,6 @@ func _build_ui() -> void:
 
 	_sym_options_container.add_child(dist_row)
 	_add_to_generate_layout_section(profile_source_section, _sym_options_container)
-
-	_add_to_generate_layout_section(profile_source_section, _build_overlay_adjacency_controls())
-
-	_add_to_generate_layout_section(apply_save_section, _build_apply_write_controls())
-
-	_add_to_generate_layout_section(apply_save_section, _build_separator())
-
-	_add_to_generate_layout_section(apply_save_section, _build_save_apply_controls())
-	_add_to_generate_layout_section(preview_section, _build_result_summary_controls())
-
-	_add_to_generate_layout_section(profile_source_section, _build_overlay_controls())
-
-	_add_to_generate_layout_section(profile_source_section, _build_separator())
-	_add_to_generate_layout_section(profile_source_section, _build_tile_layer_controls())
 
 
 func _build_overlay_controls() -> Control:

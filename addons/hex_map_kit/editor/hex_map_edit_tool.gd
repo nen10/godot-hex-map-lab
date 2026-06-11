@@ -1201,7 +1201,34 @@ func forward_canvas_gui_input(event: InputEvent) -> bool:
 func _build_ui() -> void:
 	if _mode_option != null:
 		return
+	_build_title_row()
+	_build_document_section()
+	_build_import_export_section()
+	_build_target_mode_row()
+	_build_layer_stack_section()
+	_build_catalog_section()
+	_build_default_target_tiles_section()
+	_build_target_tileset_atlas_section()
+	_build_paint_tile_row()
+	_build_paint_overlay_row()
+	_build_paint_object_section()
+	_build_paint_label_section()
+	_build_status_footer()
+	_sync_resource_pickers()
+	_refresh_layer_stack_screen()
+	_refresh_catalog_entries()
+	_refresh_object_palette()
+	_refresh_object_property_editor()
+	_refresh_target_status_detail()
+	_refresh_last_edit_detail()
+	_refresh_persistence_detail()
+	_refresh_payload_controls_visibility()
+	_refresh_overlay_item_key_options()
+	_refresh_paint_workspace_summary()
+	_refresh_action_button_states()
 
+
+func _build_title_row() -> void:
 	var title = Label.new()
 	title.text = "Hex Map Edit"
 	add_child(title)
@@ -1211,6 +1238,8 @@ func _build_ui() -> void:
 	_paint_affordance_label = _new_detail_label()
 	add_child(_wrap_labeled("Paint Affordances", _paint_affordance_label))
 
+
+func _build_document_section() -> void:
 	var document_actions_row = HBoxContainer.new()
 	_document_new_button = Button.new()
 	_document_new_button.text = "New Document"
@@ -1260,6 +1289,8 @@ func _build_ui() -> void:
 	document_path_row.add_child(_wrap_labeled("Saved", _document_path_edit))
 	add_child(document_path_row)
 
+
+func _build_import_export_section() -> void:
 	var import_resource_row = HBoxContainer.new()
 	import_resource_row.visible = false
 	if _can_use_editor_resource_picker():
@@ -1313,6 +1344,8 @@ func _build_ui() -> void:
 	export_path_row.add_child(_export_save_as_button)
 	add_child(export_path_row)
 
+
+func _build_target_mode_row() -> void:
 	_target_label = Label.new()
 	add_child(_target_label)
 	var target_row = HBoxContainer.new()
@@ -1333,6 +1366,8 @@ func _build_ui() -> void:
 	_mode_option.item_selected.connect(_on_mode_selected)
 	add_child(_wrap_labeled("Edit Mode", _mode_option))
 
+
+func _build_layer_stack_section() -> void:
 	var layer_stack_title = Label.new()
 	layer_stack_title.text = "Layer Stack"
 	layer_stack_title.visible = false
@@ -1381,6 +1416,8 @@ func _build_ui() -> void:
 	layer_stack_actions.add_child(_layer_stack_clear_role_button)
 	add_child(layer_stack_actions)
 
+
+func _build_catalog_section() -> void:
 	var catalog_title = Label.new()
 	catalog_title.text = "Catalog"
 	add_child(catalog_title)
@@ -1435,6 +1472,8 @@ func _build_ui() -> void:
 	catalog_actions_row.add_child(_catalog_validate_button)
 	add_child(catalog_actions_row)
 
+
+func _build_default_target_tiles_section() -> void:
 	var default_tiles_title = Label.new()
 	default_tiles_title.text = "Default Target Tiles"
 	add_child(default_tiles_title)
@@ -1487,6 +1526,8 @@ func _build_ui() -> void:
 	default_tile_action_row.add_child(_default_tile_apply_button)
 	add_child(default_tile_action_row)
 
+
+func _build_target_tileset_atlas_section() -> void:
 	var target_asset_title = Label.new()
 	target_asset_title.text = "Target TileSet / Atlas"
 	add_child(target_asset_title)
@@ -1528,6 +1569,8 @@ func _build_ui() -> void:
 	sample_row.add_child(_select_display_layer_button)
 	add_child(sample_row)
 
+
+func _build_paint_tile_row() -> void:
 	_tile_catalog_option = _new_catalog_option("floor")
 	_tile_catalog_option.item_selected.connect(_on_tile_catalog_selected)
 	add_child(_wrap_labeled("Tile Catalog", _tile_catalog_option))
@@ -1546,6 +1589,8 @@ func _build_ui() -> void:
 	atlas_row.add_child(_wrap_labeled("Alt", _tile_alternative_spin))
 	add_child(atlas_row)
 
+
+func _build_paint_overlay_row() -> void:
 	_overlay_item_key_edit = LineEdit.new()
 	_overlay_item_key_edit.placeholder_text = "overlay item key"
 	_overlay_item_key_edit.text = _overlay_item_key
@@ -1556,6 +1601,8 @@ func _build_ui() -> void:
 	_overlay_item_key_option.item_selected.connect(_on_overlay_item_key_option_selected)
 	add_child(_wrap_labeled("Overlay Item", _overlay_item_key_option))
 
+
+func _build_paint_object_section() -> void:
 	_object_id_edit = LineEdit.new()
 	_object_id_edit.placeholder_text = "object_id"
 	_object_id_edit.text_changed.connect(_on_object_payload_changed)
@@ -1632,6 +1679,8 @@ func _build_ui() -> void:
 	_object_spawn_condition_option.item_selected.connect(_on_object_spawn_condition_option_selected)
 	add_child(_wrap_labeled("Spawn", _object_spawn_condition_option))
 
+
+func _build_paint_label_section() -> void:
 	_label_id_edit = LineEdit.new()
 	_label_id_edit.placeholder_text = "label_id"
 	_label_id_edit.text_changed.connect(_on_label_payload_changed)
@@ -1658,6 +1707,8 @@ func _build_ui() -> void:
 	_label_text_edit.text_changed.connect(_on_label_payload_changed)
 	add_child(_wrap_labeled("Text", _label_text_edit))
 
+
+func _build_status_footer() -> void:
 	_status_label = Label.new()
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	add_child(_status_label)
@@ -1676,18 +1727,6 @@ func _build_ui() -> void:
 	_copy_debug_report_button.text = "Copy Debug Report"
 	_copy_debug_report_button.pressed.connect(_on_copy_debug_report_pressed)
 	add_child(_copy_debug_report_button)
-	_sync_resource_pickers()
-	_refresh_layer_stack_screen()
-	_refresh_catalog_entries()
-	_refresh_object_palette()
-	_refresh_object_property_editor()
-	_refresh_target_status_detail()
-	_refresh_last_edit_detail()
-	_refresh_persistence_detail()
-	_refresh_payload_controls_visibility()
-	_refresh_overlay_item_key_options()
-	_refresh_paint_workspace_summary()
-	_refresh_action_button_states()
 
 
 func _apply_hex_tile_map_layer_hit(hit: Dictionary) -> bool:
