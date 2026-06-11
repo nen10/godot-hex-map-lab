@@ -107,7 +107,7 @@ const QUERY_ROW_MATCHES := [QUERY_ROW_MATCH_CONTAIN, QUERY_ROW_MATCH_EXCLUDE]
 const GENERATION_BLOCK_EMPTY_MASK := "Placement Mask query result is empty."
 const GENERATION_BLOCK_EMPTY_ADJACENCY_RULES := "Adjacency Rules has no valid rules."
 const GENERATION_BLOCK_STATUS_PREFIX := "Blocked: "
-const QUERY_HEX_CELL_DEFAULT_RADIUS := 20.0
+const QUERY_HEX_CELL_DEFAULT_RADIUS := 16.0
 const QUERY_HEX_CELL_DEFAULT_GAP := 0.0
 const QUERY_HEX_CELL_DEFAULT_PADDING := 16.0
 const QUERY_KIND_MASK := "mask"
@@ -1306,7 +1306,6 @@ func _build_query_cell_settings_controls() -> Control:
 	_query_cell_padding_spin.value_changed.connect(_on_query_cell_padding_changed)
 	row.add_child(_query_cell_padding_spin)
 	row.visible = false
-	row.visible = true
 	return row
 
 
@@ -1383,10 +1382,10 @@ func _build_query_row_controls(mask_query) -> Control:
 	add_button.text = "Add Row"
 	add_button.pressed.connect(_on_query_add_row_pressed.bind(query_kind))
 	add_row.add_child(add_button)
-	box.add_child(add_row)
 
 	var rows = VBoxContainer.new()
 	box.add_child(rows)
+	box.add_child(add_row)
 
 	if query_kind == QUERY_KIND_MASK:
 		_overlay_mask_add_source_option = option
@@ -1654,6 +1653,8 @@ func _apply_editor_icon(button: Button, fallback_text: String) -> void:
 			button.icon = theme.get_icon("ArrowDown", "EditorIcons")
 		"✕":
 			button.icon = theme.get_icon("Close", "EditorIcons")
+		"↻":
+			button.icon = theme.get_icon("Reload", "EditorIcons")
 	if button.icon != null:
 		button.text = ""
 
@@ -2195,7 +2196,8 @@ func _add_query_row(
 
 	var source_label = Label.new()
 	source_label.custom_minimum_size = Vector2(96, 0)
-	source_label.add_theme_font_size_override("font_size", 24)
+	source_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	source_label.add_theme_font_size_override("font_size", 20)
 	bottom_row.add_child(source_label)
 
 	var offset_row = HBoxContainer.new()
@@ -2206,11 +2208,14 @@ func _add_query_row(
 
 	var shift_header = Label.new()
 	shift_header.text = "Layer Shift"
+	shift_header.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	shift_header.add_theme_font_size_override("font_size", 20)
 	offset_labels.add_child(shift_header)
 
 	var offset_label = Label.new()
-	offset_label.text = "0,0,0"
+	offset_label.text = "0, 0, 0"
+	offset_label.add_theme_font_size_override("font_size", 24)
+	offset_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	offset_labels.add_child(offset_label)
 
 	var row := {
@@ -2222,6 +2227,7 @@ func _add_query_row(
 		"source_id": source_id,
 		"item_key": item_key,
 		"offset": HexVector.zero(),
+		"offset_clicks": {},
 		"offset_label": offset_label,
 		"query_kind": query_kind,
 		"mask_query": query_kind == QUERY_KIND_MASK,
@@ -2234,6 +2240,11 @@ func _add_query_row(
 	var offset_control = _build_query_offset_control(row, query_kind)
 	offset_row.add_child(offset_control)
 
+	var reset_button = _new_icon_button("↻", "Reset offset to (0,0,0)")
+	reset_button.pressed.connect(_on_offset_reset_pressed.bind(row, query_kind))
+	offset_row.add_child(reset_button)
+	row["offset_reset"] = reset_button
+
 	var move_buttons = VBoxContainer.new()
 	move_buttons.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	
@@ -2244,14 +2255,12 @@ func _add_query_row(
 
 	var down_button = _new_icon_button("▼", "Move row down")
 	down_button.pressed.connect(_on_query_row_move_pressed.bind(row, query_kind, 1))
-
 	move_buttons.add_child(down_button)
 	row["down"] = down_button
 	row_root.add_child(move_buttons)
 
 	var remove_button = _new_icon_button("✕", "Remove row")
 	remove_button.pressed.connect(_on_query_row_remove_pressed.bind(row, query_kind))
-	remove_button.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	row_root.add_child(remove_button)
 	row["remove"] = remove_button
 
@@ -2386,14 +2395,51 @@ func _on_query_offset_cell_pressed(entry: Dictionary, row: Dictionary, mask_quer
 	var direction = metadata.get("direction", null)
 	if direction == null:
 		return
+	var direction_index = int(metadata.get("direction_index", -1))
 	var query_kind = _query_kind_from_value(mask_query)
 	var offset = row.get("offset", HexVector.zero())
 	offset = offset.add(direction)
 	row["offset"] = offset
+
+	var clicks: Dictionary = row.get("offset_clicks", {})
+	var label_key = _query_direction_label(direction_index)
+	clicks[label_key] = int(clicks.get(label_key, 0)) + 1
+	row["offset_clicks"] = clicks
+
 	var label: Label = row["offset_label"]
-	label.text = offset.key()
+	var raw_text = _format_signed_components(clicks)
+	label.text = raw_text
+	label.add_theme_font_size_override("font_size", 24)
+	label.tooltip_text = "input offset:(%s)\ncannonical hexcoord: (%s)\n(%s) = (%s) in HEX Map" % [raw_text, offset.key(), raw_text, offset.key()]
+	label.mouse_filter = Control.MOUSE_FILTER_STOP
+
 	_refresh_query_offset_panel(row)
 	_on_query_row_edited(query_kind)
+
+
+func _on_offset_reset_pressed(row: Dictionary, mask_query) -> void:
+	var query_kind = _query_kind_from_value(mask_query)
+	row["offset"] = HexVector.zero()
+	row["offset_clicks"] = {}
+	var label: Label = row["offset_label"]
+	label.text = "0, 0, 0"
+	label.add_theme_font_size_override("font_size", 24)
+	label.tooltip_text = "Current offset (0,0,0)\n(0, 0, 0) = (0,0,0)"
+	_refresh_query_offset_panel(row)
+	_on_query_row_edited(query_kind)
+
+
+func _format_signed_components(clicks) -> String:
+	var count := [0,0,0]
+	for direction_index in range(6):
+		count[direction_index % 3] = count[direction_index % 3] + (1 - (direction_index % 2 * 2)) * clicks.get(_query_direction_label(direction_index), 0)
+
+	var parts: Array[String] = [
+		"%d" % int(count[0]),
+		"%d" % int(count[2]),
+		"%d" % int(count[1]),
+	]
+	return "%s" % ", ".join(parts)
 
 
 func _on_query_row_move_pressed(row: Dictionary, mask_query, delta: int) -> void:
