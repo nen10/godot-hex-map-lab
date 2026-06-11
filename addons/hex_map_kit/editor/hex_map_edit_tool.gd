@@ -15,6 +15,7 @@ const HexMapPaintScreen = preload("res://addons/hex_map_kit/editor/hex_map_paint
 const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
 const HexMapEditorSessionState = preload("res://addons/hex_map_kit/editor/hex_map_editor_session_state.gd")
 const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
+const HexMapWorkspaceBindingService = preload("res://addons/hex_map_kit/editor/hex_map_workspace_binding_service.gd")
 const HexMapCatalogEditorComponent = preload("res://addons/hex_map_kit/editor/hex_map_catalog_editor_component.gd")
 const HexMapValidationDashboard = preload("res://addons/hex_map_kit/editor/hex_map_validation_dashboard.gd")
 const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
@@ -3850,9 +3851,22 @@ func _editable_target_from_node(node):
 	if node is HexTileMapLayer:
 		return node
 	if node is TileMapLayer:
-		if _is_hex_tile_map_internal_layer(node):
+		if HexMapWorkspaceBindingService._is_hex_tile_map_internal_layer(node):
 			var parent = node.get_parent()
 			return parent if parent is HexTileMapLayer else null
+	return null
+
+
+func _tile_layer_target_from_node(node):
+	if node == null or not is_instance_valid(node):
+		return null
+	if node is HexTileMapLayer:
+		return node
+	if node is TileMapLayer:
+		var parent = node.get_parent()
+		if parent is HexTileMapLayer:
+			return parent
+		return node
 	return null
 
 
@@ -3932,17 +3946,6 @@ func _apply_layer_stack_to_target(_apply_document: bool) -> bool:
 	)
 	_refresh_layer_stack_screen()
 	return ok
-
-
-func _is_hex_tile_map_internal_layer(node: Node) -> bool:
-	if node == null or not (node is TileMapLayer):
-		return false
-	var parent = node.get_parent()
-	if not (parent is HexTileMapLayer):
-		return false
-	return node.name == HexTileMapLayer.BASE_TILE_MAP_NAME \
-		or node.name == HexTileMapLayer.LOOP_TILE_MAP_NAME \
-		or node.name == HexTileMapLayer.OVERLAY_TILE_MAP_NAME
 
 
 func _select_target_layer_option(layer: Node) -> void:

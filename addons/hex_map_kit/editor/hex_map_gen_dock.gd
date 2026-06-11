@@ -516,12 +516,13 @@ func _register_generation_component(component_id: String, control: Control) -> v
 	_generation_components[component_id] = control
 
 
-func _build_generate_layout_section(section_id: String, title: String) -> VBoxContainer:
+func _build_generate_layout_section(section_id: String, title: String = "") -> VBoxContainer:
 	var box := VBoxContainer.new()
 	box.name = "Generate %s Section" % title.replace(" / ", " ")
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.set_meta("hex_generate_layout_section_id", section_id)
-	box.add_child(_build_section_label(title))
+	if title !="":
+		box.add_child(_build_section_label(title))
 	_generation_layout_sections[section_id] = box
 	return box
 
@@ -628,7 +629,7 @@ func _reload_save_apply_purpose_clear(actions: Dictionary) -> bool:
 func _build_ui() -> void:
 	add_child(_build_section_label("Hex Map Kit"))
 
-	var input_section := _build_generate_layout_section(GENERATE_LAYOUT_SECTION_INPUT, "Input")
+	var input_section := _build_generate_layout_section(GENERATE_LAYOUT_SECTION_INPUT, "")
 	var profile_source_section := _build_generate_layout_section(GENERATE_LAYOUT_SECTION_PROFILE_SOURCE, "Profile / Source")
 	var preview_section := _build_generate_layout_section(GENERATE_LAYOUT_SECTION_PREVIEW, "Preview")
 	var apply_save_section := _build_generate_layout_section(GENERATE_LAYOUT_SECTION_APPLY_SAVE, "Apply / Save")
