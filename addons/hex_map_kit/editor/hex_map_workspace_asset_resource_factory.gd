@@ -46,14 +46,32 @@ static func create_resource_for_slot(slot_id: String) -> Resource:
 		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE:
 			var validation_suite = HexValidationRuleSuiteResource.new()
 			validation_suite.resource_name = "Project Validation Suite"
+			validation_suite.validation_targets = PackedStringArray(["document", "dependencies", "catalog", "profiles"])
+			validation_suite.severity_overrides = {
+				"document.object_on_wall": "error",
+				"document.missing_catalog_assignment": "error",
+				"dependency.type_mismatch": "error",
+			}
 			return validation_suite
 		HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE:
 			var generation_profile = HexGenerationProfileResource.new()
 			generation_profile.resource_name = "Project Generation Profile"
+			generation_profile.generator_id = "standard_map"
+			generation_profile.seed_policy = "profile_default"
+			generation_profile.shape_id = "rectangle"
+			generation_profile.width = 12
+			generation_profile.height = 8
+			generation_profile.wall_probability = 0.18
+			generation_profile.connectivity_mode = "dense"
 			return generation_profile
 		HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE:
 			var export_profile = HexExportProfileResource.new()
 			export_profile.resource_name = "Project Export Profile"
+			export_profile.output_type = "runtime_handoff_resource"
+			export_profile.file_extension = ".tres"
+			export_profile.include_metadata = true
+			export_profile.include_validation_summary = true
+			export_profile.include_runtime_queries = true
 			return export_profile
 	return null
 

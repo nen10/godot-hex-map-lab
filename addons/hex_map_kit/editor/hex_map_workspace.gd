@@ -4468,11 +4468,16 @@ func _profile_resource_context(context: HexMapWorkspaceAssetContext, slot_id: St
 			"status": "optional_missing" if _profile_slot_is_optional(slot_id) else "missing",
 			"missing_state": "optional" if _profile_slot_is_optional(slot_id) else "required",
 			"preset_source": "",
+			"behavior_schema": {},
+			"behavior_schema_kind": "",
+			"behavior_schema_status": "optional_missing" if _profile_slot_is_optional(slot_id) else "missing",
+			"behavior_summary": "",
 		}
 	var metadata = resource.get("metadata") if resource != null else {}
 	var metadata_preset_source := ""
 	if metadata is Dictionary:
 		metadata_preset_source = String((metadata as Dictionary).get("preset_source", ""))
+	var behavior_schema := _profile_behavior_schema(resource)
 	return {
 		"selected": true,
 		"resource_name": resource.resource_name,
@@ -4484,6 +4489,10 @@ func _profile_resource_context(context: HexMapWorkspaceAssetContext, slot_id: St
 		"status": "selected",
 		"missing_state": "",
 		"preset_source": metadata_preset_source if metadata_preset_source != "" else String(resource.get_meta("preset_source", "")),
+		"behavior_schema": behavior_schema,
+		"behavior_schema_kind": String(behavior_schema.get("kind", "")),
+		"behavior_schema_status": "selected" if not behavior_schema.is_empty() else "unavailable",
+		"behavior_summary": _profile_behavior_summary(behavior_schema),
 	}
 
 
@@ -4491,6 +4500,46 @@ func _profile_slot_is_optional(slot_id: String) -> bool:
 	return slot_id == HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE \
 		or slot_id == HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE \
 		or slot_id == HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE
+
+
+func _profile_behavior_schema(resource: Resource) -> Dictionary:
+	if resource == null or not resource.has_method("behavior_schema"):
+		return {}
+	var schema = resource.call("behavior_schema")
+	return (schema as Dictionary).duplicate(true) if schema is Dictionary else {}
+
+
+func _profile_behavior_summary(schema: Dictionary) -> String:
+	var kind := String(schema.get("kind", ""))
+	match kind:
+		"validation_rule_suite":
+			var enabled = schema.get("enabled_rule_ids", PackedStringArray())
+			var disabled = schema.get("disabled_rule_ids", PackedStringArray())
+			var targets = schema.get("validation_targets", PackedStringArray())
+			var explicit_count := (enabled as PackedStringArray).size() if enabled is PackedStringArray else 0
+			var disabled_count := (disabled as PackedStringArray).size() if disabled is PackedStringArray else 0
+			var target_count := (targets as PackedStringArray).size() if targets is PackedStringArray else 0
+			return "Validation schema: %d explicit rules, %d disabled, %d targets" % [
+				explicit_count,
+				disabled_count,
+				target_count,
+			]
+		"generation_profile":
+			var shape = schema.get("shape", {}) as Dictionary
+			var terrain = schema.get("terrain", {}) as Dictionary
+			return "Generation schema: %s %dx%d, connectivity %s" % [
+				String(shape.get("shape_id", "")),
+				int(shape.get("width", 0)),
+				int(shape.get("height", 0)),
+				String(terrain.get("connectivity_mode", "")),
+			]
+		"export_profile":
+			return "Export schema: %s%s, runtime queries %s" % [
+				String(schema.get("output_type", "")),
+				String(schema.get("file_extension", "")),
+				_bool_label(bool(schema.get("include_runtime_queries", false))),
+			]
+	return ""
 
 
 func _resource_class_name(resource: Resource) -> String:
@@ -4708,6 +4757,19 @@ func _generation_profile_preset(preset_id: String) -> Resource:
 	profile.profile_id = id
 	profile.display_name = "%s Generation Profile" % id.capitalize()
 	profile.resource_name = "%s Generation Profile" % id.capitalize()
+	profile.generator_id = "standard_map"
+	profile.seed_policy = "preset_default"
+	profile.shape_id = "rectangle"
+	profile.width = 12
+	profile.height = 8
+	profile.wall_probability = 0.18
+	profile.connectivity_mode = "dense"
+	if id == "sparse":
+		profile.wall_probability = 0.08
+		profile.connectivity_mode = "sparse"
+	elif id == "dense":
+		profile.wall_probability = 0.28
+		profile.connectivity_mode = "dense"
 	profile.metadata = {
 		"preset_source": id,
 		"profile_kind": "generation",
@@ -4725,6 +4787,12 @@ func _validation_rule_suite_preset(preset_id: String) -> Resource:
 	suite.suite_id = id
 	suite.display_name = "Standard Validation Rule Suite"
 	suite.resource_name = "Standard Validation Rule Suite"
+	suite.validation_targets = PackedStringArray(["document", "dependencies", "catalog", "profiles"])
+	suite.severity_overrides = {
+		"document.object_on_wall": "error",
+		"document.orphan_payload": "warning",
+		"dependency.type_mismatch": "error",
+	}
 	suite.metadata = {
 		"preset_source": id,
 		"profile_kind": "validation",

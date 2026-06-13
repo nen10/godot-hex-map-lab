@@ -1545,6 +1545,21 @@ func _test_workspace_hydrates_asset_context_from_document_dependencies() -> void
 		"HexValidationRuleSuiteResource",
 		"PROFILE-31 Validate profile context reports concrete class"
 	)
+	var validation_behavior = validation_suite_context["behavior_schema"] as Dictionary
+	_assert_eq(
+		String(validation_behavior.get("kind", "")),
+		"validation_rule_suite",
+		"PROFILE-NEXT-10 Validate profile context exposes validation behavior schema"
+	)
+	_assert_eq(
+		String(validation_suite_context.get("behavior_schema_status", "")),
+		"selected",
+		"PROFILE-NEXT-10 Validate profile context marks selected behavior schema"
+	)
+	_assert_true(
+		String(validation_suite_context.get("behavior_summary", "")).contains("Validation schema"),
+		"PROFILE-NEXT-10 Validate profile context exposes behavior summary"
+	)
 	var qa_snapshot = workspace.qa_screen_snapshot()
 	var generation_profile_slot = qa_snapshot["generation_profile_slot"] as Dictionary
 	_assert_eq(
@@ -1562,6 +1577,22 @@ func _test_workspace_hydrates_asset_context_from_document_dependencies() -> void
 		HexMapDocumentDependencyService.SOURCE_BADGE_DOCUMENT_DEPENDENCY,
 		"PROFILE-31 QA profile context reports document dependency source"
 	)
+	var generation_profile_context = qa_snapshot["generation_profile_context"] as Dictionary
+	var generation_behavior = generation_profile_context["behavior_schema"] as Dictionary
+	_assert_eq(
+		String(generation_behavior.get("kind", "")),
+		"generation_profile",
+		"PROFILE-NEXT-10 QA profile context exposes generation behavior schema"
+	)
+	_assert_eq(
+		String(generation_profile_context.get("behavior_schema_status", "")),
+		"selected",
+		"PROFILE-NEXT-10 QA profile context marks selected generation behavior"
+	)
+	_assert_true(
+		String(generation_profile_context.get("behavior_summary", "")).contains("Generation schema"),
+		"PROFILE-NEXT-10 QA profile context exposes generation behavior summary"
+	)
 	var export_snapshot = workspace.export_screen_snapshot()
 	var export_profile_slot = export_snapshot["export_profile_slot"] as Dictionary
 	_assert_eq(
@@ -1578,6 +1609,22 @@ func _test_workspace_hydrates_asset_context_from_document_dependencies() -> void
 		String((export_snapshot["export_profile_context"] as Dictionary).get("resource_class", "")),
 		"HexExportProfileResource",
 		"PROFILE-31 Export profile context reports concrete class"
+	)
+	var export_profile_context = export_snapshot["export_profile_context"] as Dictionary
+	var export_behavior = export_profile_context["behavior_schema"] as Dictionary
+	_assert_eq(
+		String(export_behavior.get("kind", "")),
+		"export_profile",
+		"PROFILE-NEXT-10 Export profile context exposes export behavior schema"
+	)
+	_assert_eq(
+		String(export_profile_context.get("behavior_schema_status", "")),
+		"selected",
+		"PROFILE-NEXT-10 Export profile context marks selected export behavior"
+	)
+	_assert_true(
+		String(export_profile_context.get("behavior_summary", "")).contains("Export schema"),
+		"PROFILE-NEXT-10 Export profile context exposes export behavior summary"
 	)
 	var resources_snapshot = workspace.resources_screen_snapshot()
 	var source_snapshot = resources_snapshot["asset_source_snapshot"] as Dictionary
@@ -2706,17 +2753,32 @@ func _test_validate_asset_screen_reports_missing_project_assets_without_samples(
 		"optional_missing",
 		"PROFILE-31 Validate profile context reports optional missing state"
 	)
+	_assert_eq(
+		((snapshot["validation_rule_suite_context"] as Dictionary)["behavior_schema"] as Dictionary).is_empty(),
+		true,
+		"PROFILE-NEXT-10 missing Validation Suite context has no behavior schema"
+	)
 	var qa_missing_snapshot = workspace.qa_screen_snapshot()
 	_assert_eq(
 		String((qa_missing_snapshot["generation_profile_context"] as Dictionary).get("status", "")),
 		"optional_missing",
 		"PROFILE-31 QA profile context reports optional missing state"
 	)
+	_assert_eq(
+		String((qa_missing_snapshot["generation_profile_context"] as Dictionary).get("behavior_schema_status", "")),
+		"optional_missing",
+		"PROFILE-NEXT-10 missing Generation Profile context marks missing behavior schema"
+	)
 	var export_missing_snapshot = workspace.export_screen_snapshot()
 	_assert_eq(
 		String((export_missing_snapshot["export_profile_context"] as Dictionary).get("status", "")),
 		"optional_missing",
 		"PROFILE-31 Export profile context reports optional missing state"
+	)
+	_assert_eq(
+		String((export_missing_snapshot["export_profile_context"] as Dictionary).get("behavior_schema_status", "")),
+		"optional_missing",
+		"PROFILE-NEXT-10 missing Export Profile context marks missing behavior schema"
 	)
 
 	var selection = workspace.select_validate_issue(int(document_row["index"]))
@@ -2819,6 +2881,11 @@ func _test_qa_asset_screen_manages_profiles_and_score_context_without_samples() 
 	_assert_true(FileAccess.file_exists(profile_path), "QA screen writes project Generation Profile")
 	var profile = profile_result["resource"] as HexGenerationProfileResource
 	_assert_true(profile is HexGenerationProfileResource, "QA screen create returns generation profile resource")
+	_assert_eq(
+		String(profile.behavior_schema().get("kind", "")),
+		"generation_profile",
+		"PROFILE-NEXT-10 created Generation Profile exposes behavior schema"
+	)
 	_assert_eq(workspace.workspace_asset_context().generation_profile, profile, "created generation profile enters workspace context")
 	_assert_eq(
 		workspace.tab_asset_slot_snapshot("QA", HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE).get("current_source", ""),
@@ -2832,6 +2899,11 @@ func _test_qa_asset_screen_manages_profiles_and_score_context_without_samples() 
 	_assert_true(FileAccess.file_exists(suite_path), "QA screen writes project Validation Rule Suite")
 	var suite = suite_result["resource"] as HexValidationRuleSuiteResource
 	_assert_true(suite is HexValidationRuleSuiteResource, "QA screen create returns validation suite resource")
+	_assert_eq(
+		String(suite.behavior_schema().get("kind", "")),
+		"validation_rule_suite",
+		"PROFILE-NEXT-10 created Validation Suite exposes behavior schema"
+	)
 	_assert_eq(workspace.workspace_asset_context().validation_rule_suite, suite, "created validation suite enters workspace context")
 
 	var score_context = workspace.qa_score_table_context()
@@ -2843,6 +2915,16 @@ func _test_qa_asset_screen_manages_profiles_and_score_context_without_samples() 
 		_assert_true(score_context_columns.has(column), "QA-NEXT-10 score context exposes column: %s" % column)
 	_assert_true(bool((score_context["generation_profile"] as Dictionary).get("selected", false)), "QA score context reports selected generation profile")
 	_assert_true(bool((score_context["validation_rule_suite"] as Dictionary).get("selected", false)), "QA score context reports selected validation suite")
+	_assert_eq(
+		String(((score_context["generation_profile"] as Dictionary)["behavior_schema"] as Dictionary).get("kind", "")),
+		"generation_profile",
+		"PROFILE-NEXT-10 QA score context carries generation behavior schema"
+	)
+	_assert_eq(
+		String(((score_context["validation_rule_suite"] as Dictionary)["behavior_schema"] as Dictionary).get("kind", "")),
+		"validation_rule_suite",
+		"PROFILE-NEXT-10 QA score context carries validation behavior schema"
+	)
 	_assert_eq(
 		String((score_context["generation_profile"] as Dictionary).get("resource_path", "")),
 		profile_path,
@@ -2875,6 +2957,13 @@ func _test_qa_asset_screen_manages_profiles_and_score_context_without_samples() 
 	var duplicated_profile = preset_profile["resource"] as Resource
 	_assert_true(duplicated_profile is HexGenerationProfileResource, "PROFILE-30 duplicated generation profile uses concrete resource")
 	_assert_eq(String(duplicated_profile.get_meta("preset_source", "")), "balanced", "duplicated generation profile records preset source")
+	var duplicated_generation_schema = (duplicated_profile as HexGenerationProfileResource).behavior_schema()
+	var duplicated_generation_terrain = duplicated_generation_schema["terrain"] as Dictionary
+	_assert_eq(
+		String(duplicated_generation_terrain.get("connectivity_mode", "")),
+		"dense",
+		"PROFILE-NEXT-10 duplicated generation preset carries concrete behavior"
+	)
 	_assert_eq(workspace.workspace_asset_context().generation_profile, duplicated_profile, "duplicated generation profile enters workspace context")
 
 	var preset_suite_path = "%s/standard_validation_suite.tres" % output_dir
@@ -2884,6 +2973,11 @@ func _test_qa_asset_screen_manages_profiles_and_score_context_without_samples() 
 	var duplicated_suite = preset_suite["resource"] as Resource
 	_assert_true(duplicated_suite is HexValidationRuleSuiteResource, "PROFILE-30 duplicated validation suite uses concrete resource")
 	_assert_eq(String(duplicated_suite.get_meta("preset_source", "")), "standard", "duplicated validation suite records preset source")
+	_assert_eq(
+		String((duplicated_suite as HexValidationRuleSuiteResource).rule_severity("document.object_on_wall", "")),
+		"error",
+		"PROFILE-NEXT-10 duplicated validation preset carries severity behavior"
+	)
 	_assert_eq(workspace.workspace_asset_context().validation_rule_suite, duplicated_suite, "duplicated validation suite enters workspace context")
 
 	score_context = workspace.qa_score_table_context()
@@ -3145,11 +3239,22 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 	_assert_true(FileAccess.file_exists(profile_path), "Export screen writes project Export Profile")
 	var export_profile = profile_result["resource"] as HexExportProfileResource
 	_assert_true(export_profile is HexExportProfileResource, "Export screen create returns export profile resource")
+	_assert_eq(
+		String(export_profile.behavior_schema().get("kind", "")),
+		"export_profile",
+		"PROFILE-NEXT-10 created Export Profile exposes behavior schema"
+	)
 	_assert_eq(workspace.workspace_asset_context().export_profile, export_profile, "created export profile enters workspace context")
 	_assert_eq(
 		workspace.tab_asset_slot_snapshot("Export", HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE).get("current_source", ""),
 		HexMapEditorAssetSlotState.SOURCE_PROJECT,
 		"Export screen marks export profile as project asset"
+	)
+	snapshot = workspace.export_screen_snapshot()
+	_assert_eq(
+		String(((snapshot["export_profile_context"] as Dictionary)["behavior_schema"] as Dictionary).get("kind", "")),
+		"export_profile",
+		"PROFILE-NEXT-10 Export screen snapshot carries export behavior schema"
 	)
 
 	var profile_open = workspace.open_export_profile()

@@ -76,6 +76,7 @@ func _run() -> void:
 	_test_hex_map_document_schema_roundtrips_canonical_resources()
 	_test_clean_resource_api_contract_covers_canonical_paths()
 	_test_hex_map_document_dependency_service_crud_hydrates_and_validates()
+	_test_profile_behavior_resources_roundtrip_schemas()
 	_test_hex_map_document_summary_reports_canonical_counts()
 	_test_hex_map_validation_result_serializes_summary_and_warnings()
 	_test_hex_generation_result_resource_serializes_scope_and_replay()
@@ -1028,6 +1029,98 @@ func _test_hex_map_document_dependency_service_crud_hydrates_and_validates() -> 
 		HexMapDocumentValidator.RULE_DEPENDENCY_TYPE_MISMATCH,
 		"PROFILE-31 service validation rejects generic Resource profile dependencies"
 	)
+
+
+func _test_profile_behavior_resources_roundtrip_schemas() -> void:
+	var validation_suite = HexValidationRuleSuiteResource.new()
+	validation_suite.suite_id = "strict"
+	validation_suite.display_name = "Strict Validation"
+	validation_suite.enabled_rule_ids = PackedStringArray(["document.object_on_wall"])
+	validation_suite.disabled_rule_ids = PackedStringArray(["document.orphan_payload"])
+	validation_suite.severity_overrides = {
+		"document.object_on_wall": "error",
+	}
+	validation_suite.rule_parameters = {
+		"document.object_on_wall": {
+			"allow_labels": false,
+		},
+	}
+	validation_suite.validation_targets = PackedStringArray(["document", "profiles"])
+	validation_suite.fail_fast = true
+	var validation_path = _test_resource_path("profile_next_validation_suite.tres")
+	var validation_error = ResourceSaver.save(validation_suite, validation_path)
+	var loaded_validation = load(validation_path) as HexValidationRuleSuiteResource
+	var validation_schema = loaded_validation.behavior_schema()
+
+	_assert_eq(validation_error, OK, "PROFILE-NEXT-10 validation suite saves")
+	_assert_eq(String(validation_schema["kind"]), "validation_rule_suite", "PROFILE-NEXT-10 validation schema kind is concrete")
+	_assert_eq(loaded_validation.rule_enabled("document.object_on_wall"), true, "PROFILE-NEXT-10 validation schema enables listed rule")
+	_assert_eq(loaded_validation.rule_enabled("document.orphan_payload"), false, "PROFILE-NEXT-10 validation schema disables listed rule")
+	_assert_eq(loaded_validation.rule_severity("document.object_on_wall"), "error", "PROFILE-NEXT-10 validation schema preserves severity")
+	_assert_eq(
+		bool(loaded_validation.rule_parameter("document.object_on_wall", "allow_labels", true)),
+		false,
+		"PROFILE-NEXT-10 validation schema preserves rule parameters"
+	)
+	_assert_eq(
+		(validation_schema["validation_targets"] as PackedStringArray).has("profiles"),
+		true,
+		"PROFILE-NEXT-10 validation schema preserves target scopes"
+	)
+	_assert_eq(bool(validation_schema["fail_fast"]), true, "PROFILE-NEXT-10 validation schema preserves fail-fast behavior")
+
+	var generation_profile = HexGenerationProfileResource.new()
+	generation_profile.profile_id = "seed_lab"
+	generation_profile.display_name = "Seed Lab Generation"
+	generation_profile.generator_id = "standard_map"
+	generation_profile.default_seed = 42
+	generation_profile.seed_policy = "profile_default"
+	generation_profile.shape_id = "hexagon"
+	generation_profile.width = 9
+	generation_profile.height = 7
+	generation_profile.radius = 5
+	generation_profile.wall_probability = 0.42
+	generation_profile.connectivity_mode = "sparse"
+	generation_profile.overlay_policy = "uniform_distribution"
+	generation_profile.validation_mode = "validate_before_promotion"
+	generation_profile.parameters = {"overlay_key": "terrain.forest"}
+	var generation_path = _test_resource_path("profile_next_generation_profile.tres")
+	var generation_error = ResourceSaver.save(generation_profile, generation_path)
+	var loaded_generation = load(generation_path) as HexGenerationProfileResource
+	var generation_schema = loaded_generation.behavior_schema()
+	var generation_options = loaded_generation.generation_options()
+
+	_assert_eq(generation_error, OK, "PROFILE-NEXT-10 generation profile saves")
+	_assert_eq(String(generation_schema["kind"]), "generation_profile", "PROFILE-NEXT-10 generation schema kind is concrete")
+	_assert_eq(String(generation_options["shape_id"]), "hexagon", "PROFILE-NEXT-10 generation options preserve shape")
+	_assert_eq(int((generation_schema["shape"] as Dictionary)["radius"]), 5, "PROFILE-NEXT-10 generation schema preserves radius")
+	_assert_eq(float((generation_schema["terrain"] as Dictionary)["wall_probability"]), 0.42, "PROFILE-NEXT-10 generation schema preserves wall probability")
+	_assert_eq(String((generation_schema["terrain"] as Dictionary)["connectivity_mode"]), "sparse", "PROFILE-NEXT-10 generation schema preserves connectivity")
+	_assert_eq(String(loaded_generation.parameter_value("overlay_key", "")), "terrain.forest", "PROFILE-NEXT-10 generation schema preserves parameter bag")
+
+	var export_profile = HexExportProfileResource.new()
+	export_profile.profile_id = "runtime"
+	export_profile.display_name = "Runtime Export"
+	export_profile.output_type = "runtime_handoff_resource"
+	export_profile.file_extension = ".res"
+	export_profile.include_metadata = false
+	export_profile.include_validation_summary = true
+	export_profile.include_runtime_queries = false
+	export_profile.include_debug_report = true
+	export_profile.options = {"compression": "none"}
+	var export_path = _test_resource_path("profile_next_export_profile.tres")
+	var export_error = ResourceSaver.save(export_profile, export_path)
+	var loaded_export = load(export_path) as HexExportProfileResource
+	var export_schema = loaded_export.behavior_schema()
+	var export_options = loaded_export.export_options()
+
+	_assert_eq(export_error, OK, "PROFILE-NEXT-10 export profile saves")
+	_assert_eq(String(export_schema["kind"]), "export_profile", "PROFILE-NEXT-10 export schema kind is concrete")
+	_assert_eq(String(export_options["file_extension"]), ".res", "PROFILE-NEXT-10 export options preserve file extension")
+	_assert_eq(bool(export_schema["include_metadata"]), false, "PROFILE-NEXT-10 export schema preserves metadata inclusion")
+	_assert_eq(bool(export_schema["include_validation_summary"]), true, "PROFILE-NEXT-10 export schema preserves validation summary inclusion")
+	_assert_eq(bool(export_schema["include_runtime_queries"]), false, "PROFILE-NEXT-10 export schema preserves runtime query flag")
+	_assert_eq(String(loaded_export.option_value("compression", "")), "none", "PROFILE-NEXT-10 export schema preserves option bag")
 
 
 func _test_hex_map_document_summary_reports_canonical_counts() -> void:
