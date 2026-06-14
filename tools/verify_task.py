@@ -170,10 +170,12 @@ def main() -> int:
 
     # ---- Check 4: tests added when acceptance requires them --------------
     row = head_rows.get(task, {})
-    # The "tests" signal can live in the deliverable, target-files, or acceptance cell.
+    # The test-delivery signal is the queue's `/tests` convention in the target-files
+    # cell (also "tests are recorded" in acceptance). Match "tests" (plural) so the
+    # `docs/TEST.md` filename and "no analog test" negations don't trip a docs task.
     blob = " ".join([row.get("deliverable", ""), row.get("target_files", ""),
                      row.get("acceptance", "")]).lower()
-    test_required = "test" in blob
+    test_required = "tests" in blob and "no analog test" not in blob
     added_test_lines = diff_added_lines(base, head, *TEST_ROOTS)
     assert_adds = [ln for ln in added_test_lines
                    if re.search(r"_assert|\bfunc _test", ln) or task in ln]
