@@ -14,6 +14,7 @@ const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile
 const HexTileMapResourceBinding = preload("res://addons/hex_map_kit/adapter/hex_tile_map_resource_binding.gd")
 const HexOverlayTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_overlay_tile_adapter.gd")
 const HexObjectLayerAdapter = preload("res://addons/hex_map_kit/adapter/hex_object_layer_adapter.gd")
+const HexObjectLayerRenderer = preload("res://addons/hex_map_kit/adapter/hex_object_layer_renderer.gd")
 const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
 const HexGameplayLayerData = preload("res://addons/hex_map_kit/adapter/hex_gameplay_layer_data.gd")
 const HexGrid = preload("res://addons/hex_map_kit/core/hex_grid.gd")
@@ -33,7 +34,6 @@ const BASE_TILE_MAP_NAME := "TileMapLayer"
 const LOOP_TILE_MAP_NAME := "LoopTileMapLayer"
 const OVERLAY_TILE_MAP_NAME := "OverlayTileMapLayer"
 const OVERLAY_NAME := "OverlayLayer"
-const OBJECT_INSTANCE_LAYER_NAME := "ObjectInstanceLayer"
 const EDIT_MODE_SHAPE := "shape"
 const EDIT_MODE_WALL_FLOOR := "wall_floor"
 const EDIT_MODE_FLOOR_TILE := "floor_tile"
@@ -120,9 +120,9 @@ class OverlayCanvas:
 var _tile_map: TileMapLayer
 var _loop_tile_map: TileMapLayer
 var _overlay_tile_map: TileMapLayer
-var _object_instance_layer: Node2D
 var _overlay: OverlayCanvas
 var _data = null
+var _object_layer_renderer = HexObjectLayerRenderer.new()
 var _highlights: Dictionary = {}
 var _display_path: Array = []
 var _path_color := Color(0.12, 0.48, 0.88, 0.90)
@@ -191,7 +191,15 @@ func _draw_overlay(canvas: Node2D) -> void:
 			var tile_center = _display_center_for_hex(visual_hex)
 			_draw_hex_highlight(canvas, tile_center, color)
 
-	_draw_document_payload_markers(canvas)
+	_object_layer_renderer.draw_document_payload_markers(
+		canvas,
+		_object_markers_by_key,
+		_label_markers_by_key,
+		Callable(self, "_visual_hexes_for_draw"),
+		Callable(self, "_display_center_for_hex"),
+		hex_size,
+		_data != null
+	)
 
 	if _display_path.size() > 1:
 		var points := PackedVector2Array()
@@ -398,21 +406,21 @@ func apply_object_scene_tiles_to_layer(document, object_layer: TileMapLayer = nu
 		return 0
 	var adapter_options = options.duplicate(true)
 	adapter_options["flat_top"] = flat_top
-	return HexObjectLayerAdapter.apply_scene_tile_prototypes(target_layer, document, adapter_options)
+	return _object_layer_renderer.apply_scene_tile_prototypes(target_layer, document, adapter_options)
 
 
 func apply_object_instances(document, parent: Node = null, options: Dictionary = {}) -> int:
 	var target_parent = parent
 	if target_parent == null:
-		target_parent = _ensure_object_instance_layer()
+		target_parent = _object_layer_renderer.ensure_object_instance_layer(self)
 	var adapter_options = options.duplicate(true)
 	adapter_options["flat_top"] = flat_top
 	adapter_options["hex_size"] = hex_size
-	return HexObjectLayerAdapter.apply_direct_instance_prototypes(target_parent, document, adapter_options)
+	return _object_layer_renderer.apply_direct_instance_prototypes(target_parent, document, adapter_options)
 
 
 func object_instance_layer() -> Node2D:
-	return _object_instance_layer
+	return _object_layer_renderer.ensure_object_instance_layer(self)
 
 
 func last_tile_map_apply_report() -> Dictionary:
@@ -1135,30 +1143,6 @@ func _draw_loop_cell_outlines(canvas: Node2D) -> void:
 			_draw_hex_highlight(canvas, _display_center_for_hex(visual_hex), duplicate_color)
 
 
-func _draw_document_payload_markers(canvas: Node2D) -> void:
-	if _data == null:
-		return
-	var object_color := Color(0.10, 0.60, 0.82, 0.92)
-	var label_color := Color(0.94, 0.74, 0.18, 0.92)
-	for key in _object_markers_by_key:
-		var bucket: Dictionary = _object_markers_by_key[key]
-		var hex = bucket.get("hex", null)
-		if hex == null:
-			continue
-		for visual_hex in _visual_hexes_for_draw(hex):
-			var center = _display_center_for_hex(visual_hex)
-			canvas.draw_circle(center + Vector2(0.0, -hex_size * 0.24), maxf(3.0, hex_size * 0.13), object_color)
-	for key in _label_markers_by_key:
-		var bucket: Dictionary = _label_markers_by_key[key]
-		var hex = bucket.get("hex", null)
-		if hex == null:
-			continue
-		for visual_hex in _visual_hexes_for_draw(hex):
-			var center = _display_center_for_hex(visual_hex)
-			var marker_size = Vector2(maxf(7.0, hex_size * 0.42), maxf(3.0, hex_size * 0.12))
-			canvas.draw_rect(Rect2(center + Vector2(-marker_size.x * 0.5, hex_size * 0.18), marker_size), label_color)
-
-
 func _effective_loop_display_rect() -> Rect2:
 	if loop_display_rect.size != Vector2.ZERO:
 		return loop_display_rect
@@ -1821,8 +1805,6 @@ func _ensure_tile_map_layers() -> void:
 			_overlay_tile_map = child
 		elif child is OverlayCanvas and child.name == OVERLAY_NAME:
 			_overlay = child
-		elif child is Node2D and child.name == OBJECT_INSTANCE_LAYER_NAME:
-			_object_instance_layer = child
 		elif child is TileMapLayer and _tile_map == null:
 			_tile_map = child
 	if _tile_map == null:
@@ -1841,26 +1823,10 @@ func _ensure_tile_map_layers() -> void:
 		_overlay = OverlayCanvas.new()
 		_overlay.name = OVERLAY_NAME
 		add_child(_overlay, false, INTERNAL_MODE_FRONT)
-	if _object_instance_layer == null:
-		_object_instance_layer = Node2D.new()
-		_object_instance_layer.name = OBJECT_INSTANCE_LAYER_NAME
-		add_child(_object_instance_layer, false, INTERNAL_MODE_FRONT)
 	_overlay_tile_map.z_index = 50
-	_object_instance_layer.z_index = 60
 	_overlay.layer = self
 	_overlay.z_index = 100
 	_overlay.position = Vector2.ZERO
-
-
-func _ensure_object_instance_layer() -> Node2D:
-	if _object_instance_layer == null or not is_instance_valid(_object_instance_layer):
-		_object_instance_layer = get_node_or_null(NodePath(OBJECT_INSTANCE_LAYER_NAME)) as Node2D
-	if _object_instance_layer == null:
-		_object_instance_layer = Node2D.new()
-		_object_instance_layer.name = OBJECT_INSTANCE_LAYER_NAME
-		add_child(_object_instance_layer, false, INTERNAL_MODE_FRONT)
-	_object_instance_layer.z_index = 60
-	return _object_instance_layer
 
 
 func _layer_stack_node_name(role: String) -> String:

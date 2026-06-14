@@ -14,6 +14,7 @@ const HexMapDocumentApplier = preload("res://addons/hex_map_kit/adapter/hex_map_
 const HexMapTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexTileMapResourceBinding = preload("res://addons/hex_map_kit/adapter/hex_tile_map_resource_binding.gd")
 const HexObjectLayerAdapter = preload("res://addons/hex_map_kit/adapter/hex_object_layer_adapter.gd")
+const HexObjectLayerRenderer = preload("res://addons/hex_map_kit/adapter/hex_object_layer_renderer.gd")
 const HexLayerStackEntryResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_entry_resource.gd")
 const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
 const HexMovementProfileResource = preload("res://addons/hex_map_kit/adapter/hex_movement_profile_resource.gd")
@@ -41,6 +42,58 @@ class RuntimeSignalRecorder:
 	func record_hit_hovered(hit: Dictionary) -> void:
 		hovered_hits.append(hit)
 
+
+class RendererSeamProbe extends HexObjectLayerRenderer:
+	var ensure_calls := 0
+	var scene_calls := 0
+	var direct_calls := 0
+	var marker_calls := 0
+
+	func ensure_object_instance_layer(parent: Node) -> Node2D:
+		ensure_calls += 1
+		return super.ensure_object_instance_layer(parent)
+
+	func apply_scene_tile_prototypes(target_layer: TileMapLayer, document_or_entries: Variant, options: Dictionary = {}) -> int:
+		scene_calls += 1
+		return super.apply_scene_tile_prototypes(target_layer, document_or_entries, options)
+
+	func apply_direct_instance_prototypes(parent: Node, document_or_entries: Variant, options: Dictionary = {}) -> int:
+		direct_calls += 1
+		return super.apply_direct_instance_prototypes(parent, document_or_entries, options)
+
+	func draw_document_payload_markers(
+		canvas,
+		object_markers_by_key: Dictionary,
+		label_markers_by_key: Dictionary,
+		visual_hexes_for_draw: Callable,
+		display_center_for_hex: Callable,
+		hex_size: float,
+		has_payload_data: bool
+	) -> void:
+		marker_calls += 1
+		super.draw_document_payload_markers(
+			canvas,
+			object_markers_by_key,
+			label_markers_by_key,
+			visual_hexes_for_draw,
+			display_center_for_hex,
+			hex_size,
+			has_payload_data
+		)
+
+
+class DrawOverlayProbe extends Node2D:
+	var object_marker_count := 0
+	var label_marker_count := 0
+
+	@warning_ignore("native_method_override")
+	func draw_circle(_position: Vector2, _radius: float, _color: Color, _filled: bool = true, _width: float = 1.0, _antialiased: bool = false) -> void:
+		object_marker_count += 1
+
+	@warning_ignore("native_method_override")
+	func draw_rect(_rect: Rect2, _color: Color, _filled: bool = true, _width: float = 1.0, _antialiased: bool = false) -> void:
+		label_marker_count += 1
+
 var _failures: Array[String] = []
 var _test_output_root := ""
 
@@ -60,6 +113,7 @@ func _run() -> void:
 	await _test_layer_stack_resource_roundtrips()
 	await _test_apply_document_to_layer_stack_routes_canonical_roles()
 	await _test_object_layer_adapter_applies_scene_tiles_and_direct_instances()
+	await _test_object_layer_renderer_seam_applies_instances_and_markers()
 	await _test_ensure_display_tiles_uses_custom_floor_wall_sources()
 	await _test_display_tile_size_syncs_hex_size_and_overlay()
 	await _test_display_tile_set_resource_persists_through_packed_scene()
@@ -551,6 +605,64 @@ func _test_object_layer_adapter_applies_scene_tiles_and_direct_instances() -> vo
 	_assert_eq(database_count, 1, "object layer adapter instantiates database scene resource")
 	_assert_eq(instance_layer.get_child_count(), 1, "object layer adapter stores database direct instance")
 
+	layer.queue_free()
+	await process_frame
+
+
+func _test_object_layer_renderer_seam_applies_instances_and_markers() -> void:
+	var data = HexMapData.rectangle(1, 1)
+	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
+	terrain_layer.map = HexMapResource.from_map_data(data)
+	var document = HexMapDocumentResource.new()
+	document.terrain_layers.append(terrain_layer)
+
+	var placement = HexMapDocumentObjectPlacementResource.new()
+	placement.object_id = "object.crate"
+	placement.cell = Vector3i.ZERO
+	document.object_placements.append(placement)
+
+	var label_placement = HexMapDocumentLabelPlacementResource.new()
+	label_placement.label_id = "area"
+	label_placement.text = "North"
+	label_placement.cell = Vector3i.ZERO
+	document.label_placements.append(label_placement)
+
+	var prototype_node = Node2D.new()
+	var packed_scene = PackedScene.new()
+	_assert_eq(packed_scene.pack(prototype_node), OK, "renderer seam prototype packs")
+	prototype_node.free()
+
+	var renderer_probe = RendererSeamProbe.new()
+	var layer = HexTileMapLayer.new()
+	layer._object_layer_renderer = renderer_probe
+	root.add_child(layer)
+	await process_frame
+
+	layer.apply_document(document)
+	var instance_layer = layer.object_instance_layer()
+	_assert_eq(instance_layer.name, "ObjectInstanceLayer", "object layer seam renders expected object layer node name")
+	_assert_eq(instance_layer.z_index, 60, "object layer seam sets object layer z-index")
+	_assert_eq(renderer_probe.ensure_calls, 1, "object layer seam keeps layer creation inside renderer")
+
+	var explicit_parent_count = layer.apply_object_instances(document, instance_layer, {"scene_prototypes": {"object.crate": packed_scene}})
+	_assert_eq(explicit_parent_count, 1, "object instance seam handles explicit parent entry")
+	_assert_eq(renderer_probe.direct_calls, 1, "explicit parent entry passes through renderer instance seam")
+	_assert_eq(instance_layer.get_child_count(), 1, "renderer seam creates instance under seam-owned parent")
+	_assert_true(instance_layer.get_child(0).get_parent() == instance_layer, "renderer seam parents object instance to the instance layer")
+
+	var default_parent_count = layer.apply_object_instances(document, null, {"scene_prototypes": {"object.crate": packed_scene}})
+	_assert_eq(default_parent_count, 1, "object instance seam handles null parent entry")
+	_assert_eq(renderer_probe.ensure_calls, 2, "null parent entry still uses renderer ensure seam")
+	_assert_eq(renderer_probe.direct_calls, 2, "null parent entry uses renderer direct instance seam")
+	_assert_eq(instance_layer.get_child_count(), 1, "renderer seam keeps existing parenting after re-apply")
+
+	var overlay_canvas = DrawOverlayProbe.new()
+	layer._draw_overlay(overlay_canvas)
+	_assert_eq(overlay_canvas.object_marker_count, 1, "object marker drawing flows through seam draw path")
+	_assert_eq(overlay_canvas.label_marker_count, 1, "label marker drawing flows through seam draw path")
+	_assert_true(renderer_probe.marker_calls > 0, "renderer seam draw callback is used for payload markers")
+
+	overlay_canvas.free()
 	layer.queue_free()
 	await process_frame
 

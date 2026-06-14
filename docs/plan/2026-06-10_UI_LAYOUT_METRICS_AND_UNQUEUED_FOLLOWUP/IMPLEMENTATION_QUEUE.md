@@ -105,7 +105,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
-| `ARCH-NEXT-20` | `READY` | `ARCH-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-20_OBJECT_LAYER_RENDERING_EXTRACTION/` | Object layer rendering extraction | HexTileMapLayer/object layer adapter/tests | Object placement rendering/runtime instancing boundary is separated; `HexTileMapLayer` remains coordinator. |
+| `ARCH-NEXT-20` | `COMPLETE` | `ARCH-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-20_OBJECT_LAYER_RENDERING_EXTRACTION/` | Object layer rendering extraction | HexTileMapLayer/object layer adapter/tests | Object placement rendering/runtime instancing boundary is separated; `HexTileMapLayer` remains coordinator. |
 | `ARCH-NEXT-21` | `BACKLOG` | `ARCH-NEXT-20` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-21_GAMEPLAY_QUERY_SERVICE_EXTRACTION/` | Gameplay query service extraction | path/range/connectivity services/tests | Runtime query helpers move to service/facade boundary; runtime samples use service path. |
 | `ARCH-NEXT-22` | `BACKLOG` | `ARCH-NEXT-20` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-22_DEBUG_OVERLAY_RENDERER_EXTRACTION/` | Debug overlay renderer extraction | debug overlay/validation focus/tests | Debug overlay rendering is separated from normal gameplay rendering and connects to Validate/debug report paths. |
 | `TEST-NEXT-10` | `READY` | `UI-METRIC-08` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/TEST-NEXT-10_CONTINUE_EDITOR_TEST_FILE_SPLIT/` | Continue editor integration test split | tests/test_editor_plugin.gd, new test files, tools/test.sh | Remaining integration tests split by feature family; `test_editor_plugin.gd` becomes workflow smoke; no old private widget shape expansion. |
@@ -891,6 +891,27 @@ proof:
     - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GENPIPE-NEXT-20_PIPELINE_GRAPH_UI_RESEARCH_AND_SPIKE/PIPELINE_GRAPH_DECISION.md`
     - `docs/TEST.md`
     - `docs/review/autopilot/GENPIPE-NEXT-20_TEST_RESULT_2026-06-10.md`
+
+### ARCH-NEXT-20 Object layer rendering extraction
+
+proof:
+  plan: `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-20_OBJECT_LAYER_RENDERING_EXTRACTION/`
+  review: `docs/review/autopilot/ARCH-NEXT-20_SELF_REVIEW_2026-06-14.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/TEST.md`
+  major files:
+    - `addons/hex_map_kit/adapter/hex_tile_map_layer.gd`
+    - `addons/hex_map_kit/adapter/hex_object_layer_renderer.gd`
+    - `addons/hex_map_kit/adapter/hex_object_layer_renderer.gd.uid`
+    - `tests/test_hex_tile_map_layer.gd`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-20_OBJECT_LAYER_RENDERING_EXTRACTION/SUB_TASKS.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-20_OBJECT_LAYER_RENDERING_EXTRACTION/UX.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-20_OBJECT_LAYER_RENDERING_EXTRACTION/POLICY.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-20_OBJECT_LAYER_RENDERING_EXTRACTION/IMPLEMENTATION_PLAN.md`
+    - `docs/review/autopilot/ARCH-NEXT-20_SELF_REVIEW_2026-06-14.md`
+    - `docs/review/autopilot/ARCH-NEXT-20_TEST_RESULT_2026-06-14.md`
 
 ### PROFILE-NEXT-10 Concrete profile behavior schemas
 
