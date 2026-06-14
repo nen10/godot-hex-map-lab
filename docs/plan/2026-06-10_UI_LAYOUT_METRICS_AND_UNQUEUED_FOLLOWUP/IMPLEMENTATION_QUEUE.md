@@ -97,7 +97,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | `GENPIPE-NEXT-20` | `COMPLETE` | `GENPIPE-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GENPIPE-NEXT-20_PIPELINE_GRAPH_UI_RESEARCH_AND_SPIKE/` | Pipeline graph UI research/spike | review docs/prototype if needed | Resource pass / linear pipeline / node graph options are updated; pass graph is either scoped or explicitly rejected. |
 | `PROFILE-NEXT-10` | `COMPLETE` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROFILE-NEXT-10_CONCRETE_PROFILE_BEHAVIOR_SCHEMAS/` | Concrete profile behavior schemas | profile Resources, editors/tests | Validation Suite, Generation Profile, and Export Profile gain real behavior schemas and editor/screen connections. |
 | `STATE-NEXT-10` | `COMPLETE` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/STATE-NEXT-10_ROOT_REDUCER_EVENT_MODEL/` | Root reducer / event model expansion | dispatcher/root state/tests | Workspace events are typed; reducer results, side effects, UI state update, and debug report proof are separated. |
-| `STATE-NEXT-11` | `READY` | `STATE-NEXT-10`, `ARCH-NEXT-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/STATE-NEXT-11_GENERATION_PRIVATE_FLAG_MIRROR_RETIREMENT/` | Generation private flag mirror retirement | Generate run state/dock/tests | `_generation_*` mirror inventory exists; replaced fields are removed or read-only; removal conditions and tests are recorded. |
+| `STATE-NEXT-11` | `COMPLETE` | `STATE-NEXT-10`, `ARCH-NEXT-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/STATE-NEXT-11_GENERATION_PRIVATE_FLAG_MIRROR_RETIREMENT/` | Generation private flag mirror retirement | Generate run state/dock/tests | `_generation_*` mirror inventory exists; replaced fields are removed or read-only; removal conditions and tests are recorded. |
 
 ---
 
@@ -530,10 +530,34 @@ proof:
     - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/STATE-NEXT-10_ROOT_REDUCER_EVENT_MODEL/UX.md`
     - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/STATE-NEXT-10_ROOT_REDUCER_EVENT_MODEL/POLICY.md`
     - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/STATE-NEXT-10_ROOT_REDUCER_EVENT_MODEL/IMPLEMENTATION_PLAN.md`
-    - `addons/hex_map_kit/editor/hex_map_workspace_dispatcher.gd`
-    - `tests/test_editor_plugin.gd`
-    - `docs/review/autopilot/STATE-NEXT-10_SELF_REVIEW_2026-06-14.md`
-    - `docs/review/autopilot/STATE-NEXT-10_TEST_RESULT_2026-06-14.md`
+  - `addons/hex_map_kit/editor/hex_map_workspace_dispatcher.gd`
+  - `tests/test_editor_plugin.gd`
+  - `docs/review/autopilot/STATE-NEXT-10_SELF_REVIEW_2026-06-14.md`
+  - `docs/review/autopilot/STATE-NEXT-10_TEST_RESULT_2026-06-14.md`
+
+### STATE-NEXT-11 Generation private flag mirror retirement
+
+proof:
+  plan: `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/STATE-NEXT-11_GENERATION_PRIVATE_FLAG_MIRROR_RETIREMENT/`
+  review: `docs/review/autopilot/STATE-NEXT-11_SELF_REVIEW_2026-06-14.md`
+  tests:
+    - `./tools/test.sh`
+    - `python3 tools/verify_task.py --task STATE-NEXT-11 --head <branch>`
+  docs:
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ROADMAP.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/IMPLEMENTATION_QUEUE.md`
+    - `docs/review/roadmap/FALLBACK_LEDGER_2026-06-10.md`
+  major files:
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/STATE-NEXT-11_GENERATION_PRIVATE_FLAG_MIRROR_RETIREMENT/SUB_TASKS.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/STATE-NEXT-11_GENERATION_PRIVATE_FLAG_MIRROR_RETIREMENT/UX.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/STATE-NEXT-11_GENERATION_PRIVATE_FLAG_MIRROR_RETIREMENT/POLICY.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/STATE-NEXT-11_GENERATION_PRIVATE_FLAG_MIRROR_RETIREMENT/IMPLEMENTATION_PLAN.md`
+    - `addons/hex_map_kit/editor/hex_map_gen_dock.gd`
+    - `addons/hex_map_kit/editor/hex_map_generation_run_state.gd`
+    - `tests/test_editor_generation.gd`
+    - `tests/test_generation_run_state.gd`
+    - `docs/review/autopilot/STATE-NEXT-11_SELF_REVIEW_2026-06-14.md`
+    - `docs/review/autopilot/STATE-NEXT-11_TEST_RESULT_2026-06-14.md`
 
 ### ARCH-NEXT-10 Physical Workspace UI node construction extraction
 

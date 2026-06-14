@@ -320,10 +320,6 @@ var _current_orientation := HexMapResource.ORIENTATION_FLAT_TOP
 var _query_hex_cell_radius := QUERY_HEX_CELL_DEFAULT_RADIUS
 var _query_hex_cell_gap := QUERY_HEX_CELL_DEFAULT_GAP
 var _query_hex_cell_padding := QUERY_HEX_CELL_DEFAULT_PADDING
-var _generation_running := false
-var _generation_cancel_requested := false
-var _generation_progress := 0.0
-var _generation_status := "Ready"
 var _last_generation_cancelled := false
 var _generation_thread: Thread
 var _generation_mutex := Mutex.new()
@@ -336,9 +332,7 @@ var _generation_cancel_poll_count := 0
 var _generation_last_core_progress := 0.0
 var _generation_progress_hide_token := 0
 var _generation_progress_scheduled_hide_token := 0
-var _generation_progress_visible_started_msec := 0
 var _generation_progress_hide_after_msec := 0
-var _generation_progress_step := PROGRESS_STEP_IDLE
 var _tile_settings_apply_debounce_sec := TILE_SETTINGS_APPLY_DEBOUNCE_SEC
 var _tile_settings_apply_debounce_token := 0
 var _tile_settings_apply_pending := false
@@ -502,7 +496,7 @@ func _process(_delta: float) -> void:
 func _exit_tree() -> void:
 	_generation_progress_hide_token += 1
 	_generation_progress_hide_after_msec = 0
-	if _generation_running:
+	if _is_generation_running():
 		_set_generation_cancel_requested(true)
 	if _generation_thread != null:
 		_generation_thread.wait_to_finish()
@@ -2506,11 +2500,11 @@ func _refresh_query_row_order(mask_query) -> void:
 	var rows = _query_rows_for_kind(query_kind)
 	for index in range(rows.size()):
 		var operation_option: OptionButton = rows[index]["operation"]
-		operation_option.disabled = _generation_running or index == 0
+		operation_option.disabled = _is_generation_running() or index == 0
 		var up_button: Button = rows[index]["up"]
 		var down_button: Button = rows[index]["down"]
-		up_button.disabled = _generation_running or index == 0
-		down_button.disabled = _generation_running or index == rows.size() - 1
+		up_button.disabled = _is_generation_running() or index == 0
+		down_button.disabled = _is_generation_running() or index == rows.size() - 1
 
 
 func _on_query_row_edited(mask_query) -> void:
@@ -2620,11 +2614,11 @@ func _refresh_overlay_item_pool_rows() -> void:
 		if limited:
 			amount_spin.value = int(amount_spin.value)
 		var remove_button: Button = item_row["remove"]
-		remove_button.disabled = _overlay_item_pool_rows.size() <= 1 or _generation_running
+		remove_button.disabled = _overlay_item_pool_rows.size() <= 1 or _is_generation_running()
 		var copy_floor_button: Button = item_row["copy_floor"]
-		copy_floor_button.disabled = _generation_running
+		copy_floor_button.disabled = _is_generation_running()
 		var copy_wall_button: Button = item_row["copy_wall"]
-		copy_wall_button.disabled = _generation_running
+		copy_wall_button.disabled = _is_generation_running()
 
 
 func _on_overlay_item_catalog_selected(index: int, item_row: Dictionary) -> void:
@@ -3284,30 +3278,80 @@ func tile_settings_apply_debounce_snapshot() -> Dictionary:
 
 
 func _generation_current_step_text() -> String:
-	return _generation_progress_status_label.text if _generation_progress_status_label != null else _generation_status
+	return _generation_progress_status_label.text if _generation_progress_status_label != null else _generation_run_state_status_text()
+
+
+func _generation_run_state_progress() -> float:
+	if _generation_run_state == null:
+		return 0.0
+	return clampf(float(_generation_run_state.progress), 0.0, 1.0)
+
+
+func _generation_run_state_status_text() -> String:
+	if _generation_run_state == null:
+		return "Ready"
+	return String(_generation_run_state.status)
+
+
+func _generation_progress_step() -> String:
+	if _generation_run_state == null:
+		return PROGRESS_STEP_IDLE
+	return String(_generation_run_state.step) if String(_generation_run_state.step) != "" else PROGRESS_STEP_IDLE
+
+
+func _generation_progress_visible_started_msec() -> int:
+	if _generation_run_state == null:
+		return 0
+	return int(_generation_run_state.progress_visible_started_msec)
+
+
+func _is_generation_running() -> bool:
+	if _generation_run_state == null:
+		return false
+	return bool(_generation_run_state.running)
+
+
+func _set_generation_running(running: bool) -> void:
+	if _generation_run_state == null:
+		return
+	_generation_run_state.update_from_context({"running": bool(running)})
+
+
+func _set_generation_progress_visible_started_msec(msec: int) -> void:
+	if _generation_run_state == null:
+		return
+	_generation_run_state.update_from_context({"progress_visible_started_msec": int(msec)})
+	_sync_generation_run_state()
+
+
+func _is_generation_cancel_requested() -> bool:
+	if _generation_run_state == null:
+		return false
+	return bool(_generation_run_state.cancel_requested)
 
 
 func _sync_generation_run_state(heavy_update_reason: String = "") -> void:
 	if _generation_run_state == null:
 		return
 	var block_reason := ""
-	if not _generation_running:
+	if not _is_generation_running():
 		block_reason = _current_generation_block_reason()
-	var failure_reason := "Generation failed." if _generation_status == "Failed" else ""
+	var failure_reason := "Generation failed." if _generation_run_state_status_text() == "Failed" else ""
 	var output_snapshot := output_target_snapshot()
 	var last_apply := output_snapshot.get("last_apply", {}) as Dictionary
 	var tile_size := Vector2i.ZERO
 	if _tile_width_spin != null and _tile_height_spin != null:
 		tile_size = _tile_settings_tile_size()
 	var context := {
-		"running": _generation_running,
+		"running": _is_generation_running(),
 		"cancel_requested": _is_generation_cancel_requested(),
-		"progress": _generation_progress,
-		"status": _generation_status,
-		"step": _generation_progress_step,
+		"progress": _generation_run_state_progress(),
+		"status": _generation_run_state_status_text(),
+		"step": _generation_progress_step(),
 		"visible": _generation_progress_container != null and _generation_progress_container.visible,
 		"progress_bar_visible": _generation_progress_bar != null and _generation_progress_container != null \
 			and _generation_progress_container.visible,
+		"progress_visible_started_msec": _generation_progress_visible_started_msec(),
 		"cancel_available": _generation_progress_cancel_button != null \
 			and not _generation_progress_cancel_button.disabled,
 		"modal_window_count": 0,
@@ -3373,7 +3417,6 @@ func _on_generation_validation_progress(status: Dictionary, show_progress: bool,
 			+ validation_progress * (GENERATION_PROGRESS_APPLY - GENERATION_PROGRESS_VALIDATE)
 		_set_generation_progress_cancel_enabled(false)
 		_set_generation_progress(mapped_progress, "Validating generated document")
-		_generation_progress_step = PROGRESS_STEP_VALIDATING
 		_sync_generation_run_state(String(status.get("phase", "validation")))
 	if external_callback is Callable:
 		var callback: Callable = external_callback
@@ -4020,10 +4063,10 @@ func _join_lines(lines: PackedStringArray) -> String:
 
 
 func request_generation_cancel() -> void:
-	if not _generation_running:
+	if not _is_generation_running():
 		return
 	_set_generation_cancel_requested(true)
-	_set_generation_progress(_generation_progress, "Cancel requested")
+	_set_generation_progress(_generation_run_state_progress(), "Cancel requested")
 	_set_generation_progress_cancel_enabled(false)
 
 
@@ -4698,7 +4741,7 @@ func _current_generation_block_reason() -> String:
 		adjacency_rule_count = rules.size()
 	return HexMapGenStateEvaluator.generation_block_reason(
 		{
-			"generation_running": _generation_running,
+			"generation_running": _is_generation_running(),
 			"overlay_mode": _overlay_mode_enabled(),
 			"mask_query_enabled": mask_query_enabled,
 			"mask_candidate_count": mask_candidate_count,
@@ -4745,7 +4788,7 @@ func _refresh_generation_block_state() -> void:
 	var reason = _current_generation_block_reason()
 	if reason != "":
 		_set_generation_progress(0.0, _generation_block_status(reason))
-	elif _is_generation_block_status(_generation_status):
+	elif _is_generation_block_status(_generation_run_state_status_text()):
 		_set_generation_progress(0.0, "Ready")
 	run_view_state = generation_run_view_state()
 	_generate_button.disabled = bool(run_view_state.get("generate_button_disabled", false))
@@ -4753,7 +4796,7 @@ func _refresh_generation_block_state() -> void:
 
 
 func _generate_map(show_progress: bool = false) -> bool:
-	if _generation_running:
+	if _is_generation_running():
 		return false
 	var snapshot = _create_generation_snapshot()
 	_last_generation_snapshot = snapshot.duplicate(true)
@@ -4785,7 +4828,7 @@ func _generate_map(show_progress: bool = false) -> bool:
 	if error != OK:
 		_generation_thread = null
 		push_error("Failed to start map generation thread: %d" % error)
-		_set_generation_progress(_generation_progress, "Failed")
+		_set_generation_progress(_generation_run_state_progress(), "Failed")
 		_finish_generation(true)
 		return false
 
@@ -5440,13 +5483,15 @@ func _generation_progress_from_thread(status: Dictionary, generation_id: int) ->
 func _generation_cancel_from_thread(_status: Dictionary, _generation_id_from_thread: int) -> bool:
 	_generation_mutex.lock()
 	_generation_cancel_poll_count += 1
-	var requested = _generation_cancel_requested
+	var requested = false
+	if _generation_run_state != null:
+		requested = bool(_generation_run_state.cancel_requested)
 	_generation_mutex.unlock()
 	return requested
 
 
 func _apply_generation_core_progress(generation_id: int, status: Dictionary) -> void:
-	if generation_id != _generation_id or not _generation_running:
+	if generation_id != _generation_id or not _is_generation_running():
 		return
 	var core_progress = float(status.get("progress", 0.0))
 	var mapped_progress = GENERATION_PROGRESS_START + core_progress * GENERATION_PROGRESS_SCALE
@@ -5458,7 +5503,7 @@ func _complete_generation_from_thread(generation_id: int) -> void:
 		return
 	var result = _generation_thread.wait_to_finish()
 	_generation_thread = null
-	if generation_id != _generation_id or not _generation_running:
+	if generation_id != _generation_id or not _is_generation_running():
 		return
 
 	var cancelled := true
@@ -5490,14 +5535,15 @@ func _complete_generation_from_thread(generation_id: int) -> void:
 
 func _begin_generation(_generation_id_from_snapshot: int, show_progress: bool = false) -> void:
 	_generation_mutex.lock()
-	_generation_cancel_requested = false
 	_generation_core_progress_event_count = 0
 	_generation_cancel_poll_count = 0
 	_generation_last_core_progress = 0.0
 	_generation_mutex.unlock()
 	_generation_progress_hide_token += 1
 	_generation_progress_hide_after_msec = 0
-	_generation_running = true
+	_set_generation_progress_visible_started_msec(0)
+	_set_generation_running(true)
+	_set_generation_cancel_requested(false)
 	_last_generation_cancelled = false
 	_last_generation_validation_result = null
 	_last_generation_validation_summary = {}
@@ -5514,10 +5560,10 @@ func _begin_generation(_generation_id_from_snapshot: int, show_progress: bool = 
 
 
 func _finish_generation(cancelled: bool) -> void:
-	_generation_running = false
+	_set_generation_running(false)
 	_last_generation_cancelled = cancelled
 	if cancelled:
-		_set_generation_progress(_generation_progress, "Cancelled")
+		_set_generation_progress(_generation_run_state_progress(), "Cancelled")
 	else:
 		_set_generation_progress(1.0, "Ready")
 	_set_generation_cancel_requested(false)
@@ -5542,19 +5588,24 @@ func _show_busy_progress_step(
 	if show_controls:
 		_show_generation_progress_controls()
 	_set_generation_progress_cancel_enabled(cancel_available)
-	_set_generation_progress(progress, status)
-	_generation_progress_step = step
+	_set_generation_progress(progress, status, step)
 	_sync_generation_run_state()
 
 
-func _set_generation_progress(progress: float, status: String) -> void:
-	_generation_progress = clampf(progress, 0.0, 1.0)
-	_generation_status = status
-	_generation_progress_step = _progress_step_for_status(status)
+func _set_generation_progress(progress: float, status: String, step: String = "") -> void:
+	if _generation_run_state == null:
+		return
+	var clamped := clampf(progress, 0.0, 1.0)
+	var resolved_step := step if step != "" else _progress_step_for_status(status)
+	_generation_run_state.update_from_context({
+		"progress": clamped,
+		"status": status,
+		"step": resolved_step,
+	})
 	if _generation_progress_bar != null:
-		_generation_progress_bar.value = _generation_progress
+		_generation_progress_bar.value = clamped
 	if _generation_progress_status_label != null:
-		_generation_progress_status_label.text = _generation_status
+		_generation_progress_status_label.text = status
 	_sync_generation_run_state()
 
 
@@ -5579,21 +5630,15 @@ func _progress_step_for_status(status: String) -> String:
 		return PROGRESS_STEP_BLOCKED
 	if status == "Failed":
 		return PROGRESS_STEP_BLOCKED
-	return _generation_progress_step
+	return _generation_progress_step()
 
 
 func _set_generation_cancel_requested(requested: bool) -> void:
 	_generation_mutex.lock()
-	_generation_cancel_requested = requested
+	if _generation_run_state != null:
+		_generation_run_state.update_from_context({"cancel_requested": bool(requested)})
 	_generation_mutex.unlock()
 	_sync_generation_run_state()
-
-
-func _is_generation_cancel_requested() -> bool:
-	_generation_mutex.lock()
-	var requested = _generation_cancel_requested
-	_generation_mutex.unlock()
-	return requested
 
 
 func _show_generation_progress_controls() -> void:
@@ -5602,9 +5647,9 @@ func _show_generation_progress_controls() -> void:
 	_generation_progress_hide_token += 1
 	_generation_progress_hide_after_msec = 0
 	_generation_progress_container.visible = true
-	_generation_progress_visible_started_msec = Time.get_ticks_msec()
+	_set_generation_progress_visible_started_msec(Time.get_ticks_msec())
 	_set_generation_progress_cancel_enabled(true)
-	_set_generation_progress(_generation_progress, _generation_status)
+	_set_generation_progress(_generation_run_state_progress(), _generation_run_state_status_text())
 	_sync_generation_run_state()
 
 
@@ -5617,7 +5662,7 @@ func _finish_generation_progress_controls_success(status: String = "Ready") -> v
 	_generation_progress_hide_token += 1
 	var hide_token = _generation_progress_hide_token
 	_generation_progress_scheduled_hide_token = hide_token
-	var elapsed_sec = float(Time.get_ticks_msec() - _generation_progress_visible_started_msec) / 1000.0
+	var elapsed_sec = float(Time.get_ticks_msec() - _generation_progress_visible_started_msec()) / 1000.0
 	var wait_sec = maxf(GENERATION_PROGRESS_MIN_VISIBLE_SEC - elapsed_sec, 0.0)
 	if wait_sec <= 0.0:
 		_hide_generation_progress_controls_if_current(hide_token)
@@ -5638,14 +5683,14 @@ func _process_generation_progress_hide_timer() -> void:
 func _hide_generation_progress_controls_if_current(hide_token: int) -> void:
 	if hide_token != _generation_progress_hide_token:
 		return
-	if _generation_running:
+	if _is_generation_running():
 		return
 	_hide_generation_progress_controls()
 
 
 func _hide_generation_progress_controls() -> void:
 	_generation_progress_hide_after_msec = 0
-	_generation_progress_visible_started_msec = 0
+	_set_generation_progress_visible_started_msec(0)
 	if _generation_progress_container != null:
 		_generation_progress_container.visible = false
 	_set_generation_progress_cancel_enabled(false)

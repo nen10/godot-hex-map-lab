@@ -11,6 +11,7 @@ func _init() -> void:
 
 func _run() -> void:
 	_test_generation_run_state_transitions()
+	_test_generation_run_state_progress_visibility_timestamp()
 	_test_tile_settings_state_contract()
 	_test_preview_and_dirty_document_states()
 	_finish()
@@ -48,6 +49,25 @@ func _test_generation_run_state_transitions() -> void:
 	_assert_eq(state.state_id, HexMapGenerationRunState.STATE_BLOCKED, "block reason derives blocked state")
 	_assert_true(bool(view["generate_button_disabled"]), "blocked generation disables Generate")
 	_assert_eq(String(view["generate_button_tooltip"]), "missing profile", "blocked state exposes tooltip reason")
+
+
+func _test_generation_run_state_progress_visibility_timestamp() -> void:
+	var state = HexMapGenerationRunState.new()
+	var now := Time.get_ticks_msec()
+	state.update_from_context({
+		"running": true,
+		"progress": 0.4,
+		"status": "Generating",
+		"step": HexMapGenerationRunState.STEP_GENERATING,
+		"visible": true,
+		"progress_bar_visible": true,
+		"progress_visible_started_msec": now,
+	})
+	var snapshot = state.to_status_snapshot()
+	_assert_true(bool(snapshot["running"]), "run state progress drives running in snapshot")
+	_assert_eq(float(snapshot["progress"]), 0.4, "run state progress drives snapshot progress")
+	_assert_eq(String(snapshot["status"]), "Generating", "run state status drives snapshot status")
+	_assert_eq(int(snapshot["progress_visible_started_msec"]), now, "run state exposes progress visible timestamp")
 
 
 func _test_tile_settings_state_contract() -> void:

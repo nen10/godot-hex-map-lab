@@ -36,6 +36,7 @@ var status := "Ready"
 var step := STEP_IDLE
 var visible := false
 var progress_bar_visible := false
+var progress_visible_started_msec := 0
 var cancel_available := false
 var modal_window_count := 0
 var tile_settings_pending := false
@@ -61,6 +62,7 @@ func update_from_context(context: Dictionary) -> void:
 	step = String(context.get("step", step))
 	visible = bool(context.get("visible", visible))
 	progress_bar_visible = bool(context.get("progress_bar_visible", progress_bar_visible))
+	progress_visible_started_msec = int(context.get("progress_visible_started_msec", progress_visible_started_msec))
 	cancel_available = bool(context.get("cancel_available", cancel_available))
 	modal_window_count = int(context.get("modal_window_count", modal_window_count))
 	tile_settings_pending = bool(context.get("tile_settings_pending", tile_settings_pending))
@@ -93,6 +95,7 @@ func to_status_snapshot() -> Dictionary:
 		"running": running,
 		"cancel_requested": cancel_requested,
 		"progress": progress,
+		"progress_visible_started_msec": progress_visible_started_msec,
 		"status": status,
 		"step": step,
 		"visible": visible,
@@ -130,6 +133,7 @@ func to_view_state(current_step_text: String = "") -> Dictionary:
 		"state_source": "HexMapGenerationRunState",
 		"running": running,
 		"controls_disabled": running,
+		"progress_visible_started_msec": progress_visible_started_msec,
 		"generate_button_disabled": generate_disabled,
 		"generate_button_tooltip": block_reason if block_reason != "" and not running else "",
 		"cancel_requested": cancel_requested,

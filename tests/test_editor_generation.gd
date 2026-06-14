@@ -11,6 +11,7 @@ func _run() -> void:
 	await _test_generation_dock_torus_connectivity_controls()
 	await _test_generation_dock_torus_connectivity_generation()
 	await _test_generation_dock_tracks_generation_progress_state()
+	await _test_generation_dock_run_state_drives_progress_without_mirror_fields()
 	await _test_generation_dock_debug_report_includes_validation_summary()
 	await _test_generation_dock_validates_generation_result_before_auto_apply()
 	await _test_generation_dock_captures_generation_validation_failure()
@@ -381,7 +382,7 @@ func _test_generation_dock_tracks_generation_progress_state() -> void:
 	_assert_eq(String(running_view_state["state_id"]), HexMapGenerationRunState.STATE_PREPARING, "STATE-10 manual begin enters preparing state")
 	_assert_true(bool(running_view_state["controls_disabled"]), "STATE-10 running view state disables generation controls")
 	_assert_true(not dock._generation_progress_cancel_button.disabled, "generation dock enables progress cancel while running")
-	dock._generation_progress_visible_started_msec = Time.get_ticks_msec()
+	dock._set_generation_progress_visible_started_msec(Time.get_ticks_msec())
 	dock._finish_generation(false)
 	var finished_status = dock.generation_status()
 	_assert_true(not finished_status["running"], "generation dock clears running state immediately after successful finish")
@@ -460,6 +461,58 @@ func _test_generation_dock_tracks_generation_progress_state() -> void:
 	await _wait_for_tile_settings_apply_count(dock, apply_count_before + 1, "STATE-10 debounced orientation tile settings")
 
 	layer.queue_free()
+	dock.queue_free()
+	await process_frame
+
+
+func _test_generation_dock_run_state_drives_progress_without_mirror_fields() -> void:
+	var dock = await _new_ready_dock()
+	var started_msec := Time.get_ticks_msec()
+
+	dock._generation_run_state.update_from_context({
+		"running": true,
+		"progress": 0.41,
+		"status": "Generating",
+		"step": HexMapGenDock.PROGRESS_STEP_GENERATING,
+		"cancel_requested": true,
+		"visible": true,
+		"progress_bar_visible": true,
+		"progress_visible_started_msec": started_msec,
+		"cancel_available": true,
+	})
+	if dock._generation_progress_status_label != null:
+		dock._generation_progress_status_label.text = "Generating"
+	dock._sync_generation_run_state("run-state-driven progress test")
+	var status = dock.generation_status()
+	_assert_true(bool(status["running"]), "generation status reflects run-state running")
+	_assert_eq(float(status["progress"]), 0.41, "generation status reflects run-state progress")
+	_assert_eq(String(status["status"]), "Generating", "generation status reflects run-state status")
+	_assert_eq(String(status["step"]), HexMapGenDock.PROGRESS_STEP_GENERATING, "generation status reflects run-state step")
+	_assert_true(bool(status["cancel_requested"]), "generation status reflects run-state cancel request")
+	var view_state = dock.generation_run_view_state()
+	_assert_true(bool(view_state["controls_disabled"]), "run-state running disables controls")
+	_assert_eq(
+		String(view_state["status_text"]),
+		"Generating",
+		"run-state status text flows into view-state text"
+	)
+	_assert_eq(int(view_state["progress_visible_started_msec"]), started_msec, "run-state timestamp flows into view state")
+
+	dock._generation_run_state.update_from_context({
+		"running": false,
+		"status": "Ready",
+		"progress": 1.0,
+		"step": HexMapGenDock.PROGRESS_STEP_COMPLETE,
+		"cancel_requested": false,
+	})
+	dock._sync_generation_run_state("run-state-driven status clear")
+	status = dock.generation_status()
+	_assert_true(not bool(status["running"]), "run-state stop clears generation running")
+	_assert_eq(String(status["status"]), "Ready", "run-state status ready is reflected in generation status")
+	_assert_true(
+		not bool(status["cancel_requested"]),
+		"run-state cancel-request clear is reflected in generation status"
+	)
 	dock.queue_free()
 	await process_frame
 
@@ -2330,5 +2383,3 @@ func _test_generation_dock_generate_history_saves_overlay_delta_source() -> void
 	primary_dock.queue_free()
 	dock.queue_free()
 	await process_frame
-
-
