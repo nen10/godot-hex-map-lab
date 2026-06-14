@@ -17,15 +17,19 @@ once per session before driving a task.
 
 ## Pipeline
 
-1. **Pick + read the task.** Get the `READY` task id and its row from the active
-   `IMPLEMENTATION_QUEUE.md`. Read the matching `ROADMAP.md` entry.
+1. **Select the next task (Opus-owned; roster §7).** Run `python3 tools/next_task.py`
+   to get the eligible frontier (READY + deps COMPLETE), ranked by unlock impact,
+   with route/depth hints — plus newly-unblocked tasks and queue inconsistencies.
+   YOU pick; the tool never auto-selects. Promote/record with
+   `--promote --apply` / `--set <ID> --apply`. Then read the task row and its
+   `ROADMAP.md` entry.
 
 2. **Write the contract (your job, before any agent runs).** State explicitly:
    - acceptance (the literal pass condition),
    - **depth**: `surface` | `integrated` | `decision` (see roster §6 — this is the
      single most important field; ambiguous depth is why Codex looks timid),
    - scope: the exact files the agent may touch; "do not edit other tasks' queue
-     rows; do not mark anything COMPLETE",
+     rows; do not mark anything COMPLETE; do not change the recommended-next pointer",
    - tests required.
 
 3. **Route** per roster §3:
@@ -46,8 +50,9 @@ once per session before driving a task.
      Triage `WARN`s; don't auto-block on them.
 
 6. **Merge + record (only after ACCEPT).** Merge/cherry-pick the branch, let the
-   queue status flip to `COMPLETE`, ensure the proof-log entry exists, advance the
-   pointer. For DeepSeek work, *you* (or Codex) make the queue edits — DeepSeek does not.
+   queue status flip to `COMPLETE`, ensure the proof-log entry exists. Then **you**
+   set the next pointer via `tools/next_task.py` (progression is Opus-owned, not the
+   executor's — roster §7). For DeepSeek work, *you* (or Codex) make the queue edits.
 
 7. **Dual-run arbitration (when used).** Run the gate on both branches. Prefer the
    `ACCEPT`. If the `REJECT` branch has a better idea (e.g. DeepSeek's engine
@@ -57,6 +62,7 @@ once per session before driving a task.
 ## Hard rules
 
 - Completion is **gate-decided, never self-attested**. `verify_task.py ACCEPT` is the only door to `COMPLETE`.
+- **Progression is Opus-owned.** Which task runs next is your decision via `next_task.py`; executors never set the recommended-next pointer.
 - DeepSeek output is a **draft on an isolated branch** until gated. Never let it write shared state.
 - If you catch yourself asking Codex to "be bolder," fix the **contract depth** instead.
 - Stop and ask the user before any **billed agent run** they didn't explicitly request, and before merging to a protected branch.
@@ -65,5 +71,6 @@ once per session before driving a task.
 
 ```sh
 codex --version && opencode --version
+python3 tools/next_task.py                                 # frontier (read-only)
 python3 tools/verify_task.py --task <ID> --head <branch>   # gate runs on git data only
 ```
