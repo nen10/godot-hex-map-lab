@@ -72,15 +72,14 @@ def set_pointer(text: str, task: str) -> str:
 
 
 def promote_row(text: str, task: str, new_status: str = "READY") -> str:
+    # Only the row whose ID cell (first data cell) IS the task — never a row that
+    # merely lists the task as a dependency (that would corrupt the dependent row's
+    # plan-dir cell). cells = ["", " `ID` ", " `STATUS` ", ...].
     out = []
     for line in text.splitlines():
-        if line.lstrip().startswith("|") and re.search(rf"`{re.escape(task)}`", line):
-            # swap the second backticked cell (status) on this row
-            cells = line.split("|")
-            for i, c in enumerate(cells):
-                if q._unbacktick(c) == task and i + 1 < len(cells):
-                    cells[i + 1] = re.sub(r"`[^`]+`", f"`{new_status}`", cells[i + 1], count=1)
-                    break
+        cells = line.split("|")
+        if len(cells) > 2 and q._unbacktick(cells[1]) == task:
+            cells[2] = re.sub(r"`[^`]+`", f"`{new_status}`", cells[2], count=1)
             line = "|".join(cells)
         out.append(line)
     return "\n".join(out) + ("\n" if text.endswith("\n") else "")
