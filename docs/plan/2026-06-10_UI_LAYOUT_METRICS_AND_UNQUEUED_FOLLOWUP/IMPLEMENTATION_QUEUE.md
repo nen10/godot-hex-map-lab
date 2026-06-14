@@ -106,8 +106,8 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | id | status | dependencies | plan_dir | deliverable | target files | acceptance / test path |
 |---|---|---|---|---|---|---|
 | `ARCH-NEXT-20` | `COMPLETE` | `ARCH-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-20_OBJECT_LAYER_RENDERING_EXTRACTION/` | Object layer rendering extraction | HexTileMapLayer/object layer adapter/tests | Object placement rendering/runtime instancing boundary is separated; `HexTileMapLayer` remains coordinator. |
-| `ARCH-NEXT-21` | `BACKLOG` | `ARCH-NEXT-20` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-21_GAMEPLAY_QUERY_SERVICE_EXTRACTION/` | Gameplay query service extraction | path/range/connectivity services/tests | Runtime query helpers move to service/facade boundary; runtime samples use service path. |
-| `ARCH-NEXT-22` | `BACKLOG` | `ARCH-NEXT-20` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-22_DEBUG_OVERLAY_RENDERER_EXTRACTION/` | Debug overlay renderer extraction | debug overlay/validation focus/tests | Debug overlay rendering is separated from normal gameplay rendering and connects to Validate/debug report paths. |
+| `ARCH-NEXT-21` | `READY` | `ARCH-NEXT-20` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-21_GAMEPLAY_QUERY_SERVICE_EXTRACTION/` | Gameplay query service extraction | path/range/connectivity services/tests | Runtime query helpers move to service/facade boundary; runtime samples use service path. |
+| `ARCH-NEXT-22` | `READY` | `ARCH-NEXT-20` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-22_DEBUG_OVERLAY_RENDERER_EXTRACTION/` | Debug overlay renderer extraction | debug overlay/validation focus/tests | Debug overlay rendering is separated from normal gameplay rendering and connects to Validate/debug report paths. |
 | `TEST-NEXT-10` | `READY` | `UI-METRIC-08` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/TEST-NEXT-10_CONTINUE_EDITOR_TEST_FILE_SPLIT/` | Continue editor integration test split | tests/test_editor_plugin.gd, new test files, tools/test.sh | Remaining integration tests split by feature family; `test_editor_plugin.gd` becomes workflow smoke; no old private widget shape expansion. |
 | `EXPORT-NEXT-10` | `READY` | `SCREEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/EXPORT-NEXT-10_PACKAGE_BUILD_UI_DECISION/` | Package build UI product decision | Export docs/screen/process docs | Decide whether package build belongs in editor Export UI or remains process-only; manual/process are updated accordingly. |
 | `DOC-NEXT-90` | `BACKLOG` | `UI-METRIC-08`, `TEST-NEXT-10`, `EXPORT-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/DOC-NEXT-90_MANUAL_AND_PROCESS_UPDATE/` | Manual/process update for metric and follow-up work | manuals, docs/TEST.md, README.md | Manuals explain UI metric gates, new surfaces, fallback ledger, and sample/debug boundaries; no analog test is added. |
@@ -192,7 +192,7 @@ acceptance / test path:
 
 ## 9. Current pointer
 
-Current recommended next task: `ARCH-NEXT-20`.
+Current recommended next task: `TEST-NEXT-10`.
 
 Reason:
 
