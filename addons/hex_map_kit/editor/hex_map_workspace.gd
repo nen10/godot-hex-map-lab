@@ -3504,7 +3504,7 @@ func export_screen_snapshot() -> Dictionary:
 		"export_state": export_state,
 		"view_state": export_view_state,
 		"purpose_component_present": tab_has_component(HexMapWorkspaceComponentRegistry.TAB_EXPORT, "export_purpose_panel"),
-		"active_output_type": "runtime_handoff_resource",
+		"active_output_type": String(output_type.get("id", "runtime_handoff_resource")),
 		"active_output_type_visible": true,
 		"output_type": output_type,
 		"output_modes": output_modes,
@@ -3568,11 +3568,12 @@ func export_screen_snapshot() -> Dictionary:
 
 
 func export_destination_dialog_config() -> Dictionary:
+	var extension := _active_export_file_extension(workspace_asset_context())
 	return {
 		"uses_file_dialog": true,
 		"file_mode": EditorFileDialog.FILE_MODE_SAVE_FILE,
 		"filters": HexMapEditorPathSelector.TRES_FILTERS.duplicate(),
-		"current_file": "hex_map_runtime_handoff.tres",
+		"current_file": "hex_map_runtime_handoff%s" % extension,
 		"editable_path_text_visible": false,
 	}
 
@@ -3666,6 +3667,10 @@ func export_selected_document_to_destination(path: String = "") -> Dictionary:
 		return result
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(actual_path.get_base_dir()))
 	_sync_export_workflow_state(true)
+	var context := workspace_asset_context()
+	var export_options := _active_export_options(context)
+	var profile_selected := not export_options.is_empty()
+	var output_type_id := _export_output_type_id(export_options)
 	var map_resource = HexMapDocumentAdapter.to_map_resource(document)
 	var error := ResourceSaver.save(map_resource, actual_path)
 	var result := _export_action_result(error == OK, error, actual_path)
@@ -3679,11 +3684,34 @@ func export_selected_document_to_destination(path: String = "") -> Dictionary:
 	result["resource_class"] = "HexMapResource"
 	result["cell_count"] = data.cells.size() if data != null else 0
 	result["wall_count"] = data.walls.size() if data != null else 0
-	result["export_profile"] = workspace_asset_context().export_profile
-	result["output_type"] = "runtime_handoff_resource"
+	result["export_profile"] = context.export_profile
+	result["export_options"] = export_options.duplicate(true)
+	result["output_type"] = output_type_id
+	result["file_extension"] = _export_file_extension(export_options)
 	result["purpose_text"] = "Runtime handoff HexMapResource"
 	result["package_handoff"] = _export_handoff_context(actual_path, map_resource)
-	result["runtime_handoff"] = _export_handoff_context(actual_path, map_resource)
+	var include_runtime_queries := _export_include_flag(
+		export_options,
+		"include_runtime_queries",
+		true
+	)
+	result["include_metadata"] = _export_include_flag(export_options, "include_metadata", true)
+	result["include_validation_summary"] = _export_include_flag(
+		export_options,
+		"include_validation_summary",
+		false
+	)
+	result["include_runtime_queries"] = include_runtime_queries
+	result["include_debug_report"] = _export_include_flag(export_options, "include_debug_report", false)
+	result["runtime_handoff"] = _export_handoff_context(
+		actual_path if include_runtime_queries else "",
+		map_resource if include_runtime_queries else null
+	)
+	if profile_selected and bool(result["include_validation_summary"]):
+		var validation_result = HexMapDocumentValidator.validate_document(document, _document_validation_options())
+		result["validation_summary"] = validation_result.summary.duplicate(true)
+	if profile_selected and bool(result["include_debug_report"]):
+		result["debug_report"] = workspace_state_debug_report_text()
 	_last_export_action_result = result.duplicate(true)
 	var export_state := export_workflow_state_snapshot()
 	result["export_state"] = export_state
@@ -4296,6 +4324,8 @@ func _document_validation_options() -> Dictionary:
 		options["object_database"] = context.object_database
 	if context.movement_profile != null:
 		options["movement_profile"] = context.movement_profile
+	if context.validation_rule_suite != null:
+		options["validation_rule_suite"] = context.validation_rule_suite
 	return options
 
 
@@ -4584,23 +4614,70 @@ func _export_destination_context() -> Dictionary:
 
 
 func _export_output_type_context(context: HexMapWorkspaceAssetContext, destination: Dictionary) -> Dictionary:
+	var export_options := _active_export_options(context)
+	var output_type_id := _export_output_type_id(export_options)
+	var file_extension := _export_file_extension(export_options)
 	return {
-		"id": "runtime_handoff_resource",
+		"id": output_type_id,
 		"label": "Runtime Handoff Resource",
 		"source": "Current Level Document",
 		"target_resource_class": "HexMapResource",
-		"file_extension": ".tres",
+		"file_extension": file_extension,
 		"result_purpose_text": "Runtime/API handoff for HexMapResource consumers.",
 		"result_usage": "Runtime and scripting use",
 		"destination_required": true,
-		"destination_purpose": "Project .tres path for the runtime handoff resource.",
+		"destination_purpose": "Project %s path for the runtime handoff resource." % file_extension,
 		"result_state_source": "HexMapExportWorkflowState",
 		"package_support_boundary": "Package build stays in the developer release process.",
 		"debug_report_boundary": "Debug reports stay diagnostic outside production Export.",
 		"source_ready": context.level_document != null,
 		"destination_ready": bool(destination.get("selected", false)),
 		"export_profile_optional": true,
+		"export_options": export_options.duplicate(true),
+		"include_metadata": _export_include_flag(export_options, "include_metadata", true),
+		"include_validation_summary": _export_include_flag(
+			export_options,
+			"include_validation_summary",
+			false
+		),
+		"include_runtime_queries": _export_include_flag(
+			export_options,
+			"include_runtime_queries",
+			true
+		),
+		"include_debug_report": _export_include_flag(export_options, "include_debug_report", false),
 	}
+
+
+func _active_export_options(context: HexMapWorkspaceAssetContext) -> Dictionary:
+	if context == null or context.export_profile == null:
+		return {}
+	if not context.export_profile.has_method("export_options"):
+		return {}
+	var options = context.export_profile.call("export_options")
+	return (options as Dictionary).duplicate(true) if options is Dictionary else {}
+
+
+func _active_export_file_extension(context: HexMapWorkspaceAssetContext) -> String:
+	return _export_file_extension(_active_export_options(context))
+
+
+func _export_output_type_id(options: Dictionary) -> String:
+	var value := String(options.get("output_type", "runtime_handoff_resource")).strip_edges()
+	return "runtime_handoff_resource" if value == "" else value
+
+
+func _export_file_extension(options: Dictionary) -> String:
+	var value := String(options.get("file_extension", ".tres")).strip_edges()
+	if value == "":
+		return ".tres"
+	return value if value.begins_with(".") else ".%s" % value
+
+
+func _export_include_flag(options: Dictionary, key: String, default_value: bool) -> bool:
+	if not options.has(key):
+		return default_value
+	return bool(options.get(key, default_value))
 
 
 func _export_runtime_handoff_summary(

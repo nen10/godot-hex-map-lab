@@ -3786,6 +3786,9 @@ func _generation_validation_options() -> Dictionary:
 	var tile_set = _active_validation_tile_set()
 	if tile_set != null:
 		options["tile_set"] = tile_set
+	var context := workspace_asset_context()
+	if context != null and context.validation_rule_suite != null:
+		options["validation_rule_suite"] = context.validation_rule_suite
 	return options
 
 
@@ -4925,6 +4928,7 @@ func _create_generation_snapshot() -> Dictionary:
 		"overlay_neighbor_radius": _overlay_neighbor_radius(),
 		"overlay_adjacency_rules": _overlay_adjacency_rules(),
 	}
+	_apply_generation_profile_options_to_snapshot(snapshot)
 	if bool(snapshot["overlay_mode"]):
 		snapshot["overlay_shape_universe"] = _overlay_shape_universe()
 		snapshot["overlay_mask_query_enabled"] = _query_rows_enabled(QUERY_KIND_MASK)
@@ -4937,6 +4941,76 @@ func _create_generation_snapshot() -> Dictionary:
 		snapshot["overlay_generated_reference_enabled"] = _overlay_generated_reference_enabled()
 		snapshot["overlay_cyclic_size"] = _overlay_cyclic_size_for_snapshot()
 	return snapshot
+
+
+func _apply_generation_profile_options_to_snapshot(snapshot: Dictionary) -> void:
+	var options := _active_generation_profile_options()
+	if options.is_empty():
+		snapshot["generation_profile_used"] = false
+		snapshot["generation_profile_options"] = {}
+		return
+	snapshot["generation_profile_used"] = true
+	snapshot["generation_profile_options"] = options.duplicate(true)
+	snapshot["seed"] = int(options.get("seed", snapshot.get("seed", 0)))
+	var shape_id := String(options.get("shape_id", "")).strip_edges().to_lower()
+	match shape_id:
+		"hexagon":
+			snapshot["shape"] = SHAPE_HEXAGON
+			snapshot["symmetric"] = false
+			snapshot["hex_radius"] = max(1, int(options.get("radius", snapshot.get("hex_radius", 1))))
+		"rectangle":
+			snapshot["shape"] = SHAPE_RECTANGLE
+			snapshot["symmetric"] = false
+			snapshot["rect_width"] = max(1, int(options.get("width", snapshot.get("rect_width", 1))))
+			snapshot["rect_height"] = max(1, int(options.get("height", snapshot.get("rect_height", 1))))
+		"toric_square", "torus":
+			snapshot["shape"] = SHAPE_TORUS
+			snapshot["symmetric"] = false
+			snapshot["generation_radius"] = max(1, int(options.get("radius", snapshot.get("generation_radius", 1))))
+			snapshot["connect_toric"] = true
+		"symmetric_hexagon":
+			snapshot["shape"] = SHAPE_HEXAGON
+			snapshot["symmetric"] = true
+			snapshot["generation_radius"] = max(1, int(options.get("radius", snapshot.get("generation_radius", 1))))
+		"symmetric_square", "symmetric_rectangle":
+			snapshot["shape"] = SHAPE_RECTANGLE
+			snapshot["symmetric"] = true
+			snapshot["generation_radius"] = max(1, int(options.get("radius", snapshot.get("generation_radius", 1))))
+		"symmetric_toric_square":
+			snapshot["shape"] = SHAPE_RECTANGLE
+			snapshot["symmetric"] = true
+			snapshot["generation_radius"] = max(1, int(options.get("radius", snapshot.get("generation_radius", 1))))
+			snapshot["connect_toric"] = true
+	snapshot["wall_probability"] = clampf(
+		float(options.get("wall_probability", snapshot.get("wall_probability", 0.0))),
+		0.0,
+		1.0
+	)
+	snapshot["connect_method"] = _connect_method_from_profile_options(
+		String(options.get("connectivity_mode", "")),
+		int(snapshot.get("connect_method", HexMapGenerator.CONNECT_NONE))
+	)
+
+
+func _active_generation_profile_options() -> Dictionary:
+	var context := workspace_asset_context()
+	if context == null or context.generation_profile == null:
+		return {}
+	if not context.generation_profile.has_method("generation_options"):
+		return {}
+	var options = context.generation_profile.call("generation_options")
+	return (options as Dictionary).duplicate(true) if options is Dictionary else {}
+
+
+func _connect_method_from_profile_options(value: String, fallback: int) -> int:
+	match value.strip_edges().to_lower():
+		"dense":
+			return HexMapGenerator.CONNECT_DENSE
+		"sparse":
+			return HexMapGenerator.CONNECT_SPARSE
+		"none":
+			return HexMapGenerator.CONNECT_NONE
+	return fallback
 
 
 func _generation_thread_main(snapshot: Dictionary) -> Dictionary:

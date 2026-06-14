@@ -36,6 +36,7 @@ func _run() -> void:
 	await _test_generation_dock_generate_auto_applies_current_map()
 	await _test_generation_dock_generate_auto_applies_hex_tile_map_layer()
 	await _test_generation_dock_output_target_preview_and_selected_document()
+	await _test_generation_profile_options_drive_generation_snapshot()
 	await _test_generation_dock_overlay_uniform_generation_and_apply()
 	await _test_generation_dock_overlay_applies_to_hex_tile_map_layer()
 	await _test_generation_dock_overlay_limit_and_apply_policy()
@@ -1527,6 +1528,47 @@ func _test_generation_dock_output_target_preview_and_selected_document() -> void
 
 	scene_root.queue_free()
 	workspace.queue_free()
+	await process_frame
+
+
+func _test_generation_profile_options_drive_generation_snapshot() -> void:
+	var dock = await _new_ready_dock()
+	var context := HexMapWorkspaceAssetContext.new()
+	dock.set_workspace_asset_context(context)
+	var baseline_snapshot = dock._create_generation_snapshot()
+	_assert_true(
+		not bool(baseline_snapshot.get("generation_profile_used", true)),
+		"PROFILE-NEXT-11 missing Generation Profile keeps default snapshot path"
+	)
+
+	var profile := HexGenerationProfileResource.new()
+	profile.default_seed = 331
+	profile.shape_id = "hexagon"
+	profile.radius = 3
+	profile.wall_probability = 0.0
+	profile.connectivity_mode = "none"
+	context.set_generation_profile(profile)
+
+	var snapshot = dock._create_generation_snapshot()
+	_assert_true(bool(snapshot["generation_profile_used"]), "PROFILE-NEXT-11 snapshot records Generation Profile use")
+	_assert_eq(int(snapshot["seed"]), 331, "PROFILE-NEXT-11 Generation Profile seed drives snapshot")
+	_assert_eq(int(snapshot["shape"]), HexMapGenDock.SHAPE_HEXAGON, "PROFILE-NEXT-11 Generation Profile shape drives snapshot")
+	_assert_eq(bool(snapshot["symmetric"]), false, "PROFILE-NEXT-11 hexagon profile uses primary generation")
+	_assert_eq(int(snapshot["hex_radius"]), 3, "PROFILE-NEXT-11 Generation Profile radius drives snapshot")
+	_assert_eq(float(snapshot["wall_probability"]), 0.0, "PROFILE-NEXT-11 Generation Profile terrain drives snapshot")
+	_assert_eq(
+		int(snapshot["connect_method"]),
+		HexMapGenerator.CONNECT_NONE,
+		"PROFILE-NEXT-11 Generation Profile connectivity drives snapshot"
+	)
+	var profile_options = snapshot["generation_profile_options"] as Dictionary
+	_assert_eq(String(profile_options["shape_id"]), "hexagon", "PROFILE-NEXT-11 snapshot keeps raw profile options")
+
+	var data = dock._generate_data_from_snapshot(snapshot, {})
+	_assert_eq(data.cells.size(), 37, "PROFILE-NEXT-11 profile snapshot generates radius 3 hexagon")
+	_assert_eq(data.walls.size(), 0, "PROFILE-NEXT-11 profile terrain probability drives generated walls")
+
+	dock.queue_free()
 	await process_frame
 
 

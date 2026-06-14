@@ -126,6 +126,11 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 	_assert_true(FileAccess.file_exists(profile_path), "Export screen writes project Export Profile")
 	var export_profile = profile_result["resource"] as HexExportProfileResource
 	_assert_true(export_profile is HexExportProfileResource, "Export screen create returns export profile resource")
+	export_profile.file_extension = ".res"
+	export_profile.include_metadata = false
+	export_profile.include_validation_summary = true
+	export_profile.include_runtime_queries = true
+	export_profile.include_debug_report = true
 	_assert_eq(
 		String(export_profile.behavior_schema().get("kind", "")),
 		"export_profile",
@@ -142,6 +147,16 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 		String(((snapshot["export_profile_context"] as Dictionary)["behavior_schema"] as Dictionary).get("kind", "")),
 		"export_profile",
 		"PROFILE-NEXT-10 Export screen snapshot carries export behavior schema"
+	)
+	output_type = snapshot["output_type"] as Dictionary
+	_assert_eq(String(output_type["file_extension"]), ".res", "PROFILE-NEXT-11 Export Profile file extension drives output context")
+	_assert_eq(bool(output_type["include_metadata"]), false, "PROFILE-NEXT-11 Export Profile metadata flag drives output context")
+	_assert_eq(bool(output_type["include_validation_summary"]), true, "PROFILE-NEXT-11 Export Profile validation flag drives output context")
+	_assert_eq(bool(output_type["include_debug_report"]), true, "PROFILE-NEXT-11 Export Profile debug flag drives output context")
+	dialog_config = snapshot["destination_dialog_config"] as Dictionary
+	_assert_true(
+		String(dialog_config.get("current_file", "")).ends_with(".res"),
+		"PROFILE-NEXT-11 Export Profile file extension drives destination dialog default"
 	)
 
 	var profile_open = workspace.open_export_profile()
@@ -202,6 +217,12 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 	_assert_true(loaded is HexMapResource, "Export screen handoff loads as HexMapResource")
 	_assert_eq(export_result["resource_class"], "HexMapResource", "Export result reports HexMapResource")
 	_assert_eq(export_result["output_type"], "runtime_handoff_resource", "TAB-56 export result reports output type")
+	_assert_eq(String(export_result["file_extension"]), ".res", "PROFILE-NEXT-11 export result uses Export Profile file extension")
+	_assert_eq(bool(export_result["include_metadata"]), false, "PROFILE-NEXT-11 export result uses Export Profile metadata flag")
+	_assert_eq(bool(export_result["include_validation_summary"]), true, "PROFILE-NEXT-11 export result uses Export Profile validation flag")
+	_assert_eq(bool(export_result["include_debug_report"]), true, "PROFILE-NEXT-11 export result uses Export Profile debug flag")
+	_assert_true((export_result["validation_summary"] as Dictionary).has("errors"), "PROFILE-NEXT-11 export result includes validation summary when requested")
+	_assert_true(String(export_result["debug_report"]).contains("Hex Map Workspace"), "PROFILE-NEXT-11 export result includes debug report when requested")
 	_assert_eq(export_result["purpose_text"], "Runtime handoff HexMapResource", "TAB-56 export result reports purpose")
 	var document_summary := HexMapDocumentAdapter.document_summary(document)
 	_assert_eq(int(export_result["cell_count"]), int(document_summary["cells"]), "Export result reports document cell count")
@@ -229,5 +250,4 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 
 	workspace.queue_free()
 	await process_frame
-
 

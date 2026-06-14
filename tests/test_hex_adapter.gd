@@ -77,6 +77,7 @@ func _run() -> void:
 	_test_clean_resource_api_contract_covers_canonical_paths()
 	_test_hex_map_document_dependency_service_crud_hydrates_and_validates()
 	_test_profile_behavior_resources_roundtrip_schemas()
+	_test_profile_engine_validation_rule_suite_filters_and_overrides()
 	_test_hex_map_document_summary_reports_canonical_counts()
 	_test_hex_map_validation_result_serializes_summary_and_warnings()
 	_test_hex_generation_result_resource_serializes_scope_and_replay()
@@ -1121,6 +1122,77 @@ func _test_profile_behavior_resources_roundtrip_schemas() -> void:
 	_assert_eq(bool(export_schema["include_validation_summary"]), true, "PROFILE-NEXT-10 export schema preserves validation summary inclusion")
 	_assert_eq(bool(export_schema["include_runtime_queries"]), false, "PROFILE-NEXT-10 export schema preserves runtime query flag")
 	_assert_eq(String(loaded_export.option_value("compression", "")), "none", "PROFILE-NEXT-10 export schema preserves option bag")
+
+
+func _test_profile_engine_validation_rule_suite_filters_and_overrides() -> void:
+	var data = HexMapData.rectangle(1, 1)
+	data.set_walls([HexVector.zero()])
+	var document = HexMapDocumentAdapter.from_map_resource(HexMapResource.from_map_data(data))
+	HexMapDocumentAdapter.set_object(document, HexVector.zero(), {"object_id": "blocked_object"})
+	HexMapDocumentAdapter.set_label(document, HexVector.q_axis(), {
+		"label_id": "orphan_label",
+		"text": "Outside",
+	})
+
+	var default_result = HexMapDocumentValidator.validate_document(document)
+	_assert_has_issue(
+		default_result,
+		HexMapDocumentValidator.RULE_OBJECT_ON_WALL,
+		"PROFILE-NEXT-11 null profile default detects object on wall"
+	)
+	_assert_has_issue(
+		default_result,
+		HexMapDocumentValidator.RULE_ORPHAN_PAYLOAD,
+		"PROFILE-NEXT-11 null profile default detects orphan payload"
+	)
+	_assert_eq(
+		String(_validation_issue(default_result, HexMapDocumentValidator.RULE_ORPHAN_PAYLOAD).get("severity", "")),
+		HexMapValidationResult.SEVERITY_ERROR,
+		"PROFILE-NEXT-11 null profile keeps orphan payload default severity"
+	)
+
+	var null_profile_result = HexMapDocumentValidator.validate_document(document, {
+		"validation_rule_suite": null,
+	})
+	_assert_has_issue(
+		null_profile_result,
+		HexMapDocumentValidator.RULE_OBJECT_ON_WALL,
+		"PROFILE-NEXT-11 explicit null validation suite preserves object rule"
+	)
+	_assert_eq(
+		String(_validation_issue(null_profile_result, HexMapDocumentValidator.RULE_ORPHAN_PAYLOAD).get("severity", "")),
+		HexMapValidationResult.SEVERITY_ERROR,
+		"PROFILE-NEXT-11 explicit null validation suite preserves default severity"
+	)
+
+	var suite := HexValidationRuleSuiteResource.new()
+	suite.disabled_rule_ids = PackedStringArray([HexMapDocumentValidator.RULE_OBJECT_ON_WALL])
+	suite.severity_overrides = {
+		HexMapDocumentValidator.RULE_ORPHAN_PAYLOAD: HexMapValidationResult.SEVERITY_WARNING,
+	}
+	var suite_result = HexMapDocumentValidator.validate_document(document, {
+		"validation_rule_suite": suite,
+	})
+	_assert_no_issue(
+		suite_result,
+		HexMapDocumentValidator.RULE_OBJECT_ON_WALL,
+		"PROFILE-NEXT-11 validation suite disables object-on-wall rule"
+	)
+	_assert_eq(
+		String(_validation_issue(suite_result, HexMapDocumentValidator.RULE_ORPHAN_PAYLOAD).get("severity", "")),
+		HexMapValidationResult.SEVERITY_WARNING,
+		"PROFILE-NEXT-11 validation suite overrides orphan payload severity"
+	)
+	_assert_eq(
+		int(suite_result.summary.get("warnings", 0)) >= 1,
+		true,
+		"PROFILE-NEXT-11 validation suite refreshes counts after severity override"
+	)
+	_assert_eq(
+		bool(suite_result.summary.get("validation_rule_suite_applied", false)),
+		true,
+		"PROFILE-NEXT-11 validation suite records engine application"
+	)
 
 
 func _test_hex_map_document_summary_reports_canonical_counts() -> void:

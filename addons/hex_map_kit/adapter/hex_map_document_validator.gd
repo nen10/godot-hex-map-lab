@@ -59,6 +59,7 @@ static func validate_document(document, options: Dictionary = {}):
 			"Document map is missing.",
 			HexMapValidationResultScript.SCOPE_DOCUMENT
 		)
+		_apply_validation_rule_suite(result, options)
 		_update_counts(result)
 		_report_validation_progress(options, result, VALIDATION_PHASE_MAP_MISSING, 1, 1)
 		return result
@@ -77,6 +78,7 @@ static func validate_document(document, options: Dictionary = {}):
 	_report_validation_progress(options, result, VALIDATION_PHASE_DEPENDENCIES, 5, VALIDATION_PROGRESS_TOTAL_STEPS)
 	_validate_profile_reachability(result, document, data, options)
 	_report_validation_progress(options, result, VALIDATION_PHASE_PROFILE_REACHABILITY, 6, VALIDATION_PROGRESS_TOTAL_STEPS)
+	_apply_validation_rule_suite(result, options)
 	_update_counts(result)
 	_report_validation_progress(options, result, VALIDATION_PHASE_COMPLETE, VALIDATION_PROGRESS_TOTAL_STEPS, VALIDATION_PROGRESS_TOTAL_STEPS)
 	return result
@@ -144,6 +146,25 @@ static func _validation_phase_text(phase: String) -> String:
 			return "Validation complete"
 		_:
 			return "Validating document"
+
+
+static func _apply_validation_rule_suite(result, options: Dictionary) -> void:
+	var suite = options.get("validation_rule_suite", null)
+	if suite == null or not suite.has_method("rule_enabled"):
+		return
+	var filtered: Array[Dictionary] = []
+	for issue in result.issues:
+		var rule_id := String(issue.get("rule_id", ""))
+		if rule_id != "" and not bool(suite.call("rule_enabled", rule_id)):
+			continue
+		if suite.has_method("rule_severity"):
+			var severity := String(suite.call("rule_severity", rule_id, ""))
+			if severity != "":
+				issue["severity"] = severity
+		filtered.append(issue.duplicate(true))
+	result.issues = filtered
+	result.summary["validation_rule_suite_applied"] = true
+	result.summary["validation_rule_suite_id"] = String(suite.get("suite_id"))
 
 
 static func _validate_tile_entries(result, document, cell_set: Dictionary, options: Dictionary) -> void:

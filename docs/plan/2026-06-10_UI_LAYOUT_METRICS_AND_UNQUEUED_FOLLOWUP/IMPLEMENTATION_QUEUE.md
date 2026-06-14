@@ -121,7 +121,7 @@ Codex appends `follow-up-ready` work here when self-review finds nonblocking wor
 
 ### PROFILE-NEXT-11 Integrate profile behavior schemas into engine behavior
 
-status: READY
+status: COMPLETE
 dependencies: PROFILE-NEXT-10
 source_review: docs/review/autopilot/PROFILE-NEXT-10_SELF_REVIEW_2026-06-13.md
 plan_dir: docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROFILE-NEXT-11_PROFILE_ENGINE_INTEGRATION/
@@ -192,13 +192,13 @@ acceptance / test path:
 
 ## 9. Current pointer
 
-Current recommended next task: `PROFILE-NEXT-11`.
+Current recommended next task: `none`.
 
 Reason:
 
 - All scheduled table rows through Phase M6 are complete.
 - M6 phase review is recorded at `docs/review/roadmap/UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP_M6_PHASE_REVIEW_2026-06-14.md`.
-- `PROFILE-NEXT-11` remains the first valid `READY` dynamic follow-up because `PROFILE-NEXT-10` is complete.
+- `PROFILE-NEXT-11` is complete and no additional `READY` dynamic follow-up remains in this queue.
 
 ---
 

@@ -869,3 +869,28 @@ proof:
     - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROC-NEXT-90_FINAL_DIST_REGENERATION/POLICY.md`
     - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROC-NEXT-90_FINAL_DIST_REGENERATION/IMPLEMENTATION_PLAN.md`
     - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/IMPLEMENTATION_QUEUE.md`
+
+### PROFILE-NEXT-11 Integrate profile behavior schemas into engine behavior
+
+proof:
+  plan: `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROFILE-NEXT-11_PROFILE_ENGINE_INTEGRATION/`
+  review: `docs/review/autopilot/PROFILE-NEXT-11_SELF_REVIEW_2026-06-14.md`
+  tests:
+    - `./tools/test.sh`
+    - `rg -n "SCRIPT ERROR|Parse Error|Invalid call|Failed to load script|Compilation failed" .godot_user/test-runs/20260614-231102-14068/logs`
+    - `python3 tools/verify_task.py --task PROFILE-NEXT-11 --head HEAD --queue docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/IMPLEMENTATION_QUEUE.md` ACCEPT
+  ui_metrics:
+    - `.godot_user/ui-metrics/20260614-231102-14068/workspace_layout_metrics.md`
+  major files:
+    - `addons/hex_map_kit/adapter/hex_map_document_validator.gd`
+    - `addons/hex_map_kit/editor/hex_map_gen_dock.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `tests/test_hex_adapter.gd`
+    - `tests/test_editor_generation.gd`
+    - `tests/test_editor_output.gd`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROFILE-NEXT-11_PROFILE_ENGINE_INTEGRATION/SUB_TASKS.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROFILE-NEXT-11_PROFILE_ENGINE_INTEGRATION/UX.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROFILE-NEXT-11_PROFILE_ENGINE_INTEGRATION/POLICY.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROFILE-NEXT-11_PROFILE_ENGINE_INTEGRATION/IMPLEMENTATION_PLAN.md`
+    - `docs/review/autopilot/PROFILE-NEXT-11_TEST_RESULT_2026-06-14.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/IMPLEMENTATION_QUEUE.md`
