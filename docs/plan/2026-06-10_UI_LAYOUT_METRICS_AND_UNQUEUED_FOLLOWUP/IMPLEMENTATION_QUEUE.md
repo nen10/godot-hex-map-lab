@@ -108,7 +108,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | `ARCH-NEXT-20` | `COMPLETE` | `ARCH-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-20_OBJECT_LAYER_RENDERING_EXTRACTION/` | Object layer rendering extraction | HexTileMapLayer/object layer adapter/tests | Object placement rendering/runtime instancing boundary is separated; `HexTileMapLayer` remains coordinator. |
 | `ARCH-NEXT-21` | `READY` | `ARCH-NEXT-20` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-21_GAMEPLAY_QUERY_SERVICE_EXTRACTION/` | Gameplay query service extraction | path/range/connectivity services/tests | Runtime query helpers move to service/facade boundary; runtime samples use service path. |
 | `ARCH-NEXT-22` | `READY` | `ARCH-NEXT-20` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/ARCH-NEXT-22_DEBUG_OVERLAY_RENDERER_EXTRACTION/` | Debug overlay renderer extraction | debug overlay/validation focus/tests | Debug overlay rendering is separated from normal gameplay rendering and connects to Validate/debug report paths. |
-| `TEST-NEXT-10` | `READY` | `UI-METRIC-08` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/TEST-NEXT-10_CONTINUE_EDITOR_TEST_FILE_SPLIT/` | Continue editor integration test split | tests/test_editor_plugin.gd, new test files, tools/test.sh | Remaining integration tests split by feature family; `test_editor_plugin.gd` becomes workflow smoke; no old private widget shape expansion. |
+| `TEST-NEXT-10` | `COMPLETE` | `UI-METRIC-08` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/TEST-NEXT-10_CONTINUE_EDITOR_TEST_FILE_SPLIT/` | Continue editor integration test split | tests/test_editor_plugin.gd, new test files, tools/test.sh | Remaining integration tests split by feature family; `test_editor_plugin.gd` becomes workflow smoke; no old private widget shape expansion. |
 | `EXPORT-NEXT-10` | `READY` | `SCREEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/EXPORT-NEXT-10_PACKAGE_BUILD_UI_DECISION/` | Package build UI product decision | Export docs/screen/process docs | Decide whether package build belongs in editor Export UI or remains process-only; manual/process are updated accordingly. |
 | `DOC-NEXT-90` | `BACKLOG` | `UI-METRIC-08`, `TEST-NEXT-10`, `EXPORT-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/DOC-NEXT-90_MANUAL_AND_PROCESS_UPDATE/` | Manual/process update for metric and follow-up work | manuals, docs/TEST.md, README.md | Manuals explain UI metric gates, new surfaces, fallback ledger, and sample/debug boundaries; no analog test is added. |
 | `PROC-NEXT-90` | `BACKLOG` | `DOC-NEXT-90` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROC-NEXT-90_FINAL_DIST_REGENERATION/` | Final dist regeneration | `tools/package_addon.sh`, `dist/`, self-review/test-result docs | `tools/package_addon.sh` runs; manifest/zip match current addon tree; dist freshness remains outside normal test gate. |
@@ -936,3 +936,36 @@ proof:
     - `tests/test_hex_adapter.gd`
     - `tests/test_editor_plugin.gd`
     - `docs/review/autopilot/PROFILE-NEXT-10_TEST_RESULT_2026-06-13.md`
+
+### TEST-NEXT-10 Continue editor integration test file split
+
+proof:
+  plan: `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/TEST-NEXT-10_CONTINUE_EDITOR_TEST_FILE_SPLIT/`
+  review: `docs/review/autopilot/TEST-NEXT-10_SELF_REVIEW_2026-06-14.md`
+  tests:
+    - `./tools/test.sh`
+    - `python3 tools/verify_task.py --task TEST-NEXT-10 --head <branch>`
+  major files:
+    - `tests/test_editor_plugin.gd`
+    - `tests/test_editor_plugin_test_base.gd`
+    - `tests/test_editor_workspace.gd`
+    - `tests/test_editor_map.gd`
+    - `tests/test_editor_hex.gd`
+    - `tests/test_editor_generation.gd`
+    - `tests/test_editor_distribution.gd`
+    - `tests/test_editor_asset.gd`
+    - `tests/test_editor_catalog.gd`
+    - `tests/test_editor_layer.gd`
+    - `tests/test_editor_object.gd`
+    - `tests/test_editor_document.gd`
+    - `tests/test_editor_output.gd`
+    - `tests/test_editor_paint.gd`
+    - `tests/test_editor_validate.gd`
+    - `tests/test_editor_qa.gd`
+    - `tests/test_editor_sample.gd`
+    - `tools/test.sh`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/TEST-NEXT-10_CONTINUE_EDITOR_TEST_FILE_SPLIT/SUB_TASKS.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/TEST-NEXT-10_CONTINUE_EDITOR_TEST_FILE_SPLIT/UX.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/TEST-NEXT-10_CONTINUE_EDITOR_TEST_FILE_SPLIT/POLICY.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/TEST-NEXT-10_CONTINUE_EDITOR_TEST_FILE_SPLIT/IMPLEMENTATION_PLAN.md`
+    - `docs/review/autopilot/TEST-NEXT-10_TEST_RESULT_2026-06-14.md`
