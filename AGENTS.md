@@ -9,6 +9,7 @@ Read the smallest relevant set.
 - Tests: `docs/TEST.md`
 - Godot notes: `docs/knowledge/DEV_GODOT.md`
 - Autopilot skill: `.agents/skills/hex-map-codex-autopilot/SKILL.md`
+- Agent roster / routing / completion gate: `docs/process/AGENT_ROSTER_AND_ROUTING.md`
 
 ## Project principles
 
@@ -33,6 +34,8 @@ Read the smallest relevant set.
 | Implement a task | `docs/policy/IMPLEMENTATION_POLICY.md` |
 | Design or update tests | `docs/policy/TEST_DESIGN_POLICY.md` |
 | Execute an existing queue | `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md` |
+| Delegate a task to Codex / DeepSeek and gate it | `docs/process/AGENT_ROSTER_AND_ROUTING.md` |
+| Verify an agent branch before COMPLETE | `python3 tools/verify_task.py --task <ID> --head <branch>` |
 | Update queue status | `docs/process/QUEUE_OPERATION_RULES.md` |
 | Commit completed autopilot task | `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md` |
 
