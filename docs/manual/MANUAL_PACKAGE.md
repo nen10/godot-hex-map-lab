@@ -2,6 +2,14 @@
 
 This repository is the development project. Public addon artifacts are generated from `addons/hex_map_kit/` only.
 
+## Editor UI boundary (package build is process-only)
+
+Package build is intentionally **not** in the editor. The Export tab is a Runtime
+Handoff surface (level document → destination resource); it does not build, zip, or
+upload addon packages. Packaging is a process step — run `./tools/package_addon.sh`
+below. See `EXPORT-NEXT-10` decision:
+`docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/EXPORT-NEXT-10_PACKAGE_BUILD_UI_DECISION/PACKAGE_BUILD_UI_DECISION.md`.
+
 ## Build Addon Package
 
 Run:
