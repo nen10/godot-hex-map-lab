@@ -192,7 +192,7 @@ acceptance / test path:
 
 ## 9. Current pointer
 
-Current recommended next task: `ARCH-NEXT-22`.
+Current recommended next task: `DOC-NEXT-90`.
 
 Reason:
 
