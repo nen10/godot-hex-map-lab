@@ -119,6 +119,58 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 
 Codex appends `follow-up-ready` work here when self-review finds nonblocking work.
 
+### PROFILE-NEXT-11 Integrate profile behavior schemas into engine behavior
+
+status: READY
+dependencies: PROFILE-NEXT-10
+source_review: docs/review/autopilot/PROFILE-NEXT-10_SELF_REVIEW_2026-06-13.md
+plan_dir: docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROFILE-NEXT-11_PROFILE_ENGINE_INTEGRATION/
+
+depth: integrated
+
+context:
+- PROFILE-NEXT-10 added concrete behavior schemas + screen exposure only (depth: surface).
+- A competing dual-run draft (opencode / DeepSeek) demonstrated real engine wiring for the
+  validation suite. That draft was rejected overall (no tests, scope + queue-integrity
+  violations) but the wiring approach is sound and is harvested here.
+
+deliverable:
+- `HexMapDocumentValidator` consumes `HexValidationRuleSuiteResource` to skip disabled rules
+  and apply severity overrides (reference approach below).
+- Generation flow consumes `HexGenerationProfileResource.generation_options()` for seed/shape/terrain.
+- Export flow consumes `HexExportProfileResource.export_options()` for output type / inclusion flags.
+- Every integration is null-safe: an absent profile keeps current default behavior.
+
+reference approach (validation suite, harvested from the rejected draft):
+```gdscript
+# validate_document(): run after issues are collected, before _update_counts()
+_apply_validation_rule_suite(result, options)
+
+static func _apply_validation_rule_suite(result, options: Dictionary) -> void:
+    var suite = options.get("validation_rule_suite", null)
+    if suite == null or not suite.has_method("rule_enabled"):
+        return
+    var filtered: Array = []
+    for issue in result.issues:
+        var rule_id: String = str(issue.get("rule_id", ""))
+        if rule_id != "" and not suite.rule_enabled(rule_id):
+            continue
+        var sev: String = str(suite.rule_severity(rule_id, ""))
+        if sev != "":
+            issue["severity"] = sev
+        filtered.append(issue)
+    result.issues = filtered
+```
+
+note: align method names to the merged PROFILE-NEXT-10 API
+(`rule_severity()` / `generation_options()` / `export_options()`), not the draft's
+`severity_for_rule()`.
+
+acceptance / test path:
+- Tests prove a disabled rule is dropped and a severity override is applied per engine path.
+- Null-profile regression test proves default behavior is unchanged.
+- `./tools/test.sh` ; `python3 tools/verify_task.py --task PROFILE-NEXT-11 --head <branch>`
+
 Template:
 
 ```md
