@@ -18,6 +18,7 @@ const HexObjectLayerRenderer = preload("res://addons/hex_map_kit/adapter/hex_obj
 const HexLayerStackEntryResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_entry_resource.gd")
 const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
 const HexMovementProfileResource = preload("res://addons/hex_map_kit/adapter/hex_movement_profile_resource.gd")
+const HexDebugOverlayRenderer = preload("res://addons/hex_map_kit/adapter/hex_debug_overlay_renderer.gd")
 const HexGameplayQueryService = preload("res://addons/hex_map_kit/adapter/hex_gameplay_query_service.gd")
 const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
 const HexObjectDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_object_definition_resource.gd")
@@ -84,16 +85,140 @@ class RendererSeamProbe extends HexObjectLayerRenderer:
 
 
 class DrawOverlayProbe extends Node2D:
+	var colored_polygon_calls := 0
+	var colored_polygon_colors: Array = []
+	var polyline_calls := 0
+	var polyline_colors: Array = []
+	var polyline_widths: Array = []
 	var object_marker_count := 0
 	var label_marker_count := 0
+	var debug_circle_calls := 0
+	var pending_layer: HexTileMapLayer = null
+	var pending_renderer: HexDebugOverlayRenderer = null
+	var pending_renderer_state: Dictionary = {}
+
+	@warning_ignore("native_method_override")
+	func draw_colored_polygon(points: PackedVector2Array, color: Color, uvs: PackedVector2Array = PackedVector2Array(), texture: Texture2D = null) -> void:
+		colored_polygon_calls += 1
+		colored_polygon_colors.append(color)
+
+	@warning_ignore("native_method_override")
+	func draw_polyline(points: PackedVector2Array, color: Color, width: float = -1.0, antialiased: bool = false) -> void:
+		polyline_calls += 1
+		polyline_colors.append(color)
+		polyline_widths.append(width)
 
 	@warning_ignore("native_method_override")
 	func draw_circle(_position: Vector2, _radius: float, _color: Color, _filled: bool = true, _width: float = 1.0, _antialiased: bool = false) -> void:
+		debug_circle_calls += 1
 		object_marker_count += 1
 
 	@warning_ignore("native_method_override")
 	func draw_rect(_rect: Rect2, _color: Color, _filled: bool = true, _width: float = 1.0, _antialiased: bool = false) -> void:
 		label_marker_count += 1
+
+	func render_overlay_from_layer(layer: HexTileMapLayer) -> void:
+		pending_layer = layer
+		queue_redraw()
+
+	func render_overlay_from_renderer(renderer: HexDebugOverlayRenderer, state: Dictionary) -> void:
+		pending_renderer = renderer
+		pending_renderer_state = state
+		queue_redraw()
+
+	func _draw() -> void:
+		var layer = pending_layer
+		pending_layer = null
+		if layer != null:
+			layer._draw_overlay(self)
+			return
+		var renderer = pending_renderer
+		pending_renderer = null
+		if renderer != null:
+			var state = pending_renderer_state
+			pending_renderer_state = {}
+			renderer.draw_debug_overlay(self, state)
+
+
+class DebugOverlayRendererProbe extends HexDebugOverlayRenderer:
+	var draw_calls := 0
+	var loop_outline_calls := 0
+	var hex_fill_calls := 0
+	var hex_highlight_calls := 0
+	var state_calls: Dictionary = {}
+	var movement_range_overlay_calls := 0
+	var highlight_calls := 0
+	var path_calls := 0
+	var path_colors: Array = []
+	var highlight_colors: Array = []
+	var fill_colors: Array = []
+	var movement_range_fill_colors: Array = []
+	var movement_range_outline_colors: Array = []
+	var path_widths: Array = []
+
+	func draw_debug_overlay(canvas: Node2D, state: Dictionary) -> void:
+		draw_calls += 1
+		state_calls = state.duplicate(true)
+		super.draw_debug_overlay(canvas, state)
+
+	func draw_loop_cell_outlines(canvas: Node2D, state: Dictionary) -> void:
+		loop_outline_calls += 1
+		super.draw_loop_cell_outlines(canvas, state)
+
+	func _draw_path(
+		canvas: Node2D,
+		display_path: Array,
+		path_color: Color,
+		display_center_for_hex: Callable
+	) -> void:
+		path_calls += 1
+		path_colors.append(path_color)
+		path_widths.append(HexDebugOverlayRenderer.DEFAULT_PATH_OUTLINE_WIDTH)
+		# Avoid native canvas calls in test context by matching extraction logic only.
+		if not display_path is Array:
+			return
+		if display_path.size() <= 1:
+			return
+		var points := PackedVector2Array()
+		for raw_hex in display_path:
+			var hex = _coerce_hex(raw_hex)
+			if hex == null:
+				continue
+			points.append(display_center_for_hex.call(hex))
+		if points.is_empty():
+			return
+
+	func draw_hex_fill(canvas: Node2D, center: Vector2, fill: Color, outline_color: Color = Color.TRANSPARENT, flat_top: bool = true, hex_size: float = 24.0) -> void:
+		hex_fill_calls += 1
+		fill_colors.append(fill)
+		movement_range_fill_colors.append(fill)
+		movement_range_outline_colors.append(outline_color)
+
+	func draw_hex_highlight(canvas: Node2D, center: Vector2, color: Color, flat_top: bool, hex_size: float) -> void:
+		hex_highlight_calls += 1
+		highlight_colors.append(color)
+
+	func _draw_movement_range_overlay(
+		canvas: Node2D,
+		movement_range_overlay: Dictionary,
+		visual_hexes_for_draw: Callable,
+		display_center_for_hex: Callable,
+		flat_top: bool,
+		hex_size: float
+	) -> void:
+		movement_range_overlay_calls += 1
+		super._draw_movement_range_overlay(canvas, movement_range_overlay, visual_hexes_for_draw, display_center_for_hex, flat_top, hex_size)
+
+	func _draw_highlights(
+		canvas: Node2D,
+		highlights: Dictionary,
+		visual_hexes_for_draw: Callable,
+		display_center_for_hex: Callable,
+		flat_top: bool,
+		hex_size: float
+	) -> void:
+		highlight_calls += 1
+		super._draw_highlights(canvas, highlights, visual_hexes_for_draw, display_center_for_hex, flat_top, hex_size)
 
 
 class GameplayQueryServiceProbe extends HexGameplayQueryService:
@@ -163,6 +288,9 @@ func _run() -> void:
 	await _test_apply_map_uses_resource_orientation()
 	await _test_coordinate_roundtrips()
 	await _test_path_highlight_and_connectivity_helpers()
+	await _test_focus_validation_cells_drives_overlay()
+	await _test_debug_overlay_renderer_replays_overlay_output()
+	await _test_debug_overlay_renderer_keeps_object_marker_rendering()
 	await _test_weighted_path_and_range_use_movement_profile()
 	await _test_remove_highlight_removes_single_cell()
 	await _test_runtime_input_signals_use_cell_hit()
@@ -701,7 +829,9 @@ func _test_object_layer_renderer_seam_applies_instances_and_markers() -> void:
 	_assert_eq(instance_layer.get_child_count(), 1, "renderer seam keeps existing parenting after re-apply")
 
 	var overlay_canvas = DrawOverlayProbe.new()
-	layer._draw_overlay(overlay_canvas)
+	root.add_child(overlay_canvas)
+	overlay_canvas.render_overlay_from_layer(layer)
+	await process_frame
 	_assert_eq(overlay_canvas.object_marker_count, 1, "object marker drawing flows through seam draw path")
 	_assert_eq(overlay_canvas.label_marker_count, 1, "label marker drawing flows through seam draw path")
 	_assert_true(renderer_probe.marker_calls > 0, "renderer seam draw callback is used for payload markers")
@@ -932,6 +1062,124 @@ func _test_path_highlight_and_connectivity_helpers() -> void:
 	layer.clear_path()
 	_assert_eq(layer._display_path.size(), 0, "clear_path clears display path")
 
+	layer.queue_free()
+	await process_frame
+
+
+func _test_focus_validation_cells_drives_overlay() -> void:
+	var layer = HexTileMapLayer.new()
+	layer.hex_size = 12.0
+	root.add_child(layer)
+	await process_frame
+	layer.apply_map(HexMapResource.from_map_data(HexMapData.square(2, false)))
+
+	layer.highlight_cell(HexVector.r_axis(), Color(0.0, 1.0, 0.0))
+	layer.focus_validation_cells([Vector3i.ZERO, HexVector.q_axis(), HexVector.apply_basis(-3, 0, 0)], Color(0.95, 0.76, 0.18, 0.95))
+	_assert_eq(layer._highlights.size(), 2, "focus_validation_cells replaces previous highlights and keeps in-map cells only")
+	_assert_eq(layer._highlights[HexVector.zero().key()]["color"], Color(0.95, 0.76, 0.18, 0.95), "focus_validation_cells applies focus color")
+	_assert_eq(layer._highlights[HexVector.q_axis().key()]["color"], Color(0.95, 0.76, 0.18, 0.95), "focus_validation_cells applies focus color to map cells")
+
+	var overlay_debug_renderer = DebugOverlayRendererProbe.new()
+	layer._debug_overlay_renderer = overlay_debug_renderer
+	var overlay_canvas = Node2D.new()
+	layer._draw_overlay(overlay_canvas)
+	_assert_eq(overlay_debug_renderer.hex_fill_calls, 0, "validation focus output does not draw movement-range fills")
+	_assert_eq(overlay_debug_renderer.hex_highlight_calls, 2, "validation focus output draws one outline per focused in-map cell")
+	_assert_eq(overlay_debug_renderer.highlight_colors.size(), 2, "validation focus output draws a color per focused cell")
+	for color in overlay_debug_renderer.highlight_colors:
+		_assert_true(color == Color(0.95, 0.76, 0.18, 0.95), "validation focus output uses focus color")
+
+	layer.focus_validation_cells([])
+	_assert_eq(layer._highlights.size(), 0, "validation focus clear path with empty list clears highlights")
+
+	layer.queue_free()
+	await process_frame
+
+
+func _test_debug_overlay_renderer_replays_overlay_output() -> void:
+	var layer = HexTileMapLayer.new()
+	root.add_child(layer)
+	await process_frame
+	layer.apply_map(HexMapResource.from_map_data(HexMapData.square(3, true)))
+	layer.loop_display_enabled = true
+	layer.loop_display_mode = HexTileMapLayer.LOOP_DISPLAY_TORIC
+	var duplicate_visual = HexVector.apply_basis(-3, 0, 0)
+	layer.loop_display_rect = Rect2(layer.hex_to_display_local(duplicate_visual) - Vector2.ONE, Vector2(2, 2))
+	layer.highlight_cell(HexVector.zero(), Color(0.18, 0.44, 0.82))
+	layer.highlight_cell(HexVector.q_axis(), Color(0.18, 0.44, 0.82))
+	var movement_range = layer.movement_range(HexVector.zero(), 2.0)
+	layer.draw_movement_range(movement_range, Color(0.12, 0.62, 0.42, 0.24), Color(0.94, 0.54, 0.16, 0.52))
+	layer.draw_path([HexVector.zero(), HexVector.q_axis(), HexVector.q_axis().add(HexVector.r_axis())], Color(0.12, 0.48, 0.88, 0.90))
+
+	var debug_renderer = DebugOverlayRendererProbe.new()
+	layer._debug_overlay_renderer = debug_renderer
+	var layer_canvas = Node2D.new()
+	layer._draw_overlay(layer_canvas)
+
+	var direct_renderer := DebugOverlayRendererProbe.new()
+	var direct_canvas = Node2D.new()
+	var renderer_state = debug_renderer.state_calls.duplicate(true)
+	direct_renderer.draw_debug_overlay(direct_canvas, renderer_state)
+
+	_assert_true(debug_renderer.loop_outline_calls > 0, "debug overlay renderer receives loop outline delegation from layer")
+	_assert_eq(debug_renderer.loop_outline_calls, direct_renderer.loop_outline_calls, "debug overlay loop outline output is replayable")
+	_assert_eq(debug_renderer.movement_range_overlay_calls, direct_renderer.movement_range_overlay_calls, "debug overlay movement-range output is replayable")
+	_assert_eq(debug_renderer.highlight_calls, direct_renderer.highlight_calls, "debug overlay highlight output is replayable")
+	_assert_eq(debug_renderer.path_calls, direct_renderer.path_calls, "debug overlay path output is replayable")
+	_assert_eq(debug_renderer.path_widths, direct_renderer.path_widths, "debug overlay path widths are replayable")
+	_assert_eq(debug_renderer.path_colors, direct_renderer.path_colors, "debug overlay path colors are replayable")
+	_assert_eq(debug_renderer.fill_colors, direct_renderer.fill_colors, "debug overlay fill colors are replayable")
+	_assert_eq(debug_renderer.highlight_colors, direct_renderer.highlight_colors, "debug overlay highlight colors are replayable")
+
+	layer_canvas.queue_free()
+	direct_canvas.queue_free()
+	layer.queue_free()
+	await process_frame
+
+
+func _test_debug_overlay_renderer_keeps_object_marker_rendering() -> void:
+	var data = HexMapData.rectangle(1, 1)
+	var terrain_layer = HexMapDocumentTerrainLayerResource.new()
+	terrain_layer.map = HexMapResource.from_map_data(data)
+	var document = HexMapDocumentResource.new()
+	document.terrain_layers.append(terrain_layer)
+
+	var placement = HexMapDocumentObjectPlacementResource.new()
+	placement.object_id = "object.crate"
+	placement.cell = Vector3i.ZERO
+	document.object_placements.append(placement)
+
+	var label_placement = HexMapDocumentLabelPlacementResource.new()
+	label_placement.label_id = "area"
+	label_placement.text = "North"
+	label_placement.cell = Vector3i.ZERO
+	document.label_placements.append(label_placement)
+
+	var prototype_node = Node2D.new()
+	var packed_scene = PackedScene.new()
+	_assert_eq(packed_scene.pack(prototype_node), OK, "marker-rendering test packs debug prototype")
+	prototype_node.free()
+
+	var renderer_probe = RendererSeamProbe.new()
+	var layer = HexTileMapLayer.new()
+	layer._object_layer_renderer = renderer_probe
+	layer._debug_overlay_renderer = DebugOverlayRendererProbe.new()
+	root.add_child(layer)
+	await process_frame
+
+	layer.apply_document(document)
+	layer.highlight_cell(HexVector.zero(), Color(0.18, 0.44, 0.82))
+
+	var overlay_canvas = DrawOverlayProbe.new()
+	root.add_child(overlay_canvas)
+	overlay_canvas.render_overlay_from_layer(layer)
+	await process_frame
+	_assert_eq(overlay_canvas.object_marker_count, 1, "debug overlay keeps object marker rendering")
+	_assert_eq(overlay_canvas.label_marker_count, 1, "debug overlay keeps label marker rendering")
+	_assert_true(layer._debug_overlay_renderer.draw_calls > 0, "debug overlay renderer remains active during gameplay drawing")
+	_assert_true(renderer_probe.marker_calls > 0, "object marker rendering remains in object renderer")
+
+	overlay_canvas.free()
 	layer.queue_free()
 	await process_frame
 

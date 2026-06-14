@@ -16,6 +16,7 @@ const HexOverlayTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_over
 const HexObjectLayerAdapter = preload("res://addons/hex_map_kit/adapter/hex_object_layer_adapter.gd")
 const HexObjectLayerRenderer = preload("res://addons/hex_map_kit/adapter/hex_object_layer_renderer.gd")
 const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
+const HexDebugOverlayRenderer = preload("res://addons/hex_map_kit/adapter/hex_debug_overlay_renderer.gd")
 const HexGameplayQueryService = preload("res://addons/hex_map_kit/adapter/hex_gameplay_query_service.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const HexToricCoordinate = preload("res://addons/hex_map_kit/core/hex_toric_coordinate.gd")
@@ -125,6 +126,7 @@ var _highlights: Dictionary = {}
 var _display_path: Array = []
 var _path_color := Color(0.12, 0.48, 0.88, 0.90)
 var _movement_range_overlay: Dictionary = {}
+var _debug_overlay_renderer = HexDebugOverlayRenderer.new()
 var _hovered_hit_key := ""
 var _hex_map_setter_suppressed := false
 var _level_document_setter_suppressed := false
@@ -172,22 +174,22 @@ func _draw() -> void:
 func _draw_overlay(canvas: Node2D) -> void:
 	if _tile_map == null:
 		return
-
-	_draw_loop_cell_outlines(canvas)
-
-	for key in _movement_range_overlay:
-		var range_hex = _movement_range_overlay[key]["hex"]
-		var range_color: Color = _movement_range_overlay[key]["color"]
-		for visual_hex in _visual_hexes_for_draw(range_hex):
-			var tile_center = _display_center_for_hex(visual_hex)
-			_draw_hex_fill(canvas, tile_center, range_color, Color(range_color.r, range_color.g, range_color.b, 0.72))
-
-	for key in _highlights:
-		var hex = _highlights[key]["hex"]
-		var color: Color = _highlights[key]["color"]
-		for visual_hex in _visual_hexes_for_draw(hex):
-			var tile_center = _display_center_for_hex(visual_hex)
-			_draw_hex_highlight(canvas, tile_center, color)
+	_debug_overlay_renderer.draw_debug_overlay(canvas, {
+		"movement_range_overlay": _movement_range_overlay,
+		"highlights": _highlights,
+		"display_path": _display_path,
+		"path_color": _path_color,
+		"loop_display_enabled": loop_display_enabled,
+		"loop_display_margin": loop_display_margin,
+		"uses_toric_visuals": _uses_toric_visuals(),
+		"loop_display_rect": _effective_loop_display_rect(),
+		"loop_cells": [] if _data == null else _data.cells,
+		"visual_hexes_for_draw": Callable(self, "_visual_hexes_for_draw"),
+		"visual_representatives_for_cell": Callable(self, "visual_representatives_for_cell"),
+		"display_center_for_hex": Callable(self, "_display_center_for_hex"),
+		"flat_top": flat_top,
+		"hex_size": hex_size,
+	})
 
 	_object_layer_renderer.draw_document_payload_markers(
 		canvas,
@@ -197,33 +199,24 @@ func _draw_overlay(canvas: Node2D) -> void:
 		Callable(self, "_display_center_for_hex"),
 		hex_size,
 		_data != null
-	)
-
-	if _display_path.size() > 1:
-		var points := PackedVector2Array()
-		for hex in _display_path:
-			points.append(_display_center_for_hex(hex))
-		canvas.draw_polyline(points, _path_color, 4.0, true)
-		if points.size() > 0:
-			canvas.draw_circle(points[0], 5.0, Color(0.12, 0.62, 0.42))
-			canvas.draw_circle(points[points.size() - 1], 5.0, Color(0.88, 0.24, 0.24))
+		)
 
 
-func _draw_hex_highlight(canvas: Node2D, center: Vector2, color: Color) -> void:
-	var points = _hex_polygon(center)
-	var outline = points
-	outline.append(points[0])
-	canvas.draw_polyline(outline, color, 2.5)
-
-
-func _draw_hex_fill(canvas: Node2D, center: Vector2, fill: Color, outline_color: Color = Color.TRANSPARENT) -> void:
-	var points = _hex_polygon(center)
-	canvas.draw_colored_polygon(points, fill)
-	if outline_color.a <= 0.0:
+func focus_validation_cells(cells: Array, color: Color = Color(0.96, 0.76, 0.18, 0.95)) -> void:
+	_highlights.clear()
+	if cells == null:
+		_queue_visual_redraw()
 		return
-	var outline = points
-	outline.append(points[0])
-	canvas.draw_polyline(outline, outline_color, 1.5)
+	for raw_hex in cells:
+		var normalized: HexVector
+		if raw_hex is Vector3i:
+			normalized = HexVector.apply_basis(raw_hex.x, raw_hex.y, raw_hex.z)
+		elif raw_hex is HexVector:
+			normalized = raw_hex as HexVector
+		else:
+			continue
+		highlight_cell(normalized, color)
+	_queue_visual_redraw()
 
 
 func _hex_polygon(center: Vector2) -> PackedVector2Array:
@@ -1101,15 +1094,18 @@ func _visual_hexes_for_draw(hex: HexVector) -> Array:
 
 
 func _draw_loop_cell_outlines(canvas: Node2D) -> void:
-	if not loop_display_enabled or not _uses_toric_visuals() or _data == null:
-		return
-	var rect = _effective_loop_display_rect()
-	var duplicate_color = Color(0.18, 0.44, 0.82, 0.26)
-	for cell in _data.cells:
-		for visual_hex in visual_representatives_for_cell(cell, rect, loop_display_margin):
-			if visual_hex.key() == cell.key():
-				continue
-			_draw_hex_highlight(canvas, _display_center_for_hex(visual_hex), duplicate_color)
+	_debug_overlay_renderer.draw_loop_cell_outlines(canvas, {
+		"loop_display_enabled": loop_display_enabled,
+		"loop_display_margin": loop_display_margin,
+		"uses_toric_visuals": _uses_toric_visuals(),
+		"loop_display_rect": _effective_loop_display_rect(),
+		"loop_cells": [] if _data == null else _data.cells,
+		"visual_hexes_for_draw": Callable(self, "_visual_hexes_for_draw"),
+		"visual_representatives_for_cell": Callable(self, "visual_representatives_for_cell"),
+		"display_center_for_hex": Callable(self, "_display_center_for_hex"),
+		"flat_top": flat_top,
+		"hex_size": hex_size,
+	})
 
 
 func _effective_loop_display_rect() -> Rect2:
