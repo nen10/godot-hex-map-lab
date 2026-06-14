@@ -192,7 +192,7 @@ acceptance / test path:
 
 ## 9. Current pointer
 
-Current recommended next task: `TEST-NEXT-10`.
+Current recommended next task: `EXPORT-NEXT-10`.
 
 Reason:
 
