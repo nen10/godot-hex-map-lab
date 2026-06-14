@@ -21,7 +21,9 @@ fi
 RUN_ID="${HEX_MAP_TEST_RUN_ID:-$(date +%Y%m%d-%H%M%S)-$$}"
 LOG_DIR="$ROOT_DIR/.godot_user/test-runs/$RUN_ID/logs"
 mkdir -p "$LOG_DIR"
-TEST_JOBS="${TEST_JOBS:-1}"
+# Run test scripts in parallel by default (29 scripts after the editor-test split).
+# Each script is an isolated headless Godot process; override with TEST_JOBS=1 to serialize.
+TEST_JOBS="${TEST_JOBS:-4}"
 
 "$ROOT_DIR/tools/package_addon.sh" --check
 
