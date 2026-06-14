@@ -1,9 +1,8 @@
 class_name HexRuntimeQuerySample
 extends RefCounted
 
-const HexGrid = preload("res://addons/hex_map_kit/core/hex_grid.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
-const HexGameplayLayerData = preload("res://addons/hex_map_kit/adapter/hex_gameplay_layer_data.gd")
+const HexGameplayQueryService = preload("res://addons/hex_map_kit/adapter/hex_gameplay_query_service.gd")
 const HexMapDocumentAdapter = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
 const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
 
@@ -16,32 +15,19 @@ static func query_document(
 	movement_profile = null,
 	tile_catalog = null
 ) -> Dictionary:
-	var map_resource = HexMapDocumentAdapter.to_map_resource(document)
-	var data = map_resource.to_map_data() if map_resource != null else null
-	if data == null:
+	var service = HexGameplayQueryService.from_document(document, movement_profile, tile_catalog)
+	if service.map_data == null:
 		return _error_result("Document map is missing.")
 
-	var gameplay = HexGameplayLayerData.from_document(document, movement_profile, tile_catalog)
+	var gameplay = service.gameplay_layer_data(movement_profile)
 	var passable_cells = gameplay.passable_cells()
 	var start_hex = _hex_or_default(start, HexVector.zero())
-	if not gameplay.is_passable(start_hex) and not passable_cells.is_empty():
-		start_hex = passable_cells[0]
+	if not gameplay.is_passable(start_hex):
+		if not passable_cells.is_empty():
+			start_hex = passable_cells[0]
 	var goal_hex = _hex_or_default(goal, _farthest_from(start_hex, passable_cells))
-	var costs = gameplay.movement_costs()
-	var path = HexGrid.weighted_path(
-		start_hex,
-		[goal_hex],
-		passable_cells,
-		costs,
-		data.cyclic_size
-	)
-	var range_result = HexGrid.movement_range(
-		start_hex,
-		passable_cells,
-		movement_budget,
-		costs,
-		data.cyclic_size
-	)
+	var path = service.find_weighted_path(start_hex, goal_hex, movement_profile)
+	var range_result = service.movement_range(start_hex, movement_budget, movement_profile)
 	return {
 		"loaded": true,
 		"error": "",

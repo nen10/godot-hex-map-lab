@@ -18,6 +18,7 @@ const HexObjectLayerRenderer = preload("res://addons/hex_map_kit/adapter/hex_obj
 const HexLayerStackEntryResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_entry_resource.gd")
 const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
 const HexMovementProfileResource = preload("res://addons/hex_map_kit/adapter/hex_movement_profile_resource.gd")
+const HexGameplayQueryService = preload("res://addons/hex_map_kit/adapter/hex_gameplay_query_service.gd")
 const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_object_database_resource.gd")
 const HexObjectDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_object_definition_resource.gd")
 const HexTileCatalogEntry = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_entry.gd")
@@ -94,6 +95,48 @@ class DrawOverlayProbe extends Node2D:
 	func draw_rect(_rect: Rect2, _color: Color, _filled: bool = true, _width: float = 1.0, _antialiased: bool = false) -> void:
 		label_marker_count += 1
 
+
+class GameplayQueryServiceProbe extends HexGameplayQueryService:
+	var find_path_calls := 0
+	var find_weighted_path_calls := 0
+	var movement_range_calls := 0
+	var is_map_connected_calls := 0
+	var connected_component_calls := 0
+	var connected_component_from_local_calls := 0
+
+	func find_path(start: HexVector, goal: HexVector) -> Array:
+		find_path_calls += 1
+		return super.find_path(start, goal)
+
+	func find_weighted_path(start: HexVector, goal: HexVector, movement_profile = null) -> Array:
+		find_weighted_path_calls += 1
+		return super.find_weighted_path(start, goal, movement_profile)
+
+	func movement_range(start: HexVector, movement_budget: float, movement_profile = null) -> Dictionary:
+		movement_range_calls += 1
+		return super.movement_range(start, movement_budget, movement_profile)
+
+	func is_map_connected() -> bool:
+		is_map_connected_calls += 1
+		return super.is_map_connected()
+
+	func connected_component(hex: HexVector) -> Array:
+		connected_component_calls += 1
+		return super.connected_component(hex)
+
+	func connected_component_from_local(local_pos: Vector2, local_to_cell_hit: Callable) -> Array:
+		connected_component_from_local_calls += 1
+		return super.connected_component_from_local(local_pos, local_to_cell_hit)
+
+
+class GameplayQueryDelegatingLayer extends HexTileMapLayer:
+	var probe_service: HexGameplayQueryService
+
+	func _gameplay_query_service(movement_profile = null, tile_catalog = null) -> HexGameplayQueryService:
+		if probe_service != null:
+			return probe_service
+		return super._gameplay_query_service(movement_profile, tile_catalog)
+
 var _failures: Array[String] = []
 var _test_output_root := ""
 
@@ -132,6 +175,7 @@ func _run() -> void:
 	await _test_visual_path_for_toric_path_uses_nearest_representatives()
 	await _test_visual_path_anchor_selects_first_representative()
 	await _test_connected_component_from_local_matches_core()
+	await _test_gameplay_query_service_parity_and_delegation()
 	await _test_apply_map_before_ready_redraws_after_ready()
 
 	if _failures.is_empty():
@@ -1210,6 +1254,107 @@ func _test_connected_component_from_local_matches_core() -> void:
 	await process_frame
 
 
+func _test_gameplay_query_service_parity_and_delegation() -> void:
+	var data = HexMapData.rectangle(3, 1)
+	data.set_walls([HexVector.q_axis()])
+	var movement_profile = HexMovementProfileResource.new()
+	movement_profile.wall_passable = true
+	movement_profile.wall_cost = 1.0
+
+	var service = HexGameplayQueryService.from_map_data(data)
+	var service_profile = HexGameplayQueryService.from_map_data(data, movement_profile)
+
+	var service_default_data = service.gameplay_layer_data()
+	var service_default_cells = service_default_data.passable_cells()
+	var service_default_costs = service_default_data.movement_costs()
+
+	var service_profile_data = service_profile.gameplay_layer_data(movement_profile)
+	var service_profile_cells = service_profile_data.passable_cells()
+	var service_profile_costs = service_profile_data.movement_costs()
+
+	var floor_cells = data.floor_cells()
+	var start = HexVector.zero()
+	var goal = HexVector.q_axis().scaled(2)
+
+	var expected_path = HexGrid.shortest_path(start, [goal], floor_cells, data.cyclic_size)
+	var expected_weighted_path = HexGrid.weighted_path(
+		start,
+		[goal],
+		service_profile_cells,
+		service_profile_costs,
+		data.cyclic_size
+	)
+	var expected_range_default = HexGrid.movement_range(start, service_default_cells, 2.0, service_default_costs, data.cyclic_size)
+	var expected_range_profile = HexGrid.movement_range(start, service_profile_cells, 2.0, service_profile_costs, data.cyclic_size)
+	var expected_component = HexGrid.connected_area(start, floor_cells, data.cyclic_size)
+	var expected_local_component = expected_component
+
+	var baseline_path = service.find_path(start, goal)
+	var baseline_weighted = service_profile.find_weighted_path(start, goal, movement_profile)
+	var baseline_range_default = service.movement_range(start, 2.0)
+	var baseline_range_profile = service_profile.movement_range(start, 2.0, movement_profile)
+
+	_assert_keys_eq(baseline_path, expected_path, "service path defaults match HexGrid")
+	_assert_keys_eq(
+		baseline_weighted,
+		expected_weighted_path,
+		"service weighted path with profile matches HexGrid"
+	)
+	_assert_eq(_sorted_range_keys(baseline_range_default), _sorted_range_keys(expected_range_default), "service default range keys match HexGrid")
+	_assert_eq(_sorted_range_keys(baseline_range_profile), _sorted_range_keys(expected_range_profile), "service profile range keys match HexGrid")
+
+	for key in expected_range_default:
+		_assert_eq(float(baseline_range_default[key]["cost"]), float(expected_range_default[key]["cost"]), "service default range cost matches core")
+	for key in expected_range_profile:
+		_assert_eq(float(baseline_range_profile[key]["cost"]), float(expected_range_profile[key]["cost"]), "service profile range cost matches core")
+
+	var probe = GameplayQueryServiceProbe.new(data)
+	var delegated = GameplayQueryDelegatingLayer.new()
+	delegated.probe_service = probe
+	root.add_child(delegated)
+	await process_frame
+	delegated.apply_map(HexMapResource.from_map_data(data))
+
+	var delegated_path = delegated.find_path(start, goal)
+	var delegated_weighted = delegated.find_weighted_path(start, goal, movement_profile)
+	var delegated_range_default = delegated.movement_range(start, 2.0)
+	var delegated_range_profile = delegated.movement_range(start, 2.0, movement_profile)
+	var delegated_component = delegated.connected_component(start)
+	var local_pos = delegated._tile_map.position + delegated.hex_to_display_local(start)
+	var delegated_connected_from_local = delegated.connected_component_from_local(local_pos)
+	var delegated_connected = delegated.is_map_connected()
+
+	_assert_keys_eq(delegated_path, expected_path, "layer delegates find_path to service result")
+	_assert_keys_eq(delegated_weighted, expected_weighted_path, "layer delegates find_weighted_path to service result")
+	_assert_eq(_sorted_range_keys(delegated_range_default), _sorted_range_keys(expected_range_default), "layer default movement range delegates to service result")
+	_assert_eq(_sorted_range_keys(delegated_range_profile), _sorted_range_keys(expected_range_profile), "layer weighted movement range delegates to service result")
+	_assert_keys_eq(delegated_component, expected_component, "layer connected component delegates to service result")
+	_assert_keys_eq(delegated_connected_from_local, expected_local_component, "layer connected_component_from_local delegates to service result")
+	_assert_eq(delegated_connected, service.is_map_connected(), "layer is_map_connected delegates to service result")
+	for key in _sorted_range_keys(expected_range_default):
+		_assert_eq(float(delegated_range_default[key]["cost"]), float(expected_range_default[key]["cost"]), "layer default movement cost matches core")
+	for key in _sorted_range_keys(expected_range_profile):
+		_assert_eq(float(delegated_range_profile[key]["cost"]), float(expected_range_profile[key]["cost"]), "layer profile movement cost matches core")
+
+	_assert_eq(probe.find_path_calls, 1, "layer find_path is delegated")
+	_assert_eq(probe.find_weighted_path_calls, 1, "layer find_weighted_path is delegated")
+	_assert_eq(probe.movement_range_calls, 2, "layer movement_range is delegated")
+	_assert_eq(probe.connected_component_calls, 2, "layer connected_component is delegated (including local-hit pathway lookup)")
+	_assert_eq(probe.connected_component_from_local_calls, 1, "layer connected_component_from_local is delegated")
+	_assert_eq(probe.is_map_connected_calls, 1, "layer is_map_connected is delegated")
+
+	var empty_service = HexGameplayQueryService.new(null)
+	_assert_eq(empty_service.find_path(start, goal), [], "empty service returns empty path")
+	_assert_eq(empty_service.find_weighted_path(start, goal, movement_profile), [], "empty service returns empty weighted path")
+	_assert_eq(empty_service.movement_range(start, 2.0, movement_profile), {}, "empty service returns empty movement range")
+	_assert_eq(empty_service.is_map_connected(), true, "empty service treats nil map as connected")
+	_assert_eq(empty_service.connected_component(start), [], "empty service returns empty connected component")
+	_assert_eq(empty_service.connected_component_from_local(Vector2.ZERO, Callable(func(_local): return {})), [], "empty service returns empty local connected component")
+
+	delegated.queue_free()
+	await process_frame
+
+
 func _test_apply_map_before_ready_redraws_after_ready() -> void:
 	var data = HexMapData.rectangle(2, 1)
 	var layer = HexTileMapLayer.new()
@@ -1259,6 +1404,14 @@ func _keys(points: Array) -> Array:
 	var result: Array = []
 	for point in points:
 		result.append(point.key())
+	result.sort()
+	return result
+
+
+func _sorted_range_keys(values: Dictionary) -> Array:
+	var result: Array = []
+	for key in values.keys():
+		result.append(String(key))
 	result.sort()
 	return result
 

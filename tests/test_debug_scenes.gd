@@ -20,6 +20,7 @@ const HexObjectDatabaseResource = preload("res://addons/hex_map_kit/adapter/hex_
 const HexObjectDefinitionResource = preload("res://addons/hex_map_kit/adapter/hex_object_definition_resource.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 const HexRuntimeQuerySample = preload("res://examples/basic_runtime/runtime_query_sample.gd")
+const HexGameplayQueryService = preload("res://addons/hex_map_kit/adapter/hex_gameplay_query_service.gd")
 const HexRuntimeQueryExampleScene = preload("res://examples/basic_runtime/runtime_query_example.tscn")
 const HexEditorWorkflowExample = preload("res://examples/editor_workflow/editor_workflow_example.gd")
 const HexEditorWorkflowExampleScene = preload("res://examples/editor_workflow/editor_workflow_example.tscn")
@@ -390,6 +391,9 @@ func _run() -> void:
 	movement_profile.profile_id = "runtime-sample"
 	movement_profile.wall_passable = true
 	movement_profile.wall_cost = 1.0
+	var service = HexGameplayQueryService.from_document(runtime_document, movement_profile)
+	var expected_query_path = service.find_weighted_path(HexVector.zero(), HexVector.q_axis(), movement_profile)
+	var expected_query_range = service.movement_range(HexVector.zero(), 1.0, movement_profile)
 	var query_result = HexRuntimeQuerySample.query_document(
 		runtime_document,
 		HexVector.zero(),
@@ -397,14 +401,22 @@ func _run() -> void:
 		1.0,
 		movement_profile
 	)
+	var query_range = query_result["range"] as Dictionary
+	var expected_range_keys = _range_keys(expected_query_range)
 	_assert_true(query_result["loaded"], "runtime query sample queries canonical document resource")
 	_assert_eq(query_result["profile_id"], "runtime-sample", "runtime query sample reports movement profile id")
 	_assert_eq(query_result["path_count"], 2, "runtime query sample returns weighted path")
+	_assert_eq(_keys(query_result["path"] as Array), _keys(expected_query_path), "runtime query sample path matches service path")
 	_assert_eq(query_result["range_count"], 2, "runtime query sample returns movement range")
+	_assert_eq(_range_keys(query_range), _range_keys(expected_query_range), "runtime query sample range keys match service")
 	_assert_true(
 		(query_result["range"] as Dictionary).has(HexVector.q_axis().key()),
 		"runtime query sample range includes passable wall cell"
 	)
+	for key in expected_range_keys:
+		_assert_eq(float(query_range[key]["cost"]), float(expected_query_range[key]["cost"]), "runtime query sample range costs match service")
+	var source = FileAccess.get_file_as_string("res://examples/basic_runtime/runtime_query_sample.gd")
+	_assert_true(source.find("HexGameplayQueryService") != -1, "runtime query sample uses gameplay query service")
 	var path_query = HexRuntimeQuerySample.query_document_path(
 		document_path,
 		HexVector.zero(),
@@ -414,6 +426,8 @@ func _run() -> void:
 	)
 	_assert_true(path_query["loaded"], "runtime query sample path helper loads saved canonical document")
 	_assert_eq(path_query["path_count"], 2, "runtime query sample path helper returns weighted path")
+	_assert_eq(_keys(path_query["path"] as Array), _keys(expected_query_path), "runtime query sample path helper path matches service")
+	_assert_eq(_range_keys(path_query["range"] as Dictionary), expected_range_keys, "runtime query sample path helper range keys match service")
 	var missing_query = HexRuntimeQuerySample.query_document_path(_test_resource_path("missing_runtime_query_document.tres"))
 	_assert_true(not bool(missing_query["loaded"]), "runtime query sample reports missing document path")
 
@@ -452,8 +466,11 @@ func _run() -> void:
 		"res://examples/basic_runtime/runtime_query_example.gd",
 		"res://examples/editor_workflow/editor_workflow_example.gd",
 	]:
-		var source = FileAccess.get_file_as_string(source_path)
-		_assert_true(source.find("res://addons/hex_map_kit/editor/") == -1, "PKG-01 example avoids editor preloads: %s" % source_path)
+		var source_code = FileAccess.get_file_as_string(source_path)
+		_assert_true(
+			source_code.find("res://addons/hex_map_kit/editor/") == -1,
+			"PKG-01 example avoids editor preloads: %s" % source_path
+		)
 
 	var runtime_example = HexRuntimeQueryExampleScene.instantiate()
 	root.add_child(runtime_example)
@@ -564,5 +581,13 @@ func _keys(points: Array) -> Array:
 	var result: Array = []
 	for point in points:
 		result.append(point.key())
+	result.sort()
+	return result
+
+
+func _range_keys(values: Dictionary) -> Array:
+	var result: Array = []
+	for key in values.keys():
+		result.append(String(key))
 	result.sort()
 	return result

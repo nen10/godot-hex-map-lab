@@ -16,9 +16,7 @@ const HexOverlayTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_over
 const HexObjectLayerAdapter = preload("res://addons/hex_map_kit/adapter/hex_object_layer_adapter.gd")
 const HexObjectLayerRenderer = preload("res://addons/hex_map_kit/adapter/hex_object_layer_renderer.gd")
 const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
-const HexGameplayLayerData = preload("res://addons/hex_map_kit/adapter/hex_gameplay_layer_data.gd")
-const HexGrid = preload("res://addons/hex_map_kit/core/hex_grid.gd")
-const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
+const HexGameplayQueryService = preload("res://addons/hex_map_kit/adapter/hex_gameplay_query_service.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const HexToricCoordinate = preload("res://addons/hex_map_kit/core/hex_toric_coordinate.gd")
 
@@ -373,12 +371,14 @@ func responsibility_split_snapshot() -> Dictionary:
 			"apply_document",
 			"apply_document_to_layer_stack",
 			"display_state_for_hex",
+			"find_path",
 			"find_weighted_path",
 			"movement_range",
+			"is_map_connected",
+			"connected_component",
 		]),
 		"deferred_extractions": PackedStringArray([
 			"object_layer_applier",
-			"gameplay_query_adapter",
 			"debug_overlay_adapter",
 		]),
 	}
@@ -844,45 +844,19 @@ func display_state_for_hex(hex: HexVector, visual_hex = null) -> Dictionary:
 
 
 func find_path(start: HexVector, goal: HexVector) -> Array:
-	if _data == null:
-		return []
-	var start_normalized = HexVector.apply_basis(start.q, start.s, start.r)
-	var goal_normalized = HexVector.apply_basis(goal.q, goal.s, goal.r)
-	var floors = _data.floor_cells()
-	return HexGrid.shortest_path(start_normalized, [goal_normalized], floors, _data.cyclic_size)
+	return _gameplay_query_service().find_path(start, goal)
 
 
 func gameplay_layer_data(movement_profile = null):
-	return HexGameplayLayerData.from_map_data(_data, movement_profile)
+	return _gameplay_query_service(movement_profile).gameplay_layer_data(movement_profile)
 
 
 func find_weighted_path(start: HexVector, goal: HexVector, movement_profile = null) -> Array:
-	if _data == null:
-		return []
-	var start_normalized = HexVector.apply_basis(start.q, start.s, start.r)
-	var goal_normalized = HexVector.apply_basis(goal.q, goal.s, goal.r)
-	var gameplay = gameplay_layer_data(movement_profile)
-	return HexGrid.weighted_path(
-		start_normalized,
-		[goal_normalized],
-		gameplay.passable_cells(),
-		gameplay.movement_costs(),
-		_data.cyclic_size
-	)
+	return _gameplay_query_service(movement_profile).find_weighted_path(start, goal, movement_profile)
 
 
 func movement_range(start: HexVector, movement_budget: float, movement_profile = null) -> Dictionary:
-	if _data == null:
-		return {}
-	var start_normalized = HexVector.apply_basis(start.q, start.s, start.r)
-	var gameplay = gameplay_layer_data(movement_profile)
-	return HexGrid.movement_range(
-		start_normalized,
-		gameplay.passable_cells(),
-		movement_budget,
-		gameplay.movement_costs(),
-		_data.cyclic_size
-	)
+	return _gameplay_query_service(movement_profile).movement_range(start, movement_budget, movement_profile)
 
 
 func show_movement_range(
@@ -964,29 +938,24 @@ func clear_path() -> void:
 
 
 func is_map_connected() -> bool:
-	if _data == null:
-		return true
-	return HexMapGenerator.is_floor_connected(_data)
+	return _gameplay_query_service().is_map_connected()
 
 
 func connected_component(hex: HexVector) -> Array:
-	if _data == null:
-		return []
-	var start = HexVector.apply_basis(hex.q, hex.s, hex.r)
-	var floors = _data.floor_cells()
-	return HexGrid.connected_area(start, floors, _data.cyclic_size)
+	return _gameplay_query_service().connected_component(hex)
 
 
 func connected_component_from_local(local_pos: Vector2) -> Array:
-	var hit = local_to_cell_hit(local_pos)
-	if not bool(hit["exists"]):
-		return []
-	return connected_component(hit["hex"])
+	return _gameplay_query_service().connected_component_from_local(local_pos, Callable(self, "local_to_cell_hit"))
 
 
 func highlight_connected_component(hex: HexVector, color: Color) -> void:
 	for cell in connected_component(hex):
 		highlight_cell(cell, color)
+
+
+func _gameplay_query_service(movement_profile = null, tile_catalog = null) -> HexGameplayQueryService:
+	return HexGameplayQueryService.from_map_data(_data, movement_profile, tile_catalog)
 
 
 func visual_representatives_for_cell(hex: HexVector, rect: Rect2, margin: int = 1) -> Array:
