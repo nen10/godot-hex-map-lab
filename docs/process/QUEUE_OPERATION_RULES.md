@@ -40,6 +40,11 @@ Task 実行中に作成された `SUB_TASK.md` 内のすべての Scheduled task
 
 ### 2. Proof log の記載
 
+Proof entries are recorded in `PROOF_LOG.md` (sibling of `IMPLEMENTATION_QUEUE.md`),
+not in the queue itself — this keeps the queue lean for executor context windows.
+Append the new `### <TASK-ID>` entry to `PROOF_LOG.md`; the queue's section 10 is
+just a pointer. `tools/verify_task.py` checks both for backward compatibility.
+
 ```text
 proof:
   plan: docs/plan/<roadmap>/<TASK_ID>_<slug>/

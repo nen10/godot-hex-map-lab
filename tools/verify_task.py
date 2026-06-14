@@ -105,6 +105,12 @@ def main() -> int:
     base_text = q.git_show(base, queue_path) or ""
     head_rows = q.parse_queue_rows(head_text)
     base_rows = q.parse_queue_rows(base_text)
+    # Proof entries live in a sibling PROOF_LOG.md (split out to keep the queue lean).
+    # Search both so old commits (entries in the queue) and new ones (entries in the
+    # proof log) both verify.
+    proof_log_path = queue_path.rsplit("/", 1)[0] + "/PROOF_LOG.md"
+    proof_text = (q.git_show(head, proof_log_path) or "") if "/" in queue_path else ""
+    proof_search = head_text + "\n" + proof_text
 
     # ---- Check 1: queue status integrity --------------------------------
     newly_complete = [
@@ -129,9 +135,9 @@ def main() -> int:
         ))
 
     for t in newly_complete:
-        if not re.search(rf"^###\s+{re.escape(t)}\b", head_text, re.MULTILINE):
+        if not re.search(rf"^###\s+{re.escape(t)}\b", proof_search, re.MULTILINE):
             findings.append(Finding("FAIL", "proof-log",
-                                    f"{t} is COMPLETE but has no `### {t}` proof-log entry in the queue"))
+                                    f"{t} is COMPLETE but has no `### {t}` proof-log entry (queue or PROOF_LOG.md)"))
 
     # ---- Check 2: progression pointer is orchestrator-owned --------------
     base_ptr = q.parse_pointer(base_text)
