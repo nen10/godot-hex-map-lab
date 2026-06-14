@@ -842,3 +842,30 @@ proof:
     - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/DOC-NEXT-90_MANUAL_AND_PROCESS_UPDATE/IMPLEMENTATION_PLAN.md`
     - `docs/review/autopilot/DOC-NEXT-90_TEST_RESULT_2026-06-14.md`
     - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/IMPLEMENTATION_QUEUE.md`
+
+### PROC-NEXT-90 Final dist regeneration
+
+proof:
+  plan: `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROC-NEXT-90_FINAL_DIST_REGENERATION/`
+  review: `docs/review/autopilot/PROC-NEXT-90_SELF_REVIEW_2026-06-14.md`
+  execution:
+    - `docs/review/autopilot/PROC-NEXT-90_SELF_REVIEW_2026-06-14.md`
+    - `docs/review/autopilot/PROC-NEXT-90_TEST_RESULT_2026-06-14.md`
+    - `docs/review/roadmap/UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP_M6_PHASE_REVIEW_2026-06-14.md`
+  ui_metrics:
+    - `.godot_user/ui-metrics/20260614-225204-74511/workspace_layout_metrics.md`
+  tests:
+    - `tools/package_addon.sh`
+    - `./tools/test.sh`
+    - `cmp -s dist/hex_map_kit-0.3.0.manifest.txt .godot_user/package-check/20260614-225204-74545/hex_map_kit-0.3.0.manifest.txt`
+    - `cmp -s dist/hex_map_kit-0.3.0.zip .godot_user/package-check/20260614-225204-74545/hex_map_kit-0.3.0.zip`
+  docs:
+    - `docs/review/roadmap/UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP_M6_PHASE_REVIEW_2026-06-14.md`
+  major files:
+    - `dist/hex_map_kit-0.3.0.manifest.txt`
+    - `dist/hex_map_kit-0.3.0.zip`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROC-NEXT-90_FINAL_DIST_REGENERATION/SUB_TASKS.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROC-NEXT-90_FINAL_DIST_REGENERATION/UX.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROC-NEXT-90_FINAL_DIST_REGENERATION/POLICY.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROC-NEXT-90_FINAL_DIST_REGENERATION/IMPLEMENTATION_PLAN.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/IMPLEMENTATION_QUEUE.md`

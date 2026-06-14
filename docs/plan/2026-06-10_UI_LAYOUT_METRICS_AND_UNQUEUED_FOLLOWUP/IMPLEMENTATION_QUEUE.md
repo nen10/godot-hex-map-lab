@@ -111,7 +111,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | `TEST-NEXT-10` | `COMPLETE` | `UI-METRIC-08` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/TEST-NEXT-10_CONTINUE_EDITOR_TEST_FILE_SPLIT/` | Continue editor integration test split | tests/test_editor_plugin.gd, new test files, tools/test.sh | Remaining integration tests split by feature family; `test_editor_plugin.gd` becomes workflow smoke; no old private widget shape expansion. |
 | `EXPORT-NEXT-10` | `COMPLETE` | `SCREEN-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/EXPORT-NEXT-10_PACKAGE_BUILD_UI_DECISION/` | Package build UI product decision | Export docs/screen/process docs | Decide whether package build belongs in editor Export UI or remains process-only; manual/process are updated accordingly. |
 | `DOC-NEXT-90` | `COMPLETE` | `UI-METRIC-08`, `TEST-NEXT-10`, `EXPORT-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/DOC-NEXT-90_MANUAL_AND_PROCESS_UPDATE/` | Manual/process update for metric and follow-up work | manuals, docs/TEST.md, README.md | Manuals explain UI metric gates, new surfaces, fallback ledger, and sample/debug boundaries; no analog test is added. |
-| `PROC-NEXT-90` | `READY` | `DOC-NEXT-90` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROC-NEXT-90_FINAL_DIST_REGENERATION/` | Final dist regeneration | `tools/package_addon.sh`, `dist/`, self-review/test-result docs | `tools/package_addon.sh` runs; manifest/zip match current addon tree; dist freshness remains outside normal test gate. |
+| `PROC-NEXT-90` | `COMPLETE` | `DOC-NEXT-90` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROC-NEXT-90_FINAL_DIST_REGENERATION/` | Final dist regeneration | `tools/package_addon.sh`, `dist/`, self-review/test-result docs | `tools/package_addon.sh` runs; manifest/zip match current addon tree; dist freshness remains outside normal test gate. |
 
 ---
 
@@ -192,49 +192,13 @@ acceptance / test path:
 
 ## 9. Current pointer
 
-Current recommended next task: `PROC-NEXT-90`.
+Current recommended next task: `PROFILE-NEXT-11`.
 
 Reason:
 
-- `NEXT-00` is complete.
-- `PROCESS-10` is complete.
-- `PROCESS-11` is complete.
-- `PROCESS-12` is complete.
-- Phase M0 tasks are complete.
-- `UI-METRIC-00` is complete.
-- `UI-METRIC-01` is complete.
-- `UI-METRIC-02` is complete.
-- `UI-METRIC-03` is complete.
-- `UI-METRIC-04` is complete.
-- `UI-METRIC-05` is complete.
-- `UI-METRIC-06` is complete.
-- `UI-METRIC-07` is complete.
-- `UI-METRIC-08` is complete.
-- Phase M2 review is recorded at `docs/review/roadmap/UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP_M2_PHASE_REVIEW_2026-06-10.md`.
-- `ARCH-NEXT-10` is complete.
-- `ARCH-NEXT-11` is complete.
-- `CAT-NEXT-10` is complete.
-- `PERF-NEXT-10` is complete.
-- Phase M3 review is recorded at `docs/review/roadmap/UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP_M3_PHASE_REVIEW_2026-06-10.md`.
-- `GEN-NEXT-10` is complete.
-- `GEN-NEXT-11` is complete.
-- `CAT-NEXT-11` is complete.
-- `SCREEN-NEXT-10` is complete.
-- `LAYER-NEXT-10` is complete.
-- `PAINT-NEXT-10` is complete.
-- `VAL-NEXT-10` is complete.
-- `QA-NEXT-10` is complete.
-- `SETTINGS-NEXT-10` is complete.
-- `SAMPLE-NEXT-10` is complete.
-- Phase M4 review is recorded at `docs/review/roadmap/UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP_M4_PHASE_REVIEW_2026-06-10.md`.
-- `PERF-NEXT-11` is complete.
-- `GENPIPE-NEXT-10` is complete.
-- `GENPIPE-NEXT-20` is complete.
-- `PROFILE-NEXT-10` is complete.
-- `STATE-NEXT-10` is COMPLETE because `UI-METRIC-05` is complete.
-- `ARCH-NEXT-20` is READY because `ARCH-NEXT-10` is complete.
-- `EXPORT-NEXT-10` is READY because `SCREEN-NEXT-10` is complete.
-- `TEST-NEXT-10` remains READY because `UI-METRIC-08` is complete.
+- All scheduled table rows through Phase M6 are complete.
+- M6 phase review is recorded at `docs/review/roadmap/UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP_M6_PHASE_REVIEW_2026-06-14.md`.
+- `PROFILE-NEXT-11` remains the first valid `READY` dynamic follow-up because `PROFILE-NEXT-10` is complete.
 
 ---
 
