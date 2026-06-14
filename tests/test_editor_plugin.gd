@@ -175,6 +175,7 @@ func _run() -> void:
 	await _test_file_dialog_lifecycle_helper_attaches_without_reparenting()
 	_test_workspace_lifecycle_state_models_cover_required_transitions()
 	await _test_workspace_root_state_and_dispatcher_integrate_viewstates()
+	_test_workspace_dispatcher_result_contract()
 	await _test_workspace_asset_slots_use_strict_resource_type_filters()
 	await _test_workspace_resource_purpose_tooltips_cover_resource_rows()
 	await _test_workspace_tab_purpose_empty_states_route_to_project_actions()
@@ -4386,9 +4387,19 @@ func _test_workspace_root_state_and_dispatcher_integrate_viewstates() -> void:
 
 	var select_result = workspace.dispatch_workspace_event(HexMapWorkspaceDispatcher.EVENT_SELECT_TAB, {"tab": "Validate"})
 	_assert_true(bool(select_result["ok"]), "STATE-60 dispatcher selects tab")
+	_assert_true(select_result.has("reducer_result"), "STATE-60 dispatch result exposes reducer_result")
+	_assert_true(select_result.has("side_effects"), "STATE-60 dispatch result exposes side_effects")
+	_assert_true(select_result.has("ui_state_update"), "STATE-60 dispatch result exposes ui_state_update")
+	_assert_true(select_result.has("debug_report_proof"), "STATE-60 dispatch result exposes debug_report_proof")
 	_assert_eq(workspace.current_workspace_tab_name(), "Validate", "STATE-60 dispatcher changes selected tab")
 	_assert_eq(String((select_result["root_state"] as Dictionary)["current_tab"]), "Validate", "STATE-60 dispatch envelope returns root state")
 	_assert_eq(String((select_result["view_state"] as Dictionary)["current_tab"]), "Validate", "STATE-60 dispatch envelope returns root ViewState")
+	var select_side_effect = select_result["side_effects"] as Dictionary
+	var tab_effect = select_side_effect.get("tab_change", {}) as Dictionary
+	_assert_eq(String(tab_effect.get("requested_tab", "")), "Validate", "STATE-60 dispatch side effects includes tab request")
+	var select_ui_update = select_result["ui_state_update"] as Dictionary
+	_assert_true(bool(select_ui_update.get("root_state", false)), "STATE-60 dispatch ui_state_update marks root_state")
+	_assert_true(select_result["debug_report_proof"].to_upper() != "", "STATE-60 dispatch proof includes debug text")
 
 	var validate_result = workspace.dispatch_workspace_event(HexMapWorkspaceDispatcher.EVENT_RUN_VALIDATION)
 	_assert_true(bool(validate_result["ok"]), "STATE-60 dispatcher runs validation")
@@ -4397,9 +4408,18 @@ func _test_workspace_root_state_and_dispatcher_integrate_viewstates() -> void:
 	var validation_view = screen_view_states["Validate"] as Dictionary
 	_assert_eq(String(validation_view["state_source"]), "HexMapValidationWorkflowState", "STATE-60 dispatched validation keeps ViewState source")
 	_assert_eq(String(validation_view["state_id"]), HexMapValidationWorkflowState.STATE_ERROR, "STATE-60 dispatched validation updates root state")
-	var validate_action = validate_result["result"] as Dictionary
+	_assert_true(validate_result.has("reducer_result"), "STATE-60 dispatch validation has reducer_result")
+	_assert_true(validate_result.has("side_effects"), "STATE-60 dispatch validation has side_effects")
+	_assert_true(validate_result.has("ui_state_update"), "STATE-60 dispatch validation has ui_state_update")
+	_assert_true(validate_result.has("debug_report_proof"), "STATE-60 dispatch validation proof has text")
+	var validate_action = validate_result["reducer_result"] as Dictionary
 	var issue_rows = validate_action["issue_rows"] as Array
 	_assert_true(issue_rows.size() > 0, "STATE-60 dispatched validation returns issue rows")
+	var validation_effect = (validate_result["side_effects"] as Dictionary).get("validation", {}) as Dictionary
+	_assert_true(bool(validation_effect.get("requested", false)), "STATE-60 dispatch validation reports requested effect")
+	_assert_eq(int(validation_effect.get("issue_count", 0)), issue_rows.size(), "STATE-60 dispatch validation side effect reports issue count")
+	_assert_true(bool((validate_result["ui_state_update"] as Dictionary).get("validate_screen", false)), "STATE-60 dispatch validation updates Validate screen")
+	_assert_true(String(validate_result["debug_report_proof"]).contains("Hex Map Workspace State Debug Report"), "STATE-60 dispatch validation reports debug text")
 
 	var focus_result = workspace.dispatch_workspace_event(HexMapWorkspaceDispatcher.EVENT_SELECT_VALIDATION_ISSUE, {"index": 0})
 	_assert_true(bool(focus_result["ok"]), "STATE-60 dispatcher selects validation issue")
@@ -4408,6 +4428,11 @@ func _test_workspace_root_state_and_dispatcher_integrate_viewstates() -> void:
 	screen_view_states = root_state["screen_view_states"] as Dictionary
 	validation_view = screen_view_states["Validate"] as Dictionary
 	_assert_eq(String(validation_view["state_id"]), HexMapValidationWorkflowState.STATE_FOCUS_APPLIED, "STATE-60 root state records validation focus")
+	_assert_true(focus_result.has("reducer_result"), "STATE-60 focus dispatch has reducer_result")
+	_assert_true(focus_result.has("side_effects"), "STATE-60 focus dispatch has side_effects")
+	var focus_effect = (focus_result["side_effects"] as Dictionary).get("validation_issue_focus", {}) as Dictionary
+	_assert_true(bool(focus_effect.get("focused", false)), "STATE-60 focus dispatch records focused side effect")
+	_assert_true(String((focus_result["ui_state_update"] as Dictionary).get("selected_tab", "")) != "", "STATE-60 focus dispatch updates selected_tab")
 
 	var output_dir = _test_resource_dir("state60_workspace_dispatcher")
 	var export_path = "%s/root_dispatch_handoff.tres" % output_dir
@@ -4416,21 +4441,48 @@ func _test_workspace_root_state_and_dispatcher_integrate_viewstates() -> void:
 		{"path": export_path}
 	)
 	_assert_true(bool(destination_result["ok"]), "STATE-60 dispatcher selects export destination")
+	_assert_true(destination_result.has("side_effects"), "STATE-60 export destination has side_effects")
+	_assert_eq(String((destination_result["reducer_result"] as Dictionary).get("path", "")), String(export_path), "STATE-60 export destination reducer keeps selected path")
+	var export_effect = (destination_result["side_effects"] as Dictionary).get("export_destination", {}) as Dictionary
+	_assert_true(bool(export_effect.get("destination_selected", false)), "STATE-60 export destination side effect indicates selected")
 	root_state = destination_result["root_state"] as Dictionary
 	screen_view_states = root_state["screen_view_states"] as Dictionary
 	_assert_eq(String((screen_view_states["Export"] as Dictionary)["state_source"]), "HexMapExportWorkflowState", "STATE-60 export dispatch updates root ViewState")
 	var clear_result = workspace.dispatch_workspace_event(HexMapWorkspaceDispatcher.EVENT_CLEAR_EXPORT_DESTINATION)
 	_assert_true(bool(clear_result["ok"]), "STATE-60 dispatcher clears export destination")
+	_assert_true(clear_result.has("reducer_result"), "STATE-60 clear export destination has reducer_result")
+	_assert_true(clear_result.has("side_effects"), "STATE-60 clear export destination has side_effects")
+	_assert_true(bool((clear_result["ui_state_update"] as Dictionary).get("export_screen", false)), "STATE-60 clear export destination updates Export screen")
 
 	var sample_result = workspace.dispatch_workspace_event(HexMapWorkspaceDispatcher.EVENT_OPEN_SAMPLE_LEARNING)
 	_assert_true(bool(sample_result["ok"]), "STATE-60 dispatcher opens sample learning destination")
+	_assert_true(sample_result.has("reducer_result"), "STATE-60 sample open has reducer_result")
+	_assert_true(sample_result.has("side_effects"), "STATE-60 sample open has side_effects")
 	_assert_eq(workspace.current_workspace_tab_name(), "Settings", "STATE-60 sample learning dispatch routes Settings")
+	_assert_true(String((sample_result["ui_state_update"] as Dictionary).get("selected_tab", "")) == "Settings", "STATE-60 sample open updates selected_tab")
 	var unknown_result = workspace.dispatch_workspace_event("unknown_workspace_event")
 	_assert_true(not bool(unknown_result["ok"]), "STATE-60 dispatcher rejects unknown event")
 	_assert_eq(int(unknown_result["error"]), ERR_INVALID_PARAMETER, "STATE-60 unknown event reports invalid parameter")
+	_assert_true(unknown_result.has("reducer_result"), "STATE-60 unknown event has reducer_result")
+	_assert_true(unknown_result.has("side_effects"), "STATE-60 unknown event has side_effects")
+	_assert_true(unknown_result.has("ui_state_update"), "STATE-60 unknown event has ui_state_update")
+	_assert_true(String(unknown_result["debug_report_proof"]) != "", "STATE-60 unknown event has debug report proof")
 
 	workspace.queue_free()
 	await process_frame
+
+
+func _test_workspace_dispatcher_result_contract() -> void:
+	var null_workspace_result = HexMapWorkspaceDispatcher.dispatch(null, HexMapWorkspaceDispatcher.EVENT_SELECT_TAB, {"tab": "Resources"})
+	_assert_true(null_workspace_result.has("reducer_result"), "STATE-60 dispatch typed contract includes reducer_result on null workspace")
+	_assert_true(null_workspace_result.has("side_effects"), "STATE-60 dispatch typed contract includes side_effects on null workspace")
+	_assert_true(null_workspace_result.has("ui_state_update"), "STATE-60 dispatch typed contract includes ui_state_update on null workspace")
+	_assert_true(null_workspace_result.has("debug_report_proof"), "STATE-60 dispatch typed contract includes debug proof on null workspace")
+	_assert_eq(int(null_workspace_result["error"]), ERR_UNAVAILABLE, "STATE-60 dispatch null workspace reports unavailable")
+	var unknown_dispatch = HexMapWorkspaceDispatcher.dispatch(null, "unknown_workspace_event")
+	_assert_true(not bool(unknown_dispatch["ok"]), "STATE-60 dispatch null workspace unknown event fails")
+	_assert_eq(int(unknown_dispatch["error"]), ERR_INVALID_PARAMETER, "STATE-60 dispatch null workspace unknown event reports invalid parameter")
+	_assert_eq(String(unknown_dispatch["event_id"]), "unknown_workspace_event", "STATE-60 dispatch null workspace unknown event keeps event id")
 
 
 func _test_workspace_asset_slots_use_strict_resource_type_filters() -> void:

@@ -96,7 +96,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 | `GENPIPE-NEXT-10` | `COMPLETE` | `GEN-NEXT-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GENPIPE-NEXT-10_GENERATION_RESULT_RESOURCE_AND_REPLAY_API/` | GenerationResultResource and replay API | new Resource/API/tests | primary/overlay/filter/candidate/validation result scope is defined; Generate/QA can replay/promote result resources. |
 | `GENPIPE-NEXT-20` | `COMPLETE` | `GENPIPE-NEXT-10` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GENPIPE-NEXT-20_PIPELINE_GRAPH_UI_RESEARCH_AND_SPIKE/` | Pipeline graph UI research/spike | review docs/prototype if needed | Resource pass / linear pipeline / node graph options are updated; pass graph is either scoped or explicitly rejected. |
 | `PROFILE-NEXT-10` | `COMPLETE` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROFILE-NEXT-10_CONCRETE_PROFILE_BEHAVIOR_SCHEMAS/` | Concrete profile behavior schemas | profile Resources, editors/tests | Validation Suite, Generation Profile, and Export Profile gain real behavior schemas and editor/screen connections. |
-| `STATE-NEXT-10` | `READY` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/STATE-NEXT-10_ROOT_REDUCER_EVENT_MODEL/` | Root reducer / event model expansion | dispatcher/root state/tests | Workspace events are typed; reducer results, side effects, UI state update, and debug report proof are separated. |
+| `STATE-NEXT-10` | `COMPLETE` | `UI-METRIC-05` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/STATE-NEXT-10_ROOT_REDUCER_EVENT_MODEL/` | Root reducer / event model expansion | dispatcher/root state/tests | Workspace events are typed; reducer results, side effects, UI state update, and debug report proof are separated. |
 | `STATE-NEXT-11` | `BACKLOG` | `STATE-NEXT-10`, `ARCH-NEXT-11` | `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/STATE-NEXT-11_GENERATION_PRIVATE_FLAG_MIRROR_RETIREMENT/` | Generation private flag mirror retirement | Generate run state/dock/tests | `_generation_*` mirror inventory exists; replaced fields are removed or read-only; removal conditions and tests are recorded. |
 
 ---
@@ -192,7 +192,7 @@ acceptance / test path:
 
 ## 9. Current pointer
 
-Current recommended next task: `STATE-NEXT-10`.
+Current recommended next task: `ARCH-NEXT-20`.
 
 Reason:
 
@@ -231,7 +231,7 @@ Reason:
 - `GENPIPE-NEXT-10` is complete.
 - `GENPIPE-NEXT-20` is complete.
 - `PROFILE-NEXT-10` is complete.
-- `STATE-NEXT-10` is READY because `UI-METRIC-05` is complete.
+- `STATE-NEXT-10` is COMPLETE because `UI-METRIC-05` is complete.
 - `ARCH-NEXT-20` is READY because `ARCH-NEXT-10` is complete.
 - `EXPORT-NEXT-10` is READY because `SCREEN-NEXT-10` is complete.
 - `TEST-NEXT-10` remains READY because `UI-METRIC-08` is complete.
@@ -510,6 +510,30 @@ proof:
     - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-08_AUTOPILOT_ACCEPTANCE_TEMPLATE_UPDATE/IMPLEMENTATION_PLAN.md`
     - `docs/review/roadmap/UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP_M2_PHASE_REVIEW_2026-06-10.md`
     - `docs/review/autopilot/UI-METRIC-08_TEST_RESULT_2026-06-10.md`
+
+### STATE-NEXT-10 Root reducer / event model expansion
+
+proof:
+  plan: `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/STATE-NEXT-10_ROOT_REDUCER_EVENT_MODEL/`
+  review: `docs/review/autopilot/STATE-NEXT-10_SELF_REVIEW_2026-06-14.md`
+  execution:
+    - `docs/review/autopilot/STATE-NEXT-10_SELF_REVIEW_2026-06-14.md`
+    - `docs/review/autopilot/STATE-NEXT-10_TEST_RESULT_2026-06-14.md`
+  tests:
+    - `./tools/test.sh`
+  docs:
+    - `docs/process/PLANNING_POLICY.md`
+    - `docs/process/QUEUE_OPERATION_RULES.md`
+    - `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
+  major files:
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/STATE-NEXT-10_ROOT_REDUCER_EVENT_MODEL/SUB_TASKS.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/STATE-NEXT-10_ROOT_REDUCER_EVENT_MODEL/UX.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/STATE-NEXT-10_ROOT_REDUCER_EVENT_MODEL/POLICY.md`
+    - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/STATE-NEXT-10_ROOT_REDUCER_EVENT_MODEL/IMPLEMENTATION_PLAN.md`
+    - `addons/hex_map_kit/editor/hex_map_workspace_dispatcher.gd`
+    - `tests/test_editor_plugin.gd`
+    - `docs/review/autopilot/STATE-NEXT-10_SELF_REVIEW_2026-06-14.md`
+    - `docs/review/autopilot/STATE-NEXT-10_TEST_RESULT_2026-06-14.md`
 
 ### ARCH-NEXT-10 Physical Workspace UI node construction extraction
 
