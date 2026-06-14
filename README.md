@@ -36,6 +36,8 @@ Hex 座標系・ランダム壁生成・通路生成(連結性回復)処理を G
 - `docs/manual/MANUAL_PACKAGE.md`
 - `docs/api/API_REFERENCE.md`
 
+このリポジトリの editor workspace と UI metric gate運用は `docs/manual/MANUAL_WORKFLOW.md` / `docs/manual/MANUAL_EDITOR_PLUGIN.md` / `docs/TEST.md` に記載されており、サンプル運用・デバッグ overlay 境界・PACKAGE ビルドと Export の分離は `docs/review/roadmap/FALLBACK_LEDGER_2026-06-10.md` と `docs/manual/MANUAL_PACKAGE.md` を参照しています。
+
 Editor authoring starts in **Hex Map Workspace** by selecting a `HexTileMap` scene node and using the `Resources` tab. The production workflow is project asset selection: create or select a Level Document, Tile Catalog, TileSet, Object Database, Label Database, Layer Stack, Movement Profile, Generation Profile, Validation Rule Suite, Export Profile, and Runtime Handoff destination through Resource pickers and FileDialogs. `Resources` auto-links node-owned resources back to the selected `HexTileMap`; Generate can stay `Preview only` or explicitly `Apply to selected Document`. Resource rows use source badges such as `Node`, `Project`, `Document Dependency`, `Manual Override`, `Sample Learning`, and `Missing` to show ownership. Normal tile and object workflows use catalog keys and object keys rather than raw tile source numbers or editable path text. Bundled samples live in Settings / Samples for learning and can be duplicated into project assets when you want to adapt them.
 
 For onboarding, use **Learn with bundled samples** to open Settings / Samples. Sample mode is OFF by default; turning it ON exposes bundled learning candidates while keeping selected project assets primary. `Duplicate sample catalog to project` copies the sample catalog, tile texture, and object scene into project-owned files.

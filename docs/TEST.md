@@ -55,7 +55,14 @@ The audit reports suspicious button wiring, placeholder button text, debug/raw/p
 .godot_user/ui-metrics/<run-id>/
 ```
 
-The P0 failure count is a standard test gate and must be zero. P1 issue counts are included in the report but remain report-only initially.
+`./tools/test.sh` runs `tests/test_workspace_layout_metric_gate.gd` for this gate:
+
+- P0 is a hard acceptance gate: `P0 failures` must be `0`.
+- P1 counts are report-only for now.
+- Metric reports are written to `.godot_user/ui-metrics/<run-id>/workspace_layout_metrics.json` and `.md`.
+
+`./tools/test.sh` executes test scripts in parallel by default with `TEST_JOBS=4`.
+Set `TEST_JOBS=1` to force serial execution.
 
 ### テスト方針
 
@@ -188,10 +195,16 @@ GodotでのDebug実行によるテストが有用なケースについては、�
 ./tools/test.sh
 ```
 
-複数 test script を並列実行する場合:
+複数 test script を並列実行する場合（デフォルトは `TEST_JOBS=4`）：
 
 ```sh
-TEST_JOBS=3 ./tools/test.sh
+TEST_JOBS=4 ./tools/test.sh
+```
+
+1 つずつ実行する場合:
+
+```sh
+TEST_JOBS=1 ./tools/test.sh
 ```
 
 Godot の実行ファイルを明示する場合:

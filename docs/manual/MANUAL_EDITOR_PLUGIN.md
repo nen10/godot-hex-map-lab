@@ -4,6 +4,8 @@ Hex Map Kit provides one editor workspace for authoring, generating, validating,
 
 This manual describes user workflows. For API details, use `docs/api/API_REFERENCE.md`. For end-to-end authoring and runtime handoff, use `docs/manual/MANUAL_WORKFLOW.md`.
 
+Fallback and debug/sample/process boundary rules are tracked in [`docs/review/roadmap/FALLBACK_LEDGER_2026-06-10.md`](docs/review/roadmap/FALLBACK_LEDGER_2026-06-10.md).
+
 ## 1. Enable The Addon
 
 Confirm that `project.godot` enables the plugin:
@@ -14,6 +16,18 @@ enabled=PackedStringArray("res://addons/hex_map_kit/plugin.cfg")
 ```
 
 After Godot starts, the editor shows the **Hex Map Workspace** dock. The workspace uses these task tabs:
+
+Task screens and purpose:
+
+1. `Resources`: canonical source selection and dependency context.
+2. `Catalog`: tile/scene entry management and catalog key validation.
+3. `Layers`: role-layer stack setup and document apply by role.
+4. `Paint`: viewport editing and brush-driven authoring.
+5. `Validate`: issue list, focus actions, and fix suggestions.
+6. `QA`: seed comparison and promotion workflow.
+7. `Generate`: generation run and output target controls.
+8. `Export`: runtime handoff output selection.
+9. `Settings`: sample learning and debug/report controls.
 
 - `Resources`
 - `Generate`
@@ -203,7 +217,7 @@ Current Export tab terms:
 - `Export Profile`: optional `HexExportProfileResource` project resource for handoff settings.
 - destination: explicit FileDialog path chosen by the user.
 
-The Export tab does not save the authoring document. Use Resources/document save actions for `HexMapDocumentResource` persistence. Package Build is a developer process (`tools/package_addon.sh`), and Debug Report is a support/diagnostic action.
+The Export tab does not save the authoring document. Use Resources/document save actions for `HexMapDocumentResource` persistence. Package Build is a developer process (`tools/package_addon.sh`, `docs/manual/MANUAL_PACKAGE.md`), and Debug Report is a support/diagnostic action.
 
 ## 10. Copy A Debug Report
 
@@ -218,6 +232,8 @@ The report includes:
 - raw status needed for support
 
 Normal authoring should use concise status and validation rows. The debug report is for support, not for everyday editing, and is not an Export tab output.
+
+Debug overlay rendering is separated from normal gameplay rendering and is surfaced through the Validate/debug-report flow only.
 
 ## 11. Use Samples For Learning
 

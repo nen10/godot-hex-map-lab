@@ -53,6 +53,18 @@ More setup details: `docs/manual/MANUAL_SETUP.md`.
 
 Open **Hex Map Workspace** and work from the authoring goal:
 
+Workflow task screens and intent:
+
+1. `Resources`: bind selected scene ownership, manage dependencies, and keep production sources explicit.
+2. `Catalog`: prepare tile and scene assignments through project-owned `HexTileCatalogResource` plus `TileSet` / scene entries.
+3. `Layers`: configure role-layer mapping and apply document data by role.
+4. `Paint`: edit canonical document intent in the viewport with selected project assets.
+5. `Validate`: read, sort, and focus issue groups before runtime handoff.
+6. `QA`: compare generation alternatives with score/severity visibility and selected-seed preview.
+7. `Generate`: run generation outputs and output-target decisions.
+8. `Export`: hand off runtime-friendly `HexMapResource` from current Level Document.
+9. `Settings`: control learning helpers and editor debug options.
+
 - Resources: select the `HexTileMap` context, create or select the Level Document, create missing node-owned resources, and manage shared project resources through the Level Document dependency slots.
 - Generate: choose generator shape, seed, catalog keys, target, orientation, tile size, and output target.
 - QA: run Seed Lab batch comparison and promote a selected seed to a document.
@@ -63,6 +75,12 @@ Open **Hex Map Workspace** and work from the authoring goal:
 - Export: create a Runtime Handoff `HexMapResource` from the current Level Document.
 - Settings: learn with bundled samples or duplicate sample assets into project-owned resources.
 - Support: use `Copy Debug Report` when a compact status row is not enough.
+
+Sample/debug boundaries:
+
+- Samples are learning/onboarding assets and are not silent production defaults.
+- `Export` is runtime handoff, not package build output.
+- Debug overlay rendering is separate from normal gameplay rendering and is driven by Validate/debug-report flow.
 
 Normal editor selection uses Resource pickers and FileDialogs. Saved paths may be displayed as read-only status, but path text is not the primary input workflow.
 
@@ -80,6 +98,8 @@ Recommended workspace pass:
 `Resources` auto-links the selected `HexTileMap` while auto-link is on. If no node is selected, the tab shows `No HexTileMap selected` and keeps production asset selection visible instead of filling the workspace with samples.
 
 The selected Level Document is the canonical authoring source. `HexTileMapLayer.hex_map` is runtime/display snapshot data for preview, target import, or Runtime Handoff output; it does not replace the Level Document as the map you save, validate, or continue editing.
+
+Fallback, mirror/debug/sample/manual override rules are tracked in [`docs/review/roadmap/FALLBACK_LEDGER_2026-06-10.md`](docs/review/roadmap/FALLBACK_LEDGER_2026-06-10.md), including owner and removal condition for each tracked decision.
 
 Resource rows show ownership through source badges:
 
@@ -218,7 +238,9 @@ The current Export tab workflow is:
 3. Choose a Runtime Handoff destination with the FileDialog.
 4. Run the handoff to write a `HexMapResource`.
 
-This workflow is not Save Document. Authoring saves keep the `HexMapDocumentResource`. It is also not Package Build or Debug Report; package artifacts are created by developer tooling, and debug reports are support/diagnostic text.
+This workflow is not Save Document. Authoring saves keep the `HexMapDocumentResource`. It is also not Package Build or Debug Report; package artifacts are process-only (`tools/package_addon.sh`, `docs/manual/MANUAL_PACKAGE.md`) and debug reports are support/diagnostic text.
+
+Debug overlay rendering is separate from normal gameplay rendering and is driven through the Validate/debug-report path.
 
 ## 9. Runtime Query
 
