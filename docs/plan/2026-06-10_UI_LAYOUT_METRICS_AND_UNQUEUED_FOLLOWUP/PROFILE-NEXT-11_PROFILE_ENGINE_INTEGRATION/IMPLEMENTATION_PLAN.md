@@ -16,7 +16,8 @@
 - `tests/test_hex_adapter.gd`
 - `tests/test_editor_generation.gd`
 - `tests/test_editor_output.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/review/autopilot/PROFILE-NEXT-11_SELF_REVIEW_2026-06-14.md`
 - `docs/review/autopilot/PROFILE-NEXT-11_TEST_RESULT_2026-06-14.md`
 - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/PROOF_LOG.md`

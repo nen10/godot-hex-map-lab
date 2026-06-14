@@ -11,7 +11,8 @@ Add clearer visual-state summaries to Resources, Layers, and Export screens whil
 - `addons/hex_map_kit/editor/hex_map_export_screen.gd`
 - `addons/hex_map_kit/editor/hex_map_workspace.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 
 ## Planned Implementation Steps
 
@@ -19,7 +20,7 @@ Add clearer visual-state summaries to Resources, Layers, and Export screens whil
 2. Extend Layers role panel with role-tree summary/rows labels and expose `role_tree_summary`.
 3. Extend Export panels with runtime handoff summary/readiness labels and expose `runtime_handoff_summary`.
 4. Update tests to assert snapshot and mounted-label proof for Resources, Layers, and Export.
-5. Update `docs/TEST.md`.
+5. Update `docs/TEST.md` only if execution instructions changed; otherwise update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 6. Run `./tools/test.sh`.
 
 ## Fallback / Deferred Steps
@@ -42,7 +43,7 @@ Add clearer visual-state summaries to Resources, Layers, and Export screens whil
 
 ## Docs Updates
 
-- Update `docs/TEST.md` with `SCREEN-NEXT-10` coverage.
+- Update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` with `SCREEN-NEXT-10` coverage.
 - Record self-review and test result under `docs/review/autopilot/`.
 
 ## Planned Completion Criteria

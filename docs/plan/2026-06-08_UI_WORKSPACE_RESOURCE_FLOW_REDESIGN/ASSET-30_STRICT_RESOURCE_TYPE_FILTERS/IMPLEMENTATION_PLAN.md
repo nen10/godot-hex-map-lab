@@ -5,7 +5,7 @@
 - Inspect asset slot state/control and workspace asset panel slot definitions.
 - Ensure typed slots configure `EditorResourcePicker.base_type` with concrete addon Resource classes.
 - Add tooltip and snapshot metadata for expected type and flexibility reason.
-- Update editor plugin tests and `docs/TEST.md`.
+- Update editor plugin tests and `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 
 ## Target Files
 
@@ -14,7 +14,8 @@
 - `addons/hex_map_kit/editor/hex_map_workspace_asset_panel.gd`
 - `addons/hex_map_kit/editor/hex_map_workspace.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 
 ## Steps
 

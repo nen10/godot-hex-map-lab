@@ -11,7 +11,8 @@ Reset the project policy and autopilot instructions so later roadmap tasks canno
 - `docs/policy/IMPLEMENTATION_POLICY.md`
 - `docs/policy/TEST_DESIGN_POLICY.md`
 - `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/IMPLEMENTATION_QUEUE.md`
 
 ## Steps

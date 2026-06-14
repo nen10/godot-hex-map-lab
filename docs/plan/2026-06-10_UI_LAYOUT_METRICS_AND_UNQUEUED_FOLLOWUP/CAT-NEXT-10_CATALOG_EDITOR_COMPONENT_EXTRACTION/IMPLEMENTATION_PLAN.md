@@ -10,7 +10,8 @@ Extract Catalog entry list/detail/create/validate behavior into a dedicated edit
 - `addons/hex_map_kit/editor/hex_map_workspace.gd`
 - `addons/hex_map_kit/editor/hex_map_edit_tool.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 
 ## Planned Implementation Steps
 
@@ -18,7 +19,7 @@ Extract Catalog entry list/detail/create/validate behavior into a dedicated edit
 2. Update `HexMapWorkspace` Catalog snapshot/action methods to call the component and report component owner rows.
 3. Update `HexMapEditTool` catalog list/status formatting to delegate to the component while preserving brush selector behavior.
 4. Extend editor tests to assert dedicated Catalog owner rows and Paint non-ownership.
-5. Update `docs/TEST.md`.
+5. Update `docs/TEST.md` only if execution instructions changed; otherwise update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 6. Run `./tools/test.sh`.
 
 ## Fallback / Deferred Steps
@@ -42,7 +43,7 @@ Extract Catalog entry list/detail/create/validate behavior into a dedicated edit
 
 ## Docs Updates
 
-- Update `docs/TEST.md` with `CAT-NEXT-10` coverage.
+- Update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` with `CAT-NEXT-10` coverage.
 - Record self-review and test result under `docs/review/autopilot/`.
 
 ## Planned Completion Criteria

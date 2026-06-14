@@ -6,13 +6,14 @@
 - Preserve current preview auto-apply behavior.
 - Add explicit apply-to-selected-document action.
 - Attach generated metadata to the committed document and update workspace/session relationship state.
-- Cover the behavior in editor plugin tests and `docs/TEST.md`.
+- Cover the behavior in editor plugin tests and `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 
 ## Target Files
 
 - `addons/hex_map_kit/editor/hex_map_gen_dock.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/IMPLEMENTATION_QUEUE.md`
 - `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/ROADMAP.md`
 - `docs/review/autopilot/NODE-24_SELF_REVIEW_2026-06-08.md`

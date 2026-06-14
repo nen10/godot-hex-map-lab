@@ -7,7 +7,8 @@ Create the pipeline graph research/decision proof for Generate/QA after the resu
 ## Target Files
 
 - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/GENPIPE-NEXT-20_PIPELINE_GRAPH_UI_RESEARCH_AND_SPIKE/PIPELINE_GRAPH_DECISION.md`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/IMPLEMENTATION_QUEUE.md`
 
 ## Planned Implementation Steps
@@ -15,7 +16,7 @@ Create the pipeline graph research/decision proof for Generate/QA after the resu
 1. Compare Resource pass, linear pipeline, and node graph approaches.
 2. Record the selected direction and rejected options.
 3. Map any future UI work to policy-scoped conditions rather than adding unqueued implementation.
-4. Update `docs/TEST.md` with review coverage.
+4. Update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` with review coverage.
 5. Run `./tools/test.sh`.
 
 ## Fallback / Deferred Steps
@@ -37,7 +38,7 @@ Create the pipeline graph research/decision proof for Generate/QA after the resu
 ## Docs Updates
 
 - Add `PIPELINE_GRAPH_DECISION.md`.
-- Update `docs/TEST.md` with `GENPIPE-NEXT-20` review coverage.
+- Update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` with `GENPIPE-NEXT-20` review coverage.
 - Record self-review and test result under `docs/review/autopilot/`.
 
 ## Planned Completion Criteria

@@ -17,7 +17,8 @@
 - `docs/api/*.md`
 - `tools/package_addon.sh`
 - `tests/test_package_artifacts.gd` または既存testへの追加
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 
 ## 入出力インターフェース
 
@@ -223,7 +224,7 @@ godot --headless --path examples/editor_workflow --quit --log-file .godot_user/e
 5. `examples/editor_workflow` を追加し、headless load testを作る。
 6. `docs/api/` の最小5文書を作る。
 7. READMEの導線を更新する。
-8. `docs/TEST.md` にpackage / example / api testsを追記する。
+8. `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` に package / example / api test coverage を追記する。`docs/TEST.md` は実行手順が変わる場合だけ更新する。
 9. `./tools/test.sh` を実行する。
 
 ## 完了判定

@@ -9,7 +9,8 @@ Add reusable asset-slot Resource creation helpers, Save As dialog hooks, context
 - `addons/hex_map_kit/editor/hex_map_workspace_asset_resource_factory.gd`
 - `addons/hex_map_kit/editor/hex_map_editor_asset_slot_control.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/IMPLEMENTATION_QUEUE.md`
 
 ## Steps

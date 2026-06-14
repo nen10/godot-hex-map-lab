@@ -5,7 +5,7 @@
 - Add explicit Paint interaction state/ViewState to `HexMapEditTool`.
 - Surface that state in Workspace Paint snapshots.
 - Cover missing target/document/asset, active brush, hover/selected cell, apply/dirty/result, and validation focus.
-- Update tests and `docs/TEST.md`.
+- Update tests and `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 
 ## Target Files
 
@@ -13,7 +13,8 @@
 - `addons/hex_map_kit/editor/hex_map_edit_viewport_input_adapter.gd` if needed
 - `addons/hex_map_kit/editor/hex_map_workspace.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 
 ## Steps
 

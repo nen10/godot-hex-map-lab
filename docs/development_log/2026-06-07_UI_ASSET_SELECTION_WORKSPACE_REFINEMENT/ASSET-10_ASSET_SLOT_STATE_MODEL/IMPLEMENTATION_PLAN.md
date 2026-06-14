@@ -9,7 +9,8 @@ Add the shared asset slot state model and a lightweight control wrapper, then co
 - `addons/hex_map_kit/editor/hex_map_editor_asset_slot_state.gd`
 - `addons/hex_map_kit/editor/hex_map_editor_asset_slot_control.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/IMPLEMENTATION_QUEUE.md`
 
 ## Steps

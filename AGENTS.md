@@ -6,7 +6,9 @@ Read the smallest relevant set.
 
 - Policy index: `docs/policy/README.md`
 - Process index: `docs/process/README.md`
-- Tests: `docs/TEST.md`
+- Test execution: `docs/TEST.md`
+- Test design: `docs/policy/TEST_DESIGN_POLICY.md`
+- Test creation log: `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
 - Godot notes: `docs/knowledge/DEV_GODOT.md`
 - Autopilot skill: `.agents/skills/hex-map-codex-autopilot/SKILL.md`
 - Agent roster / routing / completion gate: `docs/process/AGENT_ROSTER_AND_ROUTING.md`

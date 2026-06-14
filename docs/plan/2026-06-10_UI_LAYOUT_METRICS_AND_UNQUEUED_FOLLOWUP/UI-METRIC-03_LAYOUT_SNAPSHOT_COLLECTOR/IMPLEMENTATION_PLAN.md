@@ -14,7 +14,8 @@
 - `addons/hex_map_kit/editor/testing/hex_ui_state_scenario_builder.gd`
 - `tests/test_workspace_layout_metrics.gd`
 - `tools/test.sh`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-03_LAYOUT_SNAPSHOT_COLLECTOR/`
 - `docs/review/autopilot/UI-METRIC-03_SELF_REVIEW_2026-06-10.md`
 - `docs/review/autopilot/UI-METRIC-03_TEST_RESULT_2026-06-10.md`
@@ -27,7 +28,7 @@
 - Implement Workspace scenario builder for selected/unselected/resource states.
 - Add layout metrics test coverage.
 - Add the test script to `tools/test.sh`.
-- Update `docs/TEST.md`.
+- Update `docs/TEST.md` only if execution instructions changed; otherwise update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 - Run `./tools/test.sh`.
 - Write self-review and test-result docs.
 - Mark `UI-METRIC-03` COMPLETE, promote dependency-satisfied tasks, update proof log, and commit.

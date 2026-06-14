@@ -12,7 +12,8 @@ Add phase-level validation progress reporting for large maps and surface it thro
 - `addons/hex_map_kit/editor/hex_map_gen_dock.gd`
 - `tests/test_hex_adapter.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 
 ## Planned Implementation Steps
 
@@ -21,7 +22,7 @@ Add phase-level validation progress reporting for large maps and surface it thro
 3. Add progress fields to `HexMapValidationWorkflowState` snapshots/view state.
 4. Capture Validate run progress in `HexMapWorkspace` and expose it in Validate snapshots.
 5. Forward Generate validation progress into existing Generate progress controls.
-6. Add focused adapter/editor tests and update `docs/TEST.md`.
+6. Add focused adapter/editor tests and update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 7. Run `./tools/test.sh`.
 
 ## Fallback / Deferred Steps
@@ -43,7 +44,7 @@ Add phase-level validation progress reporting for large maps and surface it thro
 
 ## Docs Updates
 
-- Update `docs/TEST.md` with `PERF-NEXT-11` coverage.
+- Update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` with `PERF-NEXT-11` coverage.
 - Record self-review and test result under `docs/review/autopilot/`.
 
 ## Planned Completion Criteria

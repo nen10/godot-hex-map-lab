@@ -10,7 +10,8 @@ Mount real workspace content into the non-empty responsibility tabs and expose s
 - `addons/hex_map_kit/editor/hex_map_workspace.gd`
 - `addons/hex_map_kit/editor/hex_map_workspace_component_registry.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/IMPLEMENTATION_QUEUE.md`
 
 ## Steps

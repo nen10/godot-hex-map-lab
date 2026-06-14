@@ -6,7 +6,7 @@
 - Extend dependency kind constants for shared project resources.
 - Update dependency validation for movement/profile kinds.
 - Add adapter tests for add/find/update/remove/hydrate/validate.
-- Update `docs/TEST.md`, self-review, queue proof, and commit.
+- Update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`, self-review, queue proof, and commit.
 
 ## Change Targets
 
@@ -15,7 +15,8 @@
 - `addons/hex_map_kit/adapter/hex_map_document_dependency_service.gd.uid`
 - `addons/hex_map_kit/adapter/hex_map_document_validator.gd`
 - `tests/test_hex_adapter.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/IMPLEMENTATION_QUEUE.md`
 - `docs/review/autopilot/RES-10_SELF_REVIEW_2026-06-10.md`
 - `docs/review/autopilot/RES-10_TEST_RESULT_2026-06-10.md`
@@ -45,7 +46,7 @@
 
 ## Docs Update
 
-Update `docs/TEST.md` with RES-10 dependency service coverage.
+Update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` with RES-10 dependency service coverage.
 
 ## Completion Checklist
 

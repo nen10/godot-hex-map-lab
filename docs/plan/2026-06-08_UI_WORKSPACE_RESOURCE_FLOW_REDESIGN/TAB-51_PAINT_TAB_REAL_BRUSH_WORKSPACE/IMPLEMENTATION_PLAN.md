@@ -9,5 +9,5 @@ Task: `TAB-51_PAINT_TAB_REAL_BRUSH_WORKSPACE`
 3. Add a Paint workspace summary snapshot with active document, layer, brush, selected/last cell, last edit, and undo hint.
 4. Route consumed viewport edit input to the Paint tab.
 5. Update brush CTAs for missing object/label resources to point to Resources.
-6. Update editor tests and `docs/TEST.md`.
+6. Update editor tests and `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 7. Run `./tools/test.sh`, self-review, repair any `repair-now`, update queue proof, and commit.

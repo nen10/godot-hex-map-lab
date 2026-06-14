@@ -5,7 +5,7 @@
 - Add a button-path action entry point for the remaining asset-row actions.
 - Expose workspace asset panel/workspace helpers that press those action paths and return resulting state.
 - Remove undefined Settings sample row action buttons.
-- Update editor tests, `docs/TEST.md`, and queue proof.
+- Update editor tests, `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`, and queue proof.
 
 ## Target Files
 
@@ -14,7 +14,8 @@
 - `addons/hex_map_kit/editor/hex_map_workspace.gd`
 - `addons/hex_map_kit/editor/hex_map_sample_settings_panel.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/IMPLEMENTATION_QUEUE.md`
 
 ## Steps

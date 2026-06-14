@@ -8,5 +8,5 @@ Task: `TAB-52_CATALOG_TAB_DETAIL_EDITOR`
 2. Add Catalog entry detail/preview snapshot helpers to the workspace.
 3. Use existing edit-tool catalog entry rows where possible and add missing preview reasons.
 4. Keep raw source/atlas fields out of primary Catalog/Paint UI contracts.
-5. Update Catalog tests and `docs/TEST.md`.
+5. Update Catalog tests and `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 6. Run `./tools/test.sh`, self-review, update queue proof, and commit.

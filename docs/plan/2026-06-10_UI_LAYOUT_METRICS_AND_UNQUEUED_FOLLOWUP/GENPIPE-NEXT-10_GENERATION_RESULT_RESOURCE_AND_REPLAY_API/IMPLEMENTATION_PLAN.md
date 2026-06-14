@@ -11,7 +11,8 @@ Add `HexGenerationResultResource` and connect Generate/QA batch candidates to re
 - `addons/hex_map_kit/editor/hex_map_workspace.gd`
 - `tests/test_hex_adapter.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 
 ## Planned Implementation Steps
 
@@ -20,7 +21,7 @@ Add `HexGenerationResultResource` and connect Generate/QA batch candidates to re
 3. Expose result resource id/replay state in Generate and QA row snapshots.
 4. Promote selected rows through `promote_generation_result()` when a result resource is present.
 5. Store result id/source metadata on promoted documents.
-6. Add focused adapter/editor tests and update `docs/TEST.md`.
+6. Add focused adapter/editor tests and update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 7. Run `./tools/test.sh`.
 
 ## Fallback / Deferred Steps
@@ -42,7 +43,7 @@ Add `HexGenerationResultResource` and connect Generate/QA batch candidates to re
 
 ## Docs Updates
 
-- Update `docs/TEST.md` with `GENPIPE-NEXT-10` coverage.
+- Update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` with `GENPIPE-NEXT-10` coverage.
 - Record self-review and test result under `docs/review/autopilot/`.
 
 ## Planned Completion Criteria

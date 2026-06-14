@@ -13,7 +13,8 @@ Redesign the Generate tab layout into explicit work sections while preserving ge
 - `addons/hex_map_kit/editor/hex_map_gen_result_controls.gd`
 - `addons/hex_map_kit/editor/hex_map_workspace.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 
 ## Planned Implementation Steps
 
@@ -22,7 +23,7 @@ Redesign the Generate tab layout into explicit work sections while preserving ge
 3. Add metadata to mounted controls for layout section and action purpose where relevant.
 4. Keep output target, save/apply, result summary, seed lab, and progress references wired to existing state handlers.
 5. Add tests that assert required sections, component membership, purpose clarity, and workspace snapshot exposure.
-6. Update `docs/TEST.md`.
+6. Update `docs/TEST.md` only if execution instructions changed; otherwise update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 7. Run `./tools/test.sh`.
 
 ## Fallback / Deferred Steps
@@ -46,7 +47,7 @@ Redesign the Generate tab layout into explicit work sections while preserving ge
 
 ## Docs Updates
 
-- Update `docs/TEST.md` with `GEN-NEXT-10` coverage.
+- Update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` with `GEN-NEXT-10` coverage.
 - Record self-review and test result under `docs/review/autopilot/`.
 
 ## Planned Completion Criteria

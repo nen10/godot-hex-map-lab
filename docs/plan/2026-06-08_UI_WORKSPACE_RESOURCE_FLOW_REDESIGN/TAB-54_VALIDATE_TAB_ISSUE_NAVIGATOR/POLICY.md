@@ -14,5 +14,5 @@ Rules:
 Completion evidence:
 
 - `tests/test_editor_plugin.gd` verifies issue navigator fields, selection, routed tab navigation, and sample mode OFF.
-- `docs/TEST.md` records the headless coverage.
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` records the headless coverage.
 - `./tools/test.sh` passes.

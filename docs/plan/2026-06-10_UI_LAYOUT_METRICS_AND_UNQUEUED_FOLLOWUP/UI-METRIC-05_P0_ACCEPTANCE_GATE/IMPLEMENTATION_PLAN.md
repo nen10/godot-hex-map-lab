@@ -5,7 +5,7 @@
 - Extend `HexUILayoutMetricEvaluator` with P0 gate report semantics.
 - Add P0 failure categories for sample fallback in production and unreachable primary action.
 - Add tests for synthetic P0 fail/pass reports and JSON serialization.
-- Update `docs/TEST.md`.
+- Update `docs/TEST.md` only if execution instructions changed; otherwise update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 - Run `./tools/test.sh`.
 - Write self-review and test-result proof, update queue status/proof, and commit.
 
@@ -13,7 +13,8 @@
 
 - `addons/hex_map_kit/editor/testing/hex_ui_layout_metric_evaluator.gd`
 - `tests/test_workspace_layout_metric_evaluator.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-05_P0_ACCEPTANCE_GATE/`
 - `docs/review/autopilot/UI-METRIC-05_SELF_REVIEW_2026-06-10.md`
 - `docs/review/autopilot/UI-METRIC-05_TEST_RESULT_2026-06-10.md`
@@ -25,7 +26,7 @@
 - Add `evaluate_p0()` and P0 report JSON serialization support.
 - Add sample fallback and unreachable primary action P0 checks.
 - Extend evaluator tests with synthetic P0 failing and passing snapshots.
-- Update `docs/TEST.md`.
+- Update `docs/TEST.md` only if execution instructions changed; otherwise update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 - Run `./tools/test.sh`.
 - Write proof docs.
 - Mark `UI-METRIC-05` COMPLETE, promote dependency-satisfied tasks, update proof log, and commit.

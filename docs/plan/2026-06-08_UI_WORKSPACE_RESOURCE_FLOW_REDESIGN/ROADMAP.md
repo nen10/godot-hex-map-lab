@@ -1154,7 +1154,8 @@ dependencies: `TAB-57_SETTINGS_TAB_SIMPLIFICATION`, `INFO-72_EXPORT_TERMINOLOGY_
 
 - `docs/manual/MANUAL_EDITOR_PLUGIN.md`
 - `docs/manual/MANUAL_WORKFLOW.md`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `README.md`
 
 Acceptance:

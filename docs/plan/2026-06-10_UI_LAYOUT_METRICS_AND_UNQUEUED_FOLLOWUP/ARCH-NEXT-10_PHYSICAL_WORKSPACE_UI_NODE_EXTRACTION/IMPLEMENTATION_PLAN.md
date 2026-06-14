@@ -17,7 +17,8 @@ Move current screen-specific panel Control construction out of `HexMapWorkspace`
 - `addons/hex_map_kit/editor/hex_map_settings_screen.gd`
 - `addons/hex_map_kit/editor/hex_map_workspace_component_registry.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 
 ## Planned Implementation Steps
 
@@ -56,7 +57,7 @@ Move current screen-specific panel Control construction out of `HexMapWorkspace`
 
 ## Docs Updates
 
-- Update `docs/TEST.md` with `ARCH-NEXT-10` coverage.
+- Update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` with `ARCH-NEXT-10` coverage.
 - Record self-review and test result under `docs/review/autopilot/`.
 
 ## Planned Completion Criteria

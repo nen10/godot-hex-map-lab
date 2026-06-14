@@ -12,7 +12,8 @@ Extract physical construction for key Generate Dock control groups into builder 
 - `addons/hex_map_kit/editor/hex_map_gen_output_controls.gd`
 - `addons/hex_map_kit/editor/hex_map_gen_result_controls.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 
 ## Planned Implementation Steps
 
@@ -24,7 +25,7 @@ Extract physical construction for key Generate Dock control groups into builder 
 2. Update `HexMapGenDock` to call builders, assign returned node references, and connect existing signals.
 3. Add component ownership metadata and a `generation_component_owner_rows()` query.
 4. Extend editor tests to verify component owner rows and mounted node metadata.
-5. Update `docs/TEST.md`.
+5. Update `docs/TEST.md` only if execution instructions changed; otherwise update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 6. Run `./tools/test.sh`.
 
 ## Fallback / Deferred Steps
@@ -47,7 +48,7 @@ Extract physical construction for key Generate Dock control groups into builder 
 
 ## Docs Updates
 
-- Update `docs/TEST.md` with `ARCH-NEXT-11` coverage.
+- Update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` with `ARCH-NEXT-11` coverage.
 - Record self-review and test result under `docs/review/autopilot/`.
 
 ## Planned Completion Criteria

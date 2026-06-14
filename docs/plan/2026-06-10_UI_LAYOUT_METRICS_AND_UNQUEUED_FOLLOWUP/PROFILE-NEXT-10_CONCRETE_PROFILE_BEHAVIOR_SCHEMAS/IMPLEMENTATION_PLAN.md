@@ -13,7 +13,8 @@ Implement concrete behavior schemas for Validation Rule Suite, Generation Profil
 - `addons/hex_map_kit/editor/hex_map_workspace_asset_resource_factory.gd`
 - `tests/test_hex_adapter.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 
 ## Planned Implementation Steps
 
@@ -22,7 +23,7 @@ Implement concrete behavior schemas for Validation Rule Suite, Generation Profil
 3. Add schema extraction to `_profile_resource_context()` so Validate / QA / Export snapshots expose concrete behavior.
 4. Add adapter tests for schema helper output and save/load roundtrip.
 5. Extend editor tests for selected and optional missing profile context schema state.
-6. Update `docs/TEST.md`.
+6. Update `docs/TEST.md` only if execution instructions changed; otherwise update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 7. Run `./tools/test.sh`, record UI metric report path, then update queue proof and pointer.
 
 ## Deferred / Rejected Steps
@@ -44,7 +45,7 @@ Implement concrete behavior schemas for Validation Rule Suite, Generation Profil
 
 ## Docs Updates
 
-- Update `docs/TEST.md` with `PROFILE-NEXT-10` coverage.
+- Update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` with `PROFILE-NEXT-10` coverage.
 - Add self-review and test-result docs under `docs/review/autopilot/`.
 
 ## Planned Completion Criteria

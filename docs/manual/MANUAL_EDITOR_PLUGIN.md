@@ -292,4 +292,5 @@ Distribution values are generator weights from `0.0` to `8.0`; probability is `v
 - Workflow: `docs/manual/MANUAL_WORKFLOW.md`
 - Scripting: `docs/manual/MANUAL_SCRIPTING.md`
 - API: `docs/api/API_REFERENCE.md`
-- Tests and manual debug notes: `docs/TEST.md`
+- Test execution and debug helper commands: `docs/TEST.md`
+- Test design policy: `docs/policy/TEST_DESIGN_POLICY.md`

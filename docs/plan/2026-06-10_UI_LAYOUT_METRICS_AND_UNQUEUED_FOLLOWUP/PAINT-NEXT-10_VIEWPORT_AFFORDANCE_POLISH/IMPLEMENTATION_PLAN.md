@@ -9,7 +9,8 @@ Add a visible Paint affordance board that summarizes brush cursor, selected cell
 - `addons/hex_map_kit/editor/hex_map_edit_tool.gd`
 - `addons/hex_map_kit/editor/hex_map_workspace.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 
 ## Planned Implementation Steps
 
@@ -18,7 +19,7 @@ Add a visible Paint affordance board that summarizes brush cursor, selected cell
 3. Expose the board through `paint_workspace_snapshot()` and `paint_brush_screen_snapshot()`.
 4. Refresh the mounted label after mode/target/brush and viewport edit updates.
 5. Add workspace-level viewport input test assertions for Paint affordance sync.
-6. Update `docs/TEST.md`.
+6. Update `docs/TEST.md` only if execution instructions changed; otherwise update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 7. Run `./tools/test.sh`.
 
 ## Fallback / Deferred Steps
@@ -40,7 +41,7 @@ Add a visible Paint affordance board that summarizes brush cursor, selected cell
 
 ## Docs Updates
 
-- Update `docs/TEST.md` with `PAINT-NEXT-10` coverage.
+- Update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` with `PAINT-NEXT-10` coverage.
 - Record self-review and test result under `docs/review/autopilot/`.
 
 ## Planned Completion Criteria

@@ -82,7 +82,8 @@ First impression改善としても大きく前進。
 - `addons/hex_map_kit/plugin.gd`
 - `tests/test_editor_plugin.gd`
 - `docs/manual/MANUAL_EDITOR_PLUGIN.md`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `dist/hex_map_kit-0.3.0.manifest.txt`
 
 こちらの評価環境では Godot 実行ファイルが存在しないため、`./tools/test.sh` の再実行はできなかった。

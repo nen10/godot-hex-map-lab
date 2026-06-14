@@ -5,14 +5,15 @@
 - Rename the first visible workspace tab from `Document` to `Resources`.
 - Add a Resources context/group summary component.
 - Expose group, selected-node, and create-missing-resource state in snapshots.
-- Update tests and `docs/TEST.md`.
+- Update tests and `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 
 ## Target Files
 
 - `addons/hex_map_kit/editor/hex_map_workspace_component_registry.gd`
 - `addons/hex_map_kit/editor/hex_map_workspace.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/IMPLEMENTATION_QUEUE.md`
 
 ## Steps

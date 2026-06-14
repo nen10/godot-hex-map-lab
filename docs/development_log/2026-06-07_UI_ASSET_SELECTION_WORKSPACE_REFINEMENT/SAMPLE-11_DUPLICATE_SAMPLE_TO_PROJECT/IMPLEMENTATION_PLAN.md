@@ -9,7 +9,8 @@ Duplicate bundled sample catalog dependencies into project paths and assign the 
 - `addons/hex_map_kit/editor/hex_map_sample_asset_duplicator.gd`
 - `addons/hex_map_kit/editor/hex_map_sample_settings_panel.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/IMPLEMENTATION_QUEUE.md`
 
 ## Steps

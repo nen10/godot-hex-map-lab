@@ -3,7 +3,7 @@
 ## Scope
 
 - Create UI contract documents required by the queue.
-- Update `docs/TEST.md` with UI-00 coverage.
+- Update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` with UI-00 coverage.
 - Update queue proof, self-review, and test result.
 
 ## Target Files
@@ -13,7 +13,8 @@
 - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-00_CREATE_WORKSPACE_UI_CONTRACTS/VISIBLE_CONTROL_INVENTORY.md`
 - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-00_CREATE_WORKSPACE_UI_CONTRACTS/RESOURCE_ROW_SPEC.md`
 - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/UI-00_CREATE_WORKSPACE_UI_CONTRACTS/DEBUG_LABEL_POLICY.md`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/IMPLEMENTATION_QUEUE.md`
 
 ## Steps

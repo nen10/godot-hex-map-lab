@@ -11,7 +11,7 @@ Implement selected HexTileMap auto-binding across editor session state, Workspac
 3. Add Workspace APIs for applying selected HexTileMap nodes from editor selection.
 4. Connect the editor plugin's Scene Tree selection change signal to Workspace/session state where available.
 5. Update editor tests for default auto-link, empty state, node selection, invalid selection, and resource context propagation.
-6. Update `docs/TEST.md`.
+6. Update `docs/TEST.md` only if execution instructions changed; otherwise update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 7. Run `./tools/test.sh`.
 8. Write autopilot self-review and test result.
 9. Update queue and roadmap status/proof.

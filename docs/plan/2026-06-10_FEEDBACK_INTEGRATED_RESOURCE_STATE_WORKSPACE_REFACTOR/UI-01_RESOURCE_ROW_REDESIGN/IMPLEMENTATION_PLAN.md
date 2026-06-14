@@ -4,14 +4,15 @@
 
 - Update Resource row layout in `HexMapEditorAssetSlotControl`.
 - Keep state/picker/action behavior stable.
-- Update editor tests and `docs/TEST.md`.
+- Update editor tests and `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 - Update queue proof, self-review, and test result.
 
 ## Target Files
 
 - `addons/hex_map_kit/editor/hex_map_editor_asset_slot_control.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/IMPLEMENTATION_QUEUE.md`
 
 ## Steps

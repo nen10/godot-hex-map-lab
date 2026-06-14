@@ -10,7 +10,8 @@ Separate Settings into Sample Learning, Debug, Project Defaults, and UI Preferen
 - `addons/hex_map_kit/editor/hex_map_sample_settings_panel.gd`
 - `addons/hex_map_kit/editor/hex_map_workspace.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 
 ## Planned Implementation Steps
 
@@ -19,7 +20,7 @@ Separate Settings into Sample Learning, Debug, Project Defaults, and UI Preferen
 3. Add tooltip-backed boolean control snapshot rows.
 4. Expose combined group and boolean-control metadata in `settings_screen_snapshot()`.
 5. Extend Settings tests for group ids, group separation, CheckBox control type, and tooltip detail.
-6. Update `docs/TEST.md`.
+6. Update `docs/TEST.md` only if execution instructions changed; otherwise update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 7. Run `./tools/test.sh`.
 
 ## Fallback / Deferred Steps
@@ -42,7 +43,7 @@ Separate Settings into Sample Learning, Debug, Project Defaults, and UI Preferen
 
 ## Docs Updates
 
-- Update `docs/TEST.md` with `SETTINGS-NEXT-10` coverage.
+- Update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` with `SETTINGS-NEXT-10` coverage.
 - Record self-review and test result under `docs/review/autopilot/`.
 
 ## Planned Completion Criteria

@@ -5,7 +5,7 @@
 - Add Generate result summary data to Workspace/GenDock snapshots.
 - Ensure unblocked Generate state has no unexplained empty-state/dead-space marker.
 - Make source Reload purpose explicit.
-- Update editor tests and `docs/TEST.md`.
+- Update editor tests and `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 - Update queue proof, self-review, and test result.
 
 ## Target Files
@@ -13,7 +13,8 @@
 - `addons/hex_map_kit/editor/hex_map_workspace.gd`
 - `addons/hex_map_kit/editor/hex_map_gen_dock.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/IMPLEMENTATION_QUEUE.md`
 
 ## Steps

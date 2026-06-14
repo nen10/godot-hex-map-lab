@@ -13,5 +13,5 @@ Rules:
 Completion evidence:
 
 - `tests/test_editor_plugin.gd` verifies purpose, output type, source/target, hidden unsupported modes, and runtime handoff result.
-- `docs/TEST.md` records headless coverage.
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` records headless coverage.
 - `./tools/test.sh` passes.

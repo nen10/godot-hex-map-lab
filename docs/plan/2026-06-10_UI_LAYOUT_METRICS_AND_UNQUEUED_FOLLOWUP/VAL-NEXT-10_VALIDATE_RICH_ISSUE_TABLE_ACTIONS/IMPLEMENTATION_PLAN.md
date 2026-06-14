@@ -8,7 +8,8 @@ Add a richer Validate issue table contract and mounted issue text for severity, 
 
 - `addons/hex_map_kit/editor/hex_map_workspace.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 
 ## Planned Implementation Steps
 
@@ -16,7 +17,7 @@ Add a richer Validate issue table contract and mounted issue text for severity, 
 2. Add `issue_table` snapshot with explicit columns, row count, rows text, and real-action invariant.
 3. Update mounted Validate issue rows text to use the rich issue table rows.
 4. Extend Validate tests for columns, action metadata, mounted text, workspace missing rows, and cell-scoped row routing.
-5. Update `docs/TEST.md`.
+5. Update `docs/TEST.md` only if execution instructions changed; otherwise update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 6. Run `./tools/test.sh`.
 
 ## Fallback / Deferred Steps
@@ -38,7 +39,7 @@ Add a richer Validate issue table contract and mounted issue text for severity, 
 
 ## Docs Updates
 
-- Update `docs/TEST.md` with `VAL-NEXT-10` coverage.
+- Update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` with `VAL-NEXT-10` coverage.
 - Record self-review and test result under `docs/review/autopilot/`.
 
 ## Planned Completion Criteria

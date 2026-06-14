@@ -12,7 +12,8 @@ Add chunked TileMap apply with progress/cancel reports and connect it to Generat
 - `addons/hex_map_kit/editor/hex_map_gen_dock.gd`
 - `addons/hex_map_kit/editor/hex_map_generation_run_state.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 
 ## Planned Implementation Steps
 
@@ -21,7 +22,7 @@ Add chunked TileMap apply with progress/cancel reports and connect it to Generat
 3. Add HexTileMapLayer chunk report support for override-aware redraw/apply paths.
 4. Pass chunk options through document apply and Generate output apply, storing last apply report in output snapshots and progress state.
 5. Add tests for chunk progress, cancellation, direct apply preservation, HexTileMapLayer report state, and Generate output snapshot report.
-6. Update `docs/TEST.md`.
+6. Update `docs/TEST.md` only if execution instructions changed; otherwise update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 7. Run `./tools/test.sh`.
 
 ## Fallback / Deferred Steps
@@ -44,7 +45,7 @@ Add chunked TileMap apply with progress/cancel reports and connect it to Generat
 
 ## Docs Updates
 
-- Update `docs/TEST.md` with `PERF-NEXT-10` coverage.
+- Update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` with `PERF-NEXT-10` coverage.
 - Record self-review and test result under `docs/review/autopilot/`.
 
 ## Planned Completion Criteria

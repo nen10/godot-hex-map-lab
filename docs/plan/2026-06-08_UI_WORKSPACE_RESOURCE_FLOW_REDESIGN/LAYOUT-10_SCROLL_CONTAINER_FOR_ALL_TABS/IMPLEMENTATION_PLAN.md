@@ -4,13 +4,14 @@
 
 - Change `HexMapWorkspace` tab pages from plain `VBoxContainer` roots to `ScrollContainer` roots with inner vertical content.
 - Add public readback helpers for tab scroll support.
-- Extend editor plugin tests and `docs/TEST.md` coverage.
+- Extend editor plugin tests and `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` coverage.
 
 ## Change Targets
 
 - `addons/hex_map_kit/editor/hex_map_workspace.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/IMPLEMENTATION_QUEUE.md`
 - `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/ROADMAP.md`
 - `docs/review/autopilot/LAYOUT-10_SELF_REVIEW_2026-06-08.md`

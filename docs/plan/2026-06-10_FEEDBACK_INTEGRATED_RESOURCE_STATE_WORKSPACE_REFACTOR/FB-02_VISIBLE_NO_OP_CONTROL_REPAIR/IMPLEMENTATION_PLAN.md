@@ -5,14 +5,15 @@
 - Remove the visible `Details` button from asset slot controls.
 - Add disabled-condition tooltips for Export and Missing Unique Resources actions.
 - Update editor tests that inventory visible buttons and disabled tooltips.
-- Update `docs/TEST.md`, self-review, queue proof, and commit.
+- Update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`, self-review, queue proof, and commit.
 
 ## Change Targets
 
 - `addons/hex_map_kit/editor/hex_map_editor_asset_slot_control.gd`
 - `addons/hex_map_kit/editor/hex_map_workspace.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/IMPLEMENTATION_QUEUE.md`
 - `docs/review/autopilot/FB-02_SELF_REVIEW_2026-06-10.md`
 - `docs/review/autopilot/FB-02_TEST_RESULT_2026-06-10.md`
@@ -42,7 +43,7 @@
 
 ## Docs Update
 
-Update `docs/TEST.md` with the FB-02 visible action and disabled tooltip coverage.
+Update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` with the FB-02 visible action and disabled tooltip coverage.
 
 ## Completion Checklist
 

@@ -12,7 +12,8 @@ Add lightweight, bounded preview thumbnails for Generate candidates and QA selec
 - `addons/hex_map_kit/editor/hex_map_qa_screen.gd`
 - `addons/hex_map_kit/editor/hex_map_workspace.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 
 ## Planned Implementation Steps
 
@@ -21,7 +22,7 @@ Add lightweight, bounded preview thumbnails for Generate candidates and QA selec
 3. Add preview payloads to generation batch result rows and blocked rows.
 4. Add QA selected seed thumbnail Control and expose selected/row previews in QA snapshots.
 5. Add tests for data-backed preview availability, budget/truncation, no sample fallback, and QA/Generate connection.
-6. Update `docs/TEST.md`.
+6. Update `docs/TEST.md` only if execution instructions changed; otherwise update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 7. Run `./tools/test.sh`.
 
 ## Fallback / Deferred Steps
@@ -44,7 +45,7 @@ Add lightweight, bounded preview thumbnails for Generate candidates and QA selec
 
 ## Docs Updates
 
-- Update `docs/TEST.md` with `GEN-NEXT-11` coverage.
+- Update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` with `GEN-NEXT-11` coverage.
 - Record self-review and test result under `docs/review/autopilot/`.
 
 ## Planned Completion Criteria

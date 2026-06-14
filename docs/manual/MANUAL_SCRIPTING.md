@@ -312,4 +312,4 @@ print(HexMapDebug.render_summary(data))
 print(HexMapDebug.render_ascii(data))
 ```
 
-視覚確認用 scene は `docs/TEST.md` の Debug 実行を参照してください。
+視覚確認用 scene の補助コマンドは `docs/TEST.md` を参照してください。

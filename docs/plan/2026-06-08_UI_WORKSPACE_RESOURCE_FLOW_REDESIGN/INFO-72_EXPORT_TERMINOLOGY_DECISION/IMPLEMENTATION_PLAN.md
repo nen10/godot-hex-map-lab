@@ -11,7 +11,8 @@ Date: 2026-06-08
 - `docs/manual/MANUAL_WORKFLOW.md`
 - `docs/manual/MANUAL_PACKAGE.md`
 - `README.md`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/IMPLEMENTATION_QUEUE.md`
 
 ## Steps

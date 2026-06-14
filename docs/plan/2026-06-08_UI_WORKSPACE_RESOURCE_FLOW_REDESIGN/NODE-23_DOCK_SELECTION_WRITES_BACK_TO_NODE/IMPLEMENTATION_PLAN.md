@@ -10,7 +10,7 @@
 4. Preserve shared slots in Workspace context only.
 5. Surface node/workspace relationship status in selected-node snapshots.
 6. Update editor tests for direct selection, create/open paths, shared resource behavior, and blocked states.
-7. Update `docs/TEST.md`.
+7. Update `docs/TEST.md` only if execution instructions changed; otherwise update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 8. Run `./tools/test.sh`.
 9. Write self-review and queue proof.
 

@@ -9,7 +9,8 @@ Add a Settings sample detail drawer that exposes sample type, dependencies, dupl
 - `addons/hex_map_kit/editor/hex_map_sample_settings_panel.gd`
 - `addons/hex_map_kit/editor/hex_map_workspace.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 
 ## Planned Implementation Steps
 
@@ -18,7 +19,7 @@ Add a Settings sample detail drawer that exposes sample type, dependencies, dupl
 3. Add detail metadata to sample action rows and panel snapshots.
 4. Expose detail drawer state through Settings workspace snapshot.
 5. Extend tests for sample type, dependencies, duplicate target, learning use, mounted detail text, and no production injection.
-6. Update `docs/TEST.md`.
+6. Update `docs/TEST.md` only if execution instructions changed; otherwise update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 7. Run `./tools/test.sh`.
 
 ## Fallback / Deferred Steps
@@ -41,7 +42,7 @@ Add a Settings sample detail drawer that exposes sample type, dependencies, dupl
 
 ## Docs Updates
 
-- Update `docs/TEST.md` with `SAMPLE-NEXT-10` coverage.
+- Update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` with `SAMPLE-NEXT-10` coverage.
 - Record self-review and test result under `docs/review/autopilot/`.
 
 ## Planned Completion Criteria

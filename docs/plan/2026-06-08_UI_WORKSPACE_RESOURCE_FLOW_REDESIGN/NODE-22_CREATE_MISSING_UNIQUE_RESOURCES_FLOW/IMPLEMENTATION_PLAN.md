@@ -11,7 +11,7 @@
    - assign created resources to selected HexTileMap
    - update Workspace/session context
 5. Keep SharedResources unmodified.
-6. Update component registry, editor tests, and `docs/TEST.md`.
+6. Update component registry, editor tests, and `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 7. Run `./tools/test.sh`.
 8. Write self-review and queue proof.
 

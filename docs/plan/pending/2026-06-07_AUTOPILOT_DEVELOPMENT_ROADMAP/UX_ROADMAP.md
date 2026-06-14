@@ -45,7 +45,7 @@ Autopilot 実装は、Level Document v2、catalog key、layer stack、validation
 | `CODE_COMPLETE` | code / resource / docs の実装が存在する。 | API や helper の最初の到達点。 |
 | `HEADLESS_TEST_COMPLETE` | `./tools/test.sh` または対象 test path が通る。 | 自動実装 task の基本完了。 |
 | `EDITOR_WORKFLOW_COMPLETE` | Godot Editor 上の画面操作導線が成立している。 | Catalog / Validation / Object / Generation QA などのUI機能。 |
-| `ANALOG_TEST_COMPLETE` | 手動操作手順と観察点が docs/TEST.md から辿れる。 | headless では見えないUX確認。 |
+| `ANALOG_TEST_COMPLETE` | 手動操作手順と観察点が `tests/analog_test/` と `docs/policy/ANALOG_TEST_POLICY.md` から辿れる。 | headless では見えないUX確認。 |
 | `PACKAGE_READY` | addon-only package を clean project に入れて破綻しない。 | public release 前。 |
 
 User-facing UX task は `HEADLESS_TEST_COMPLETE` だけでは閉じない。画面で触る機能は `EDITOR_WORKFLOW_COMPLETE` と `ANALOG_TEST_COMPLETE` を completion proof に含める。
@@ -97,7 +97,7 @@ User-facing UX task は `HEADLESS_TEST_COMPLETE` だけでは閉じない。画�
 - Object placement editor analog test。
 - Generation QA / Seed promotion analog test。
 - Clean package install analog test。
-- `docs/TEST.md` からの参照。
+- `tests/analog_test/` からの参照。
 - `MANUAL_EDITOR_PLUGIN.md` の v0.3 workflow 更新。
 
 完了条件:

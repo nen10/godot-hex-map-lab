@@ -5,14 +5,15 @@
 - Add an explicit Generate run state helper.
 - Wire `HexMapGenDock` progress/cancel/debounce/apply/block/failure status into that helper.
 - Expose a Generate run ViewState snapshot and render controls from it.
-- Update editor tests and `docs/TEST.md`.
+- Update editor tests and `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 
 ## Target Files
 
 - `addons/hex_map_kit/editor/hex_map_generation_run_state.gd`
 - `addons/hex_map_kit/editor/hex_map_gen_dock.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 
 ## Steps
 

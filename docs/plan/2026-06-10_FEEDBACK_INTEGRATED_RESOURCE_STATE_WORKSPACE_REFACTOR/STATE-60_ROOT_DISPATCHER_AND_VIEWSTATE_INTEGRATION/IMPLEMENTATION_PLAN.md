@@ -5,14 +5,15 @@
 - Add Workspace root state aggregation and ViewState output.
 - Add Workspace dispatcher boundary for a small set of root events.
 - Add debug report text generation from root state snapshot.
-- Update existing editor tests and `docs/TEST.md`.
+- Update existing editor tests and `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 
 ## Target Files
 
 - `addons/hex_map_kit/editor/hex_map_workspace.gd`
 - new root state / dispatcher helper scripts if needed
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 
 ## Steps
 

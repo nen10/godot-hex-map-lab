@@ -5,7 +5,7 @@
 - Add screen role scripts for Resources, Catalog, Layers, Validate, QA, Export, and Paint.
 - Preload and use role contracts in Workspace snapshots.
 - Use Paint role contract from EditTool for delegated non-paint ownership.
-- Add tests and `docs/TEST.md` coverage.
+- Add tests and `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` coverage.
 
 ## Target Files
 
@@ -13,7 +13,8 @@
 - `addons/hex_map_kit/editor/hex_map_workspace.gd`
 - `addons/hex_map_kit/editor/hex_map_edit_tool.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/IMPLEMENTATION_QUEUE.md`
 
 ## Steps
@@ -22,7 +23,7 @@
 - [x] Add per-screen role scripts.
 - [x] Wire Workspace/EditTool snapshots to role contracts.
 - [x] Update tests for screen script mapping and Paint delegation.
-- [x] Update `docs/TEST.md`.
+- [x] Update `docs/TEST.md` only if execution instructions changed; otherwise update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 - [x] Run `./tools/test.sh`.
 - [x] Write self-review and test-result docs.
 - [x] Mark `ARCH-41` COMPLETE, update pointer/dependencies, and commit.

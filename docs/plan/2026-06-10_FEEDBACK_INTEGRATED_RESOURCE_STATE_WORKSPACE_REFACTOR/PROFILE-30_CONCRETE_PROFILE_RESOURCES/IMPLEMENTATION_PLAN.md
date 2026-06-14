@@ -16,7 +16,8 @@
 - `addons/hex_map_kit/editor/hex_map_workspace.gd`
 - `tests/test_editor_plugin.gd`
 - `tests/test_hex_adapter.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/manual/MANUAL_WORKFLOW.md`
 
 ## Steps

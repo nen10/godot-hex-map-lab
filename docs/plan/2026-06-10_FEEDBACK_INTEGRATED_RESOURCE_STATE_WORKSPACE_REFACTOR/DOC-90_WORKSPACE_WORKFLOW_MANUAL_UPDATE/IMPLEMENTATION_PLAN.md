@@ -5,7 +5,7 @@
 - Update editor and workflow manuals for the current workspace route.
 - Add source badge definitions.
 - Keep sample learning as a separate production-safe path.
-- Update `docs/TEST.md` manual coverage note.
+- Update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` manual coverage note.
 - Run standard verification and write proof docs.
 
 ## Target Files
@@ -13,7 +13,8 @@
 - `docs/manual/MANUAL_EDITOR_PLUGIN.md`
 - `docs/manual/MANUAL_WORKFLOW.md`
 - `README.md`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/review/autopilot/DOC-90_SELF_REVIEW_2026-06-10.md`
 - `docs/review/autopilot/DOC-90_TEST_RESULT_2026-06-10.md`
 - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/IMPLEMENTATION_QUEUE.md`
@@ -23,7 +24,7 @@
 - [x] Mark `DOC-90` RUNNING and create plan docs.
 - [x] Update manual workflow order and source badge explanations.
 - [x] Add a concise README pointer if needed.
-- [x] Update `docs/TEST.md`.
+- [x] Update `docs/TEST.md` only if execution instructions changed; otherwise update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 - [x] Run `./tools/test.sh`.
 - [x] Write self-review and test-result docs.
 - [x] Mark `DOC-90` COMPLETE, update pointer/dependencies, and commit.

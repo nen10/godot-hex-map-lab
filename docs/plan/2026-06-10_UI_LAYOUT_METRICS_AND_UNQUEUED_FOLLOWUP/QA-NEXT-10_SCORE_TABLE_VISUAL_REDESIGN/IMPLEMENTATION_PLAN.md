@@ -9,7 +9,8 @@ Add a richer QA scored table contract and mounted score table widget so seed can
 - `addons/hex_map_kit/editor/hex_map_qa_screen.gd`
 - `addons/hex_map_kit/editor/hex_map_workspace.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 
 ## Planned Implementation Steps
 
@@ -18,7 +19,7 @@ Add a richer QA scored table contract and mounted score table widget so seed can
 3. Expose scored table columns, rows, row text, selected row index, promoted row index, and mounted table proof in QA snapshots.
 4. Update QA Seed Lab refresh logic to populate the mounted tree and rich text.
 5. Extend editor tests for score columns, validation text, selected row state, preview state, promotion state, and mounted table proof.
-6. Update `docs/TEST.md`.
+6. Update `docs/TEST.md` only if execution instructions changed; otherwise update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 7. Run `./tools/test.sh`.
 
 ## Fallback / Deferred Steps
@@ -41,7 +42,7 @@ Add a richer QA scored table contract and mounted score table widget so seed can
 
 ## Docs Updates
 
-- Update `docs/TEST.md` with `QA-NEXT-10` coverage.
+- Update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` with `QA-NEXT-10` coverage.
 - Record self-review and test result under `docs/review/autopilot/`.
 
 ## Planned Completion Criteria

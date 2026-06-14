@@ -6,7 +6,7 @@
 - Promote text truncation, resource row geometry, and dead area warning categories into P1 issues.
 - Add disabled-action-without-tooltip and summary-only task tab P1 checks.
 - Extend evaluator tests with synthetic P1 fail/pass reports and JSON serialization.
-- Update `docs/TEST.md`.
+- Update `docs/TEST.md` only if execution instructions changed; otherwise update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 - Run `./tools/test.sh`.
 - Write proof docs, update queue status/proof, and commit.
 
@@ -14,7 +14,8 @@
 
 - `addons/hex_map_kit/editor/testing/hex_ui_layout_metric_evaluator.gd`
 - `tests/test_workspace_layout_metric_evaluator.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-06_P1_ACCEPTANCE_GATE/`
 - `docs/review/autopilot/UI-METRIC-06_SELF_REVIEW_2026-06-10.md`
 - `docs/review/autopilot/UI-METRIC-06_TEST_RESULT_2026-06-10.md`
@@ -25,7 +26,7 @@
 - Mark `UI-METRIC-06` RUNNING and create plan docs.
 - Add `evaluate_p1()` and P1 report JSON serialization support.
 - Add P1 issue checks and synthetic fixtures.
-- Update `docs/TEST.md`.
+- Update `docs/TEST.md` only if execution instructions changed; otherwise update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 - Run `./tools/test.sh`.
 - Write proof docs.
 - Mark `UI-METRIC-06` COMPLETE, update pointer, and commit.

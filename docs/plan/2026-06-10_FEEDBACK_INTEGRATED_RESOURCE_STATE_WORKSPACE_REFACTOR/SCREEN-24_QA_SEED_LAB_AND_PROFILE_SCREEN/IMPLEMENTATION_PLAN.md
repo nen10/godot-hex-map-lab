@@ -4,13 +4,14 @@
 
 - Add QA screen state fields for workflow ownership, Generation Profile use, score table, selected seed, promote target, Level Document source of truth, and draft boundary.
 - Extend score table and Seed Lab context dictionaries to expose the same contract.
-- Update editor tests and `docs/TEST.md`.
+- Update editor tests and `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 
 ## Target Files
 
 - `addons/hex_map_kit/editor/hex_map_workspace.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/IMPLEMENTATION_QUEUE.md`
 
 ## Steps
@@ -18,7 +19,7 @@
 - [x] Mark `SCREEN-24` RUNNING and create plan docs.
 - [x] Extend QA snapshot, score table context, and Seed Lab context.
 - [x] Update QA editor test assertions for screen ownership and promotion boundary.
-- [x] Update `docs/TEST.md`.
+- [x] Update `docs/TEST.md` only if execution instructions changed; otherwise update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 - [x] Run `./tools/test.sh`.
 - [x] Write self-review and test-result docs.
 - [x] Mark `SCREEN-24` COMPLETE, update pointer/dependencies, and commit.

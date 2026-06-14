@@ -9,7 +9,8 @@ Add fine-grained Layer Stack role editing for visibility, locked state, z-index,
 - `addons/hex_map_kit/editor/hex_map_layers_screen.gd`
 - `addons/hex_map_kit/editor/hex_map_workspace.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 
 ## Planned Implementation Steps
 
@@ -18,7 +19,7 @@ Add fine-grained Layer Stack role editing for visibility, locked state, z-index,
 3. Add `select_layer_stack_role()` and `update_layer_stack_role_properties()` workspace APIs.
 4. Update matching Layer Stack entry fields/metadata and mirror applicable state to an existing selected target role layer.
 5. Extend Layers tests to assert mounted controls, resource row updates, and target node reflection.
-6. Update `docs/TEST.md`.
+6. Update `docs/TEST.md` only if execution instructions changed; otherwise update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 7. Run `./tools/test.sh`.
 
 ## Fallback / Deferred Steps
@@ -41,7 +42,7 @@ Add fine-grained Layer Stack role editing for visibility, locked state, z-index,
 
 ## Docs Updates
 
-- Update `docs/TEST.md` with `LAYER-NEXT-10` coverage.
+- Update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` with `LAYER-NEXT-10` coverage.
 - Record self-review and test result under `docs/review/autopilot/`.
 
 ## Planned Completion Criteria

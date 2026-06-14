@@ -7,7 +7,8 @@ Add an explicit no-sample-only editor test contract and document where sample/pa
 ## Files
 
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/plan/2026-06-07_UI_ASSET_SELECTION_WORKSPACE_REFINEMENT/IMPLEMENTATION_QUEUE.md`
 
 ## Steps
@@ -16,7 +17,7 @@ Add an explicit no-sample-only editor test contract and document where sample/pa
 2. Add an editor test that creates project resources through feature-screen APIs while sample mode remains OFF.
 3. Assert project asset slot state uses `SOURCE_PROJECT` and no selected asset path comes from bundled sample assets.
 4. Keep Settings / Samples ON/OFF assertions in the existing sample settings test.
-5. Update `docs/TEST.md` with TEST-40 coverage and package/sample boundary.
+5. Update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` with TEST-40 coverage and package/sample boundary.
 6. Run `./tools/test.sh`.
 7. Self-review, repair, update queue proof, then commit.
 

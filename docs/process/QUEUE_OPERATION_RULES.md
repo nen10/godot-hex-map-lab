@@ -57,7 +57,9 @@ proof:
   tests:
     - ./tools/test.sh
   docs:
-    - docs/TEST.md if changed
+    - docs/TEST.md if test execution instructions changed
+    - docs/policy/TEST_DESIGN_POLICY.md if test design rules changed
+    - docs/development_log/2026-06-14_TEST_CREATION_LOG.md if coverage / test creation log changed
   major files:
     - ...
 ```

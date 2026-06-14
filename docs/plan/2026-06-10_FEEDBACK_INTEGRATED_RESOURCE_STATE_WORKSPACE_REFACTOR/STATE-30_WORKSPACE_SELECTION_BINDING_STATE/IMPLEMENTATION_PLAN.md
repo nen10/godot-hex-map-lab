@@ -5,7 +5,7 @@
 - Add or extend workspace binding state snapshot helpers.
 - Surface no target, missing document, hydrated dependencies, manual override, pending writeback, applied writeback, and conflict state.
 - Preserve existing auto-link behavior.
-- Update editor tests and `docs/TEST.md`.
+- Update editor tests and `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 
 ## Target Files
 
@@ -13,7 +13,8 @@
 - `addons/hex_map_kit/editor/hex_map_editor_session_state.gd`
 - `addons/hex_map_kit/editor/hex_map_workspace.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 
 ## Steps
 

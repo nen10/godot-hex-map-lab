@@ -22,3 +22,5 @@
 - Queue を実行する: `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md`
 - Queue status を更新する: `docs/process/QUEUE_OPERATION_RULES.md`
 - Commit する: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
+- Test を実行する: `docs/TEST.md`
+- Test の設計・coverage 記録方針を決める: `TEST_DESIGN_POLICY.md`

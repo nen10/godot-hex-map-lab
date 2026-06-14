@@ -5,7 +5,7 @@
 - Add a standard Godot test script that runs runtime Workspace layout metric reports.
 - Write JSON and Markdown reports under `.godot_user/ui-metrics/<run-id>/`.
 - Add the script to `tools/test.sh`.
-- Update `docs/TEST.md` with report output details.
+- Update `docs/TEST.md` with report output details and record coverage notes in `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` if needed.
 - Run `./tools/test.sh`; repair true P0 failures or evaluator false positives.
 - Write proof docs, update queue status/proof, and commit.
 
@@ -13,7 +13,8 @@
 
 - `tests/test_workspace_layout_metric_gate.gd`
 - `tools/test.sh`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-07_TEST_SH_INTEGRATION/`
 - `docs/review/autopilot/UI-METRIC-07_SELF_REVIEW_2026-06-10.md`
 - `docs/review/autopilot/UI-METRIC-07_TEST_RESULT_2026-06-10.md`

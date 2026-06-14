@@ -23,7 +23,7 @@ Removing a visible `Details` button is an intentional UI cleanup for an unpublis
 - Resource/API: unchanged.
 - UI: visible no-op and disabled explanation contract changes.
 - Tests: editor tests verify remaining actions and disabled tooltips.
-- Docs: `docs/TEST.md` records the FB-02 coverage.
+- Docs: `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` records the FB-02 coverage.
 
 ## Task-Local Decisions
 

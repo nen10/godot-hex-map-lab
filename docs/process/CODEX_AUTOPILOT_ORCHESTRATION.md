@@ -11,7 +11,9 @@ Roadmap 作成は `docs/policy/ROADMAP_DECISION_POLICY.md`、queue 作成は `do
 - `docs/plan/<YYYY-MM-DD>_<ROADMAP_ID>/ROADMAP.md`
 - `docs/plan/<YYYY-MM-DD>_<ROADMAP_ID>/IMPLEMENTATION_QUEUE.md`
 - `docs/policy/`
-- `docs/TEST.md`
+- `docs/TEST.md` for execution commands
+- `docs/policy/TEST_DESIGN_POLICY.md` for test design / coverage policy
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` for test creation log updates
 
 ## Autopilot loop
 

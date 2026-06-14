@@ -9,7 +9,8 @@
 
 - `addons/hex_map_kit/editor/hex_map_gen_dock.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 
 ## 入出力インターフェース
 
@@ -135,7 +136,7 @@ Crop resultは従来通り一時的な `HexOverlayData` として作成する。
 3. `_reset_mask_crop_if_enabled()` 呼び出しを `_refresh_crop_preview_after_edit(reason)` に置き換える。
 4. Apply / Save直前のCrop result再評価を明示する。
 5. reset modeとretained modeのテストを追加する。
-6. `docs/TEST.md` を更新する。
+6. `docs/TEST.md` は実行手順が変わる場合だけ更新し、それ以外は `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` を更新する。
 7. `./tools/test.sh` を実行する。
 
 ## 完了判定

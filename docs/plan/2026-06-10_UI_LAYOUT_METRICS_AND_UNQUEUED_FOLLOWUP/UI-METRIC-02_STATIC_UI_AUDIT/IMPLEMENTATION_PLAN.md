@@ -11,7 +11,8 @@
 ## Target Files
 
 - `tools/ui_static_audit.py`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-02_STATIC_UI_AUDIT/`
 - `docs/review/autopilot/UI-METRIC-02_SELF_REVIEW_2026-06-10.md`
 - `docs/review/autopilot/UI-METRIC-02_TEST_RESULT_2026-06-10.md`

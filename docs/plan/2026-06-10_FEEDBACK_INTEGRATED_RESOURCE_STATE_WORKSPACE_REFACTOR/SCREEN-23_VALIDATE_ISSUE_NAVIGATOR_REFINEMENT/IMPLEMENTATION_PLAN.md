@@ -5,7 +5,7 @@
 - Add Validate-tab workflow run action UI/state.
 - Add Validate issue navigator ownership fields for issue list, severity, scope, focus action, and selection routing.
 - Hide Paint-side validation dashboard from normal UI while preserving helper APIs.
-- Update existing Validate/Paint tests and `docs/TEST.md`.
+- Update existing Validate/Paint tests and `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 - Update queue proof, self-review, and test result.
 
 ## Target Files
@@ -13,7 +13,8 @@
 - `addons/hex_map_kit/editor/hex_map_workspace.gd`
 - `addons/hex_map_kit/editor/hex_map_edit_tool.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/plan/2026-06-10_FEEDBACK_INTEGRATED_RESOURCE_STATE_WORKSPACE_REFACTOR/IMPLEMENTATION_QUEUE.md`
 
 ## Steps

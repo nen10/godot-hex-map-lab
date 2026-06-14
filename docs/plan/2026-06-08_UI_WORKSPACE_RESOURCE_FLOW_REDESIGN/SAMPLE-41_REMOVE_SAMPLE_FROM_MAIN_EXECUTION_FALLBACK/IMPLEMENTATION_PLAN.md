@@ -5,7 +5,7 @@
 - Remove editor-session sample catalog fallback from Generate/Paint execution lookup.
 - Ignore bundled sample catalog paths as execution catalogs even if directly selected.
 - Classify bundled sample selections as `SOURCE_SAMPLE` warning state in asset slot rows.
-- Update editor tests and `docs/TEST.md`.
+- Update editor tests and `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 
 ## Target Files
 
@@ -13,7 +13,8 @@
 - `addons/hex_map_kit/editor/hex_map_edit_tool.gd`
 - `addons/hex_map_kit/editor/hex_map_editor_asset_slot_state.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/plan/2026-06-08_UI_WORKSPACE_RESOURCE_FLOW_REDESIGN/IMPLEMENTATION_QUEUE.md`
 
 ## Steps

@@ -12,7 +12,8 @@ Add a Catalog-specific rich preview UI for selected Tile Catalog atlas/scene ent
 - `addons/hex_map_kit/editor/hex_map_catalog_screen.gd`
 - `addons/hex_map_kit/editor/hex_map_workspace.gd`
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 
 ## Planned Implementation Steps
 
@@ -21,7 +22,7 @@ Add a Catalog-specific rich preview UI for selected Tile Catalog atlas/scene ent
 3. Update Catalog detail panel builder to mount the preview control and unavailable badge label.
 4. Refresh the mounted preview/badge from `catalog_screen_snapshot()`.
 5. Add tests for atlas preview render kind, scene preview render kind, missing/placeholder badge tooltip, and mounted control snapshot.
-6. Update `docs/TEST.md`.
+6. Update `docs/TEST.md` only if execution instructions changed; otherwise update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 7. Run `./tools/test.sh`.
 
 ## Fallback / Deferred Steps
@@ -44,7 +45,7 @@ Add a Catalog-specific rich preview UI for selected Tile Catalog atlas/scene ent
 
 ## Docs Updates
 
-- Update `docs/TEST.md` with `CAT-NEXT-11` coverage.
+- Update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` with `CAT-NEXT-11` coverage.
 - Record self-review and test result under `docs/review/autopilot/`.
 
 ## Planned Completion Criteria

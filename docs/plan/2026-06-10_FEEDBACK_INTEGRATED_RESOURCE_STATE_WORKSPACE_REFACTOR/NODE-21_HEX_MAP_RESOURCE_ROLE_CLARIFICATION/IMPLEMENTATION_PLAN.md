@@ -13,7 +13,8 @@
 - `tests/test_editor_plugin.gd`
 - `docs/manual/MANUAL_WORKFLOW.md`
 - `docs/knowledge/DEV_GODOT.md`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 
 ## Steps
 

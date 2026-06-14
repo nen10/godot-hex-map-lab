@@ -9,7 +9,7 @@ Plan:
 3. Enrich `layer_stack_screen_snapshot()` with selected HexTileMap relationship, required role list, role status counts, and action availability.
 4. Refresh the role panel after Layer Stack asset, target, document, create/apply, and clear actions.
 5. Extend editor tests to assert that Layers is now a role editor, not only a resource row.
-6. Update `docs/TEST.md`.
+6. Update `docs/TEST.md` only if execution instructions changed; otherwise update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 7. Run `./tools/test.sh`, repair any `repair-now` issues, write self-review/test result, update queue proof, and commit.
 
 Acceptance mapping:

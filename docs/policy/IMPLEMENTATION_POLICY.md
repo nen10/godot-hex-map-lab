@@ -38,7 +38,8 @@
 
 ## Verification
 
-- `docs/TEST.md` に接続する自動テストを基本根拠にする。
+- 標準実行は `./tools/test.sh` と `docs/TEST.md` を基本根拠にする。
+- テスト設計と coverage 記録は `docs/policy/TEST_DESIGN_POLICY.md` と `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` に従う。
 - UI feature の headless test は sample mode OFF または user-selected project asset state を確認し、sample mode ON/OFF は別 contract として扱う。
 - UI の視認性・操作感は headless test で固定しない。
 - CLEAN UI 再編中は新規 analog test を作らない。必要な観察項目は deferred として残す。

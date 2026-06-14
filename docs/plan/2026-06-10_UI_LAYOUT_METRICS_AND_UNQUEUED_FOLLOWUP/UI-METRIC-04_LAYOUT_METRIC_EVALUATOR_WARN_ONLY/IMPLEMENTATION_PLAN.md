@@ -13,7 +13,8 @@
 - `addons/hex_map_kit/editor/testing/hex_ui_layout_metric_evaluator.gd`
 - `tests/test_workspace_layout_metric_evaluator.gd`
 - `tools/test.sh`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 - `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/UI-METRIC-04_LAYOUT_METRIC_EVALUATOR_WARN_ONLY/`
 - `docs/review/autopilot/UI-METRIC-04_SELF_REVIEW_2026-06-10.md`
 - `docs/review/autopilot/UI-METRIC-04_TEST_RESULT_2026-06-10.md`
@@ -25,7 +26,7 @@
 - Implement evaluator report schema and warning category checks.
 - Add synthetic category coverage and runtime Workspace report smoke test.
 - Add the test script to `tools/test.sh`.
-- Update `docs/TEST.md`.
+- Update `docs/TEST.md` only if execution instructions changed; otherwise update `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 - Run `./tools/test.sh`.
 - Write self-review and test-result docs.
 - Mark `UI-METRIC-04` COMPLETE, promote dependency-satisfied tasks, update proof log, and commit.
@@ -48,5 +49,5 @@
 
 - Required metric categories produce severity `warn` findings.
 - Runtime Workspace snapshot evaluation returns a report without fail-gating warning count.
-- `docs/TEST.md` documents UI-METRIC-04 coverage.
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` documents UI-METRIC-04 coverage.
 - `tools/test.sh` runs the evaluator test.

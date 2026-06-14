@@ -5,7 +5,7 @@
 - Extend asset slot state with explicit config/runtime/validation/sample/operation sections.
 - Route asset slot control status and action availability through ViewState.
 - Preserve current user-visible layout until `UI-01`.
-- Update tests and `docs/TEST.md`.
+- Update tests and `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`.
 
 ## Target Files
 
@@ -13,7 +13,8 @@
 - `addons/hex_map_kit/editor/hex_map_editor_asset_slot_control.gd`
 - workspace asset panel integration if needed
 - `tests/test_editor_plugin.gd`
-- `docs/TEST.md`
+- `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+- `docs/TEST.md` if execution instructions change
 
 ## Steps
 
