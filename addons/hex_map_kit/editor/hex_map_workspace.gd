@@ -17,6 +17,7 @@ const HexObjectDefinitionResource = preload("res://addons/hex_map_kit/adapter/he
 const HexExportProfileResource = preload("res://addons/hex_map_kit/adapter/hex_export_profile_resource.gd")
 const HexTileCatalogResource = preload("res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd")
 const HexValidationRuleSuiteResource = preload("res://addons/hex_map_kit/adapter/hex_validation_rule_suite_resource.gd")
+const HexGenerationGraphResource = preload("res://addons/hex_map_kit/adapter/hex_generation_graph_resource.gd")
 const HexMapEditorPathSelector = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 const HexMapGenDock = preload("res://addons/hex_map_kit/editor/hex_map_gen_dock.gd")
@@ -28,6 +29,7 @@ const HexMapWorkspaceAssetPanel = preload("res://addons/hex_map_kit/editor/hex_m
 const HexMapWorkspaceAssetResourceFactory = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_resource_factory.gd")
 const HexMapWorkspaceBindingService = preload("res://addons/hex_map_kit/editor/hex_map_workspace_binding_service.gd")
 const HexMapWorkspaceComponentRegistry = preload("res://addons/hex_map_kit/editor/hex_map_workspace_component_registry.gd")
+const HexMapGraphInstantiator = preload("res://addons/hex_map_kit/editor/hex_map_graph_instantiator.gd")
 const HexMapResourcesScreen = preload("res://addons/hex_map_kit/editor/hex_map_resources_screen.gd")
 const HexMapCatalogScreen = preload("res://addons/hex_map_kit/editor/hex_map_catalog_screen.gd")
 const HexMapLayersScreen = preload("res://addons/hex_map_kit/editor/hex_map_layers_screen.gd")
@@ -90,6 +92,8 @@ var _missing_unique_resources_create_button: Button
 var _missing_unique_resources_save_directory := ""
 var _build_screen: HexMapBuildScreen
 var _generation_dock: HexMapGenDock
+var _pending_graph_load_overwrite := false
+var _last_graph_load_result: Dictionary = {}
 var _edit_tool: HexMapEditTool
 var _sample_settings_panel: HexMapSampleSettingsPanel
 var _validation_issue_navigator: VBoxContainer
@@ -331,6 +335,7 @@ func generation_screen_snapshot() -> Dictionary:
 			legacy_output_target
 		)
 		build_snapshot["legacy_view_state"] = legacy_view_state
+		build_snapshot["graph_load_result"] = _last_graph_load_result.duplicate(true)
 		build_snapshot["view_state"] = {
 			"state_source": "HexMapBuildScreen",
 			"state_id": "graph_canvas_ready",
@@ -688,6 +693,98 @@ func ensure_build_graph_context(reason: String = "workspace.build_graph_context"
 	build_result["selected_snapshot"] = selected_hex_tile_map_snapshot()
 	build_result["generation_snapshot"] = generation_screen_snapshot()
 	return build_result
+
+
+func load_generation_graph_resource(
+	graph_resource: HexGenerationGraphResource,
+	overwrite_selected: bool = false,
+	reason: String = "workspace.load_generation_graph"
+) -> Dictionary:
+	var session := _ensure_session_state()
+	var selected_layer := session.current_selected_hex_tile_map_layer() as HexTileMapLayer
+	var result: Dictionary
+	if overwrite_selected and selected_layer != null:
+		result = HexMapGraphInstantiator.overwrite_selected_layer(graph_resource, selected_layer)
+	else:
+		result = HexMapGraphInstantiator.instantiate_new_layer(
+			graph_resource,
+			_build_context_node_parent(),
+			{"base_name": "LoadedGraphHexMapLayer"}
+		)
+	if not bool(result.get("ok", false)):
+		_last_graph_load_result = result.duplicate(true)
+		return _last_graph_load_result.duplicate(true)
+
+	var loaded_layer := result.get("layer", null) as HexTileMapLayer
+	session.set_selected_hex_tile_map_layer(loaded_layer, reason)
+	if session.selected_hex_tile_map_auto_link_enabled():
+		_apply_selected_hex_tile_map_to_edit_tool()
+	if loaded_layer.level_document_resource != null:
+		workspace_asset_context().set_level_document(
+			loaded_layer.level_document_resource,
+			HexMapWorkspaceAssetContext.SOURCE_PROJECT,
+			"Selected Node"
+		)
+		session.set_document(
+			loaded_layer.level_document_resource,
+			"workspace.load_generation_graph",
+			loaded_layer.level_document_resource.resource_path,
+			reason
+		)
+	if loaded_layer.layer_stack_resource != null:
+		workspace_asset_context().set_layer_stack(
+			loaded_layer.layer_stack_resource,
+			HexMapWorkspaceAssetContext.SOURCE_PROJECT,
+			"Selected Node"
+		)
+
+	var screen_load_result := {}
+	if _build_screen != null:
+		_build_screen.set_workspace_asset_context(workspace_asset_context())
+		screen_load_result = _build_screen.load_graph_resource(
+			loaded_layer.generation_graph_resource,
+			{"run": false}
+		)
+	result["screen_load_result"] = screen_load_result
+	_sync_selected_hex_tile_map_resources()
+	_refresh_selected_hex_tile_map_context()
+	_refresh_missing_unique_resources_panel()
+	result["selected_snapshot"] = selected_hex_tile_map_snapshot()
+	result["generation_snapshot"] = generation_screen_snapshot()
+	_last_graph_load_result = result.duplicate(true)
+	return _last_graph_load_result.duplicate(true)
+
+
+func load_generation_graph_path(
+	path: String,
+	overwrite_selected: bool = false,
+	reason: String = "workspace.load_generation_graph_path"
+) -> Dictionary:
+	if path == "" or not ResourceLoader.exists(path):
+		_last_graph_load_result = {
+			"ok": false,
+			"mode": "load_path",
+			"blocked_reason": "Generation Graph resource path does not exist.",
+			"path": path,
+		}
+		return _last_graph_load_result.duplicate(true)
+	var resource = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
+	if not resource is HexGenerationGraphResource:
+		_last_graph_load_result = {
+			"ok": false,
+			"mode": "load_path",
+			"blocked_reason": "Selected resource is not a HexGenerationGraphResource.",
+			"path": path,
+		}
+		return _last_graph_load_result.duplicate(true)
+	var result := load_generation_graph_resource(resource, overwrite_selected, reason)
+	result["path"] = path
+	_last_graph_load_result = result.duplicate(true)
+	return _last_graph_load_result.duplicate(true)
+
+
+func last_generation_graph_load_result() -> Dictionary:
+	return _last_graph_load_result.duplicate(true)
 
 
 func selected_hex_tile_map_snapshot() -> Dictionary:
@@ -5013,6 +5110,7 @@ func _mount_generation_panel() -> void:
 	_build_screen.set_workspace_asset_context(workspace_asset_context())
 	_build_screen.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_build_screen.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_build_screen.load_graph_requested.connect(_on_build_load_graph_requested)
 	(page as Control).add_child(_build_screen)
 	_register_tab_component(HexMapWorkspaceComponentRegistry.TAB_GENERATE, "build_graph_screen", _build_screen)
 
@@ -5072,6 +5170,30 @@ func _refresh_export_destination_panel() -> void:
 	if _export_run_button != null:
 		_export_run_button.disabled = context.level_document == null or destination == ""
 		_export_run_button.tooltip_text = _export_run_button_tooltip(context, destination_context)
+
+
+func _popup_generation_graph_dialog(overwrite_selected: bool) -> bool:
+	if not Engine.is_editor_hint():
+		return false
+	_pending_graph_load_overwrite = overwrite_selected
+	var dialog := HexMapEditorPathSelector.new_dialog(
+		EditorFileDialog.FILE_MODE_OPEN_FILE,
+		HexMapEditorPathSelector.TRES_FILTERS
+	)
+	dialog.file_selected.connect(_on_generation_graph_file_selected)
+	return HexMapEditorPathSelector.popup_dialog(dialog)
+
+
+func _on_build_load_graph_requested(overwrite_selected: bool) -> void:
+	_popup_generation_graph_dialog(overwrite_selected)
+
+
+func _on_generation_graph_file_selected(path: String) -> void:
+	load_generation_graph_path(
+		path,
+		_pending_graph_load_overwrite,
+		"workspace.build_screen.load_graph"
+	)
 
 
 func _popup_export_destination_dialog() -> bool:

@@ -256,3 +256,29 @@ proof:
     - `examples/basic_runtime/README.md`
     - `tests/test_graph_runtime_build.gd`
     - `tools/test.sh`
+
+### RUNTIME-51_GRAPH_LOAD_AND_CONTEXT_OWNERSHIP
+
+proof:
+  plan: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/RUNTIME-51_GRAPH_LOAD_AND_CONTEXT_OWNERSHIP/`
+  review: `docs/review/autopilot/RUNTIME-51_GRAPH_LOAD_AND_CONTEXT_OWNERSHIP_SELF_REVIEW_2026-06-15.md`
+  execution:
+    - `docs/review/autopilot/RUNTIME-51_GRAPH_LOAD_AND_CONTEXT_OWNERSHIP_SELF_REVIEW_2026-06-15.md`
+  ui_metrics:
+    - `.godot_user/ui-metrics/20260615-174804-14344/workspace_layout_metrics.md`（UI/graph task; P0 failures = 0, P1 issues = 0）
+  tests:
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/runtime51-graph-load-context.log --path . --script res://tests/test_graph_load_context.gd`（exit 0）
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/runtime51-build-canvas.log --path . --script res://tests/test_build_graph_canvas.gd`（exit 0）
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/runtime51-generation-promote.log --path . --script res://tests/test_generation_promote.gd`（exit 0）
+    - `./tools/test.sh`（run id `20260615-174804-14344`, exit 0）
+  phase_review:
+    - `docs/review/roadmap/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN_Y2_PHASE_REVIEW_2026-06-15.md`
+  docs:
+    - `docs/TEST.md`
+    - `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_graph_instantiator.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `tests/test_graph_load_context.gd`
+    - `tools/test.sh`

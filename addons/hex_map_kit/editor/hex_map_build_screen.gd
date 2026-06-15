@@ -4,6 +4,7 @@ extends VBoxContainer
 
 signal graph_generated(report: Dictionary)
 signal promote_requested(node_id: String, role: String)
+signal load_graph_requested(overwrite_selected: bool)
 
 const HexMapWorkspaceAssetContextScript = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
 const HexMapBuildGraphCanvasScript = preload("res://addons/hex_map_kit/editor/hex_map_build_graph_canvas.gd")
@@ -21,6 +22,8 @@ const SCREEN_SCRIPT := "hex_map_build_screen.gd"
 
 var _workspace_asset_context: HexMapWorkspaceAssetContextScript = null
 var _context_label: Label
+var _load_graph_button: Button
+var _overwrite_selected_check: CheckBox
 var _generate_button: Button
 var _cancel_button: Button
 var _run_count_spin: SpinBox
@@ -35,6 +38,7 @@ var _inspector: HexMapBuildNodeInspectorScript
 var _last_report: Dictionary = {}
 var _last_promote_result: Dictionary = {}
 var _last_build_context_result: Dictionary = {}
+var _last_graph_load_result: Dictionary = {}
 var _run_busy := false
 var _cancel_requested := false
 var _run_progress_snapshot: Dictionary = {}
@@ -189,6 +193,40 @@ func ensure_graph_context_for_hex_tile_map_layer(
 	return _last_build_context_result.duplicate(true)
 
 
+func load_graph_resource(graph_resource: HexGenerationGraphResourceScript, options: Dictionary = {}) -> Dictionary:
+	if _canvas == null:
+		_last_graph_load_result = _graph_load_result(false, "Build graph canvas is unavailable.")
+		return _last_graph_load_result.duplicate(true)
+	if graph_resource == null:
+		_last_graph_load_result = _graph_load_result(false, "Choose a Generation Graph resource.")
+		return _last_graph_load_result.duplicate(true)
+
+	var restore_report := _canvas.restore_graph_model(
+		graph_resource.to_graph_model(),
+		String(options.get("selected_node_id", "weighted_items"))
+	)
+	var run_report := {}
+	if bool(options.get("run", false)):
+		run_report = run_graph()
+	else:
+		_refresh_preview()
+		_refresh_selected_node()
+	_last_graph_load_result = {
+		"ok": bool(restore_report.get("ok", false)),
+		"blocked_reason": "" if bool(restore_report.get("ok", false)) else String(restore_report.get("reason", "Graph resource could not be restored.")),
+		"graph_resource": graph_resource,
+		"graph_id": graph_resource.graph_id,
+		"restore_report": restore_report,
+		"run_report": run_report,
+		"overwrite_selected": _overwrite_selected_check != null and _overwrite_selected_check.button_pressed,
+	}
+	if _status_label != null:
+		_status_label.text = "Graph loaded: %s" % graph_resource.graph_id if bool(_last_graph_load_result["ok"]) else String(_last_graph_load_result["blocked_reason"])
+	_refresh_context()
+	_refresh_selected_node()
+	return _last_graph_load_result.duplicate(true)
+
+
 func promote_selected_output(role: String = "overlay") -> Dictionary:
 	if _canvas == null:
 		return {}
@@ -227,6 +265,11 @@ func build_screen_snapshot() -> Dictionary:
 		"canvas_is_dominant": true,
 		"resource_row_primary": false,
 		"primary_action": "Generate",
+		"load_graph_button_present": _load_graph_button != null,
+		"overwrite_selected_graph_check_present": _overwrite_selected_check != null,
+		"overwrite_selected_graph": _overwrite_selected_check != null and _overwrite_selected_check.button_pressed,
+		"overwrite_selected_graph_default": false,
+		"last_graph_load": _last_graph_load_result.duplicate(true),
 		"generate_button_present": _generate_button != null,
 		"cancel_button_present": _cancel_button != null,
 		"cancel_available": _cancel_button != null and not _cancel_button.disabled,
@@ -292,6 +335,16 @@ func _build_ui() -> void:
 	_context_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_context_label.clip_text = true
 	top_row.add_child(_context_label)
+	_load_graph_button = Button.new()
+	_load_graph_button.name = "Build Load Graph Button"
+	_load_graph_button.text = "Load Graph"
+	_load_graph_button.pressed.connect(_on_load_graph_pressed)
+	top_row.add_child(_load_graph_button)
+	_overwrite_selected_check = CheckBox.new()
+	_overwrite_selected_check.name = "Build Overwrite Selected Graph"
+	_overwrite_selected_check.text = "Overwrite selected"
+	_overwrite_selected_check.button_pressed = false
+	top_row.add_child(_overwrite_selected_check)
 	_generate_button = Button.new()
 	_generate_button.name = "Build Generate Button"
 	_generate_button.text = "Generate"
@@ -442,6 +495,18 @@ func _build_context_result(ok: bool, reason: String) -> Dictionary:
 	}
 
 
+func _graph_load_result(ok: bool, reason: String) -> Dictionary:
+	return {
+		"ok": ok,
+		"blocked_reason": reason,
+		"graph_resource": null,
+		"graph_id": "",
+		"restore_report": {},
+		"run_report": {},
+		"overwrite_selected": _overwrite_selected_check != null and _overwrite_selected_check.button_pressed,
+	}
+
+
 func _resource_prefix_from_node(node_name: String) -> String:
 	var raw := node_name.strip_edges()
 	if raw == "":
@@ -486,6 +551,10 @@ func _refresh_preview() -> void:
 
 func _on_generate_pressed() -> void:
 	run_graph({"count": 1})
+
+
+func _on_load_graph_pressed() -> void:
+	load_graph_requested.emit(_overwrite_selected_check != null and _overwrite_selected_check.button_pressed)
 
 
 func _on_cancel_pressed() -> void:

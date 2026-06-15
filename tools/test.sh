@@ -34,6 +34,7 @@ TEST_SCRIPTS=(
   "res://tests/test_generation_graph_resource.gd"
   "res://tests/test_generation_graph_runner_dirty.gd"
   "res://tests/test_graph_runtime_build.gd"
+  "res://tests/test_graph_load_context.gd"
   "res://tests/test_build_graph_canvas.gd"
   "res://tests/test_generation_promote.gd"
   "res://tests/test_hex_adapter.gd"

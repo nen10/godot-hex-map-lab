@@ -36,6 +36,8 @@
   - Generation Graph runner の dirty cache 再利用、downstream 再計算、interrupt/cancel、partial cache 非確定
 - `tests/test_graph_runtime_build.gd`
   - Generation Graph Resource の runtime build API、seed 再現性、embed/reference semantics、editor 非依存、HexTileMapLayer 適用
+- `tests/test_graph_load_context.gd`
+  - Generation Graph Resource の editor load context ownership、新規 node embed 復元、overwrite generated 層置換、手動層保持
 - `tests/test_build_graph_canvas.gd`
   - Build tab graph canvas、typed connection rejection、GraphEdit→Dictionary model同期、3-node chain preview、run cache/dirty/failure state、failure node highlight、palette/inspector contract
 - `tests/test_generation_promote.gd`
