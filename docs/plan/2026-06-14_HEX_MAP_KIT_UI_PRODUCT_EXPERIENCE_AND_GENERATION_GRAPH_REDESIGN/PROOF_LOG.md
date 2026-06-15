@@ -123,3 +123,35 @@ proof:
     - `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/GRAPH-11_BUILD_TAB_GRAPH_CANVAS/UX.md`
     - `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/GRAPH-11_BUILD_TAB_GRAPH_CANVAS/POLICY.md`
     - `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/GRAPH-11_BUILD_TAB_GRAPH_CANVAS/IMPLEMENTATION_PLAN.md`
+
+### GRAPH-12_VERTICAL_SLICE_THREE_NODE_CHAIN
+
+proof:
+  plan: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/GRAPH-12_VERTICAL_SLICE_THREE_NODE_CHAIN/`
+  review: `docs/review/autopilot/GRAPH-12_VERTICAL_SLICE_THREE_NODE_CHAIN_SELF_REVIEW_2026-06-15.md`
+  execution:
+    - `docs/review/autopilot/GRAPH-12_VERTICAL_SLICE_THREE_NODE_CHAIN_SELF_REVIEW_2026-06-15.md`
+    - `docs/review/autopilot/GRAPH-12_HEADLESS_VISUAL_VERIFICATION_2026-06-15.md`
+  ui_metrics:
+    - `.godot_user/ui-metrics/20260615-155012-74831/workspace_layout_metrics.md`（UI-facing graph task; P0 failures = 0, P1 issues = 0）
+  visual_verification:
+    - `.godot_user/visual-verification/GRAPH-12_VERTICAL_SLICE_THREE_NODE_CHAIN/2026-06-15_154938/graph12_visual_verification.md`
+    - `.godot_user/visual-verification/GRAPH-12_VERTICAL_SLICE_THREE_NODE_CHAIN/2026-06-15_154938/graph12_visual_verification.json`
+    - `.godot_user/test-runs/graph12-visual-verify.log`
+  tests:
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/manual-graph12-promote.log --path . --script res://tests/test_generation_promote.gd`（exit 0）
+    - `./tools/test.sh`（run id `20260615-155012-74831`, exit 0）
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/graph12-visual-verify.log --path . --script res://tools/graph12_visual_verify.gd`（exit 0）
+  docs:
+    - `docs/TEST.md`
+    - `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+    - `docs/review/autopilot/GRAPH-12_HEADLESS_VISUAL_VERIFICATION_2026-06-15.md`
+  major files:
+    - `addons/hex_map_kit/generation/hex_generation_promote.gd`
+    - `addons/hex_map_kit/generation/hex_generation_node_types.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_graph_canvas.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_screen.gd`
+    - `tests/test_generation_promote.gd`
+    - `tests/test_editor_plugin_test_base.gd`
+    - `tools/test.sh`
+    - `tools/graph12_visual_verify.gd`

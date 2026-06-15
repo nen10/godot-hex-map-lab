@@ -32,6 +32,7 @@ TEST_SCRIPTS=(
   "res://tests/test_hex_map_generation.gd"
   "res://tests/test_generation_graph.gd"
   "res://tests/test_build_graph_canvas.gd"
+  "res://tests/test_generation_promote.gd"
   "res://tests/test_hex_adapter.gd"
   "res://tests/test_hex_tile_map_layer.gd"
   "res://tests/test_workspace_state_transitions.gd"

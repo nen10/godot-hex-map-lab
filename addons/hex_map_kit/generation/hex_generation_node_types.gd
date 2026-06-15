@@ -214,15 +214,19 @@ static func _run_connectivity(inputs: Dictionary, params: Dictionary, context: D
 static func _run_region_filter(inputs: Dictionary, params: Dictionary, _context: Dictionary, _resource_refs: Dictionary) -> Array:
 	var source = inputs.get("in", null)
 	var mode = String(params.get("mode", "floor"))
+	var selection: Array = []
 	if source != null and source.has_method("item_cells") and mode != "query":
 		var item_key = String(params.get("item_key", _terrain_item_key(mode)))
-		return HexMapDataScript.unique_points(source.item_cells(item_key))
+		selection = HexMapDataScript.unique_points(source.item_cells(item_key))
+		return _filter_by_distance_params(selection, params)
 	if mode == "query":
 		var operation = String(params.get("op", params.get("operation", HexOverlayDataScript.ITEM_QUERY_OR)))
-		return HexOverlayDataScript.query_item_cells(_selectors_for_source(params.get("selectors", []), source), operation)
+		selection = HexOverlayDataScript.query_item_cells(_selectors_for_source(params.get("selectors", []), source), operation)
+		return _filter_by_distance_params(selection, params)
 	if source is HexOverlayDataScript:
 		var overlay_key = String(params.get("item_key", ""))
-		return source.item_cells(overlay_key) if overlay_key != "" else source.occupied_cells()
+		selection = source.item_cells(overlay_key) if overlay_key != "" else source.occupied_cells()
+		return _filter_by_distance_params(selection, params)
 	return []
 
 
@@ -369,3 +373,21 @@ static func _seed(params: Dictionary, context: Dictionary, salt: int = 0) -> int
 static func _points_param(params: Dictionary, key: String) -> Array:
 	var value = params.get(key, [])
 	return value.duplicate() if value is Array else []
+
+
+static func _filter_by_distance_params(points: Array, params: Dictionary) -> Array:
+	if not params.has("within_distance_of") and not params.has("origin_points"):
+		return points
+	var origins := _points_param(params, "within_distance_of")
+	if origins.is_empty():
+		origins = _points_param(params, "origin_points")
+	if origins.is_empty():
+		return []
+	var max_distance := int(params.get("max_distance", params.get("distance", 0)))
+	var result: Array = []
+	for point in points:
+		for origin in origins:
+			if point.subtract(origin).l1_norm() <= max_distance:
+				result.append(point)
+				break
+	return HexMapDataScript.unique_points(result)

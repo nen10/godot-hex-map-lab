@@ -10,6 +10,7 @@ const HexMapBuildGraphCanvasScript = preload("res://addons/hex_map_kit/editor/he
 const HexMapBuildNodePaletteScript = preload("res://addons/hex_map_kit/editor/hex_map_build_node_palette.gd")
 const HexMapBuildNodeInspectorScript = preload("res://addons/hex_map_kit/editor/hex_map_build_node_inspector.gd")
 const HexMapPreviewThumbnailScript = preload("res://addons/hex_map_kit/editor/hex_map_preview_thumbnail.gd")
+const HexGenerationPromoteScript = preload("res://addons/hex_map_kit/generation/hex_generation_promote.gd")
 
 const TAB_NAME := "Build"
 const WORKFLOW_OWNER := "Build"
@@ -26,6 +27,7 @@ var _preview: HexMapPreviewThumbnailScript
 var _preview_status_label: Label
 var _inspector: HexMapBuildNodeInspectorScript
 var _last_report: Dictionary = {}
+var _last_promote_result: Dictionary = {}
 
 
 func _ready() -> void:
@@ -77,6 +79,33 @@ func build_default_three_node_chain_and_preview() -> Dictionary:
 	return run_graph()
 
 
+func build_vertical_slice_chain_and_preview() -> Dictionary:
+	_canvas.build_default_vertical_slice_chain()
+	return run_graph()
+
+
+func promote_selected_output(role: String = "overlay") -> Dictionary:
+	if _canvas == null:
+		return {}
+	if _workspace_asset_context == null or _workspace_asset_context.level_document == null:
+		_last_promote_result = {
+			"ok": false,
+			"blocked_reason": "Choose a Level Document before promoting graph output.",
+		}
+		_refresh_selected_node()
+		return _last_promote_result.duplicate(true)
+	_last_promote_result = HexGenerationPromoteScript.promote(
+		_canvas.selected_output(),
+		_workspace_asset_context.level_document,
+		role,
+		{"graph_node_id": _canvas.selected_node_id()}
+	)
+	if _status_label != null:
+		_status_label.text = String(_last_promote_result.get("status_text", _last_promote_result.get("blocked_reason", "")))
+	_refresh_selected_node()
+	return _last_promote_result.duplicate(true)
+
+
 func build_screen_snapshot() -> Dictionary:
 	var canvas_snapshot := _canvas.canvas_snapshot() if _canvas != null else {}
 	var inspector_snapshot := _inspector.inspector_snapshot() if _inspector != null else {}
@@ -102,6 +131,8 @@ func build_screen_snapshot() -> Dictionary:
 		"preview_available": bool(preview_snapshot.get("available", false)),
 		"three_node_chain_ready": int(canvas_snapshot.get("node_count", 0)) >= 3 and int(canvas_snapshot.get("connection_count", 0)) >= 2,
 		"graph_chain_runs": bool(_last_report.get("ok", false)),
+		"promote_result": _last_promote_result.duplicate(true),
+		"promote_available": _inspector != null and bool((_inspector.inspector_snapshot() as Dictionary).get("promote_enabled", false)),
 		"label_heavy_but_metrics_pass": false,
 	}
 
@@ -221,6 +252,7 @@ func _refresh_selected_node() -> void:
 		_inspector.clear_inspector()
 		return
 	_inspector.inspect_node(node, _canvas.selected_output_type(), _canvas.selected_preview_snapshot())
+	_inspector.set_promote_enabled(_workspace_asset_context != null and _workspace_asset_context.level_document != null)
 
 
 func _refresh_preview() -> void:
@@ -270,4 +302,7 @@ func _on_inspector_params_changed(node_id: String, params: Dictionary) -> void:
 
 
 func _on_inspector_promote_requested(node_id: String, role: String) -> void:
+	if _canvas != null:
+		_canvas.select_graph_node(node_id)
+	promote_selected_output(role)
 	promote_requested.emit(node_id, role)

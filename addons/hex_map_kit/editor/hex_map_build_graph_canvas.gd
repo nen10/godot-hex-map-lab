@@ -13,6 +13,7 @@ const HexGenerationPortsScript = preload("res://addons/hex_map_kit/generation/he
 const HexMapPreviewThumbnailScript = preload("res://addons/hex_map_kit/editor/hex_map_preview_thumbnail.gd")
 const HexMapDataScript = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
 const HexOverlayDataScript = preload("res://addons/hex_map_kit/core/hex_overlay_data.gd")
+const HexVectorScript = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 
 const NODE_TYPE_ORDER := [
 	HexGenerationNodeTypesScript.NODE_SOURCE,
@@ -361,6 +362,8 @@ static func default_params_for_type(node_type: String) -> Dictionary:
 		HexGenerationNodeTypesScript.NODE_REGION_FILTER:
 			return {
 				"mode": "floor",
+				"within_distance_of": [HexVectorScript.zero()],
+				"max_distance": 3,
 			}
 		HexGenerationNodeTypesScript.NODE_ITEM_GENERATOR:
 			return {
@@ -498,6 +501,21 @@ func _update_last_preview_for_selected_node() -> void:
 		_last_preview_snapshot = HexMapPreviewThumbnailScript.preview_from_overlay_data(overlay, {"source_context": _selected_node_id})
 	else:
 		_last_preview_snapshot = HexMapPreviewThumbnailScript.unavailable_preview("not_run", {"source_context": _selected_node_id})
+
+
+func build_default_vertical_slice_chain() -> PackedStringArray:
+	clear_graph()
+	var shape := add_graph_node(HexGenerationNodeTypesScript.NODE_SHAPE, Vector2(30, 120), "shape")
+	var walls := add_graph_node(HexGenerationNodeTypesScript.NODE_WALL_FIELD, Vector2(230, 120), "walls")
+	var connect := add_graph_node(HexGenerationNodeTypesScript.NODE_CONNECTIVITY, Vector2(430, 120), "connectivity")
+	var filter := add_graph_node(HexGenerationNodeTypesScript.NODE_REGION_FILTER, Vector2(650, 120), "spawn_floor_filter")
+	var items := add_graph_node(HexGenerationNodeTypesScript.NODE_ITEM_GENERATOR, Vector2(890, 120), "weighted_items")
+	request_connection(shape, 0, walls, 0)
+	request_connection(walls, 0, connect, 0)
+	request_connection(connect, 0, filter, 0)
+	request_connection(filter, 0, items, 0)
+	select_graph_node(items)
+	return PackedStringArray([shape, walls, connect, filter, items])
 
 
 func _port_color_snapshot() -> Dictionary:
