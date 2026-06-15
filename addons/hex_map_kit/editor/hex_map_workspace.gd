@@ -74,6 +74,9 @@ var _catalog_detail_preview_control: HexTileCatalogPreviewControl
 var _catalog_detail_preview_badge_label: Label
 var _selected_catalog_entry_key := ""
 var _layer_stack_role_panel: VBoxContainer
+var _layer_stack_visual_status_label: Label
+var _layer_stack_visual_stack: VBoxContainer
+var _layer_stack_visual_empty_cta_label: Label
 var _layer_stack_role_status_label: Label
 var _layer_stack_role_relationship_label: Label
 var _layer_stack_role_tree_summary_label: Label
@@ -2443,6 +2446,15 @@ func layer_stack_screen_snapshot() -> Dictionary:
 	var empty_state := _layers_tab_empty_state(role_rows, relationship)
 	var role_tree_summary := _layer_role_tree_summary(role_rows, role_status_counts, relationship)
 	var role_editor := _layer_role_editor_snapshot(role_rows, relationship)
+	var role_stack_visual := HexMapLayersScreen.role_stack_visual(
+		role_rows,
+		role_status_counts,
+		relationship,
+		String(role_editor.get("selected_role", ""))
+	)
+	var selected_map_name := String(relationship.get("selected_node_name", ""))
+	if selected_map_name == "":
+		selected_map_name = "None"
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_LAYERS,
 		"screen_role": screen_role,
@@ -2452,11 +2464,17 @@ func layer_stack_screen_snapshot() -> Dictionary:
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_LAYERS),
 		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_LAYERS),
 		"purpose_text": String(empty_state.get("purpose_text", "")),
+		"first_surface": "layer_role_stack_visual",
 		"empty_state": empty_state,
 		"empty_state_text": String(empty_state.get("empty_state_text", "")),
 		"layer_stack": stack,
+		"layer_context_chips": PackedStringArray([
+			"Layer Stack: %s" % _layer_stack_display_label(stack),
+			"Map: %s" % selected_map_name,
+		]),
 		"layer_stack_slot": stack_slot,
 		"role_component_present": tab_has_component(HexMapWorkspaceComponentRegistry.TAB_LAYERS, "layer_stack_role_panel"),
+		"role_stack_visual_component_present": tab_has_component(HexMapWorkspaceComponentRegistry.TAB_LAYERS, "layer_role_stack_visual"),
 		"stack_id": stack.stack_id if stack != null else "",
 		"display_name": stack.display_name if stack != null else "",
 		"role_count": stack.layers.size() if stack != null else 0,
@@ -2464,6 +2482,18 @@ func layer_stack_screen_snapshot() -> Dictionary:
 		"required_role_names": _layer_stack_required_role_names(),
 		"role_rows": role_rows,
 		"role_status_counts": role_status_counts,
+		"role_stack_visual": role_stack_visual,
+		"layer_role_stack_visual": role_stack_visual,
+		"role_stack_visual_primary": bool(role_stack_visual.get("primary", false)),
+		"role_stack_visual_rows": role_stack_visual.get("role_cards", []),
+		"role_stack_visual_role_count": int(role_stack_visual.get("role_count", 0)),
+		"role_stack_visual_role_names": role_stack_visual.get("role_names", PackedStringArray()),
+		"role_stack_visual_empty_cta": role_stack_visual.get("empty_cta", {}),
+		"role_stack_visual_chip_types": role_stack_visual.get("chip_types", {}),
+		"role_stack_chips_visible": bool(role_stack_visual.get("chips_visible", false)),
+		"role_stack_toggles_visible": bool(role_stack_visual.get("toggles_visible", false)),
+		"writable_source_visible": bool(role_stack_visual.get("writable_source_visible", false)),
+		"role_stack_resource_reference_text_visible": bool(role_stack_visual.get("resource_reference_text_visible", false)),
 		"role_tree_summary": role_tree_summary,
 		"role_tree_rows_text": String(role_tree_summary.get("role_rows_text", "")),
 		"mounted_role_tree_summary_text": _layer_stack_role_tree_summary_label.text if _layer_stack_role_tree_summary_label != null else "",
@@ -4350,6 +4380,9 @@ func _mount_layer_stack_role_panel() -> void:
 		return
 	var built := HexMapLayersScreen.build_layer_stack_role_panel()
 	_layer_stack_role_panel = built.get("root", null) as VBoxContainer
+	_layer_stack_visual_status_label = built.get("visual_status_label", null) as Label
+	_layer_stack_visual_stack = built.get("visual_stack", null) as VBoxContainer
+	_layer_stack_visual_empty_cta_label = built.get("empty_cta_label", null) as Label
 	_layer_stack_role_status_label = built.get("status_label", null) as Label
 	_layer_stack_role_relationship_label = built.get("relationship_label", null) as Label
 	_layer_stack_role_tree_summary_label = built.get("role_tree_summary_label", null) as Label
@@ -4377,6 +4410,12 @@ func _mount_layer_stack_role_panel() -> void:
 		"layer_stack_role_panel",
 		_layer_stack_role_panel
 	)
+	if _layer_stack_visual_stack != null:
+		_register_tab_component(
+			HexMapWorkspaceComponentRegistry.TAB_LAYERS,
+			"layer_role_stack_visual",
+			_layer_stack_visual_stack
+		)
 	_refresh_layer_stack_role_panel()
 
 
@@ -5716,6 +5755,18 @@ func _on_layer_stack_editor_role_selected(index: int) -> void:
 	select_layer_stack_role(String(_layer_stack_role_editor_role_option.get_item_metadata(index)))
 
 
+func _on_layer_stack_visual_role_pressed(role: String) -> void:
+	select_layer_stack_role(role)
+
+
+func _on_layer_stack_visual_visible_toggled(value: bool, role: String) -> void:
+	update_layer_stack_role_properties(role, {"visible": value})
+
+
+func _on_layer_stack_visual_locked_toggled(value: bool, role: String) -> void:
+	update_layer_stack_role_properties(role, {"locked": value})
+
+
 func _on_layer_stack_editor_visible_toggled(value: bool) -> void:
 	if _updating_layer_role_editor_controls:
 		return
@@ -5959,6 +6010,7 @@ func _refresh_layer_stack_role_panel() -> void:
 	var relationship = snapshot.get("relationship", {}) as Dictionary
 	var actions = snapshot.get("layer_actions", {}) as Dictionary
 	var empty_state = snapshot.get("empty_state", {}) as Dictionary
+	_refresh_layer_stack_visual(snapshot.get("role_stack_visual", {}) as Dictionary)
 	if _layer_stack_role_status_label != null:
 		_layer_stack_role_status_label.text = "Layer Stack: %s | Roles: %d | Missing: %d | Locked: %d | Writable: %d" % [
 			_layer_stack_display_label(snapshot.get("layer_stack", null) as HexLayerStackResource),
@@ -5987,6 +6039,86 @@ func _refresh_layer_stack_role_panel() -> void:
 		_layer_stack_role_editor_summary_label.text = String(role_editor.get("visible_text", ""))
 		_layer_stack_role_editor_summary_label.tooltip_text = "Edit the selected Layer Stack role properties."
 	_refresh_layer_role_editor_controls(snapshot)
+
+
+func _refresh_layer_stack_visual(visual: Dictionary) -> void:
+	var cards = visual.get("role_cards", []) as Array
+	if _layer_stack_visual_status_label != null:
+		_layer_stack_visual_status_label.text = "Role Stack: %d | Missing: %d | Writable: %s" % [
+			int(visual.get("role_count", cards.size())),
+			int(visual.get("missing_count", 0)),
+			_join_text(visual.get("writable_sources", PackedStringArray()) as PackedStringArray, ", "),
+		]
+		_layer_stack_visual_status_label.tooltip_text = String(visual.get("relationship_text", ""))
+	if _layer_stack_visual_empty_cta_label != null:
+		var empty_cta = visual.get("empty_cta", {}) as Dictionary
+		_layer_stack_visual_empty_cta_label.visible = bool(empty_cta.get("visible", false))
+		_layer_stack_visual_empty_cta_label.text = _layer_stack_visual_empty_cta_text(empty_cta)
+	if _layer_stack_visual_stack == null:
+		return
+	_layer_stack_visual_stack.visible = bool(visual.get("visible", true)) and not cards.is_empty()
+	for child in _layer_stack_visual_stack.get_children():
+		_layer_stack_visual_stack.remove_child(child)
+		child.queue_free()
+	for card in cards:
+		if not card is Dictionary:
+			continue
+		_layer_stack_visual_stack.add_child(_layer_stack_visual_card_row(card as Dictionary))
+
+
+func _layer_stack_visual_card_row(card: Dictionary) -> HBoxContainer:
+	var role := String(card.get("role", ""))
+	var row := HBoxContainer.new()
+	row.name = "Layer Role Card %s" % role
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var role_button := Button.new()
+	role_button.name = "Layer Role Select %s" % role
+	role_button.text = "%s%s\n%s | %s" % [
+		"[selected] " if bool(card.get("selected", false)) else "",
+		String(card.get("title", role)),
+		String(card.get("status_chip", "")),
+		String(card.get("z_chip", "")),
+	]
+	role_button.disabled = role == ""
+	role_button.tooltip_text = String(card.get("tooltip", ""))
+	role_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	role_button.set_meta("hex_layer_stack_role", role)
+	role_button.pressed.connect(_on_layer_stack_visual_role_pressed.bind(role))
+	row.add_child(role_button)
+
+	var visible_check := CheckBox.new()
+	visible_check.name = "Layer Role Visible %s" % role
+	visible_check.text = "Visible"
+	visible_check.button_pressed = bool(card.get("visible", false))
+	visible_check.disabled = role == ""
+	visible_check.tooltip_text = String(card.get("visible_chip", ""))
+	visible_check.toggled.connect(_on_layer_stack_visual_visible_toggled.bind(role))
+	row.add_child(visible_check)
+
+	var locked_check := CheckBox.new()
+	locked_check.name = "Layer Role Locked %s" % role
+	locked_check.text = "Locked"
+	locked_check.button_pressed = bool(card.get("locked", false))
+	locked_check.disabled = role == ""
+	locked_check.tooltip_text = String(card.get("lock_chip", ""))
+	locked_check.toggled.connect(_on_layer_stack_visual_locked_toggled.bind(role))
+	row.add_child(locked_check)
+
+	var writable_chip := Label.new()
+	writable_chip.name = "Layer Role Writable %s" % role
+	writable_chip.text = String(card.get("writable_chip", ""))
+	writable_chip.tooltip_text = String(card.get("writable_source_purpose", ""))
+	row.add_child(writable_chip)
+	return row
+
+
+func _layer_stack_visual_empty_cta_text(empty_cta: Dictionary) -> String:
+	if not bool(empty_cta.get("visible", false)):
+		return ""
+	var actions = empty_cta.get("actions", PackedStringArray()) as PackedStringArray
+	if actions.is_empty():
+		return "Choose a Layer Stack to build role cards."
+	return "Next: %s" % _join_text(actions, " / ")
 
 
 func _refresh_layer_role_editor_controls(snapshot: Dictionary) -> void:

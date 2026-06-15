@@ -80,7 +80,7 @@ plan_dir 規約: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GEN
 | id | status | deps | deliverable | target files | acceptance |
 |---|---|---|---|---|---|
 | `SCREEN-40_CATALOG_VISUAL_BOARD` | `COMPLETE` | `DESIGN-10` | tile/object を1つの視覚 asset board に統合 | `addons/hex_map_kit/editor/hex_map_catalog_screen.gd` 他, tests | S: tile/object preview を1画面。E: board が主役 / raw source_id・atlas 非表示 / sample は tutorial source 分離。 |
-| `SCREEN-41_LAYERS_STACK_VISUAL` | `READY` | `DESIGN-10` | role stack の視覚化（現状テキスト要約） | `addons/hex_map_kit/editor/hex_map_layers_screen.gd`, tests | S: writable/visibility/lock を chip/toggle。E: role stack が視覚的に並ぶ。 |
+| `SCREEN-41_LAYERS_STACK_VISUAL` | `COMPLETE` | `DESIGN-10` | role stack の視覚化（現状テキスト要約） | `addons/hex_map_kit/editor/hex_map_layers_screen.gd`, tests | S: writable/visibility/lock を chip/toggle。E: role stack が視覚的に並ぶ。 |
 | `RESCTX-42_RESOURCES_SHELF_AND_CONTEXT_CHIPS` | `READY` | `DESIGN-10` | Resources を資産棚化 + 各 work tab 先頭を context chip に | `addons/hex_map_kit/editor/hex_map_resources_screen.gd` 他, tests | S: Unique/Shared/Optional / work tab 先頭は chip。E: 現 readiness/next-actions ラベル列を撤去 / `Create missing` は大 CTA。 |
 
 ---
@@ -118,7 +118,7 @@ Codex は self-review で nonblocking work を見つけたらここに `follow-u
 
 ## 10. Current pointer
 
-Current recommended next task: `SCREEN-41_LAYERS_STACK_VISUAL`。
+Current recommended next task: `RESCTX-42_RESOURCES_SHELF_AND_CONTEXT_CHIPS`。
 
 理由:
 - `ADOPT-00` は `COMPLETE`：二層 DoD gate を self-review template / queue rules / planning policy へ実装し、QA park を規則化（proof は `PROOF_LOG.md`）。
@@ -136,9 +136,10 @@ Current recommended next task: `SCREEN-41_LAYERS_STACK_VISUAL`。
 - `SCREEN-32` は `COMPLETE`：Runtime Map Resource / Runtime Scene / Generation Graph の 3 purpose card、Debug Report / JSON Snapshot / Package(process-only) secondary row、scene/graph/json/debug action proof 済み（proof は `PROOF_LOG.md`）。
 - Phase Y3 は `COMPLETE`：phase review matrix は `docs/review/roadmap/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN_Y3_PHASE_REVIEW_2026-06-15.md`。
 - `SCREEN-40` は `COMPLETE`：Catalog visual board、tile/object 統合 card、raw source/atlas tooltip 退避、sample tutorial source 分離の proof 済み（proof は `PROOF_LOG.md`）。
+- `SCREEN-41` は `COMPLETE`：Layers first surface role stack、visible/locked toggle、writable source chip、empty CTA の proof 済み（proof は `PROOF_LOG.md`）。
 - `DESIGN-10` は `COMPLETE`：6タブ normal/empty wireframe と §6 self-check 済み（proof は `PROOF_LOG.md`）。
 - `DESIGN-11` は `COMPLETE`：tab IA / priority / top strip の proof 済み（proof は `PROOF_LOG.md`）。
-- Phase Y4 進行中。次の先頭 READY は `SCREEN-41`。
+- Phase Y4 進行中。次の先頭 READY は `RESCTX-42`。
 
 実行順（Roadmap §5）:
 ```

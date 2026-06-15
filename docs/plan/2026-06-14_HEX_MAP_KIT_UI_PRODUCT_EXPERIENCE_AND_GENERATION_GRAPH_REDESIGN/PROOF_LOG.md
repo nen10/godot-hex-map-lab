@@ -367,3 +367,24 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_workspace_component_registry.gd`
     - `tests/test_editor_catalog.gd`
     - `tests/test_editor_workspace.gd`
+
+### SCREEN-41_LAYERS_STACK_VISUAL
+
+proof:
+  plan: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/SCREEN-41_LAYERS_STACK_VISUAL/`
+  review: `docs/review/autopilot/SCREEN-41_LAYERS_STACK_VISUAL_SELF_REVIEW_2026-06-15.md`
+  execution:
+    - `docs/review/autopilot/SCREEN-41_LAYERS_STACK_VISUAL_SELF_REVIEW_2026-06-15.md`
+  ui_metrics:
+    - `.godot_user/ui-metrics/20260615-185605-25968/workspace_layout_metrics.md`（UI task; P0 failures = 0, P1 issues = 0）
+  tests:
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/screen41-target/logs/test_editor_layer.gd.log --path . --script res://tests/test_editor_layer.gd`（exit 0）
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/screen41-target/logs/test_editor_workspace.gd.log --path . --script res://tests/test_editor_workspace.gd`（exit 0）
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/screen41-target/logs/test_workspace_screen_contracts.gd.log --path . --script res://tests/test_workspace_screen_contracts.gd`（exit 0）
+    - `TEST_JOBS=4 ./tools/test.sh`（run id `20260615-185605-25968`, exit 0）
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_layers_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace_component_registry.gd`
+    - `tests/test_editor_layer.gd`
+    - `tests/test_editor_workspace.gd`

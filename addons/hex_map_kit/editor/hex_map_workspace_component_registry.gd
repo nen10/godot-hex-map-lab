@@ -100,6 +100,7 @@ static func component_rows() -> Array[Dictionary]:
 			"layers",
 			PackedStringArray([HexMapWorkspaceAssetContext.SLOT_LAYER_STACK])
 		),
+		_component(TAB_LAYERS, "layer_role_stack_visual", "VBoxContainer", "LayerRoleStackVisual", "layers"),
 		_component(
 			TAB_VALIDATE,
 			"validation_asset_panel",

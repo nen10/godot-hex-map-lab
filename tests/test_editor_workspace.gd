@@ -524,7 +524,7 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 			"slots": PackedStringArray([HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG]),
 		},
 		"Layers": {
-			"components": PackedStringArray(["layer_stack_role_panel", "layer_stack_asset_panel"]),
+			"components": PackedStringArray(["layer_stack_role_panel", "layer_stack_asset_panel", "layer_role_stack_visual"]),
 			"screen_script": "hex_map_layers_screen.gd",
 			"screen_role_source": "HexMapLayersScreen",
 			"slots": PackedStringArray([HexMapWorkspaceAssetContext.SLOT_LAYER_STACK]),
@@ -570,6 +570,7 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 		"catalog_visual_board": "build_catalog_detail_panel",
 		"catalog_detail_panel": "build_catalog_detail_panel",
 		"layer_stack_role_panel": "build_layer_stack_role_panel",
+		"layer_role_stack_visual": "build_layer_stack_role_panel",
 		"validation_issue_navigator": "build_validation_issue_navigator",
 		"qa_seed_lab_panel": "build_seed_lab_panel",
 		"export_purpose_panel": "build_export_purpose_panel",
