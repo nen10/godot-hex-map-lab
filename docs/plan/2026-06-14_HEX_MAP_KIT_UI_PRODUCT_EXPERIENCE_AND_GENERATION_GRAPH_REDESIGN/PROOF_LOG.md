@@ -230,3 +230,29 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_build_screen.gd`
     - `tests/test_generation_graph_resource.gd`
     - `tools/test.sh`
+
+### RUNTIME-50_GRAPH_RESOURCE_AND_RUNTIME_MAP_BUILD_API
+
+proof:
+  plan: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/RUNTIME-50_GRAPH_RESOURCE_AND_RUNTIME_MAP_BUILD_API/`
+  review: `docs/review/autopilot/RUNTIME-50_GRAPH_RESOURCE_AND_RUNTIME_MAP_BUILD_API_SELF_REVIEW_2026-06-15.md`
+  execution:
+    - `docs/review/autopilot/RUNTIME-50_GRAPH_RESOURCE_AND_RUNTIME_MAP_BUILD_API_SELF_REVIEW_2026-06-15.md`
+  ui_metrics:
+    - `.godot_user/ui-metrics/20260615-173729-97207/workspace_layout_metrics.md`（runtime API task; P0 failures = 0, P1 issues = 0）
+  tests:
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/runtime50-graph-build.log --path . --script res://tests/test_graph_runtime_build.gd`（exit 0）
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/runtime50-graph-resource.log --path . --script res://tests/test_generation_graph_resource.gd`（exit 0）
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/runtime50-tile-layer.log --path . --script res://tests/test_hex_tile_map_layer.gd`（exit 0）
+    - `./tools/test.sh`（run id `20260615-173729-97207`, exit 0）
+  docs:
+    - `docs/TEST.md`
+    - `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+  major files:
+    - `addons/hex_map_kit/generation/hex_map_graph_builder.gd`
+    - `addons/hex_map_kit/adapter/hex_generation_graph_resource.gd`
+    - `addons/hex_map_kit/adapter/hex_tile_map_layer.gd`
+    - `examples/basic_runtime/runtime_graph_build_sample.gd`
+    - `examples/basic_runtime/README.md`
+    - `tests/test_graph_runtime_build.gd`
+    - `tools/test.sh`

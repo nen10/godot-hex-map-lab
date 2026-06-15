@@ -60,7 +60,7 @@ plan_dir 規約: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GEN
 | `GRAPH-12A_BUILD_CONTEXT_BOOTSTRAP` | `COMPLETE` | `GRAPH-12` | Build tab が graph 新規作成と graph-less HexTileMapLayer の UI 実行 context を作る | editor + adapter + tests | S: default で新規/選択中 HexTileMapLayer に embedded graph + Level Document を付与し、既存 tracking が owner。E: 未構成 layer から Build→Generate→Preview→Promote が Resource 参照不足なしで通る。 |
 | `GRAPH-13_RUN_UX` | `COMPLETE` | `GRAPH-12A` | run engine（DAG topo+cache+dirty）/ Generate(N=1) 頭出し / N・randomize 降格 | editor + generation + tests | S: topo 実行 + 中間 cache + dirty 伝播 / N default 1。E: primary `Generate` が上部明白 / 束生成(N>1) 副次 / 失敗 node 可視。 |
 | `GRAPH-14_GRAPH_RESOURCE` | `COMPLETE` | `GRAPH-12A` | `HexGenerationGraphResource`(Node/Port/Edge) 化 | `addons/hex_map_kit/adapter/hex_generation_graph_resource.gd`, tests | S: Dictionary から移行 / save-load round-trip test。 |
-| `RUNTIME-50_GRAPH_RESOURCE_AND_RUNTIME_MAP_BUILD_API` | `READY` | `GRAPH-14` | runtime Map Build API（graph resource を実行時に読み込み map を build） | `addons/hex_map_kit/adapter/` or `generation/`, `examples/basic_runtime/`, tests | S: editor 非依存の graph→map headless path / embed semantics で自己完結。E: 完全ランダム生成ユースで保存 graph を runtime から build して map が出る。 |
+| `RUNTIME-50_GRAPH_RESOURCE_AND_RUNTIME_MAP_BUILD_API` | `COMPLETE` | `GRAPH-14` | runtime Map Build API（graph resource を実行時に読み込み map を build） | `addons/hex_map_kit/adapter/` or `generation/`, `examples/basic_runtime/`, tests | S: editor 非依存の graph→map headless path / embed semantics で自己完結。E: 完全ランダム生成ユースで保存 graph を runtime から build して map が出る。 |
 | `RUNTIME-51_GRAPH_LOAD_AND_CONTEXT_OWNERSHIP` | `READY` | `GRAPH-14` | graph load の O2-UX（`GENERATION_GRAPH_MODEL.md` §10） | `addons/hex_map_kit/editor/`（workspace binding / asset factory）, tests | S: default=新規 HexTileMapLayer 生成(embed) / opt-in=既存へ overwrite(default off, reference・merge, `writable source` 準拠で `generated` 層のみ置換) / 既存選択追跡を再利用・独立 context-owner 無し。E: graph 開く→新 node に復元編集 / overwrite off 時 Paint 手編集保持。 |
 
 ---
@@ -71,7 +71,7 @@ plan_dir 規約: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GEN
 |---|---|---|---|---|---|
 | `SCREEN-30_BUILD_TAB_FULL` | `READY` | `GRAPH-13` | Simple Build(入口) と Graph(本体) を1画面で両立 / preview・promote・dirty | editor, tests | E: 初心者は Profile→Generate、上級者は graph、両方が最初の画面から辿れる。 |
 | `SCREEN-31_PAINT_AS_DESIGN_WORKSPACE` | `READY` | `DESIGN-10` | Paint を brush 作業面（純ランダムを補うデザイン管理） | `addons/hex_map_kit/editor/hex_map_edit_tool.gd`, tests | S: brush palette / active layer / selected cell / last edit / viewport 同期。E: Paint 先頭に Resource row 無し・編集面が主。 |
-| `SCREEN-32_EXPORT_AS_HANDOFF` | `BACKLOG` | `DESIGN-10`, `RUNTIME-50` | handoff 3形態を purpose card 化 | `addons/hex_map_kit/editor/hex_map_export_screen.gd`, tests | S: 3形態 card（(a) data resource(.tres) / (b) scene(.tscn) / (c) graph resource）+ Debug Report / JSON / Package(process-only)。E: 目的から選べる / gameplay framework 化しない。 |
+| `SCREEN-32_EXPORT_AS_HANDOFF` | `READY` | `DESIGN-10`, `RUNTIME-50` | handoff 3形態を purpose card 化 | `addons/hex_map_kit/editor/hex_map_export_screen.gd`, tests | S: 3形態 card（(a) data resource(.tres) / (b) scene(.tscn) / (c) graph resource）+ Debug Report / JSON / Package(process-only)。E: 目的から選べる / gameplay framework 化しない。 |
 
 ---
 
@@ -118,7 +118,7 @@ Codex は self-review で nonblocking work を見つけたらここに `follow-u
 
 ## 10. Current pointer
 
-Current recommended next task: `RUNTIME-50_GRAPH_RESOURCE_AND_RUNTIME_MAP_BUILD_API`。
+Current recommended next task: `RUNTIME-51_GRAPH_LOAD_AND_CONTEXT_OWNERSHIP`。
 
 理由:
 - `ADOPT-00` は `COMPLETE`：二層 DoD gate を self-review template / queue rules / planning policy へ実装し、QA park を規則化（proof は `PROOF_LOG.md`）。
@@ -128,11 +128,13 @@ Current recommended next task: `RUNTIME-50_GRAPH_RESOURCE_AND_RUNTIME_MAP_BUILD_
 - `GRAPH-12A` は `COMPLETE`：graph 新規作成 / graph-less HexTileMapLayer の Build context bootstrap proof 済み（proof は `PROOF_LOG.md`）。
 - `GRAPH-13` は `COMPLETE`：run cache / dirty propagation / Generate(N=1) primary / failure node visibility の proof 済み（proof は `PROOF_LOG.md`）。
 - `GRAPH-14` は `COMPLETE`：HexGenerationGraphResource の nodes/edges/promote_targets/semantics_snapshot 化、Dictionary 相互変換、save/load round-trip、runner 互換の proof 済み（proof は `PROOF_LOG.md`）。
-- `RUNTIME-50` と `RUNTIME-51` は `READY`：`GRAPH-14` completion により dependency が満たされた。
-- `SCREEN-30` は `READY`：`GRAPH-13` completion により dependency が満たされたが、queue order では `RUNTIME-50` / `RUNTIME-51` の後続。
+- `RUNTIME-50` は `COMPLETE`：runtime Map Build API、embed/reference semantics、seed 再現性、Layer 適用の proof 済み（proof は `PROOF_LOG.md`）。
+- `RUNTIME-51` は `READY`：`GRAPH-14` completion により dependency が満たされた。
+- `SCREEN-30` は `READY`：`GRAPH-13` completion により dependency が満たされたが、queue order では `RUNTIME-51` の後続。
+- `SCREEN-32` は `READY`：`DESIGN-10` と `RUNTIME-50` completion により dependency が満たされた。
 - `DESIGN-10` は `COMPLETE`：6タブ normal/empty wireframe と §6 self-check 済み（proof は `PROOF_LOG.md`）。
 - `DESIGN-11` は `COMPLETE`：tab IA / priority / top strip の proof 済み（proof は `PROOF_LOG.md`）。
-- Phase Y2 の graph resource gate は完了。次の先頭 READY は `RUNTIME-50`。
+- Phase Y2 の runtime build gate は完了。次の先頭 READY は `RUNTIME-51`。
 
 実行順（Roadmap §5）:
 ```

@@ -17,6 +17,7 @@ const HexObjectLayerAdapter = preload("res://addons/hex_map_kit/adapter/hex_obje
 const HexObjectLayerRenderer = preload("res://addons/hex_map_kit/adapter/hex_object_layer_renderer.gd")
 const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
 const HexGenerationGraphResource = preload("res://addons/hex_map_kit/adapter/hex_generation_graph_resource.gd")
+const HexMapGraphBuilder = preload("res://addons/hex_map_kit/generation/hex_map_graph_builder.gd")
 const HexDebugOverlayRenderer = preload("res://addons/hex_map_kit/adapter/hex_debug_overlay_renderer.gd")
 const HexGameplayQueryService = preload("res://addons/hex_map_kit/adapter/hex_gameplay_query_service.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
@@ -134,6 +135,7 @@ var _hex_map_setter_suppressed := false
 var _level_document_setter_suppressed := false
 var _pending_document_payloads = null
 var _last_tile_map_apply_report: Dictionary = {}
+var _last_graph_build_result: Dictionary = {}
 var _tile_overrides_by_key: Dictionary = {}
 var _overlay_tiles_by_key: Dictionary = {}
 var _object_markers_by_key: Dictionary = {}
@@ -247,6 +249,25 @@ func apply_map(resource: HexMapResource, options: Dictionary = {}) -> Dictionary
 	_display_path.clear()
 	_movement_range_overlay.clear()
 	return _redraw_with_options(options)
+
+
+func build_from_graph(graph_res: HexGenerationGraphResource, seed: int = 0, options: Dictionary = {}) -> bool:
+	var build_options := options.duplicate(true)
+	build_options["seed"] = seed
+	var result := HexMapGraphBuilder.build(graph_res, build_options)
+	_last_graph_build_result = result.duplicate(true)
+	if not bool(result.get("ok", false)):
+		return false
+	var map_data = result.get("map_data", null)
+	if map_data == null:
+		return false
+	generation_graph_resource = graph_res
+	var orientation := int(options.get("orientation", HexMapResource.ORIENTATION_FLAT_TOP))
+	var apply_options = options.get("apply_options", {})
+	if not apply_options is Dictionary:
+		apply_options = {}
+	apply_map(HexMapResource.from_map_data(map_data, orientation), apply_options)
+	return true
 
 
 func load_map_resource(resource: HexMapResource) -> void:
@@ -420,6 +441,10 @@ func object_instance_layer() -> Node2D:
 
 func last_tile_map_apply_report() -> Dictionary:
 	return _last_tile_map_apply_report.duplicate(true)
+
+
+func last_graph_build_result() -> Dictionary:
+	return _last_graph_build_result.duplicate(true)
 
 
 func apply_document_cell(document, hex: HexVector) -> bool:

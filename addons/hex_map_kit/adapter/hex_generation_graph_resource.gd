@@ -6,6 +6,7 @@ const HexGenerationGraph = preload("res://addons/hex_map_kit/generation/hex_gene
 
 @export var graph_id := "build_graph"
 @export var ownership_semantics := "embed"
+@export_file("*.tres") var semantics_reference_path := ""
 @export var nodes: Array = []:
 	set(value):
 		nodes = _normalized_nodes(value)

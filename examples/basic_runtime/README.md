@@ -21,6 +21,16 @@ The sample uses core/adapter scripts only and does not depend on editor plugin c
 
 Use `HexRuntimeQuerySample.query_document_path()` only when runtime code needs to load a saved document path first.
 
+`runtime_graph_build_sample.gd` shows the graph-resource runtime build path:
+
+```gdscript
+var result = HexRuntimeGraphBuildSample.build_random_map(42)
+if result["ok"]:
+	var map_data = result["map_data"]
+```
+
+The graph sample uses embedded semantics, so it can build a map without editor docks or external `.tres` references.
+
 `runtime_query_example.tscn` wraps the same helper as a minimal scene. Set `document` to a `HexMapDocumentResource`, then call `run_example()` from gameplay code or tests to populate `last_query_result`. `document_path` and `run_path_example()` remain available as saved-resource load helpers.
 
 For object placements, `HexRuntimeQuerySample.export_runtime_objects(document, object_database)` returns copied runtime dictionaries with resolved `scene` `PackedScene` resources, rotation, variant, properties, and spawn condition. The helper does not mutate authoring `object_placements`; runtime code can instantiate from the returned data while the document remains an editor/source-of-truth resource.

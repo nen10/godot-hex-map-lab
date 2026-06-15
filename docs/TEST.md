@@ -27,6 +27,7 @@
 - `tests/test_generation_graph.gd`
 - `tests/test_generation_graph_resource.gd`
 - `tests/test_generation_graph_runner_dirty.gd`
+- `tests/test_graph_runtime_build.gd`
 - `tests/test_build_graph_canvas.gd`
 - `tests/test_generation_promote.gd`
 - `tests/test_hex_adapter.gd`
