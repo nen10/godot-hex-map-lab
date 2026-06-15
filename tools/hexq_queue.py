@@ -16,14 +16,24 @@ import re
 import subprocess
 
 KNOWN_STATUSES = {
-    "READY",
-    "RUNNING",
-    "COMPLETE",
     "BACKLOG",
-    "DEFERRED",
     "BLOCKED_BY_TEST_ENV",
+    "COMPLETE",
+    "COMPLETE_WITH_BACKLOG",
+    "DEFERRED",
+    "PARKED",
+    "READY",
+    "REPAIR_NOW",
+    "RESOLUTED",
+    "RESOLUTED_REPAIR_NOW",
+    "RESOLUTED_RUNNING",
+    "RESOLUTED_VERIFYING",
+    "RUNNING",
+    "SPLIT_REQUIRED",
+    "SUPERSEDED",
+    "VERIFYING",
 }
-TASK_ID_RE = re.compile(r"^[A-Z0-9]+(?:-[A-Z0-9]+)+$")
+TASK_ID_RE = re.compile(r"^[A-Z0-9]+(?:[-_][A-Z0-9]+)+$")
 POINTER_RE = re.compile(r"Current recommended next task:\s*`([^`]+)`")
 
 
@@ -85,13 +95,23 @@ def parse_queue_rows(text: str) -> dict[str, dict]:
         status = _unbacktick(cells[1])
         if not TASK_ID_RE.match(task) or status not in KNOWN_STATUSES:
             continue
+        if len(cells) >= 7:
+            plan_dir = _unbacktick(cells[3])
+            deliverable = cells[4]
+            target_files = cells[5]
+            acceptance = cells[6]
+        else:
+            plan_dir = ""
+            deliverable = cells[3] if len(cells) > 3 else ""
+            target_files = cells[4] if len(cells) > 4 else ""
+            acceptance = cells[5] if len(cells) > 5 else ""
         rows[task] = {
             "status": status,
             "dependencies": _split_deps(cells[2]) if len(cells) > 2 else [],
-            "plan_dir": _unbacktick(cells[3]) if len(cells) > 3 else "",
-            "deliverable": cells[4] if len(cells) > 4 else "",
-            "target_files": cells[5] if len(cells) > 5 else "",
-            "acceptance": cells[6] if len(cells) > 6 else "",
+            "plan_dir": plan_dir,
+            "deliverable": deliverable,
+            "target_files": target_files,
+            "acceptance": acceptance,
             "order": order,
         }
         order += 1

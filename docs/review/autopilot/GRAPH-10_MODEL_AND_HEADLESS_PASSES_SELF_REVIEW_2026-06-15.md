@@ -1,0 +1,86 @@
+# GRAPH-10 Self Review
+
+Task: `GRAPH-10_MODEL_AND_HEADLESS_PASSES`
+Queue: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/IMPLEMENTATION_QUEUE.md`
+Plan: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/GRAPH-10_MODEL_AND_HEADLESS_PASSES/`
+Optional execution log: none
+
+## Execution Summary
+
+Implemented the headless Generation Graph foundation as a Dictionary graph model with port typing, node/edge validation, node type dispatch, Source inputs, topological execution, and node output cache. Added `tests/test_generation_graph.gd` and included it in the standard test script.
+
+## Changed Files
+
+| file | change |
+|---|---|
+| `addons/hex_map_kit/generation/hex_generation_ports.gd` | Added MVP port type constants and compatibility helpers. |
+| `addons/hex_map_kit/generation/hex_generation_graph.gd` | Added Dictionary graph construction, edge construction, structural validation, cycle detection, and topo ordering. |
+| `addons/hex_map_kit/generation/hex_generation_node_types.gd` | Added node type registry and headless pass implementations for source, shape, wall field, connectivity, region filter, item generator, and compose. |
+| `addons/hex_map_kit/generation/hex_generation_graph_runner.gd` | Added validate-then-run topological executor returning node output cache. |
+| `tests/test_generation_graph.gd` | Added headless graph contract tests for accepted chains, invalid edges, missing inputs, cycles, Source nodes, determinism, and empty graphs. |
+| `tools/test.sh` | Added `tests/test_generation_graph.gd` to standard verification. |
+| `tools/hexq_queue.py` | Updated queue parsing so the completion gate handles underscore task IDs, current statuses, and six-column queue rows. |
+| `tools/verify_task.py` | Derived conventional plan directories for current queue rows without explicit plan_dir cells. |
+| `docs/TEST.md` | Listed the new standard test target. |
+| `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` | Logged the new test responsibility. |
+| `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/GRAPH-10_MODEL_AND_HEADLESS_PASSES/` | Added task plan artifacts. |
+| `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/IMPLEMENTATION_QUEUE.md` | Updated `GRAPH-10` status. |
+| `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/PROOF_LOG.md` | Added completion proof entry. |
+
+## Plan Deviation
+
+| planned item | actual result | reason | follow-up |
+|---|---|---|---|
+| completion gate exact-ID verification | added small parser support in `tools/hexq_queue.py` / `tools/verify_task.py` | active queue task IDs use underscores and this queue uses six-column rows | none |
+
+## Acceptance Review
+
+| requirement | result | evidence |
+|---|---|---|
+| Node/Port/Edge Dictionary model | pass | `hex_generation_graph.gd` exposes `new_graph`, `add_node`, and `add_edge`; `tests/test_generation_graph.gd` constructs graphs directly. |
+| Port 4型 `terrain` / `selection` / `overlay` / `result` | pass | `hex_generation_ports.gd`; `_test_port_types_are_declared`. |
+| Invalid edge validation | pass | `validate` reports `type_mismatch`; `_test_invalid_edge_type_is_rejected`. |
+| Missing required input validation | pass | `validate` reports `missing_required_input`; `_test_missing_required_input_is_rejected`. |
+| Cycle validation | pass | `validate` reports `cycle`; `_test_cycle_is_rejected`. |
+| Headless node passes | pass | `hex_generation_node_types.gd` runs without editor dependencies. |
+| Source node | pass | `_test_source_node_reads_map_resource`; `_test_source_node_reads_document_overlay`. |
+| No new generation engine | pass | Node passes call existing core static/data APIs: `HexMapData.rectangle/square/hexagon`, `HexMapGenerator.generate_random_walls`, `restore_connectivity*`, `generate_random_items`, `generate_limited_items`, `HexOverlayData.query_item_cells`, and `apply_overlay`. |
+| `./tools/test.sh` | pass | Run `20260615-144621-75831`, exit 0. |
+
+## Experiential DoD (UI / graph task)
+
+| item | result | evidence |
+|---|---|---|
+| What user sees first | non-UI headless task; API consumer sees a Dictionary graph contract and typed validation errors | `GRAPH-10` has no editor surface; `validate` returns `{ok, errors}` with code/node/edge/message data. |
+| What user can do | Build a graph, connect nodes, run it, and inspect `node_id -> output` cache | `HexGenerationGraphRunner.run`; `tests/test_generation_graph.gd`. |
+| (graph task) chain runs | pass | `_test_shape_wall_connectivity_chain_runs_to_connected_terrain` and `_test_filter_to_item_generator_chain_limits_overlay_to_selection`. |
+| Label-heavy but metrics pass | no | No UI labels or screen metric proxy used as completion evidence. |
+
+## UI Metric Review
+
+| item | result | evidence |
+|---|---|---|
+| Metric report path | generated by standard test, not completion-critical for this non-UI task | `.godot_user/ui-metrics/20260615-144621-75831/workspace_layout_metrics.md` |
+| P0 failures | 0 | Metric report shows `total_p0_failures: 0`. |
+| P1 issues | 0 | Metric report shows `total_p1_issues: 0`. |
+| UI metric applicability | non-UI graph task | Graph headless acceptance is proven by `tests/test_generation_graph.gd`; metrics are regression context only. |
+
+## Deferred / Prose-only Audit
+
+| item | classification | queue / ledger / reject / policy |
+|---|---|---|
+| `promote` | existing queue | `GRAPH-12_VERTICAL_SLICE_THREE_NODE_CHAIN` |
+| editor canvas / inspector | existing queue | `GRAPH-11_BUILD_TAB_GRAPH_CANVAS` |
+| dirty propagation / run UX | existing queue | `GRAPH-13_RUN_UX` |
+| Resource graph representation | existing queue | `GRAPH-14_GRAPH_RESOURCE` |
+
+## Repair-now Review
+
+No repair-now issues remain.
+
+## Test Review
+
+- Command: `./tools/test.sh`
+- Result: pass, exit 0
+- Run id: `20260615-144621-75831`
+- Notes: macOS certificate warnings and existing test warnings were non-fatal; every script completed successfully, including `test_generation_graph.gd`.

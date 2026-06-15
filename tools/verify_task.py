@@ -153,6 +153,10 @@ def main() -> int:
 
     # ---- Check 3: scope lint (changed code ⊆ plan Target Files) ----------
     plan_dir = head_rows.get(task, {}).get("plan_dir", "").rstrip("/")
+    if not plan_dir and "/" in queue_path:
+        candidate_plan_dir = queue_path.rsplit("/", 1)[0] + "/" + task
+        if q.git_show(head, f"{candidate_plan_dir}/IMPLEMENTATION_PLAN.md") is not None:
+            plan_dir = candidate_plan_dir
     targets: set[str] = set()
     if plan_dir:
         targets = extract_paths(q.git_show(head, f"{plan_dir}/IMPLEMENTATION_PLAN.md") or "")

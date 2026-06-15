@@ -28,6 +28,8 @@
   - Hex 基本構造、タイル座標、近傍・経路・到達性、対称系タグ生成の検証
 - `tests/test_hex_map_generation.gd`
   - 形状/overlay/アイテム生成、連結性回復、interrupt/cancel、seed 決定、対称性
+- `tests/test_generation_graph.gd`
+  - Generation Graph の Dictionary model、port 型検証、headless node pass 連鎖、Source ノード、topo 実行
 - `tests/test_hex_adapter.gd`
   - canonical resource adapter、save/load roundtrip、validation エンジン、依存解決、プロファイル検証
 - `tests/test_hex_tile_map_layer.gd`

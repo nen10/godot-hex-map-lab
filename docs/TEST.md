@@ -24,6 +24,7 @@
 - `tools/package_addon.sh --check`
 - `tests/test_hex_core.gd`
 - `tests/test_hex_map_generation.gd`
+- `tests/test_generation_graph.gd`
 - `tests/test_hex_adapter.gd`
 - `tests/test_hex_tile_map_layer.gd`
 - `tests/test_workspace_layout_metrics.gd`
@@ -74,4 +75,3 @@ python3 tools/ui_static_audit.py
 2. Resources / Generate / Paint / Validate の主要タブが開くことを確認する。
 3. project asset selection または未設定/validation state が見えることを確認する。
 4. `Copy Debug Report` が Target Status など主要情報を取得することを確認する。
-
