@@ -16,6 +16,7 @@ const HexOverlayTileAdapter = preload("res://addons/hex_map_kit/adapter/hex_over
 const HexObjectLayerAdapter = preload("res://addons/hex_map_kit/adapter/hex_object_layer_adapter.gd")
 const HexObjectLayerRenderer = preload("res://addons/hex_map_kit/adapter/hex_object_layer_renderer.gd")
 const HexLayerStackResource = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
+const HexGenerationGraphResource = preload("res://addons/hex_map_kit/adapter/hex_generation_graph_resource.gd")
 const HexDebugOverlayRenderer = preload("res://addons/hex_map_kit/adapter/hex_debug_overlay_renderer.gd")
 const HexGameplayQueryService = preload("res://addons/hex_map_kit/adapter/hex_gameplay_query_service.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
@@ -82,6 +83,7 @@ class OverlayCanvas:
 		if is_node_ready():
 			_apply_display_tile_set_resource()
 @export var layer_stack_resource: HexLayerStackResource
+@export var generation_graph_resource: HexGenerationGraphResource
 
 @export var floor_source_id: int = 0
 @export var floor_atlas_coords: Vector2i = Vector2i.ZERO

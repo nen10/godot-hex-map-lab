@@ -69,6 +69,7 @@ const HexMapBuildGraphCanvas = preload("res://addons/hex_map_kit/editor/hex_map_
 const HexMapBuildNodeInspector = preload("res://addons/hex_map_kit/editor/hex_map_build_node_inspector.gd")
 const HexMapBuildNodePalette = preload("res://addons/hex_map_kit/editor/hex_map_build_node_palette.gd")
 const HexGenerationPromote = preload("res://addons/hex_map_kit/generation/hex_generation_promote.gd")
+const HexGenerationGraphResource = preload("res://addons/hex_map_kit/adapter/hex_generation_graph_resource.gd")
 const HexMapWorkspace = preload("res://addons/hex_map_kit/editor/hex_map_workspace.gd")
 const HexDistEditor = preload("res://addons/hex_map_kit/editor/hex_dist_editor.gd")
 const HexAdjacencyRuleEditor = preload("res://addons/hex_map_kit/editor/hex_adjacency_rule_editor.gd")

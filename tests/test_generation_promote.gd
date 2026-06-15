@@ -14,6 +14,9 @@ func _run() -> void:
 	_test_object_promote_replaces_generated_objects_and_preserves_manual_object()
 	_test_terrain_promote_save_load_roundtrip()
 	await _test_build_screen_vertical_slice_promotes_overlay()
+	await _test_build_context_bootstrap_selected_graphless_layer()
+	await _test_build_context_bootstrap_creates_layer_when_none_selected()
+	await _test_build_context_bootstrap_preserves_existing_resources()
 	_finish("res://tests/test_generation_promote.gd")
 
 
@@ -130,4 +133,96 @@ func _test_build_screen_vertical_slice_promotes_overlay() -> void:
 	_assert_true(bool((snapshot["promote_result"] as Dictionary)["ok"]), "GRAPH-12 Build snapshot records promote success")
 
 	screen.queue_free()
+	await process_frame
+
+
+func _test_build_context_bootstrap_selected_graphless_layer() -> void:
+	var workspace = HexMapWorkspace.new()
+	root.add_child(workspace)
+	await process_frame
+	var scene_root = Node2D.new()
+	root.add_child(scene_root)
+	var selected_layer = HexTileMapLayer.new()
+	selected_layer.name = "GraphlessBuildLayer"
+	scene_root.add_child(selected_layer)
+	await process_frame
+	workspace.set_selected_hex_tile_map_node(selected_layer, "test.graph12a.select_graphless")
+
+	var result = workspace.ensure_build_graph_context("test.graph12a.bootstrap_graphless")
+	_assert_true(bool(result["ok"]), "GRAPH-12A bootstraps a selected graph-less HexTileMapLayer")
+	_assert_true(not bool(result["created_layer"]), "GRAPH-12A does not create a second layer when one is selected")
+	_assert_true(bool(result["created_graph"]), "GRAPH-12A creates an embedded graph resource")
+	_assert_true(bool(result["created_document"]), "GRAPH-12A creates a document context")
+	_assert_true(selected_layer.generation_graph_resource is HexGenerationGraphResource, "GRAPH-12A selected layer owns graph resource")
+	_assert_true(selected_layer.level_document_resource is HexMapDocumentResource, "GRAPH-12A selected layer owns document resource")
+	_assert_eq(workspace.workspace_asset_context().level_document, selected_layer.level_document_resource, "GRAPH-12A workspace context follows selected document")
+	_assert_eq(String(workspace.selected_hex_tile_map_snapshot()["generation_graph_status"]), "Linked", "GRAPH-12A selected snapshot exposes graph link")
+
+	var snapshot = workspace.generation_screen_snapshot()
+	_assert_true(bool(snapshot["build_context_ready"]), "GRAPH-12A Build snapshot records ready context")
+	_assert_true(bool(snapshot["preview_available"]), "GRAPH-12A Build preview is available after bootstrap run")
+	var promote = workspace.build_screen().promote_selected_output("overlay")
+	_assert_true(bool(promote["ok"]), "GRAPH-12A promoted output after bootstrap")
+	_assert_true(selected_layer.level_document_resource.overlay_layers.size() > 0, "GRAPH-12A promoted overlay writes to selected document")
+
+	scene_root.queue_free()
+	workspace.queue_free()
+	await process_frame
+
+
+func _test_build_context_bootstrap_creates_layer_when_none_selected() -> void:
+	var workspace = HexMapWorkspace.new()
+	root.add_child(workspace)
+	await process_frame
+
+	var result = workspace.ensure_build_graph_context("test.graph12a.bootstrap_new_layer")
+	_assert_true(bool(result["ok"]), "GRAPH-12A bootstraps Build with no selected layer")
+	_assert_true(bool(result["created_layer"]), "GRAPH-12A creates a HexTileMapLayer when none is selected")
+	var selected_snapshot = result["selected_snapshot"] as Dictionary
+	var selected_layer = selected_snapshot["selected_node"] as HexTileMapLayer
+	_assert_true(selected_layer is HexTileMapLayer, "GRAPH-12A result selects the new HexTileMapLayer")
+	_assert_eq(workspace.editor_session_state().current_selected_hex_tile_map_layer(), selected_layer, "GRAPH-12A session tracks the new layer")
+	_assert_true(selected_layer.generation_graph_resource is HexGenerationGraphResource, "GRAPH-12A new layer owns graph resource")
+	_assert_true(selected_layer.level_document_resource is HexMapDocumentResource, "GRAPH-12A new layer owns document resource")
+	_assert_true(bool((result["generation_snapshot"] as Dictionary)["preview_available"]), "GRAPH-12A new layer path runs graph preview")
+
+	workspace.queue_free()
+	await process_frame
+
+
+func _test_build_context_bootstrap_preserves_existing_resources() -> void:
+	var workspace = HexMapWorkspace.new()
+	root.add_child(workspace)
+	await process_frame
+	var scene_root = Node2D.new()
+	root.add_child(scene_root)
+	var selected_layer = HexTileMapLayer.new()
+	selected_layer.name = "ExistingBuildLayer"
+	scene_root.add_child(selected_layer)
+	await process_frame
+
+	var existing_document = HexMapDocumentResource.new()
+	var screen = HexMapBuildScreen.new()
+	root.add_child(screen)
+	await process_frame
+	screen.build_vertical_slice_chain_and_preview()
+	var existing_graph = HexGenerationGraphResource.new()
+	existing_graph.graph_id = "existing_build_graph"
+	existing_graph.graph_model = screen.graph_canvas().build_graph_model()
+	screen.queue_free()
+	await process_frame
+	selected_layer.level_document_resource = existing_document
+	selected_layer.generation_graph_resource = existing_graph
+	workspace.set_selected_hex_tile_map_node(selected_layer, "test.graph12a.select_existing")
+
+	var result = workspace.ensure_build_graph_context("test.graph12a.bootstrap_existing")
+	_assert_true(bool(result["ok"]), "GRAPH-12A bootstraps existing graph resources")
+	_assert_true(not bool(result["created_graph"]), "GRAPH-12A preserves existing graph resource")
+	_assert_true(not bool(result["created_document"]), "GRAPH-12A preserves existing document resource")
+	_assert_eq(selected_layer.generation_graph_resource, existing_graph, "GRAPH-12A graph resource reference is unchanged")
+	_assert_eq(selected_layer.level_document_resource, existing_document, "GRAPH-12A document reference is unchanged")
+	_assert_eq(String((result["restore_report"] as Dictionary)["selected_node_id"]), "weighted_items", "GRAPH-12A restores graph and selected output")
+
+	scene_root.queue_free()
+	workspace.queue_free()
 	await process_frame

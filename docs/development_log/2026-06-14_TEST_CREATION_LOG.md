@@ -33,7 +33,7 @@
 - `tests/test_build_graph_canvas.gd`
   - Build tab graph canvas、typed connection rejection、GraphEdit→Dictionary model同期、3-node chain preview、palette/inspector contract
 - `tests/test_generation_promote.gd`
-  - Generation Graph output の Document promote、generated層置換、manual層保持、overlay/object/terrain role、save/load roundtrip、Build screen vertical slice
+  - Generation Graph output の Document promote、generated層置換、manual層保持、overlay/object/terrain role、save/load roundtrip、Build screen vertical slice、Build context bootstrap
 - `tests/test_hex_adapter.gd`
   - canonical resource adapter、save/load roundtrip、validation エンジン、依存解決、プロファイル検証
 - `tests/test_hex_tile_map_layer.gd`

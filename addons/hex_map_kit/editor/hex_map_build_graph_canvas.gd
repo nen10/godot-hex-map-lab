@@ -243,6 +243,15 @@ func set_node_params(node_id: String, params: Dictionary) -> void:
 	graph_changed.emit()
 
 
+func set_node_resource_refs(node_id: String, resource_refs: Dictionary) -> void:
+	var graph_node := _graph_node(node_id)
+	if graph_node == null:
+		return
+	graph_node.set_meta("hex_generation_resource_refs", resource_refs.duplicate())
+	_last_status = "Updated %s resource refs." % node_id
+	graph_changed.emit()
+
+
 func build_graph_model() -> Dictionary:
 	var graph = HexGenerationGraphScript.new_graph()
 	for node_id in _node_order:
@@ -265,6 +274,61 @@ func build_graph_model() -> Dictionary:
 			String(connection.get("from_port_name", HexGenerationNodeTypesScript.PORT_OUT))
 		)
 	return graph
+
+
+func restore_graph_model(graph: Dictionary, preferred_selected_node_id: String = "") -> Dictionary:
+	clear_graph()
+	var nodes = graph.get("nodes", {}) as Dictionary
+	var topo := HexGenerationGraphScript.topological_order(graph)
+	var ordered_nodes: Array = topo.get("order", []) if bool(topo.get("ok", false)) else nodes.keys()
+	if ordered_nodes.is_empty():
+		_last_status = "Graph resource is empty."
+		graph_changed.emit()
+		return {
+			"ok": false,
+			"node_count": 0,
+			"connection_count": 0,
+			"selected_node_id": "",
+			"reason": "empty_graph",
+		}
+
+	var index := 0
+	for raw_node_id in ordered_nodes:
+		var node_id := String(raw_node_id)
+		var node = nodes.get(node_id, {}) as Dictionary
+		var node_type := String(node.get("type", ""))
+		var restored_id := add_graph_node(node_type, Vector2(40 + index * 210, 120), node_id)
+		if restored_id == "":
+			continue
+		set_node_params(restored_id, node.get("params", {}) as Dictionary)
+		set_node_resource_refs(restored_id, node.get("resource_refs", {}) as Dictionary)
+		index += 1
+
+	var connection_count := 0
+	for raw_edge in graph.get("edges", []) as Array:
+		var edge = raw_edge as Dictionary
+		var from_node := String(edge.get("from_node", ""))
+		var to_node := String(edge.get("to_node", ""))
+		var from_slot := _slot_for_output_name(from_node, String(edge.get("from_port", HexGenerationNodeTypesScript.PORT_OUT)))
+		var to_slot := _slot_for_input_name(to_node, String(edge.get("to_port", "")))
+		if from_slot < 0 or to_slot < 0:
+			continue
+		var connection := request_connection(from_node, from_slot, to_node, to_slot)
+		if bool(connection.get("ok", false)):
+			connection_count += 1
+
+	var selected_id := preferred_selected_node_id
+	if selected_id == "" or _graph_node(selected_id) == null:
+		selected_id = String(ordered_nodes[ordered_nodes.size() - 1])
+	select_graph_node(selected_id)
+	_last_status = "Restored graph with %d nodes." % _node_order.size()
+	graph_changed.emit()
+	return {
+		"ok": true,
+		"node_count": _node_order.size(),
+		"connection_count": connection_count,
+		"selected_node_id": selected_id,
+	}
 
 
 func validate_graph_model() -> Dictionary:
@@ -426,6 +490,28 @@ func _output_name_for_slot(node_id: String, slot: int) -> String:
 		return ""
 	var output_slots = graph_node.get_meta("hex_generation_output_slots", {}) as Dictionary
 	return String(output_slots.get(slot, ""))
+
+
+func _slot_for_input_name(node_id: String, input_name: String) -> int:
+	var graph_node := _graph_node(node_id)
+	if graph_node == null:
+		return -1
+	var input_slots = graph_node.get_meta("hex_generation_input_slots", {}) as Dictionary
+	for slot in input_slots.keys():
+		if String(input_slots[slot]) == input_name:
+			return int(slot)
+	return -1
+
+
+func _slot_for_output_name(node_id: String, output_name: String) -> int:
+	var graph_node := _graph_node(node_id)
+	if graph_node == null:
+		return -1
+	var output_slots = graph_node.get_meta("hex_generation_output_slots", {}) as Dictionary
+	for slot in output_slots.keys():
+		if String(output_slots[slot]) == output_name:
+			return int(slot)
+	return -1
 
 
 func _input_slot_type_id(node_type: String, input_name: String) -> int:

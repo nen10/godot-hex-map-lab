@@ -655,6 +655,41 @@ func clear_selected_hex_tile_map_layer(reason: String = "workspace.selected_hex_
 	return set_selected_hex_tile_map_layer(null, reason)
 
 
+func ensure_build_graph_context(reason: String = "workspace.build_graph_context") -> Dictionary:
+	var session := _ensure_session_state()
+	var hex_layer := session.current_selected_hex_tile_map_layer() as HexTileMapLayer
+	var created_layer := false
+	if hex_layer == null:
+		hex_layer = _create_build_context_hex_tile_map_layer()
+		created_layer = true
+		session.set_selected_hex_tile_map_layer(hex_layer, reason)
+		if session.selected_hex_tile_map_auto_link_enabled():
+			_apply_selected_hex_tile_map_to_edit_tool()
+	if _build_screen == null:
+		return {
+			"ok": false,
+			"blocked_reason": "Build screen is unavailable.",
+			"created_layer": created_layer,
+			"selected_layer": hex_layer,
+		}
+	var build_result := _build_screen.ensure_graph_context_for_hex_tile_map_layer(hex_layer)
+	_sync_selected_hex_tile_map_resources()
+	if hex_layer.level_document_resource != null:
+		session.set_document(
+			hex_layer.level_document_resource,
+			"workspace.build_graph_context",
+			hex_layer.level_document_resource.resource_path,
+			reason
+		)
+	_refresh_selected_hex_tile_map_context()
+	_refresh_missing_unique_resources_panel()
+	build_result["created_layer"] = created_layer
+	build_result["selected_layer"] = hex_layer
+	build_result["selected_snapshot"] = selected_hex_tile_map_snapshot()
+	build_result["generation_snapshot"] = generation_screen_snapshot()
+	return build_result
+
+
 func selected_hex_tile_map_snapshot() -> Dictionary:
 	var session := _ensure_session_state()
 	var layer := session.current_selected_hex_tile_map_layer()
@@ -692,6 +727,8 @@ func selected_hex_tile_map_snapshot() -> Dictionary:
 		"runtime_display_snapshot_role": "Runtime display snapshot",
 		"layer_stack": layer_stack,
 		"layer_stack_status": "Linked" if layer_stack != null else ("Missing" if selected else "Unavailable"),
+		"generation_graph": hex_layer.generation_graph_resource if selected else null,
+		"generation_graph_status": "Linked" if selected and hex_layer.generation_graph_resource != null else ("Missing" if selected else "Unavailable"),
 		"display_tile_set": display_tile_set,
 		"display_tile_set_status": "Linked" if display_tile_set != null else ("Missing" if selected else "Unavailable"),
 		"tile_catalog": context.tile_catalog,
@@ -5765,6 +5802,37 @@ func _node_display_name(node: Node) -> String:
 	if node == null or not is_instance_valid(node):
 		return ""
 	return node.name if node.name != "" else "HexTileMap"
+
+
+func _create_build_context_hex_tile_map_layer() -> HexTileMapLayer:
+	var parent := _build_context_node_parent()
+	var layer := HexTileMapLayer.new()
+	layer.name = _unique_child_name(parent, "BuildHexMapLayer")
+	parent.add_child(layer)
+	if Engine.is_editor_hint() and parent != self:
+		layer.owner = parent
+	return layer
+
+
+func _build_context_node_parent() -> Node:
+	if Engine.is_editor_hint():
+		var edited_root := EditorInterface.get_edited_scene_root()
+		if edited_root != null:
+			return edited_root
+	return self
+
+
+func _unique_child_name(parent: Node, base_name: String) -> String:
+	var names := {}
+	if parent != null:
+		for child in parent.get_children():
+			names[String(child.name)] = true
+	if not names.has(base_name):
+		return base_name
+	var suffix := 2
+	while names.has("%s%d" % [base_name, suffix]):
+		suffix += 1
+	return "%s%d" % [base_name, suffix]
 
 
 func _missing_unique_resources_prefix() -> String:

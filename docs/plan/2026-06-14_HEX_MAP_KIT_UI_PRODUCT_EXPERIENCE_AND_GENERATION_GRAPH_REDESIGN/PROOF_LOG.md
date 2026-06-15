@@ -155,3 +155,26 @@ proof:
     - `tests/test_editor_plugin_test_base.gd`
     - `tools/test.sh`
     - `tools/graph12_visual_verify.gd`
+
+### GRAPH-12A_BUILD_CONTEXT_BOOTSTRAP
+
+proof:
+  plan: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/GRAPH-12A_BUILD_CONTEXT_BOOTSTRAP/`
+  review: `docs/review/autopilot/GRAPH-12A_BUILD_CONTEXT_BOOTSTRAP_SELF_REVIEW_2026-06-15.md`
+  execution:
+    - `docs/review/autopilot/GRAPH-12A_BUILD_CONTEXT_BOOTSTRAP_SELF_REVIEW_2026-06-15.md`
+  ui_metrics:
+    - `.godot_user/ui-metrics/20260615-163327-12391/workspace_layout_metrics.md`（UI-facing graph task; P0 failures = 0, P1 issues = 0）
+  tests:
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/graph12a-generation-promote.log --path . --script res://tests/test_generation_promote.gd`（exit 0）
+    - `./tools/test.sh`（run id `20260615-163327-12391`, exit 0）
+  docs:
+    - `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+  major files:
+    - `addons/hex_map_kit/adapter/hex_generation_graph_resource.gd`
+    - `addons/hex_map_kit/adapter/hex_tile_map_layer.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_graph_canvas.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `tests/test_generation_promote.gd`
+    - `tests/test_editor_plugin_test_base.gd`

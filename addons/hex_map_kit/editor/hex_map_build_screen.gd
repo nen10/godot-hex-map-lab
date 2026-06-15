@@ -11,6 +11,8 @@ const HexMapBuildNodePaletteScript = preload("res://addons/hex_map_kit/editor/he
 const HexMapBuildNodeInspectorScript = preload("res://addons/hex_map_kit/editor/hex_map_build_node_inspector.gd")
 const HexMapPreviewThumbnailScript = preload("res://addons/hex_map_kit/editor/hex_map_preview_thumbnail.gd")
 const HexGenerationPromoteScript = preload("res://addons/hex_map_kit/generation/hex_generation_promote.gd")
+const HexGenerationGraphResourceScript = preload("res://addons/hex_map_kit/adapter/hex_generation_graph_resource.gd")
+const HexTileMapLayerScript = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 
 const TAB_NAME := "Build"
 const WORKFLOW_OWNER := "Build"
@@ -28,6 +30,7 @@ var _preview_status_label: Label
 var _inspector: HexMapBuildNodeInspectorScript
 var _last_report: Dictionary = {}
 var _last_promote_result: Dictionary = {}
+var _last_build_context_result: Dictionary = {}
 
 
 func _ready() -> void:
@@ -84,6 +87,84 @@ func build_vertical_slice_chain_and_preview() -> Dictionary:
 	return run_graph()
 
 
+func ensure_graph_context_for_hex_tile_map_layer(
+	layer: HexTileMapLayerScript,
+	options: Dictionary = {}
+) -> Dictionary:
+	if _canvas == null:
+		_last_build_context_result = _build_context_result(false, "Build graph canvas is unavailable.")
+		return _last_build_context_result.duplicate(true)
+	if layer == null:
+		_last_build_context_result = _build_context_result(false, "Choose or create a HexTileMapLayer before building a graph.")
+		return _last_build_context_result.duplicate(true)
+	if _workspace_asset_context == null:
+		_workspace_asset_context = HexMapWorkspaceAssetContextScript.new()
+
+	var created_document := false
+	if layer.level_document_resource == null:
+		var document = layer.to_document_resource()
+		document.resource_name = "%s Build Document" % _resource_prefix_from_node(layer.name)
+		layer.level_document_resource = document
+		created_document = true
+	_workspace_asset_context.set_level_document(
+		layer.level_document_resource,
+		HexMapWorkspaceAssetContextScript.SOURCE_PROJECT,
+		"Selected Node"
+	)
+	if layer.layer_stack_resource != null:
+		_workspace_asset_context.set_layer_stack(
+			layer.layer_stack_resource,
+			HexMapWorkspaceAssetContextScript.SOURCE_PROJECT,
+			"Selected Node"
+		)
+
+	var created_graph := false
+	var restore_report := {}
+	if layer.generation_graph_resource == null:
+		_canvas.build_default_vertical_slice_chain()
+		var graph_resource = HexGenerationGraphResourceScript.new()
+		graph_resource.graph_id = "%s_build_graph" % _resource_prefix_from_node(layer.name).to_snake_case()
+		graph_resource.graph_model = _canvas.build_graph_model()
+		graph_resource.resource_name = "%s Build Graph" % _resource_prefix_from_node(layer.name)
+		layer.generation_graph_resource = graph_resource
+		created_graph = true
+		restore_report = {
+			"ok": true,
+			"node_count": int(_canvas.canvas_snapshot().get("node_count", 0)),
+			"connection_count": int(_canvas.canvas_snapshot().get("connection_count", 0)),
+			"selected_node_id": _canvas.selected_node_id(),
+		}
+	else:
+		restore_report = _canvas.restore_graph_model(
+			layer.generation_graph_resource.to_graph_model(),
+			String(options.get("selected_node_id", "weighted_items"))
+		)
+
+	var run_report := {}
+	if bool(options.get("run", true)):
+		run_report = run_graph()
+	else:
+		_refresh_preview()
+		_refresh_selected_node()
+	_last_build_context_result = {
+		"ok": bool(restore_report.get("ok", false)),
+		"created_graph": created_graph,
+		"created_document": created_document,
+		"selected_layer": layer,
+		"selected_layer_name": layer.name,
+		"graph_resource": layer.generation_graph_resource,
+		"document": layer.level_document_resource,
+		"restore_report": restore_report,
+		"run_report": run_report,
+		"status_text": "Build graph context ready.",
+	}
+	if _status_label != null:
+		_status_label.text = String(_last_build_context_result["status_text"])
+	_refresh_context()
+	_refresh_selected_node()
+	return _last_build_context_result.duplicate(true)
+
+
 func promote_selected_output(role: String = "overlay") -> Dictionary:
 	if _canvas == null:
 		return {}
@@ -133,6 +214,8 @@ func build_screen_snapshot() -> Dictionary:
 		"graph_chain_runs": bool(_last_report.get("ok", false)),
 		"promote_result": _last_promote_result.duplicate(true),
 		"promote_available": _inspector != null and bool((_inspector.inspector_snapshot() as Dictionary).get("promote_enabled", false)),
+		"build_context": _last_build_context_result.duplicate(true),
+		"build_context_ready": bool(_last_build_context_result.get("ok", false)),
 		"label_heavy_but_metrics_pass": false,
 	}
 
@@ -242,6 +325,28 @@ func _refresh_context() -> void:
 		if _workspace_asset_context.tile_catalog != null:
 			catalog_text = "Catalog: linked"
 	_context_label.text = "( %s ) ( %s ) ( %s )" % [map_text, catalog_text, target_text]
+
+
+func _build_context_result(ok: bool, reason: String) -> Dictionary:
+	return {
+		"ok": ok,
+		"blocked_reason": reason,
+		"created_graph": false,
+		"created_document": false,
+		"status_text": reason,
+	}
+
+
+func _resource_prefix_from_node(node_name: String) -> String:
+	var raw := node_name.strip_edges()
+	if raw == "":
+		return "BuildGraph"
+	var result := ""
+	for index in raw.length():
+		var character := raw[index]
+		if character.is_valid_identifier() or character.is_valid_int():
+			result += character
+	return "BuildGraph" if result == "" else result
 
 
 func _refresh_selected_node() -> void:
