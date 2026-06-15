@@ -30,12 +30,14 @@
   - 形状/overlay/アイテム生成、連結性回復、interrupt/cancel、seed 決定、対称性
 - `tests/test_generation_graph.gd`
   - Generation Graph の Dictionary model、port 型検証、headless node pass 連鎖、Source ノード、topo 実行
+- `tests/test_build_graph_canvas.gd`
+  - Build tab graph canvas、typed connection rejection、GraphEdit→Dictionary model同期、3-node chain preview、palette/inspector contract
 - `tests/test_hex_adapter.gd`
   - canonical resource adapter、save/load roundtrip、validation エンジン、依存解決、プロファイル検証
 - `tests/test_hex_tile_map_layer.gd`
   - 表示適用、座標変換、ヒット/undo、編集同期、runtime/path 反映
 - `tests/test_editor_plugin.gd`
-  - Workspace 各タブ（Resources/Generate/Paint/Catalog/Layers/Validate/QA/Export/Settings）の screen contract
+  - Workspace 各タブ（Build/Paint/Catalog/Layers/Resources/Validate/QA/Export/Settings）の screen contract
   - state snapshot / 画面責務分離 / seed lab / preview / validation issue / export handoff
 - `tests/test_workspace_layout_metrics.gd`
   - Workspace snapshot 収集とシーン解像度差分、JSON serialization

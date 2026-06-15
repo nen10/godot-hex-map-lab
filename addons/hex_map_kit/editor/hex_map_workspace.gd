@@ -36,6 +36,7 @@ const HexMapQAScreen = preload("res://addons/hex_map_kit/editor/hex_map_qa_scree
 const HexMapExportScreen = preload("res://addons/hex_map_kit/editor/hex_map_export_screen.gd")
 const HexMapPaintScreen = preload("res://addons/hex_map_kit/editor/hex_map_paint_screen.gd")
 const HexMapSettingsScreen = preload("res://addons/hex_map_kit/editor/hex_map_settings_screen.gd")
+const HexMapBuildScreen = preload("res://addons/hex_map_kit/editor/hex_map_build_screen.gd")
 const HexMapPreviewThumbnail = preload("res://addons/hex_map_kit/editor/hex_map_preview_thumbnail.gd")
 const HexTileCatalogPreviewControl = preload("res://addons/hex_map_kit/editor/hex_tile_catalog_preview_control.gd")
 const HexMapValidationDashboard = preload("res://addons/hex_map_kit/editor/hex_map_validation_dashboard.gd")
@@ -87,6 +88,7 @@ var _missing_unique_resources_prefix_edit: LineEdit
 var _missing_unique_resources_choose_directory_button: Button
 var _missing_unique_resources_create_button: Button
 var _missing_unique_resources_save_directory := ""
+var _build_screen: HexMapBuildScreen
 var _generation_dock: HexMapGenDock
 var _edit_tool: HexMapEditTool
 var _sample_settings_panel: HexMapSampleSettingsPanel
@@ -147,6 +149,8 @@ func set_editor_session_state(session: HexMapEditorSessionState) -> void:
 	_connect_session_state()
 	if _generation_dock != null:
 		_generation_dock.set_editor_session_state(_ensure_session_state())
+	if _build_screen != null:
+		_build_screen.set_workspace_asset_context(workspace_asset_context())
 	if _edit_tool != null:
 		_edit_tool.set_editor_session_state(_ensure_session_state())
 	if _sample_settings_panel != null:
@@ -182,6 +186,10 @@ func workspace_asset_context_for_tab(tab_name: String) -> HexMapWorkspaceAssetCo
 
 func generation_dock() -> HexMapGenDock:
 	return _generation_dock
+
+
+func build_screen() -> HexMapBuildScreen:
+	return _build_screen
 
 
 func edit_tool() -> HexMapEditTool:
@@ -287,6 +295,50 @@ func dispatch_workspace_event(event_id: String, payload: Dictionary = {}) -> Dic
 
 
 func generation_screen_snapshot() -> Dictionary:
+	if _build_screen != null:
+		var build_snapshot := _build_screen.build_screen_snapshot()
+		var legacy_view_state: Dictionary = _generation_dock.generation_run_view_state() if _generation_dock != null else {}
+		var legacy_generation_state: Dictionary = _generation_dock.generation_status() if _generation_dock != null else {}
+		var legacy_progress_state: Dictionary = _generation_dock.generation_progress_snapshot() if _generation_dock != null else {}
+		var legacy_output_target: Dictionary = _generation_dock.output_target_snapshot() if _generation_dock != null else {}
+		var legacy_layout_snapshot: Dictionary = _generation_dock.generation_layout_snapshot() if _generation_dock != null else {}
+		build_snapshot["tab"] = HexMapWorkspaceComponentRegistry.TAB_GENERATE
+		build_snapshot["component_ids"] = tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_GENERATE)
+		build_snapshot["asset_slot_ids"] = tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_GENERATE)
+		build_snapshot["purpose_text"] = "Build a generation graph and inspect node outputs."
+		build_snapshot["empty_state"] = _tab_empty_state(
+			HexMapWorkspaceComponentRegistry.TAB_GENERATE,
+			"Build a generation graph and inspect node outputs.",
+			"",
+			PackedStringArray(),
+			"Build is the generation graph work surface. Simple generation remains a secondary entry."
+		)
+		build_snapshot["empty_state_text"] = ""
+		build_snapshot["empty_state_visible"] = false
+		build_snapshot["unexplained_empty_area_visible"] = false
+		build_snapshot["empty_area_explained"] = true
+		build_snapshot["generation_state"] = legacy_generation_state
+		build_snapshot["progress_state"] = legacy_progress_state
+		build_snapshot["output_target"] = legacy_output_target
+		build_snapshot["candidate_preview"] = legacy_output_target.get("candidate_preview", {})
+		build_snapshot["layout"] = legacy_layout_snapshot
+		build_snapshot["layout_sections"] = legacy_layout_snapshot.get("sections", [])
+		build_snapshot["generate_layout_section_ids"] = legacy_layout_snapshot.get("section_ids", PackedStringArray())
+		build_snapshot["result_summary"] = _generation_result_summary(
+			legacy_view_state,
+			legacy_generation_state,
+			legacy_progress_state,
+			legacy_output_target
+		)
+		build_snapshot["legacy_view_state"] = legacy_view_state
+		build_snapshot["view_state"] = {
+			"state_source": "HexMapBuildScreen",
+			"state_id": "graph_canvas_ready",
+			"status_text": String(build_snapshot.get("status_text", "")),
+			"component_ids": build_snapshot["component_ids"],
+			"asset_slot_ids": build_snapshot["asset_slot_ids"],
+		}
+		return build_snapshot
 	var view_state: Dictionary = _generation_dock.generation_run_view_state() if _generation_dock != null else {}
 	var generation_state: Dictionary = _generation_dock.generation_status() if _generation_dock != null else {}
 	var progress_state: Dictionary = _generation_dock.generation_progress_snapshot() if _generation_dock != null else {}
@@ -568,6 +620,7 @@ func _workspace_root_screen_snapshots() -> Dictionary:
 func workspace_screen_role_contracts() -> Dictionary:
 	return {
 		HexMapWorkspaceComponentRegistry.TAB_DOCUMENT: HexMapResourcesScreen.screen_contract(),
+		HexMapWorkspaceComponentRegistry.TAB_GENERATE: HexMapBuildScreen.screen_contract(),
 		HexMapWorkspaceComponentRegistry.TAB_PAINT: HexMapPaintScreen.screen_contract(),
 		HexMapWorkspaceComponentRegistry.TAB_CATALOG: HexMapCatalogScreen.screen_contract(),
 		HexMapWorkspaceComponentRegistry.TAB_LAYERS: HexMapLayersScreen.screen_contract(),
@@ -4919,11 +4972,19 @@ func _mount_generation_panel() -> void:
 	var page = _tab_pages.get(HexMapWorkspaceComponentRegistry.TAB_GENERATE, null)
 	if page == null:
 		return
+	_build_screen = HexMapBuildScreen.new()
+	_build_screen.set_workspace_asset_context(workspace_asset_context())
+	_build_screen.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_build_screen.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	(page as Control).add_child(_build_screen)
+	_register_tab_component(HexMapWorkspaceComponentRegistry.TAB_GENERATE, "build_graph_screen", _build_screen)
+
 	_generation_dock = HexMapGenDock.new()
 	_generation_dock.set_editor_session_state(_ensure_session_state())
 	_generation_dock.set_workspace_asset_context(workspace_asset_context())
 	_generation_dock.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_generation_dock.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_generation_dock.visible = false
 	(page as Control).add_child(_generation_dock)
 	_register_tab_component(HexMapWorkspaceComponentRegistry.TAB_GENERATE, "generation_panel", _generation_dock)
 
@@ -5838,6 +5899,8 @@ func _sync_workspace_asset_context() -> void:
 			(panel as HexMapWorkspaceAssetPanel).set_workspace_asset_context(context)
 	if _generation_dock != null:
 		_generation_dock.set_workspace_asset_context(context)
+	if _build_screen != null:
+		_build_screen.set_workspace_asset_context(context)
 	if _edit_tool != null:
 		_edit_tool.set_workspace_asset_context(context)
 	_refresh_resources_context_panel()

@@ -475,11 +475,11 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 	await process_frame
 
 	var expected_tabs = PackedStringArray([
-		"Resources",
-		"Generate",
+		"Build",
 		"Paint",
 		"Catalog",
 		"Layers",
+		"Resources",
 		"Validate",
 		"QA",
 		"Export",
@@ -499,10 +499,16 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 				HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE,
 			]),
 		},
-		"Generate": {
-			"components": PackedStringArray(["generation_panel"]),
-			"screen_script": "hex_map_gen_dock.gd",
-			"screen_role_source": "HexMapGenDock",
+		"Build": {
+			"components": PackedStringArray(["build_graph_screen", "generation_panel"]),
+			"screen_script": "hex_map_build_screen.gd",
+			"screen_role_source": "HexMapBuildScreen",
+			"component_owners": {
+				"generation_panel": {
+					"screen_script": "hex_map_gen_dock.gd",
+					"screen_role_source": "HexMapGenDock",
+				},
+			},
 			"slots": PackedStringArray(),
 		},
 		"Paint": {
@@ -587,6 +593,7 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 		var expected_slots = contract["slots"] as PackedStringArray
 		var expected_screen_script := String(contract["screen_script"])
 		var expected_role_source := String(contract["screen_role_source"])
+		var component_owners = contract.get("component_owners", {}) as Dictionary
 		expected_component_row_count += expected_components.size()
 		_assert_eq(workspace.tab_component_ids(tab_name), expected_components, "TEST-41 %s component ids match contract" % tab_name)
 		_assert_eq(workspace.components_for_tab(tab_name).size(), expected_components.size(), "TEST-41 %s component row count matches contract" % tab_name)
@@ -596,13 +603,16 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 		_assert_eq(workspace.tab_scroll_root_class(tab_name), "ScrollContainer", "TEST-41 %s root class is ScrollContainer" % tab_name)
 		_assert_eq(workspace.tab_content_root_class(tab_name), "VBoxContainer", "TEST-41 %s content class is VBoxContainer" % tab_name)
 		for component_id in expected_components:
+			var component_owner = component_owners.get(String(component_id), {}) as Dictionary
+			var component_screen_script := String(component_owner.get("screen_script", expected_screen_script))
+			var component_role_source := String(component_owner.get("screen_role_source", expected_role_source))
 			_assert_true(workspace.tab_has_component(tab_name, String(component_id)), "TEST-41 %s has component %s" % [tab_name, component_id])
 			var owner := workspace.component_owner_for(tab_name, String(component_id))
-			_assert_eq(String(owner.get("screen_script", "")), expected_screen_script, "ARCH-NEXT-10 %s/%s registry screen owner" % [tab_name, component_id])
-			_assert_eq(String(owner.get("screen_role_source", "")), expected_role_source, "ARCH-NEXT-10 %s/%s registry role owner" % [tab_name, component_id])
+			_assert_eq(String(owner.get("screen_script", "")), component_screen_script, "ARCH-NEXT-10 %s/%s registry screen owner" % [tab_name, component_id])
+			_assert_eq(String(owner.get("screen_role_source", "")), component_role_source, "ARCH-NEXT-10 %s/%s registry role owner" % [tab_name, component_id])
 			var mounted_owner := workspace.mounted_component_owner_for(tab_name, String(component_id))
-			_assert_eq(String(mounted_owner.get("screen_script", "")), expected_screen_script, "ARCH-NEXT-10 %s/%s mounted screen owner" % [tab_name, component_id])
-			_assert_eq(String(mounted_owner.get("screen_role_source", "")), expected_role_source, "ARCH-NEXT-10 %s/%s mounted role owner" % [tab_name, component_id])
+			_assert_eq(String(mounted_owner.get("screen_script", "")), component_screen_script, "ARCH-NEXT-10 %s/%s mounted screen owner" % [tab_name, component_id])
+			_assert_eq(String(mounted_owner.get("screen_role_source", "")), component_role_source, "ARCH-NEXT-10 %s/%s mounted role owner" % [tab_name, component_id])
 			if builder_components.has(String(component_id)):
 				_assert_eq(
 					String(mounted_owner.get("builder", "")),
@@ -648,6 +658,7 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 			)
 
 	var expected_screen_roles := {
+		"Build": "hex_map_build_screen.gd",
 		"Resources": "hex_map_resources_screen.gd",
 		"Paint": "hex_map_paint_screen.gd",
 		"Catalog": "hex_map_catalog_screen.gd",
@@ -660,6 +671,7 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 	var screen_roles := workspace.workspace_screen_role_contracts()
 	_assert_eq(screen_roles.size(), expected_screen_roles.size(), "ARCH-41 screen role registry has one contract per extracted screen script")
 	var screen_snapshots := {
+		"Build": workspace.generation_screen_snapshot(),
 		"Resources": workspace.resources_screen_snapshot(),
 		"Paint": workspace.paint_brush_screen_snapshot(),
 		"Catalog": workspace.catalog_screen_snapshot(),
@@ -713,7 +725,7 @@ func _test_workspace_first_run_learning_cta_routes_to_settings_without_sample_de
 	var snapshot = workspace.sample_learning_cta_snapshot()
 	_assert_true(bool(snapshot["visible"]), "workspace exposes visible first-run sample CTA")
 	_assert_eq(String(snapshot["learn_label"]), "Learn with bundled samples", "sample CTA uses learning action label")
-	_assert_eq(workspace.current_workspace_tab_name(), "Resources", "workspace starts on normal project resources tab")
+	_assert_eq(workspace.current_workspace_tab_name(), "Build", "workspace starts on normal project Build tab")
 	_assert_true(
 		not session.show_bundled_samples_in_main_selectors,
 		"sample CTA does not enable sample selector visibility by default"
@@ -758,7 +770,7 @@ func _test_workspace_first_run_learning_cta_routes_to_settings_without_sample_de
 	dismiss_workspace.dismiss_sample_learning_cta()
 	await process_frame
 	_assert_true(not dismiss_workspace.sample_learning_cta_visible(), "sample CTA dismiss action hides CTA")
-	_assert_eq(dismiss_workspace.current_workspace_tab_name(), "Resources", "dismissing sample CTA keeps normal project tab")
+	_assert_eq(dismiss_workspace.current_workspace_tab_name(), "Build", "dismissing sample CTA keeps normal project Build tab")
 	_assert_true(
 		not dismiss_session.show_bundled_samples_in_main_selectors,
 		"dismissing sample CTA does not enable sample mode"
@@ -839,7 +851,7 @@ func _test_workspace_asset_context_is_shared_by_workspace_generate_and_paint() -
 	_assert_eq(
 		workspace.workspace_asset_context_for_tab("Generate"),
 		context,
-		"Generate tab receives workspace asset context"
+		"Generate legacy tab name receives workspace asset context"
 	)
 	_assert_eq(
 		workspace.workspace_asset_context_for_tab("Paint"),
@@ -1186,9 +1198,9 @@ func _test_workspace_root_state_and_dispatcher_integrate_viewstates() -> void:
 
 	var root_state = workspace.workspace_root_state_snapshot()
 	_assert_eq(String(root_state["state_source"]), "HexMapWorkspaceRootState", "STATE-60 root snapshot reports state source")
-	_assert_eq(String(root_state["current_tab"]), "Resources", "STATE-60 root state starts on Resources")
+	_assert_eq(String(root_state["current_tab"]), "Build", "STATE-60 root state starts on Build")
 	var screen_view_states = root_state["screen_view_states"] as Dictionary
-	_assert_eq(String((screen_view_states["Generate"] as Dictionary)["state_source"]), "HexMapGenerationRunState", "STATE-60 Generate root ViewState comes from generation state")
+	_assert_eq(String((screen_view_states["Build"] as Dictionary)["state_source"]), "HexMapBuildScreen", "STATE-60 Build root ViewState comes from graph screen")
 	_assert_eq(String((screen_view_states["Paint"] as Dictionary)["state_source"]), "HexMapPaintInteractionState", "STATE-60 Paint root ViewState comes from paint state")
 	_assert_eq(String((screen_view_states["Validate"] as Dictionary)["state_source"]), "HexMapValidationWorkflowState", "STATE-60 Validate root ViewState comes from validation state")
 	_assert_eq(String((screen_view_states["Export"] as Dictionary)["state_source"]), "HexMapExportWorkflowState", "STATE-60 Export root ViewState comes from export state")
@@ -1198,7 +1210,7 @@ func _test_workspace_root_state_and_dispatcher_integrate_viewstates() -> void:
 	_assert_eq(String(root_view_state["state_source"]), "HexMapWorkspaceRootState", "STATE-60 root ViewState reports state source")
 	_assert_eq(
 		String(root_view_state["current_screen_state_id"]),
-		String((screen_view_states["Resources"] as Dictionary)["state_id"]),
+		String((screen_view_states["Build"] as Dictionary)["state_id"]),
 		"STATE-60 root ViewState mirrors current screen state"
 	)
 	var debug_report := workspace.workspace_state_debug_report_text()
@@ -1538,5 +1550,3 @@ func _test_workspace_asset_remaining_actions_are_wired_or_deleted() -> void:
 	sample_control.queue_free()
 	workspace.queue_free()
 	await process_frame
-
-

@@ -55,8 +55,8 @@ plan_dir 規約: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GEN
 | id | status | deps | deliverable | target files | acceptance |
 |---|---|---|---|---|---|
 | `GRAPH-10_MODEL_AND_HEADLESS_PASSES` | `COMPLETE` | `ADOPT-00` | Node/Port/Edge の Dictionary model + 型検証 + 各 node type の headless pass + Source ノード | `addons/hex_map_kit/generation/`（新規）, `tests/test_generation_graph.gd` | S: port 4型(terrain/selection/overlay/result) / invalid edge 検証 / 新 generation engine 無し(core static 再利用)。E(headless): `Shape→Wall→Connectivity` run→連結 floor の `HexMapData`、`Filter→ItemGen` run→selection 限定の `HexOverlayData`。`./tools/test.sh`。 |
-| `GRAPH-11_BUILD_TAB_GRAPH_CANVAS` | `READY` | `GRAPH-10`, `DESIGN-10` | Build tab に graph canvas / node palette / selected node inspector / output preview / run | `addons/hex_map_kit/editor/`（build canvas）, tests | S: inspector が Resource ref 参照 / canvas が主・Resource row 非主役。E: Build tab を開いた最初が graph canvas / 3 node を接続 / 中間 output を preview。 |
-| `GRAPH-12_VERTICAL_SLICE_THREE_NODE_CHAIN` ★ | `BACKLOG` | `GRAPH-11` | `Shape→Wall→Connectivity →Region Filter→ Item Generator →Promote` が editor で1本通る | editor + generation + tests | S: 中間 selection を次 node 入力へ接続 / Promote 後に Document 層が実在。E: 「floor∩spawn距離≤3」→weighted item→中間preview→Promote→Document に使える層。**これが動くまで Graph を `COMPLETE` にしない**。 |
+| `GRAPH-11_BUILD_TAB_GRAPH_CANVAS` | `COMPLETE` | `GRAPH-10`, `DESIGN-10` | Build tab に graph canvas / node palette / selected node inspector / output preview / run | `addons/hex_map_kit/editor/`（build canvas）, tests | S: inspector が Resource ref 参照 / canvas が主・Resource row 非主役。E: Build tab を開いた最初が graph canvas / 3 node を接続 / 中間 output を preview。 |
+| `GRAPH-12_VERTICAL_SLICE_THREE_NODE_CHAIN` ★ | `READY` | `GRAPH-11` | `Shape→Wall→Connectivity →Region Filter→ Item Generator →Promote` が editor で1本通る | editor + generation + tests | S: 中間 selection を次 node 入力へ接続 / Promote 後に Document 層が実在。E: 「floor∩spawn距離≤3」→weighted item→中間preview→Promote→Document に使える層。**これが動くまで Graph を `COMPLETE` にしない**。 |
 | `GRAPH-13_RUN_UX` | `BACKLOG` | `GRAPH-12` | run engine（DAG topo+cache+dirty）/ Generate(N=1) 頭出し / N・randomize 降格 | editor + generation + tests | S: topo 実行 + 中間 cache + dirty 伝播 / N default 1。E: primary `Generate` が上部明白 / 束生成(N>1) 副次 / 失敗 node 可視。 |
 | `GRAPH-14_GRAPH_RESOURCE` | `BACKLOG` | `GRAPH-12` | `HexGenerationGraphResource`(Node/Port/Edge) 化 | `addons/hex_map_kit/adapter/hex_generation_graph_resource.gd`, tests | S: Dictionary から移行 / save-load round-trip test。 |
 | `RUNTIME-50_GRAPH_RESOURCE_AND_RUNTIME_MAP_BUILD_API` | `BACKLOG` | `GRAPH-14` | runtime Map Build API（graph resource を実行時に読み込み map を build） | `addons/hex_map_kit/adapter/` or `generation/`, `examples/basic_runtime/`, tests | S: editor 非依存の graph→map headless path / embed semantics で自己完結。E: 完全ランダム生成ユースで保存 graph を runtime から build して map が出る。 |
@@ -117,14 +117,15 @@ Codex は self-review で nonblocking work を見つけたらここに `follow-u
 
 ## 10. Current pointer
 
-Current recommended next task: `GRAPH-11_BUILD_TAB_GRAPH_CANVAS`。
+Current recommended next task: `GRAPH-12_VERTICAL_SLICE_THREE_NODE_CHAIN`。
 
 理由:
 - `ADOPT-00` は `COMPLETE`：二層 DoD gate を self-review template / queue rules / planning policy へ実装し、QA park を規則化（proof は `PROOF_LOG.md`）。
 - `GRAPH-10` は `COMPLETE`：headless graph backbone の proof 済み（proof は `PROOF_LOG.md`）。
+- `GRAPH-11` は `COMPLETE`：Build graph canvas / palette / inspector / preview / run の proof 済み（proof は `PROOF_LOG.md`）。
 - `DESIGN-10` は `COMPLETE`：6タブ normal/empty wireframe と §6 self-check 済み（proof は `PROOF_LOG.md`）。
 - `DESIGN-11` は `COMPLETE`：tab IA / priority / top strip の proof 済み（proof は `PROOF_LOG.md`）。
-- Phase Y1 は完了。次の先頭 READY は `GRAPH-11`。
+- Phase Y1 は完了。次の先頭 READY は `GRAPH-12`。
 
 実行順（Roadmap §5）:
 ```

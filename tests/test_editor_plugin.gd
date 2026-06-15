@@ -27,11 +27,11 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 	await process_frame
 
 	var expected_tabs = PackedStringArray([
-		"Resources",
-		"Generate",
+		"Build",
 		"Paint",
 		"Catalog",
 		"Layers",
+		"Resources",
 		"Validate",
 		"QA",
 		"Export",
@@ -101,7 +101,8 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 			workspace.tab_asset_slot_ids(tab_name).has(String(expectation["slot"])),
 			"%s tab exposes expected asset slot id" % tab_name
 		)
-	_assert_true(workspace.tab_has_component("Generate", "generation_panel"), "Generate tab keeps generation component")
+	_assert_true(workspace.tab_has_component("Build", "build_graph_screen"), "Build tab keeps graph component")
+	_assert_true(workspace.tab_has_component("Generate", "generation_panel"), "Generate alias keeps generation component")
 	_assert_true(
 		workspace.tab_component_ids("Catalog").has("catalog_asset_panel"),
 		"Catalog tab registry exposes catalog asset panel"
@@ -137,7 +138,7 @@ func _test_hex_map_workspace_exposes_tabs_and_routes_editing() -> void:
 	workspace.edit_tool().set_document(document)
 	workspace.edit_tool().set_target_layer(layer)
 	_assert_true(workspace.viewport_input_enabled(), "workspace gates viewport input through paint/edit component")
-	_assert_eq(workspace.current_workspace_tab_name(), "Resources", "TAB-51 workspace starts on Resources before viewport edit")
+	_assert_eq(workspace.current_workspace_tab_name(), "Build", "TAB-51 workspace starts on Build before viewport edit")
 	var canvas_transform = Transform2D(0.0, Vector2(120.0, -40.0))
 	workspace.edit_tool().set_viewport_canvas_transform_for_test(canvas_transform)
 	var origin_local = layer.map_to_local(HexMapTileAdapter.vector_to_map_cell(HexVector.zero(), true))

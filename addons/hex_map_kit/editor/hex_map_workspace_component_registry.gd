@@ -7,7 +7,9 @@ const HexMapWorkspaceAssetContext = preload("res://addons/hex_map_kit/editor/hex
 const TAB_RESOURCES := "Resources"
 const TAB_DOCUMENT := TAB_RESOURCES
 const TAB_DOCUMENT_LEGACY := "Document"
-const TAB_GENERATE := "Generate"
+const TAB_BUILD := "Build"
+const TAB_GENERATE := TAB_BUILD
+const TAB_GENERATE_LEGACY := "Generate"
 const TAB_PAINT := "Paint"
 const TAB_CATALOG := "Catalog"
 const TAB_LAYERS := "Layers"
@@ -17,7 +19,8 @@ const TAB_EXPORT := "Export"
 const TAB_SETTINGS := "Settings"
 
 const SCREEN_RESOURCES := "hex_map_resources_screen.gd"
-const SCREEN_GENERATE := "hex_map_gen_dock.gd"
+const SCREEN_BUILD := "hex_map_build_screen.gd"
+const SCREEN_GENERATE := SCREEN_BUILD
 const SCREEN_PAINT := "hex_map_paint_screen.gd"
 const SCREEN_CATALOG := "hex_map_catalog_screen.gd"
 const SCREEN_LAYERS := "hex_map_layers_screen.gd"
@@ -29,11 +32,11 @@ const SCREEN_SETTINGS := "hex_map_settings_screen.gd"
 
 static func tab_names() -> PackedStringArray:
 	return PackedStringArray([
-		TAB_DOCUMENT,
 		TAB_GENERATE,
 		TAB_PAINT,
 		TAB_CATALOG,
 		TAB_LAYERS,
+		TAB_DOCUMENT,
 		TAB_VALIDATE,
 		TAB_QA,
 		TAB_EXPORT,
@@ -66,7 +69,17 @@ static func component_rows() -> Array[Dictionary]:
 			"SelectedHexTileMapMissingResources",
 			"resources"
 		),
-		_component(TAB_GENERATE, "generation_panel", "HexMapGenDock", "GenerationPanel", "generate"),
+		_component(TAB_GENERATE, "build_graph_screen", "HexMapBuildScreen", "BuildGraphScreen", "build"),
+		_component(
+			TAB_GENERATE,
+			"generation_panel",
+			"HexMapGenDock",
+			"GenerationPanel",
+			"generate",
+			PackedStringArray(),
+			"hex_map_gen_dock.gd",
+			"HexMapGenDock"
+		),
 		_component(TAB_PAINT, "brush_palette", "HexMapEditTool", "BrushPalette", "paint"),
 		_component(TAB_CATALOG, "catalog_detail_panel", "VBoxContainer", "CatalogDetailPanel", "catalog"),
 		_component(
@@ -188,7 +201,11 @@ static func component_owner_for(tab_name: String, component_id: String) -> Dicti
 
 
 static func canonical_tab_name(tab_name: String) -> String:
-	return TAB_RESOURCES if tab_name == TAB_DOCUMENT_LEGACY else tab_name
+	if tab_name == TAB_DOCUMENT_LEGACY:
+		return TAB_RESOURCES
+	if tab_name == TAB_GENERATE_LEGACY:
+		return TAB_GENERATE
+	return tab_name
 
 
 static func component_ids_for_tab(tab_name: String) -> PackedStringArray:
@@ -215,7 +232,9 @@ static func _component(
 	component_class: String,
 	responsibility: String,
 	source_owner: String,
-	asset_slot_ids: PackedStringArray = PackedStringArray()
+	asset_slot_ids: PackedStringArray = PackedStringArray(),
+	screen_script_override: String = "",
+	screen_role_source_override: String = ""
 ) -> Dictionary:
 	var actual_tab := canonical_tab_name(tab_name)
 	return {
@@ -225,8 +244,8 @@ static func _component(
 		"responsibility": responsibility,
 		"source_owner": source_owner,
 		"asset_slot_ids": asset_slot_ids.duplicate(),
-		"screen_script": screen_script_for_tab(actual_tab),
-		"screen_role_source": screen_role_source_for_tab(actual_tab),
+		"screen_script": screen_script_override if screen_script_override != "" else screen_script_for_tab(actual_tab),
+		"screen_role_source": screen_role_source_override if screen_role_source_override != "" else screen_role_source_for_tab(actual_tab),
 	}
 
 
@@ -258,7 +277,7 @@ static func screen_role_source_for_tab(tab_name: String) -> String:
 		TAB_DOCUMENT:
 			return "HexMapResourcesScreen"
 		TAB_GENERATE:
-			return "HexMapGenDock"
+			return "HexMapBuildScreen"
 		TAB_PAINT:
 			return "HexMapPaintScreen"
 		TAB_CATALOG:

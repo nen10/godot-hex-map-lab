@@ -91,3 +91,35 @@ proof:
     - `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/DESIGN-11_TAB_IA_AND_PRIORITY/POLICY.md`
     - `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/DESIGN-11_TAB_IA_AND_PRIORITY/IMPLEMENTATION_PLAN.md`
     - `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/DESIGN-11_TAB_IA_AND_PRIORITY/TAB_IA.md`
+
+### GRAPH-11_BUILD_TAB_GRAPH_CANVAS
+
+proof:
+  plan: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/GRAPH-11_BUILD_TAB_GRAPH_CANVAS/`
+  review: `docs/review/autopilot/GRAPH-11_BUILD_TAB_GRAPH_CANVAS_SELF_REVIEW_2026-06-15.md`
+  execution:
+    - `docs/review/autopilot/GRAPH-11_BUILD_TAB_GRAPH_CANVAS_SELF_REVIEW_2026-06-15.md`
+  ui_metrics:
+    - `.godot_user/ui-metrics/20260615-153318-51063/workspace_layout_metrics.md`（UI-facing task; P0 failures = 0, P1 issues = 0）
+  tests:
+    - `./tools/test.sh`（run id `20260615-153318-51063`, exit 0）
+    - `.godot_user/test-runs/20260615-153318-51063/logs/test_build_graph_canvas.gd.log`
+  docs:
+    - `docs/TEST.md`
+    - `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_build_graph_canvas.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_node_palette.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_node_inspector.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace_component_registry.gd`
+    - `tests/test_build_graph_canvas.gd`
+    - `tests/test_editor_plugin.gd`
+    - `tests/test_editor_workspace.gd`
+    - `tests/test_editor_plugin_test_base.gd`
+    - `tools/test.sh`
+    - `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/GRAPH-11_BUILD_TAB_GRAPH_CANVAS/SUB_TASKS.md`
+    - `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/GRAPH-11_BUILD_TAB_GRAPH_CANVAS/UX.md`
+    - `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/GRAPH-11_BUILD_TAB_GRAPH_CANVAS/POLICY.md`
+    - `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/GRAPH-11_BUILD_TAB_GRAPH_CANVAS/IMPLEMENTATION_PLAN.md`
