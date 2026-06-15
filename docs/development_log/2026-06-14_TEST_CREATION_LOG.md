@@ -51,6 +51,8 @@
 - `tests/test_editor_plugin.gd`
   - Workspace 各タブ（Build/Paint/Catalog/Layers/Resources/Validate/QA/Export/Settings）の screen contract
   - state snapshot / 画面責務分離 / seed lab / preview / validation issue / export handoff
+- `tests/test_editor_paint.gd`
+  - Paint の brush workspace、context chips、shape controls、empty CTA、viewport selected cell / last edit 同期
 - `tests/test_workspace_layout_metrics.gd`
   - Workspace snapshot 収集とシーン解像度差分、JSON serialization
 - `tests/test_workspace_layout_metric_evaluator.gd`

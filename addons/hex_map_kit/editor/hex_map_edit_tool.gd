@@ -140,7 +140,14 @@ var _test_editor_selected_target_layer: Node = null
 var _test_viewport_canvas_transform_enabled := false
 var _test_viewport_canvas_transform := Transform2D.IDENTITY
 var _paint_interaction_state: HexMapPaintInteractionState = HexMapPaintInteractionState.new()
+var _paint_shape_mode := HexMapPaintScreen.SHAPE_SINGLE
 
+var _paint_context_chip_label: Label
+var _paint_brush_palette_label: Label
+var _paint_shape_option: OptionButton
+var _paint_empty_cta_row: HBoxContainer
+var _paint_empty_create_button: Button
+var _paint_empty_choose_button: Button
 var _paint_workspace_summary_label: Label
 var _paint_affordance_label: Label
 var _document_label: Label
@@ -485,12 +492,29 @@ func paint_workspace_snapshot() -> Dictionary:
 	var last_apply_message := String(last_apply.get("message", "none"))
 	var selected_cell_present := bool(selected_cell.get("present", false))
 	var paint_affordance_board := _paint_affordance_board_snapshot(interaction_state, view_state, last_edit)
+	var context_chips := HexMapPaintScreen.context_chips(view_state)
+	var brush_palette := HexMapPaintScreen.brush_palette(brush)
+	var shape_controls := HexMapPaintScreen.shape_controls(_paint_shape_mode)
+	var empty_cta := HexMapPaintScreen.empty_cta(view_state)
 	return {
 		"interaction_state": interaction_state,
 		"screen_role": screen_role,
 		"screen_script": String(screen_role.get("screen_script", "")),
 		"screen_role_source": String(screen_role.get("screen_role_source", "")),
 		"workflow_owner": String(screen_role.get("workflow_owner", "")),
+		"first_surface": "paint_workspace",
+		"paint_workspace_is_primary": true,
+		"resource_row_primary": false,
+		"context_chips": context_chips,
+		"context_chips_visible": _control_row_is_visible(_paint_context_chip_label),
+		"context_chips_text": _paint_context_chips_text(context_chips),
+		"brush_palette": brush_palette,
+		"brush_palette_visible": _control_row_is_visible(_paint_brush_palette_label),
+		"brush_shape_controls": shape_controls,
+		"brush_shape_controls_visible": _control_row_is_visible(_paint_shape_option),
+		"brush_shape_mode": _paint_shape_mode,
+		"empty_cta": empty_cta,
+		"empty_cta_visible": bool(empty_cta.get("visible", false)),
 		"view_state": view_state,
 		"active_document": document_state.get("resource", null),
 		"active_document_status": String(document_state.get("status", "none")),
@@ -519,6 +543,13 @@ func paint_workspace_snapshot() -> Dictionary:
 		"selected_cell_summary_visible": true,
 		"last_edit_summary_visible": _control_row_is_visible(_last_edit_detail_label),
 		"last_edit_surface_text": _last_edit_detail_label.text if _last_edit_detail_label != null else "",
+		"viewport_sync": {
+			"active_layer_name": String(target_state.get("name", "")),
+			"active_layer_role": String(target_state.get("role", "")),
+			"selected_cell_key": String(selected_cell.get("cell_key", "")),
+			"last_edit_summary": last_apply_summary,
+			"last_edit_message": last_apply_message,
+		},
 		"resource_reference_only": false,
 		"viewport_edit_updates_paint_state": selected_cell_present or not last_edit.is_empty(),
 		"undo_available": _undo_redo != null,
@@ -711,6 +742,19 @@ func set_paint_brush_mode(mode_id: String) -> bool:
 	if mode < 0:
 		return false
 	set_edit_mode(mode)
+	return true
+
+
+func set_paint_shape_mode(shape_id: String) -> bool:
+	if not HexMapPaintScreen.shape_mode_ids().has(shape_id):
+		return false
+	_paint_shape_mode = shape_id
+	if _paint_shape_option != null:
+		for index in range(_paint_shape_option.item_count):
+			if String(_paint_shape_option.get_item_metadata(index)) == shape_id:
+				_paint_shape_option.select(index)
+				break
+	_refresh_paint_workspace_summary()
 	return true
 
 
@@ -1233,6 +1277,27 @@ func _build_title_row() -> void:
 	var title = Label.new()
 	title.text = "Hex Map Edit"
 	add_child(title)
+
+	_paint_context_chip_label = _new_detail_label()
+	add_child(_wrap_labeled("Paint Context", _paint_context_chip_label))
+	_paint_brush_palette_label = _new_detail_label()
+	add_child(_wrap_labeled("Brush Palette", _paint_brush_palette_label))
+	_paint_shape_option = OptionButton.new()
+	for shape_id in HexMapPaintScreen.shape_mode_ids():
+		_paint_shape_option.add_item(String(shape_id).capitalize())
+		_paint_shape_option.set_item_metadata(_paint_shape_option.item_count - 1, String(shape_id))
+	_paint_shape_option.item_selected.connect(_on_paint_shape_selected)
+	add_child(_wrap_labeled("Shape", _paint_shape_option))
+	_paint_empty_cta_row = HBoxContainer.new()
+	_paint_empty_create_button = Button.new()
+	_paint_empty_create_button.text = "Create Level Document"
+	_paint_empty_create_button.pressed.connect(_on_new_document_pressed)
+	_paint_empty_cta_row.add_child(_paint_empty_create_button)
+	_paint_empty_choose_button = Button.new()
+	_paint_empty_choose_button.text = "Choose Level Document"
+	_paint_empty_choose_button.pressed.connect(_on_document_browse_pressed)
+	_paint_empty_cta_row.add_child(_paint_empty_choose_button)
+	add_child(_paint_empty_cta_row)
 
 	_paint_workspace_summary_label = _new_detail_label()
 	add_child(_wrap_labeled("Paint Workspace", _paint_workspace_summary_label))
@@ -2472,6 +2537,16 @@ func _on_mode_selected(index: int) -> void:
 	set_edit_mode(index)
 
 
+func _on_paint_shape_selected(index: int) -> void:
+	if _paint_shape_option == null:
+		return
+	var shape_id := String(_paint_shape_option.get_item_metadata(index))
+	if not HexMapPaintScreen.shape_mode_ids().has(shape_id):
+		shape_id = HexMapPaintScreen.SHAPE_SINGLE
+	_paint_shape_mode = shape_id
+	_refresh_paint_workspace_summary()
+
+
 func _on_layer_stack_template_selected(index: int) -> void:
 	if _layer_stack_template_option == null:
 		return
@@ -3608,6 +3683,16 @@ func _paint_affordance_rows_text(rows: Array) -> String:
 	return " | ".join(parts)
 
 
+func _paint_context_chips_text(chips: Array) -> String:
+	var parts := PackedStringArray()
+	for chip in chips:
+		if not chip is Dictionary:
+			continue
+		var entry := chip as Dictionary
+		parts.append("%s: %s" % [String(entry.get("label", "")), String(entry.get("value", ""))])
+	return " | ".join(parts)
+
+
 func _sync_resource_pickers() -> void:
 	if _document_resource_picker != null:
 		_document_resource_picker.edited_resource = _document
@@ -4718,6 +4803,7 @@ func _build_last_edit_trace_from_states(
 	var display_changed = display_signature_before != display_signature_after
 	var trace = {
 		"target_path": _target_path_string(),
+		"target_name": _target_layer.name if _target_layer != null and is_instance_valid(_target_layer) else "",
 		"target_class": _target_class_string(),
 		"mode": _edit_mode,
 		"payload": _edit_payload_summary(),
@@ -4775,6 +4861,17 @@ func _refresh_paint_workspace_summary() -> void:
 		return
 	var snapshot := paint_workspace_snapshot()
 	var view_state = snapshot.get("view_state", {}) as Dictionary
+	if _paint_context_chip_label != null:
+		_paint_context_chip_label.text = String(snapshot.get("context_chips_text", ""))
+	if _paint_brush_palette_label != null:
+		var palette = snapshot.get("brush_palette", {}) as Dictionary
+		_paint_brush_palette_label.text = "Mode: %s | Brush: %s | Ready: %s" % [
+			String(palette.get("active_label", "")),
+			String(palette.get("active_brush_key", "")) if String(palette.get("active_brush_key", "")) != "" else "unselected",
+			_bool_text(bool(palette.get("ready", false))),
+		]
+	if _paint_empty_cta_row != null:
+		_paint_empty_cta_row.visible = bool((snapshot.get("empty_cta", {}) as Dictionary).get("visible", false))
 	_paint_workspace_summary_label.text = "Document: %s | Layer: %s | Brush: %s %s | Cell: %s | Last edit: %s | State: %s | Undo: %s" % [
 		String(view_state.get("document_status", "none")),
 		String(view_state.get("active_layer_name", "none")) if String(view_state.get("active_layer_name", "")) != "" else "none",
@@ -4851,13 +4948,10 @@ func _paint_selected_cell_snapshot(trace: Dictionary) -> Dictionary:
 func _paint_last_edit_summary(trace: Dictionary) -> String:
 	if trace.is_empty() or not trace.has("hex"):
 		return "none"
-	var hex = trace["hex"]
-	return "%s document=%s target=%s display=%s" % [
-		hex.key(),
-		_bool_text(bool(trace.get("document_changed", false))),
-		_bool_text(bool(trace.get("target_applied", false))),
-		_bool_text(bool(trace.get("display_changed", false))),
-	]
+	var layer_name := String(trace.get("target_name", trace.get("target_path", "layer")))
+	if layer_name == "":
+		layer_name = "layer"
+	return "painted 1 cell on %s" % layer_name
 
 
 func _edit_payload_summary() -> String:

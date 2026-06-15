@@ -305,3 +305,24 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_workspace.gd`
     - `tests/test_build_screen_full.gd`
     - `tools/test.sh`
+
+### SCREEN-31_PAINT_AS_DESIGN_WORKSPACE
+
+proof:
+  plan: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/SCREEN-31_PAINT_AS_DESIGN_WORKSPACE/`
+  review: `docs/review/autopilot/SCREEN-31_PAINT_AS_DESIGN_WORKSPACE_SELF_REVIEW_2026-06-15.md`
+  execution:
+    - `docs/review/autopilot/SCREEN-31_PAINT_AS_DESIGN_WORKSPACE_SELF_REVIEW_2026-06-15.md`
+  ui_metrics:
+    - `.godot_user/ui-metrics/20260615-181231-58565/workspace_layout_metrics.md`（UI task; P0 failures = 0, P1 issues = 0）
+  tests:
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/screen31-targeted/logs/test_editor_paint.gd.log --path . --script res://tests/test_editor_paint.gd`（exit 0）
+    - `TEST_JOBS=4 ./tools/test.sh`（run id `20260615-181231-58565`, exit 0）
+  docs:
+    - `docs/TEST.md`
+    - `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_paint_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_edit_tool.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `tests/test_editor_paint.gd`

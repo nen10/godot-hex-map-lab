@@ -21,6 +21,21 @@ func _test_paint_brush_asset_screen_routes_missing_assets_without_raw_controls()
 	_assert_eq(PackedStringArray(paint_screen["asset_slot_ids"]), PackedStringArray(), "TAB-51 Paint brush screen does not expose ResourcePicker asset rows")
 	_assert_eq(String(paint_screen["screen_role_source"]), "HexMapPaintScreen", "ARCH-41 Paint snapshot uses Paint screen script")
 	_assert_eq(String(paint_screen["screen_script"]), "hex_map_paint_screen.gd", "ARCH-41 Paint snapshot names screen script")
+	_assert_eq(String(paint_screen["first_surface"]), "paint_workspace", "SCREEN-31 Paint opens on workspace surface")
+	_assert_true(bool(paint_screen["paint_workspace_is_primary"]), "SCREEN-31 Paint workspace is primary")
+	_assert_true(not bool(paint_screen["resource_row_primary"]), "SCREEN-31 Paint does not lead with a Resource row")
+	_assert_true(bool(paint_screen["context_chips_visible"]), "SCREEN-31 Paint shows context chips")
+	_assert_true(bool(paint_screen["brush_palette_visible"]), "SCREEN-31 Paint shows brush palette")
+	_assert_true(bool(paint_screen["brush_shape_controls_visible"]), "SCREEN-31 Paint shows brush shape controls")
+	var shape_controls = paint_screen["brush_shape_controls"] as Dictionary
+	var shape_modes = shape_controls["modes"] as PackedStringArray
+	_assert_true(shape_modes.has("single"), "SCREEN-31 Paint shape controls include single")
+	_assert_true(shape_modes.has("line"), "SCREEN-31 Paint shape controls include line")
+	_assert_true(shape_modes.has("disc"), "SCREEN-31 Paint shape controls include disc")
+	_assert_true(shape_modes.has("flood"), "SCREEN-31 Paint shape controls include flood")
+	_assert_true(bool(paint_screen["empty_cta_visible"]), "SCREEN-31 Paint empty state exposes document CTA")
+	var empty_cta = paint_screen["empty_cta"] as Dictionary
+	_assert_eq(String(empty_cta["primary_action"]), "Create Level Document", "SCREEN-31 Paint empty CTA creates document")
 	var paint_role = paint_screen["screen_role"] as Dictionary
 	var paint_delegates = paint_role["delegates"] as Dictionary
 	_assert_eq(String(paint_delegates["document_management"]), "Resources", "ARCH-41 Paint delegates document management")
@@ -106,6 +121,9 @@ func _test_paint_brush_asset_screen_routes_missing_assets_without_raw_controls()
 	paint_view_state = paint_screen["view_state"] as Dictionary
 	_assert_true(bool((paint_view_state["brush"] as Dictionary)["ready"]), "STATE-40 Paint ViewState renders active ready brush")
 	_assert_eq(String(paint_view_state["brush_key"]), "terrain.floor", "STATE-40 Paint ViewState renders active brush key")
+	var brush_palette = paint_screen["brush_palette"] as Dictionary
+	_assert_eq(String(brush_palette["active_brush_key"]), "terrain.floor", "SCREEN-31 Paint brush palette shows catalog key")
+	_assert_true(bool(brush_palette["ready"]), "SCREEN-31 Paint brush palette reflects ready brush")
 
 	var overlay_brush = workspace.select_paint_catalog_brush_key("terrain.floor", "overlay")
 	_assert_true(bool(overlay_brush["ok"]), "Paint brush selects overlay catalog key")
@@ -199,6 +217,10 @@ func _test_paint_brush_asset_screen_routes_missing_assets_without_raw_controls()
 	var target_feedback = paint_affordance["target"] as Dictionary
 	_assert_eq(String(target_feedback["name"]), "PaintAffordanceTarget", "PAINT-NEXT-10 Paint target feedback names target layer")
 	_assert_true(bool(target_feedback["ready"]), "PAINT-NEXT-10 Paint target feedback is ready")
+	var viewport_sync = paint_screen["viewport_sync"] as Dictionary
+	_assert_eq(String(viewport_sync["active_layer_name"]), "PaintAffordanceTarget", "SCREEN-31 Paint viewport sync tracks active layer")
+	_assert_eq(String(viewport_sync["selected_cell_key"]), HexVector.zero().key(), "SCREEN-31 Paint viewport sync tracks selected cell")
+	_assert_true(String(viewport_sync["last_edit_summary"]).contains("painted 1 cell on PaintAffordanceTarget"), "SCREEN-31 Paint viewport sync reports last edit in user terms")
 	var selected_feedback = paint_affordance["selected_cell"] as Dictionary
 	_assert_eq(String(selected_feedback["cell_key"]), HexVector.zero().key(), "PAINT-NEXT-10 Paint selected-cell feedback follows viewport edit")
 	var last_feedback = paint_affordance["last_edit"] as Dictionary
@@ -211,5 +233,4 @@ func _test_paint_brush_asset_screen_routes_missing_assets_without_raw_controls()
 	paint_layer.queue_free()
 	workspace.queue_free()
 	await process_frame
-
 

@@ -38,6 +38,7 @@
 - `tests/test_workspace_layout_metric_evaluator.gd`
 - `tests/test_workspace_layout_metric_gate.gd`
 - `tests/test_editor_plugin.gd`
+- `tests/test_editor_paint.gd`
 - `tests/test_debug_scenes.gd`
 
 ## レポート
