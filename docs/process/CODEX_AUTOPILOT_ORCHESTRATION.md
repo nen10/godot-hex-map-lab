@@ -19,7 +19,7 @@ Roadmap 作成は `docs/policy/ROADMAP_DECISION_POLICY.md`、queue 作成は `do
 
 1. Queue から先頭の `READY` task を選ぶ。
 2. task を `RUNNING` にする。
-3. `docs/policy/PLANNING_POLICY.md`に従い、実装計画を作成する。`ROADMAP.md` 内の該当 taskも参照する。`IMPLEMENTATION_PLAN.md` は pre-execution planning proof として扱う。
+3. `docs/policy/PLANNING_POLICY.md`に従い、実装計画を作成する。`ROADMAP.md` 内の該当 taskも参照する。`IMPLEMENTATION_PLAN.md` は pre-execution planning proof として扱う。作成済みの計画が存在する場合、記述を尊重し、必要な変更は不足の追加と新発見したタスクの分離にとどめる。
 4. plan 後に承認待ちで止まらず、同じ run で実装する。
 5. code / tests / docs を更新する。cf.`docs/policy/IMPLEMENTATION_POLICY.md`
 6. `./tools/test.sh` を実行する。
