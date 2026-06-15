@@ -452,3 +452,24 @@ proof:
   major files:
     - `docs/manual/MANUAL_WORKFLOW.md`
     - `README.md`
+
+### PROC-90_FINAL_DIST_REGEN
+
+proof:
+  plan: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/PROC-90_FINAL_DIST_REGEN/`
+  review: `docs/review/autopilot/PROC-90_FINAL_DIST_REGEN_SELF_REVIEW_2026-06-15.md`
+  execution:
+    - `docs/review/autopilot/PROC-90_FINAL_DIST_REGEN_SELF_REVIEW_2026-06-15.md`
+  package:
+    - `./tools/package_addon.sh`（wrote `dist/hex_map_kit-0.3.0.manifest.txt`, `dist/hex_map_kit-0.3.0.zip`）
+    - manifest sha256 `b6595acd4df7f9dfd1c47eb2aebcb049ebbe75efed3922b22a4ad61371d33cbd`
+    - zip sha256 `ac6379a2597f8e9a0ac48c2cdf3bde3d21bee1093fcb48937c6f8fdc1f9a02c4`
+  ui_metrics:
+    - `.godot_user/ui-metrics/20260615-193715-93980/workspace_layout_metrics.md`（process task regression proof; P0 failures = 0, P1 issues = 0）
+  tests:
+    - `TEST_JOBS=4 ./tools/test.sh`（run id `20260615-193715-93980`, exit 0）
+  phase_review:
+    - `docs/review/roadmap/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN_Y7_PHASE_REVIEW_2026-06-15.md`
+  major files:
+    - `dist/hex_map_kit-0.3.0.manifest.txt`
+    - `dist/hex_map_kit-0.3.0.zip`
