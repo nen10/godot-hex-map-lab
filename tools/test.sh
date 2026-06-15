@@ -45,6 +45,8 @@ TEST_SCRIPTS=(
   "res://tests/test_generation_run_state.gd"
   "res://tests/test_paint_interaction_state.gd"
   "res://tests/test_workspace_screen_contracts.gd"
+  # Workspace layout metrics remain in the standard run as regression checks.
+  # Passing them is not standalone UI acceptance proof; task self-review owns experiential DoD.
   "res://tests/test_workspace_layout_metrics.gd"
   "res://tests/test_workspace_layout_metric_evaluator.gd"
   "res://tests/test_workspace_layout_metric_gate.gd"

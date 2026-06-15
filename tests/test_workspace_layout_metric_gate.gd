@@ -28,7 +28,7 @@ func _test_workspace_metric_gate_writes_reports() -> void:
 	_assert_true(FileAccess.file_exists(markdown_path), "metric Markdown report is written")
 	var parsed = JSON.parse_string(FileAccess.get_file_as_string(json_path))
 	_assert_true(parsed is Dictionary, "metric JSON report parses")
-	_assert_eq(int(run_report["total_p0_failures"]), 0, "P0 metric gate has zero failures; see %s" % markdown_path)
+	_assert_eq(int(run_report["total_p0_failures"]), 0, "P0 metric regression check has zero failures; see %s" % markdown_path)
 
 
 func _collect_run_report() -> Dictionary:
@@ -90,7 +90,7 @@ func _collect_run_report() -> Dictionary:
 
 func _markdown_report(report: Dictionary) -> String:
 	var lines: Array[String] = []
-	lines.append("# Workspace UI Metric Report")
+	lines.append("# Workspace UI Metric Regression Report")
 	lines.append("")
 	lines.append("- run_id: `%s`" % String(report["run_id"]))
 	lines.append("- total_p0_failures: `%d`" % int(report["total_p0_failures"]))

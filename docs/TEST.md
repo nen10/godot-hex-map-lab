@@ -50,9 +50,10 @@
 .godot_user/ui-metrics/<run-id>/
 ```
 
-Workspace UI metric gate は `tests/test_workspace_layout_metric_gate.gd` で実行される。
+Workspace UI metric regression check は `tests/test_workspace_layout_metric_gate.gd` で実行される。
 
-- P0 failures は標準受け入れゲートで、`0` でなければならない
+- P0 failures は標準テスト上の regression failure で、`0` でなければならない
+- P0 failures = 0 は UI/graph task の合格根拠ではない。合格根拠は task self-review の experiential DoD
 - P1 issue count は現時点では report-only
 - UI metric summary は `.godot_user/ui-metrics/<run-id>/workspace_layout_metrics.md` を参照
 

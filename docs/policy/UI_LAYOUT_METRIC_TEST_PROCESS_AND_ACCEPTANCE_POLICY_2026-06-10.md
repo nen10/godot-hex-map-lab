@@ -1,7 +1,14 @@
 # UI Layout Metric Test Process and Acceptance Policy 2026-06-10
 
 対象: Hex Map Kit Godot Editor Workspace UI  
-目的: スクリーンショットやユーザー目視に依存せず、Godot Control tree のサイズ・状態・情報量・操作契約を数値評価し、UI改修の acceptance gate として使えるテストプロセスを定義する。
+目的: スクリーンショットやユーザー目視に依存せず、Godot Control tree のサイズ・状態・情報量・操作契約を数値評価し、UI改修の regression signal として使えるテストプロセスを定義する。
+
+PROCESS-60 update（2026-06-15）:
+
+- UI Layout Metric Test は **回帰検知**であり、UI/graph task の合格根拠そのものではない。
+- Metric P0 failure は `./tools/test.sh` 上の regression failure として修正対象にする。
+- Metric pass は完了証明ではない。完了根拠は `docs/process/QUEUE_OPERATION_RULES.md` の two-layer DoD、特に experiential DoD（work surface / primary action / context chips / preview の有無）で記録する。
+- 既存コードや report schema に残る `gate` wording は歴史的な実装名であり、PROCESS-60 以降の意味は regression check である。
 
 ---
 
@@ -18,7 +25,8 @@ UI tree
   -> layout snapshot JSON
     -> metric evaluator
       -> fail / warn / info report
-        -> acceptance decision
+        -> regression report
+        -> two-layer DoD review input
 ```
 
 この方式を、ここでは **UI Layout Metric Test** と呼ぶ。
@@ -30,6 +38,7 @@ UI tree
 - headless testの都合でUIを歪めない。
 - UIがユーザー主観で美しいかは判定しない。
 - ただし、label切れ、scroll不能、no-op button、debug情報漏れ、state矛盾は機械的に判定する。
+- metric pass は task 完了の代理にしない。UI/graph task の self-review は、ユーザーが最初に何を見るか、何を操作できるかを別途記録する。
 ```
 
 ---
@@ -741,19 +750,19 @@ WARN:
 
 ---
 
-## 7. Acceptance severity
+## 7. Regression severity
 
 ### 7.1 Severity levels
 
 ```text
 P0_FAIL:
-  Task cannot be accepted.
+  Standard regression test fails. Repair before completing the task, but P0=0 alone is not acceptance proof.
 
 P1_FAIL:
-  Task can be accepted only if unrelated and issue is logged as repair-now for next UI task.
+  Report-only unless the active roadmap explicitly promotes it to repair-now.
 
 WARN:
-  Acceptable, but report must include follow-up.
+  Diagnostic warning. Record if it affects the active task's experiential DoD.
 
 INFO:
   Diagnostic only.
@@ -761,7 +770,7 @@ INFO:
 
 ### 7.2 P0_FAIL rules
 
-The following always fail acceptance:
+The following fail the standard regression check:
 
 ```text
 - visible enabled no-op button
@@ -775,7 +784,7 @@ The following always fail acceptance:
 - dialog action button opens no dialog or uses unsafe dialog parent path
 ```
 
-### 7.3 P1_FAIL rules
+### 7.3 P1 issue rules
 
 ```text
 - label truncation for non-primary text at normal width
@@ -829,10 +838,10 @@ Every UI task must follow this order.
 7. Define empty state.
 8. Define Copy Debug Report boundary.
 9. Add scenario to snapshot matrix.
-10. Add acceptance thresholds.
+10. Add regression thresholds.
 ```
 
-A tab is not accepted if it merely mirrors resource rows and roadmap calls it a work tab.
+A tab is not complete if it merely mirrors resource rows and roadmap calls it a work tab; metric pass cannot override that experiential DoD failure.
 
 ### 8.3 Procedure: change Resource row
 
@@ -1071,7 +1080,9 @@ Self-review must cite this report path.
 
 ---
 
-## 11. Acceptance policy by task type
+## 11. Regression proof by task type
+
+The following items are regression proof requirements. They do not replace the queue's two-layer DoD.
 
 ### 11.1 Docs-only UI policy task
 
@@ -1080,7 +1091,7 @@ Required:
 ```text
 - UI contract updated
 - State matrix updated if relevant
-- Acceptance thresholds defined
+- Regression thresholds defined if relevant
 ```
 
 No Godot metric run required.
@@ -1090,11 +1101,12 @@ No Godot metric run required.
 Required:
 
 ```text
-- Layout metric run passes with P0 failures = 0
-- P1 failures either 0 or repair-now
+- Layout metric run passes with P0 failures = 0 as regression proof
+- P1 issues are recorded as report-only unless active task policy promotes them
 - Scroll reachability pass
 - Text truncation pass for normal width
 - Debug leakage pass
+- Experiential DoD recorded separately in self-review
 ```
 
 ### 11.3 Resource selection task
@@ -1180,13 +1192,13 @@ UI-METRIC-04_LAYOUT_METRIC_WARNING_REPORT
 
 All metrics are WARN only.
 
-### Phase M4: P0 gate
+### Phase M4: P0 regression check
 
 ```text
 UI-METRIC-05_P0_ACCEPTANCE_GATE
 ```
 
-Enable P0 failures:
+Enable P0 regression failures:
 
 ```text
 - no-op visible button
@@ -1196,13 +1208,13 @@ Enable P0 failures:
 - sample fallback in production
 ```
 
-### Phase M5: P1 gate
+### Phase M5: P1 report
 
 ```text
 UI-METRIC-06_P1_ACCEPTANCE_GATE
 ```
 
-Enable strict row geometry, label truncation, picker width.
+Report strict row geometry, label truncation, picker width unless the active roadmap promotes them to a hard regression failure.
 
 ---
 
@@ -1258,17 +1270,18 @@ From this point on, a UI task is not complete merely because:
 - sample asset path works
 ```
 
-A UI task is complete only when:
+A UI task is complete only when regression proof and experiential DoD are both satisfied:
 
 ```text
 - UI contract is satisfied
 - state matrix is satisfied
-- metric P0 failures are zero
+- metric P0 failures are zero as regression proof
 - visible actions have real effects
 - normal UI does not leak debug information
 - required ResourcePicker slots are concrete
 - narrow dock layout remains usable
 - sample does not replace production asset selection
+- self-review records what the user sees first and what primary action they can take
 ```
 
-This preserves independent, structural feedback without depending on user screenshots.
+This preserves independent, structural feedback without letting metric pass replace product UX proof.
