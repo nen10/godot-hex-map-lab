@@ -43,8 +43,8 @@ plan_dir 規約: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GEN
 
 | id | status | deps | deliverable | target files | acceptance |
 |---|---|---|---|---|---|
-| `DESIGN-10_BACKBONE_WIREFRAMES` | `READY` | `ADOPT-00` | Build/Paint/Export + 支援 Catalog/Layers/Resources の wireframe（QA/Validate 除外・`docs/policy/LAYOUT_SKETCH_POLICY.md` 準拠） | `<plan_dir>/WIREFRAMES.md` | S: 各画面 ASCII wireframe / Resource 退避先 / primary visual surface 明記 + LAYOUT_SKETCH_POLICY §6 チェックリスト全項目。E: 各 wireframe で「最初に見えるもの」「primary action」がラベル説明なしで成立（normal + empty の2状態）。 |
-| `DESIGN-11_TAB_IA_AND_PRIORITY` | `BACKLOG` | `DESIGN-10` | tab IA：`Generate`→`Build`、Primary(Build/Paint)/支援(Catalog/Layers/Resources)/utility(Export/Settings)、QA/Validate は park 表示、top strip | `<plan_dir>/TAB_IA.md` | S: 分類表 + tab 間依存導線。E: top strip に現在の進行が見える設計。 |
+| `DESIGN-10_BACKBONE_WIREFRAMES` | `COMPLETE` | `ADOPT-00` | Build/Paint/Export + 支援 Catalog/Layers/Resources の wireframe（QA/Validate 除外・`docs/policy/LAYOUT_SKETCH_POLICY.md` 準拠） | `<plan_dir>/WIREFRAMES.md` | S: 各画面 ASCII wireframe / Resource 退避先 / primary visual surface 明記 + LAYOUT_SKETCH_POLICY §6 チェックリスト全項目。E: 各 wireframe で「最初に見えるもの」「primary action」がラベル説明なしで成立（normal + empty の2状態）。 |
+| `DESIGN-11_TAB_IA_AND_PRIORITY` | `READY` | `DESIGN-10` | tab IA：`Generate`→`Build`、Primary(Build/Paint)/支援(Catalog/Layers/Resources)/utility(Export/Settings)、QA/Validate は park 表示、top strip | `<plan_dir>/TAB_IA.md` | S: 分類表 + tab 間依存導線。E: top strip に現在の進行が見える設計。 |
 
 ---
 
@@ -55,7 +55,7 @@ plan_dir 規約: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GEN
 | id | status | deps | deliverable | target files | acceptance |
 |---|---|---|---|---|---|
 | `GRAPH-10_MODEL_AND_HEADLESS_PASSES` | `COMPLETE` | `ADOPT-00` | Node/Port/Edge の Dictionary model + 型検証 + 各 node type の headless pass + Source ノード | `addons/hex_map_kit/generation/`（新規）, `tests/test_generation_graph.gd` | S: port 4型(terrain/selection/overlay/result) / invalid edge 検証 / 新 generation engine 無し(core static 再利用)。E(headless): `Shape→Wall→Connectivity` run→連結 floor の `HexMapData`、`Filter→ItemGen` run→selection 限定の `HexOverlayData`。`./tools/test.sh`。 |
-| `GRAPH-11_BUILD_TAB_GRAPH_CANVAS` | `BACKLOG` | `GRAPH-10`, `DESIGN-10` | Build tab に graph canvas / node palette / selected node inspector / output preview / run | `addons/hex_map_kit/editor/`（build canvas）, tests | S: inspector が Resource ref 参照 / canvas が主・Resource row 非主役。E: Build tab を開いた最初が graph canvas / 3 node を接続 / 中間 output を preview。 |
+| `GRAPH-11_BUILD_TAB_GRAPH_CANVAS` | `READY` | `GRAPH-10`, `DESIGN-10` | Build tab に graph canvas / node palette / selected node inspector / output preview / run | `addons/hex_map_kit/editor/`（build canvas）, tests | S: inspector が Resource ref 参照 / canvas が主・Resource row 非主役。E: Build tab を開いた最初が graph canvas / 3 node を接続 / 中間 output を preview。 |
 | `GRAPH-12_VERTICAL_SLICE_THREE_NODE_CHAIN` ★ | `BACKLOG` | `GRAPH-11` | `Shape→Wall→Connectivity →Region Filter→ Item Generator →Promote` が editor で1本通る | editor + generation + tests | S: 中間 selection を次 node 入力へ接続 / Promote 後に Document 層が実在。E: 「floor∩spawn距離≤3」→weighted item→中間preview→Promote→Document に使える層。**これが動くまで Graph を `COMPLETE` にしない**。 |
 | `GRAPH-13_RUN_UX` | `BACKLOG` | `GRAPH-12` | run engine（DAG topo+cache+dirty）/ Generate(N=1) 頭出し / N・randomize 降格 | editor + generation + tests | S: topo 実行 + 中間 cache + dirty 伝播 / N default 1。E: primary `Generate` が上部明白 / 束生成(N>1) 副次 / 失敗 node 可視。 |
 | `GRAPH-14_GRAPH_RESOURCE` | `BACKLOG` | `GRAPH-12` | `HexGenerationGraphResource`(Node/Port/Edge) 化 | `addons/hex_map_kit/adapter/hex_generation_graph_resource.gd`, tests | S: Dictionary から移行 / save-load round-trip test。 |
@@ -69,7 +69,7 @@ plan_dir 規約: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GEN
 | id | status | deps | deliverable | target files | acceptance |
 |---|---|---|---|---|---|
 | `SCREEN-30_BUILD_TAB_FULL` | `BACKLOG` | `GRAPH-13` | Simple Build(入口) と Graph(本体) を1画面で両立 / preview・promote・dirty | editor, tests | E: 初心者は Profile→Generate、上級者は graph、両方が最初の画面から辿れる。 |
-| `SCREEN-31_PAINT_AS_DESIGN_WORKSPACE` | `BACKLOG` | `DESIGN-10` | Paint を brush 作業面（純ランダムを補うデザイン管理） | `addons/hex_map_kit/editor/hex_map_edit_tool.gd`, tests | S: brush palette / active layer / selected cell / last edit / viewport 同期。E: Paint 先頭に Resource row 無し・編集面が主。 |
+| `SCREEN-31_PAINT_AS_DESIGN_WORKSPACE` | `READY` | `DESIGN-10` | Paint を brush 作業面（純ランダムを補うデザイン管理） | `addons/hex_map_kit/editor/hex_map_edit_tool.gd`, tests | S: brush palette / active layer / selected cell / last edit / viewport 同期。E: Paint 先頭に Resource row 無し・編集面が主。 |
 | `SCREEN-32_EXPORT_AS_HANDOFF` | `BACKLOG` | `DESIGN-10`, `RUNTIME-50` | handoff 3形態を purpose card 化 | `addons/hex_map_kit/editor/hex_map_export_screen.gd`, tests | S: 3形態 card（(a) data resource(.tres) / (b) scene(.tscn) / (c) graph resource）+ Debug Report / JSON / Package(process-only)。E: 目的から選べる / gameplay framework 化しない。 |
 
 ---
@@ -78,9 +78,9 @@ plan_dir 規約: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GEN
 
 | id | status | deps | deliverable | target files | acceptance |
 |---|---|---|---|---|---|
-| `SCREEN-40_CATALOG_VISUAL_BOARD` | `BACKLOG` | `DESIGN-10` | tile/object を1つの視覚 asset board に統合 | `addons/hex_map_kit/editor/hex_map_catalog_screen.gd` 他, tests | S: tile/object preview を1画面。E: board が主役 / raw source_id・atlas 非表示 / sample は tutorial source 分離。 |
-| `SCREEN-41_LAYERS_STACK_VISUAL` | `BACKLOG` | `DESIGN-10` | role stack の視覚化（現状テキスト要約） | `addons/hex_map_kit/editor/hex_map_layers_screen.gd`, tests | S: writable/visibility/lock を chip/toggle。E: role stack が視覚的に並ぶ。 |
-| `RESCTX-42_RESOURCES_SHELF_AND_CONTEXT_CHIPS` | `BACKLOG` | `DESIGN-10` | Resources を資産棚化 + 各 work tab 先頭を context chip に | `addons/hex_map_kit/editor/hex_map_resources_screen.gd` 他, tests | S: Unique/Shared/Optional / work tab 先頭は chip。E: 現 readiness/next-actions ラベル列を撤去 / `Create missing` は大 CTA。 |
+| `SCREEN-40_CATALOG_VISUAL_BOARD` | `READY` | `DESIGN-10` | tile/object を1つの視覚 asset board に統合 | `addons/hex_map_kit/editor/hex_map_catalog_screen.gd` 他, tests | S: tile/object preview を1画面。E: board が主役 / raw source_id・atlas 非表示 / sample は tutorial source 分離。 |
+| `SCREEN-41_LAYERS_STACK_VISUAL` | `READY` | `DESIGN-10` | role stack の視覚化（現状テキスト要約） | `addons/hex_map_kit/editor/hex_map_layers_screen.gd`, tests | S: writable/visibility/lock を chip/toggle。E: role stack が視覚的に並ぶ。 |
+| `RESCTX-42_RESOURCES_SHELF_AND_CONTEXT_CHIPS` | `READY` | `DESIGN-10` | Resources を資産棚化 + 各 work tab 先頭を context chip に | `addons/hex_map_kit/editor/hex_map_resources_screen.gd` 他, tests | S: Unique/Shared/Optional / work tab 先頭は chip。E: 現 readiness/next-actions ラベル列を撤去 / `Create missing` は大 CTA。 |
 
 ---
 
@@ -117,11 +117,13 @@ Codex は self-review で nonblocking work を見つけたらここに `follow-u
 
 ## 10. Current pointer
 
-Current recommended next task: `GRAPH-10_MODEL_AND_HEADLESS_PASSES`（並行で `DESIGN-10_BACKBONE_WIREFRAMES`）。
+Current recommended next task: `DESIGN-11_TAB_IA_AND_PRIORITY`。
 
 理由:
 - `ADOPT-00` は `COMPLETE`：二層 DoD gate を self-review template / queue rules / planning policy へ実装し、QA park を規則化（proof は `PROOF_LOG.md`）。
-- `DESIGN-10` と `GRAPH-10` が `READY`。`GRAPH-10` は headless で背骨の連鎖を先に証明できるため最優先推奨。
+- `GRAPH-10` は `COMPLETE`：headless graph backbone の proof 済み（proof は `PROOF_LOG.md`）。
+- `DESIGN-10` は `COMPLETE`：6タブ normal/empty wireframe と §6 self-check 済み（proof は `PROOF_LOG.md`）。
+- `DESIGN-11` は `DESIGN-10` 完了により `READY`。Phase Y1 を閉じる先頭タスク。
 
 実行順（Roadmap §5）:
 ```
