@@ -44,7 +44,7 @@ plan_dir 規約: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GEN
 | id | status | deps | deliverable | target files | acceptance |
 |---|---|---|---|---|---|
 | `DESIGN-10_BACKBONE_WIREFRAMES` | `COMPLETE` | `ADOPT-00` | Build/Paint/Export + 支援 Catalog/Layers/Resources の wireframe（QA/Validate 除外・`docs/policy/LAYOUT_SKETCH_POLICY.md` 準拠） | `<plan_dir>/WIREFRAMES.md` | S: 各画面 ASCII wireframe / Resource 退避先 / primary visual surface 明記 + LAYOUT_SKETCH_POLICY §6 チェックリスト全項目。E: 各 wireframe で「最初に見えるもの」「primary action」がラベル説明なしで成立（normal + empty の2状態）。 |
-| `DESIGN-11_TAB_IA_AND_PRIORITY` | `READY` | `DESIGN-10` | tab IA：`Generate`→`Build`、Primary(Build/Paint)/支援(Catalog/Layers/Resources)/utility(Export/Settings)、QA/Validate は park 表示、top strip | `<plan_dir>/TAB_IA.md` | S: 分類表 + tab 間依存導線。E: top strip に現在の進行が見える設計。 |
+| `DESIGN-11_TAB_IA_AND_PRIORITY` | `COMPLETE` | `DESIGN-10` | tab IA：`Generate`→`Build`、Primary(Build/Paint)/支援(Catalog/Layers/Resources)/utility(Export/Settings)、QA/Validate は park 表示、top strip | `<plan_dir>/TAB_IA.md` | S: 分類表 + tab 間依存導線。E: top strip に現在の進行が見える設計。 |
 
 ---
 
@@ -117,13 +117,14 @@ Codex は self-review で nonblocking work を見つけたらここに `follow-u
 
 ## 10. Current pointer
 
-Current recommended next task: `DESIGN-11_TAB_IA_AND_PRIORITY`。
+Current recommended next task: `GRAPH-11_BUILD_TAB_GRAPH_CANVAS`。
 
 理由:
 - `ADOPT-00` は `COMPLETE`：二層 DoD gate を self-review template / queue rules / planning policy へ実装し、QA park を規則化（proof は `PROOF_LOG.md`）。
 - `GRAPH-10` は `COMPLETE`：headless graph backbone の proof 済み（proof は `PROOF_LOG.md`）。
 - `DESIGN-10` は `COMPLETE`：6タブ normal/empty wireframe と §6 self-check 済み（proof は `PROOF_LOG.md`）。
-- `DESIGN-11` は `DESIGN-10` 完了により `READY`。Phase Y1 を閉じる先頭タスク。
+- `DESIGN-11` は `COMPLETE`：tab IA / priority / top strip の proof 済み（proof は `PROOF_LOG.md`）。
+- Phase Y1 は完了。次の先頭 READY は `GRAPH-11`。
 
 実行順（Roadmap §5）:
 ```
