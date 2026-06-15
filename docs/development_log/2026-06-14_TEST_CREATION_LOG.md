@@ -30,6 +30,8 @@
   - 形状/overlay/アイテム生成、連結性回復、interrupt/cancel、seed 決定、対称性
 - `tests/test_generation_graph.gd`
   - Generation Graph の Dictionary model、port 型検証、headless node pass 連鎖、Source ノード、topo 実行
+- `tests/test_generation_graph_resource.gd`
+  - Generation Graph Resource の Dictionary 相互変換、save/load round-trip、runner 互換、embed snapshot 永続化
 - `tests/test_generation_graph_runner_dirty.gd`
   - Generation Graph runner の dirty cache 再利用、downstream 再計算、interrupt/cancel、partial cache 非確定
 - `tests/test_build_graph_canvas.gd`

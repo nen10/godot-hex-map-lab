@@ -147,9 +147,8 @@ func ensure_graph_context_for_hex_tile_map_layer(
 	var restore_report := {}
 	if layer.generation_graph_resource == null:
 		_canvas.build_default_vertical_slice_chain()
-		var graph_resource = HexGenerationGraphResourceScript.new()
+		var graph_resource = HexGenerationGraphResourceScript.from_dict(_canvas.build_graph_model())
 		graph_resource.graph_id = "%s_build_graph" % _resource_prefix_from_node(layer.name).to_snake_case()
-		graph_resource.graph_model = _canvas.build_graph_model()
 		graph_resource.resource_name = "%s Build Graph" % _resource_prefix_from_node(layer.name)
 		layer.generation_graph_resource = graph_resource
 		created_graph = true

@@ -208,3 +208,25 @@ proof:
     - `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/GRAPH-13_RUN_UX/UX.md`
     - `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/GRAPH-13_RUN_UX/POLICY.md`
     - `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/GRAPH-13_RUN_UX/IMPLEMENTATION_PLAN.md`
+
+### GRAPH-14_GRAPH_RESOURCE
+
+proof:
+  plan: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/GRAPH-14_GRAPH_RESOURCE/`
+  review: `docs/review/autopilot/GRAPH-14_GRAPH_RESOURCE_SELF_REVIEW_2026-06-15.md`
+  execution:
+    - `docs/review/autopilot/GRAPH-14_GRAPH_RESOURCE_SELF_REVIEW_2026-06-15.md`
+  ui_metrics:
+    - `.godot_user/ui-metrics/20260615-172332-74043/workspace_layout_metrics.md`（graph/resource task; P0 failures = 0, P1 issues = 0）
+  tests:
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/graph14-resource.log --path . --script res://tests/test_generation_graph_resource.gd`（exit 0）
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/graph14-generation-promote.log --path . --script res://tests/test_generation_promote.gd`（exit 0）
+    - `./tools/test.sh`（run id `20260615-172332-74043`, exit 0）
+  docs:
+    - `docs/TEST.md`
+    - `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+  major files:
+    - `addons/hex_map_kit/adapter/hex_generation_graph_resource.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_screen.gd`
+    - `tests/test_generation_graph_resource.gd`
+    - `tools/test.sh`

@@ -31,6 +31,7 @@ TEST_SCRIPTS=(
   "res://tests/test_hex_core.gd"
   "res://tests/test_hex_map_generation.gd"
   "res://tests/test_generation_graph.gd"
+  "res://tests/test_generation_graph_resource.gd"
   "res://tests/test_generation_graph_runner_dirty.gd"
   "res://tests/test_build_graph_canvas.gd"
   "res://tests/test_generation_promote.gd"
