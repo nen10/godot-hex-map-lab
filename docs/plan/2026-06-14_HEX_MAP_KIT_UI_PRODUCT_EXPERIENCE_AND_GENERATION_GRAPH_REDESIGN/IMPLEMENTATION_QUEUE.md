@@ -140,7 +140,7 @@ Current recommended next task: `PROCESS-60_METRIC_AS_REGRESSION_ONLY`。
 - `RESCTX-42` は `COMPLETE`：Resources shelf、Unique/Shared/Optional card、work tab context chip、Map chip 非重複の proof 済み（proof は `PROOF_LOG.md`）。
 - `DESIGN-10` は `COMPLETE`：6タブ normal/empty wireframe と §6 self-check 済み（proof は `PROOF_LOG.md`）。
 - `DESIGN-11` は `COMPLETE`：tab IA / priority / top strip の proof 済み（proof は `PROOF_LOG.md`）。
-- Phase Y4 は `COMPLETE`。次の backlog 候補は `PROCESS-60`。
+- Phase Y4 は `COMPLETE`：phase review matrix は `docs/review/roadmap/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN_Y4_PHASE_REVIEW_2026-06-15.md`。次の backlog 候補は `PROCESS-60`。
 
 実行順（Roadmap §5）:
 ```
