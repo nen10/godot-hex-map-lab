@@ -34,7 +34,7 @@ plan_dir 規約: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GEN
 
 | id | status | deps | deliverable | target files | acceptance（S=structural / E=experiential） |
 |---|---|---|---|---|---|
-| `ADOPT-00_BASELINES_AND_ACCEPTANCE_GATE` | `READY` | none | baseline を SoT 化、二層 DoD を template/policy へ実装、QA park を policy 化 | `docs/review/autopilot/SELF_REVIEW_TEMPLATE.md`, `docs/process/QUEUE_OPERATION_RULES.md`, `docs/policy/PLANNING_POLICY.md`, this queue | S: self-review template に experiential 欄追加 / park 区分が queue に存在 / `./tools/test.sh`。E: 以降 UI/graph task が二層 DoD なしに `COMPLETE` できないルールが明文化。 |
+| `ADOPT-00_BASELINES_AND_ACCEPTANCE_GATE` | `COMPLETE` | none | baseline を SoT 化、二層 DoD を template/policy へ実装、QA park を policy 化 | `docs/review/autopilot/SELF_REVIEW_TEMPLATE.md`, `docs/process/QUEUE_OPERATION_RULES.md`, `docs/policy/PLANNING_POLICY.md`, this queue | S: self-review template に experiential 欄追加 / park 区分が queue に存在 / `./tools/test.sh`。E: 以降 UI/graph task が二層 DoD なしに `COMPLETE` できないルールが明文化。 |
 
 ---
 
@@ -42,7 +42,7 @@ plan_dir 規約: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GEN
 
 | id | status | deps | deliverable | target files | acceptance |
 |---|---|---|---|---|---|
-| `DESIGN-10_BACKBONE_WIREFRAMES` | `BACKLOG` | `ADOPT-00` | Build/Paint/Export + 支援 Catalog/Layers/Resources の wireframe（QA/Validate 除外） | `<plan_dir>/WIREFRAMES.md` | S: 各画面 ASCII wireframe / Resource 退避先 / primary visual surface 明記。E: 各 wireframe で「最初に見えるもの」「primary action」がラベル説明なしで成立。 |
+| `DESIGN-10_BACKBONE_WIREFRAMES` | `READY` | `ADOPT-00` | Build/Paint/Export + 支援 Catalog/Layers/Resources の wireframe（QA/Validate 除外） | `<plan_dir>/WIREFRAMES.md` | S: 各画面 ASCII wireframe / Resource 退避先 / primary visual surface 明記。E: 各 wireframe で「最初に見えるもの」「primary action」がラベル説明なしで成立。 |
 | `DESIGN-11_TAB_IA_AND_PRIORITY` | `BACKLOG` | `DESIGN-10` | tab IA：`Generate`→`Build`、Primary(Build/Paint)/支援(Catalog/Layers/Resources)/utility(Export/Settings)、QA/Validate は park 表示、top strip | `<plan_dir>/TAB_IA.md` | S: 分類表 + tab 間依存導線。E: top strip に現在の進行が見える設計。 |
 
 ---
@@ -53,7 +53,7 @@ plan_dir 規約: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GEN
 
 | id | status | deps | deliverable | target files | acceptance |
 |---|---|---|---|---|---|
-| `GRAPH-10_MODEL_AND_HEADLESS_PASSES` | `BACKLOG` | `ADOPT-00` | Node/Port/Edge の Dictionary model + 型検証 + 各 node type の headless pass + Source ノード | `addons/hex_map_kit/generation/`（新規）, `tests/test_generation_graph.gd` | S: port 4型(terrain/selection/overlay/result) / invalid edge 検証 / 新 generation engine 無し(core static 再利用)。E(headless): `Shape→Wall→Connectivity` run→連結 floor の `HexMapData`、`Filter→ItemGen` run→selection 限定の `HexOverlayData`。`./tools/test.sh`。 |
+| `GRAPH-10_MODEL_AND_HEADLESS_PASSES` | `READY` | `ADOPT-00` | Node/Port/Edge の Dictionary model + 型検証 + 各 node type の headless pass + Source ノード | `addons/hex_map_kit/generation/`（新規）, `tests/test_generation_graph.gd` | S: port 4型(terrain/selection/overlay/result) / invalid edge 検証 / 新 generation engine 無し(core static 再利用)。E(headless): `Shape→Wall→Connectivity` run→連結 floor の `HexMapData`、`Filter→ItemGen` run→selection 限定の `HexOverlayData`。`./tools/test.sh`。 |
 | `GRAPH-11_BUILD_TAB_GRAPH_CANVAS` | `BACKLOG` | `GRAPH-10`, `DESIGN-10` | Build tab に graph canvas / node palette / selected node inspector / output preview / run | `addons/hex_map_kit/editor/`（build canvas）, tests | S: inspector が Resource ref 参照 / canvas が主・Resource row 非主役。E: Build tab を開いた最初が graph canvas / 3 node を接続 / 中間 output を preview。 |
 | `GRAPH-12_VERTICAL_SLICE_THREE_NODE_CHAIN` ★ | `BACKLOG` | `GRAPH-11` | `Shape→Wall→Connectivity →Region Filter→ Item Generator →Promote` が editor で1本通る | editor + generation + tests | S: 中間 selection を次 node 入力へ接続 / Promote 後に Document 層が実在。E: 「floor∩spawn距離≤3」→weighted item→中間preview→Promote→Document に使える層。**これが動くまで Graph を `COMPLETE` にしない**。 |
 | `GRAPH-13_RUN_UX` | `BACKLOG` | `GRAPH-12` | run engine（DAG topo+cache+dirty）/ Generate(N=1) 頭出し / N・randomize 降格 | editor + generation + tests | S: topo 実行 + 中間 cache + dirty 伝播 / N default 1。E: primary `Generate` が上部明白 / 束生成(N>1) 副次 / 失敗 node 可視。 |
@@ -116,11 +116,11 @@ Codex は self-review で nonblocking work を見つけたらここに `follow-u
 
 ## 10. Current pointer
 
-Current recommended next task: `ADOPT-00_BASELINES_AND_ACCEPTANCE_GATE`。
+Current recommended next task: `GRAPH-10_MODEL_AND_HEADLESS_PASSES`（並行で `DESIGN-10_BACKBONE_WIREFRAMES`）。
 
 理由:
-- 二層 DoD gate を先に固定しないと、以降の UI/graph task が旧来の「存在/test 型」で `COMPLETE` され、前回の失敗を再発する。
-- `ADOPT-00` 完了後、`DESIGN-10` と `GRAPH-10` が並行 `READY` 化可能（`GRAPH-10` は headless で背骨連鎖を先に証明できる）。
+- `ADOPT-00` は `COMPLETE`：二層 DoD gate を self-review template / queue rules / planning policy へ実装し、QA park を規則化（proof は `PROOF_LOG.md`）。
+- `DESIGN-10` と `GRAPH-10` が `READY`。`GRAPH-10` は headless で背骨の連鎖を先に証明できるため最優先推奨。
 
 実行順（Roadmap §5）:
 ```

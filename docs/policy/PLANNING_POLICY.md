@@ -204,6 +204,8 @@ C3以上で、複数の依存や test proof がある場合に追加する。C4/
 - task の完了状態が test または review で確認できるか。
 - 旧互換や旧 UI を理由なく守っていないか。
 - 未決事項を`SUB_TASKS.md`に移して責務分割できているか。
+- UI/graph task は **experiential DoD**（最初に見えるもの / 触れる primary action / graph は中間→次node→Promote の chain が通る）を planned completion criteria に含むか（`docs/process/QUEUE_OPERATION_RULES.md` two-layer DoD gate 準拠）。
+- baseline（`docs/design/PRODUCT_DEFINITION.md` / `docs/design/GENERATION_GRAPH_MODEL.md`）と矛盾しないか。QA/Validate を中心化していないか。
 
 `SUB_TASKS.md` が存在する場合確認する:
 

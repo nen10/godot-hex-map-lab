@@ -29,6 +29,19 @@ Use `none` when there is no deviation.
 |---|---|---|
 |  |  |  |
 
+## Experiential DoD (UI / graph task)
+
+UI/graph task は structural DoD（構造・型・test）に加えて experiential DoD を満たすこと。非 UI task は `not applicable` + 理由。
+
+| item | result | evidence |
+|---|---|---|
+| What user sees first |  | tab/画面を開いた最初に見えるもの（ラベル列でないこと） |
+| What user can do |  | 触れる primary action と、その結果 |
+| (graph task) chain runs |  | 中間 output → 次 node → Promote が editor / headless で通る |
+| Label-heavy but metrics pass |  | `no` であること（ラベル依存で画面を説明していない） |
+
+両方の DoD を満たさない UI/graph task は `COMPLETE` にしない（`docs/process/QUEUE_OPERATION_RULES.md` two-layer DoD gate）。
+
 ## UI Metric Review
 
 For UI-facing tasks, record the metric report from `./tools/test.sh`.

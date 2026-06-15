@@ -68,6 +68,18 @@ proof:
 
 UI-facing task の completion proof は self-review または test result に UI metric report path と P0 failures = 0 を含める。P1 issue count は report-only として記録するが、active roadmap が P1 gating を有効化した場合はその条件を proof に含める。
 
+## Two-layer DoD gate (UI / graph task)
+
+UI/graph task の `COMPLETE` は **structural DoD（構造・型・test）と experiential DoD（最初に何が見え、何を触ると何が起こるか）の両方**を満たすこと。self-review に `What user sees first` / `What user can do` を必須記録する（`docs/review/autopilot/SELF_REVIEW_TEMPLATE.md`）。graph task は experiential DoD に「中間 output → 次 node → Promote の chain が editor または headless で通る」を含む。
+
+- `label-heavy but metrics pass`（ラベル依存で画面を説明している）は `COMPLETE` 不可。
+- UI metric は回帰検知の補助であり、単独の合格根拠にしない。
+- baseline: `docs/design/PRODUCT_DEFINITION.md` §8 / `docs/design/GENERATION_GRAPH_MODEL.md`。
+
+## QA / Validate park
+
+QA / Validate は park（製品目標でない）。中心化・他 tab への波及（侵食）を proof / acceptance の根拠にしない。自律的存続・改修は可。`docs/design/PRODUCT_DEFINITION.md` §0/§7 準拠。
+
 ## Phase review matrix
 
 Phase を閉じる、または queue pointer を次 phase へ進める前に、phase review matrix を作成する。
