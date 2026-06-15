@@ -64,18 +64,11 @@ static func catalog_ownership(catalog_entry_management_visible: bool = false) ->
 
 
 static func context_chips(view_state: Dictionary) -> Array:
-	var document_status := String(view_state.get("document_status", "none"))
 	var layer_name := String(view_state.get("active_layer_name", ""))
 	var layer_role := String(view_state.get("active_layer_role", ""))
 	var brush_mode := String(view_state.get("brush_mode_label", view_state.get("brush_mode", "")))
 	var brush_key := String(view_state.get("brush_key", ""))
 	return [
-		{
-			"id": "map",
-			"label": "Map",
-			"value": document_status,
-			"ready": bool(view_state.get("document_present", false)),
-		},
 		{
 			"id": "layer",
 			"label": "Layer",

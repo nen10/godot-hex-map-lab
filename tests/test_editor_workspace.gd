@@ -87,6 +87,15 @@ func _test_workspace_selected_hex_tile_map_auto_binding() -> void:
 	_assert_true(String(selected_resources_summary["visible_text"]).contains("SelectedHexTileMap"), "SCREEN-10 Resources summary names selected HexTileMap")
 	_assert_true(not String(selected_resources_summary["visible_text"]).contains("/"), "SCREEN-10 Resources summary omits node path")
 	_assert_true((selected_resources_snapshot["next_actions"] as PackedStringArray).has("Choose a save folder"), "SCREEN-10 Resources exposes missing-resource save-folder next action")
+	var selected_resource_shelf = selected_resources_snapshot["resources_shelf"] as Dictionary
+	_assert_eq(String(selected_resource_shelf["surface_id"]), "resource_shelf", "RESCTX-42 Resources uses asset shelf surface")
+	_assert_true(bool(selected_resource_shelf["primary"]), "RESCTX-42 Resources shelf is primary")
+	_assert_true(String(selected_resource_shelf["selected_hex_tile_map_chip_text"]).contains("SelectedHexTileMap"), "RESCTX-42 Resources chip names selected HexTileMap")
+	_assert_true(not bool(selected_resource_shelf["global_map_chip_duplicated"]), "RESCTX-42 Resources does not duplicate global Map chip")
+	var selected_unique_card = selected_resource_shelf["unique_card"] as Dictionary
+	_assert_eq(String(selected_unique_card["title"]), "Unique to this map", "RESCTX-42 Resources Unique card title is visible")
+	_assert_true(not bool(selected_resources_snapshot["resources_readiness_label_visible"]), "RESCTX-42 Resources removes readiness label")
+	_assert_true(not bool(selected_resources_snapshot["resources_next_actions_label_visible"]), "RESCTX-42 Resources removes next-actions label")
 	var selected_source_badges = _rows_by_slot(selected_resources_snapshot["source_badge_rows"] as Array)
 	_assert_eq(String((selected_source_badges[HexMapWorkspaceAssetContext.SLOT_LAYER_STACK] as Dictionary)["source_badge"]), "Node", "SCREEN-10 Resources marks selected node Layer Stack as Node source")
 	_assert_eq(String((selected_source_badges[HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT] as Dictionary)["source_badge"]), "Missing", "SCREEN-10 Resources marks missing Level Document source")
@@ -1456,6 +1465,18 @@ func _test_workspace_tab_purpose_empty_states_route_to_project_actions() -> void
 
 	var resource_actions = (snapshots["Resources"] as Dictionary)["empty_state"]["next_actions"] as PackedStringArray
 	_assert_true(resource_actions.has("Select a HexTileMap node"), "INFO-71 Resources next action points to node selection")
+	var work_snapshots := snapshots.duplicate()
+	work_snapshots["Build"] = workspace.generation_screen_snapshot()
+	var work_tab_names := PackedStringArray(["Build", "Paint", "Catalog", "Layers", "Validate", "QA", "Export"])
+	for work_tab_name in work_tab_names:
+		var work_snapshot = work_snapshots[work_tab_name] as Dictionary
+		var chip_texts := _context_chip_texts(work_snapshot)
+		_assert_true(chip_texts.size() > 0, "RESCTX-42 %s exposes context chips" % work_tab_name)
+		_assert_true(bool(work_snapshot.get("context_chips_visible", false)), "RESCTX-42 %s marks context chips visible" % work_tab_name)
+		_assert_eq(String(work_snapshot.get("context_chips_detail_target", "")), "Resources", "RESCTX-42 %s details route to Resources" % work_tab_name)
+		_assert_true(not bool(work_snapshot.get("global_map_chip_duplicated", true)), "RESCTX-42 %s does not duplicate global Map chip" % work_tab_name)
+		for chip_text in chip_texts:
+			_assert_true(not String(chip_text).begins_with("Map:"), "RESCTX-42 %s context chips exclude Map" % work_tab_name)
 	var catalog_actions = (snapshots["Catalog"] as Dictionary)["empty_state"]["next_actions"] as PackedStringArray
 	_assert_true(catalog_actions.has("Select or create a Tile Catalog"), "INFO-71 Catalog next action points to project catalog")
 	var paint_actions = (snapshots["Paint"] as Dictionary)["empty_state"]["next_actions"] as PackedStringArray
@@ -1552,3 +1573,22 @@ func _test_workspace_asset_remaining_actions_are_wired_or_deleted() -> void:
 	sample_control.queue_free()
 	workspace.queue_free()
 	await process_frame
+
+
+func _context_chip_texts(snapshot: Dictionary) -> PackedStringArray:
+	var result := PackedStringArray()
+	var chips_value = snapshot.get("context_chips", [])
+	if chips_value is PackedStringArray:
+		for chip_text in chips_value:
+			result.append(String(chip_text))
+		return result
+	var chips = chips_value as Array
+	for chip in chips:
+		if chip is Dictionary:
+			result.append("%s: %s" % [
+				String((chip as Dictionary).get("label", "")),
+				String((chip as Dictionary).get("value", "")),
+			])
+		else:
+			result.append(String(chip))
+	return result

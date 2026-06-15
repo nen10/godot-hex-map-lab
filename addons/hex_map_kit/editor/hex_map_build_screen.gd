@@ -360,6 +360,10 @@ func build_screen_snapshot() -> Dictionary:
 		"shape_randomize": _shape_randomize_check != null and _shape_randomize_check.button_pressed,
 		"status_text": _status_label.text if _status_label != null else "",
 		"context_text": _context_label.text if _context_label != null else "",
+		"context_chips": _build_context_chips(),
+		"context_chips_visible": _context_label != null,
+		"context_chips_text": _context_label.text if _context_label != null else "",
+		"global_map_chip_duplicated": false,
 		"canvas": canvas_snapshot,
 		"run_state": run_state,
 		"cache_ready": bool(run_state.get("cache_ready", false)),
@@ -568,16 +572,37 @@ func _on_graph_run_cancel_check(status: Dictionary) -> bool:
 func _refresh_context() -> void:
 	if _context_label == null:
 		return
-	var map_text := "Map: choose"
-	var catalog_text := "Catalog: choose"
-	var target_text := "Target: generated terrain"
-	if _workspace_asset_context != null:
-		if _workspace_asset_context.level_document != null:
-			map_text = "Map: Level Document"
-		if _workspace_asset_context.tile_catalog != null:
-			catalog_text = "Catalog: linked"
-	_context_label.text = "( %s ) ( %s ) ( %s )" % [map_text, catalog_text, target_text]
+	var chips := PackedStringArray()
+	for chip in _build_context_chips():
+		var chip_data := chip as Dictionary
+		chips.append("%s: %s" % [String(chip_data.get("label", "")), String(chip_data.get("value", ""))])
+	_context_label.text = "( %s )" % " ) ( ".join(chips)
 	_refresh_profile_options()
+
+
+func _build_context_chips() -> Array[Dictionary]:
+	var catalog_ready := _workspace_asset_context != null and _workspace_asset_context.tile_catalog != null
+	var graph_ready := _context_hex_tile_map_layer != null and _context_hex_tile_map_layer.generation_graph_resource != null
+	return [
+		{
+			"id": "catalog",
+			"label": "Catalog",
+			"value": "linked" if catalog_ready else "choose",
+			"ready": catalog_ready,
+		},
+		{
+			"id": "target",
+			"label": "Target",
+			"value": "generated terrain",
+			"ready": true,
+		},
+		{
+			"id": "graph",
+			"label": "Graph",
+			"value": "ready" if graph_ready else "new",
+			"ready": graph_ready,
+		},
+	]
 
 
 func _refresh_profile_options() -> void:

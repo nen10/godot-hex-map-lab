@@ -17,6 +17,7 @@ static func screen_contract() -> Dictionary:
 		"user_task": USER_TASK,
 		"owns": PackedStringArray([
 			"selected_hex_tile_map_context",
+			"resource_shelf",
 			"level_document",
 			"document_dependencies",
 			"missing_unique_resources",
@@ -44,23 +45,25 @@ static func component_owner_rows() -> Array[Dictionary]:
 static func build_resources_context_panel(resource_groups: Array) -> Dictionary:
 	var panel := _panel("Resources Context Panel", "resources_context_panel", "build_resources_context_panel")
 	var title := Label.new()
-	title.text = "Selected HexTileMap Resources"
+	title.text = "Resource Shelf"
 	panel.add_child(title)
 
 	var status_label := _wrapped_label()
+	status_label.name = "Selected HexTileMap Chip"
 	panel.add_child(status_label)
 
-	var readiness_label := _wrapped_label()
-	readiness_label.name = "Resources Readiness Summary"
-	panel.add_child(readiness_label)
+	var shelf_status_label := _wrapped_label()
+	shelf_status_label.name = "Resource Shelf Status"
+	panel.add_child(shelf_status_label)
 
 	var group_labels := {}
 	for group in resource_groups:
 		var group_data := group as Dictionary
 		var group_id := String(group_data.get("group_id", ""))
 		var label := _wrapped_label()
+		label.name = "Resource Shelf Card %s" % group_id
 		var slot_labels = group_data.get("slot_labels", PackedStringArray()) as PackedStringArray
-		label.text = "%s: %s" % [
+		label.text = "%s\n%s" % [
 			String(group_data.get("label", "")),
 			_join_text(slot_labels, ", "),
 		]
@@ -68,19 +71,11 @@ static func build_resources_context_panel(resource_groups: Array) -> Dictionary:
 		panel.add_child(label)
 		group_labels[group_id] = label
 
-	var source_badges_label := _wrapped_label()
-	panel.add_child(source_badges_label)
-
-	var next_actions_label := _wrapped_label()
-	panel.add_child(next_actions_label)
-
 	return {
 		"root": panel,
 		"status_label": status_label,
-		"readiness_label": readiness_label,
+		"shelf_status_label": shelf_status_label,
 		"group_labels": group_labels,
-		"source_badges_label": source_badges_label,
-		"next_actions_label": next_actions_label,
 	}
 
 
@@ -115,9 +110,22 @@ static func build_missing_unique_resources_panel() -> Dictionary:
 	prefix_row.add_child(prefix_edit)
 	panel.add_child(prefix_row)
 
+	var primary_row := HBoxContainer.new()
+	primary_row.name = "Resources Primary Actions"
+	primary_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.add_child(primary_row)
+
 	var create_button := Button.new()
 	create_button.text = "Create Missing Resources"
-	panel.add_child(create_button)
+	create_button.custom_minimum_size = Vector2(0, 44)
+	create_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	primary_row.add_child(create_button)
+
+	var save_all_button := Button.new()
+	save_all_button.text = "Save All"
+	save_all_button.custom_minimum_size = Vector2(0, 44)
+	save_all_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	primary_row.add_child(save_all_button)
 
 	return {
 		"root": panel,
@@ -126,6 +134,7 @@ static func build_missing_unique_resources_panel() -> Dictionary:
 		"choose_directory_button": choose_directory_button,
 		"prefix_edit": prefix_edit,
 		"create_button": create_button,
+		"save_all_button": save_all_button,
 	}
 
 

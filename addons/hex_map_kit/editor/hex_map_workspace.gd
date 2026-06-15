@@ -60,6 +60,7 @@ var _selected_hex_tile_map_status_label: Label
 var _selected_hex_tile_map_auto_link_label: Label
 var _resources_context_panel: VBoxContainer
 var _resources_context_status_label: Label
+var _resources_shelf_status_label: Label
 var _resources_readiness_label: Label
 var _resources_context_next_actions_label: Label
 var _resources_source_badges_label: Label
@@ -95,6 +96,7 @@ var _missing_unique_resources_save_directory_label: Label
 var _missing_unique_resources_prefix_edit: LineEdit
 var _missing_unique_resources_choose_directory_button: Button
 var _missing_unique_resources_create_button: Button
+var _resources_save_all_button: Button
 var _missing_unique_resources_save_directory := ""
 var _build_screen: HexMapBuildScreen
 var _generation_dock: HexMapGenDock
@@ -318,6 +320,13 @@ func generation_screen_snapshot() -> Dictionary:
 		build_snapshot["component_ids"] = tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_GENERATE)
 		build_snapshot["asset_slot_ids"] = tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_GENERATE)
 		build_snapshot["purpose_text"] = "Build a generation graph and inspect node outputs."
+		var build_context_chips := _work_tab_context_chips(HexMapWorkspaceComponentRegistry.TAB_GENERATE)
+		build_snapshot["context_chips"] = build_context_chips
+		build_snapshot["context_chips_visible"] = true
+		build_snapshot["context_chips_text"] = _join_text(build_context_chips, " ")
+		build_snapshot["context_chips_detail_target"] = HexMapWorkspaceComponentRegistry.TAB_DOCUMENT
+		build_snapshot["global_map_chip_duplicated"] = false
+		build_snapshot["resource_row_primary"] = false
 		build_snapshot["empty_state"] = _tab_empty_state(
 			HexMapWorkspaceComponentRegistry.TAB_GENERATE,
 			"Build a generation graph and inspect node outputs.",
@@ -372,6 +381,12 @@ func generation_screen_snapshot() -> Dictionary:
 		"tab": HexMapWorkspaceComponentRegistry.TAB_GENERATE,
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_GENERATE),
 		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_GENERATE),
+		"context_chips": _work_tab_context_chips(HexMapWorkspaceComponentRegistry.TAB_GENERATE),
+		"context_chips_visible": true,
+		"context_chips_text": _join_text(_work_tab_context_chips(HexMapWorkspaceComponentRegistry.TAB_GENERATE), " "),
+		"context_chips_detail_target": HexMapWorkspaceComponentRegistry.TAB_DOCUMENT,
+		"global_map_chip_duplicated": false,
+		"resource_row_primary": false,
 		"purpose_text": String(empty_state.get("purpose_text", "")),
 		"empty_state": empty_state,
 		"empty_state_text": String(empty_state.get("empty_state_text", "")),
@@ -1025,6 +1040,40 @@ func create_missing_selected_hex_tile_map_resources(
 	return result
 
 
+func save_all_workspace_resources() -> Dictionary:
+	var context := workspace_asset_context()
+	var saved_slot_ids := PackedStringArray()
+	var failed_slot_ids := PackedStringArray()
+	for slot_id in [
+		HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT,
+		HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG,
+		HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE,
+		HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE,
+		HexMapWorkspaceAssetContext.SLOT_LAYER_STACK,
+		HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE,
+		HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE,
+		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE,
+		HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE,
+	]:
+		var actual_slot_id := String(slot_id)
+		var resource := context.asset_for_slot(actual_slot_id)
+		if resource == null or resource.resource_path == "":
+			continue
+		var error := ResourceSaver.save(resource, resource.resource_path)
+		if error == OK:
+			saved_slot_ids.append(actual_slot_id)
+		else:
+			failed_slot_ids.append(actual_slot_id)
+	_refresh_resources_context_panel()
+	_refresh_missing_unique_resources_panel()
+	return {
+		"ok": failed_slot_ids.is_empty(),
+		"saved_slot_ids": saved_slot_ids,
+		"failed_slot_ids": failed_slot_ids,
+		"saved_count": saved_slot_ids.size(),
+	}
+
+
 func viewport_input_enabled() -> bool:
 	return _edit_tool != null and _edit_tool.viewport_input_enabled()
 
@@ -1413,7 +1462,7 @@ func resources_screen_snapshot() -> Dictionary:
 	var groups := resource_group_rows()
 	var source_badge_rows := _resource_source_badge_rows(groups, selected_snapshot)
 	var next_actions := _resources_next_actions(selected_snapshot, missing_snapshot)
-	var visual_summary := _resources_visual_summary(selected_snapshot, groups, source_badge_rows, next_actions)
+	var resource_shelf := _resources_shelf_snapshot(selected_snapshot, missing_snapshot, groups, source_badge_rows)
 	var document_slot := tab_asset_slot_snapshot(
 		HexMapWorkspaceComponentRegistry.TAB_DOCUMENT,
 		HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT
@@ -1428,6 +1477,7 @@ func resources_screen_snapshot() -> Dictionary:
 		"component_ids": tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_DOCUMENT),
 		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_DOCUMENT),
 		"purpose_text": String(empty_state.get("purpose_text", "")),
+		"first_surface": "resource_shelf",
 		"empty_state": empty_state,
 		"empty_state_text": String(empty_state.get("empty_state_text", "")),
 		"dependency_slot_ids": PackedStringArray([
@@ -1456,17 +1506,34 @@ func resources_screen_snapshot() -> Dictionary:
 		"last_dependency_hydration": _last_document_dependency_hydration.duplicate(true),
 		"selected_hex_tile_map": selected_snapshot,
 		"selected_hex_tile_map_summary": _selected_hex_tile_map_summary(selected_snapshot, missing_snapshot),
-		"resources_visual_summary": visual_summary,
-		"resources_readiness_rows": visual_summary.get("readiness_rows", []),
+		"context_chips": resource_shelf.get("context_chips", PackedStringArray()),
+		"context_chips_visible": bool(resource_shelf.get("context_chips_visible", true)),
+		"context_chips_text": String(resource_shelf.get("context_chips_text", "")),
+		"resources_shelf": resource_shelf,
+		"resource_shelf": resource_shelf,
+		"resource_shelf_primary": bool(resource_shelf.get("primary", false)),
+		"resource_shelf_cards": resource_shelf.get("group_cards", []),
+		"resource_shelf_group_ids": resource_shelf.get("group_ids", PackedStringArray()),
+		"resource_shelf_selected_hex_tile_map_chip": String(resource_shelf.get("selected_hex_tile_map_chip_text", "")),
+		"resources_visual_summary": resource_shelf,
+		"resources_readiness_rows": [],
 		"mounted_resources_readiness_text": _resources_readiness_label.text if _resources_readiness_label != null else "",
+		"resources_readiness_label_visible": false,
+		"resources_next_actions_label_visible": false,
+		"resources_source_badges_label_visible": false,
+		"resource_rows_primary": false,
 		"resource_groups": groups,
 		"source_badge_rows": source_badge_rows,
 		"source_badge_explanations": _resource_source_badge_explanations(),
 		"missing_unique_resources": missing_snapshot,
 		"next_actions": next_actions,
-		"clear_next_actions_beyond_resource_rows": not next_actions.is_empty(),
+		"clear_next_actions_beyond_resource_rows": false,
+		"create_missing_resources_cta": resource_shelf.get("create_missing_resources_cta", {}),
+		"create_missing_resources_primary_cta": true,
 		"create_missing_resources_available": _missing_unique_resources_create_button != null,
 		"create_missing_resources_button_text": _missing_unique_resources_create_button.text if _missing_unique_resources_create_button != null else "",
+		"save_all_cta": resource_shelf.get("save_all_cta", {}),
+		"save_all_button_text": _resources_save_all_button.text if _resources_save_all_button != null else "",
 	}
 
 
@@ -1514,66 +1581,204 @@ func _resources_next_actions(selected_snapshot: Dictionary, missing_snapshot: Di
 	return actions
 
 
-func _resources_visual_summary(
+func _resources_shelf_snapshot(
 	selected_snapshot: Dictionary,
+	missing_snapshot: Dictionary,
 	groups: Array,
-	source_badge_rows: Array,
-	next_actions: PackedStringArray
+	source_badge_rows: Array
 ) -> Dictionary:
 	var selected := bool(selected_snapshot.get("selected", false))
-	var document_ready := workspace_asset_context().level_document != null
-	var dependency_ready := 0
-	var dependency_total := 0
-	for row in source_badge_rows:
-		if not row is Dictionary:
-			continue
-		dependency_total += 1
-		if bool((row as Dictionary).get("selected", false)):
-			dependency_ready += 1
-	var rows: Array[Dictionary] = [
-		{
-			"id": "selected_node",
-			"label": "Node",
-			"status": "ready" if selected else "missing",
-			"visible_text": "Node: %s" % ("Selected" if selected else "Missing"),
-		},
-		{
-			"id": "level_document",
-			"label": "Level Document",
-			"status": "ready" if document_ready else "missing",
-			"visible_text": "Level Document: %s" % ("Ready" if document_ready else "Missing"),
-		},
-		{
-			"id": "dependency_groups",
-			"label": "Dependencies",
-			"status": "ready" if dependency_ready == dependency_total and dependency_total > 0 else "incomplete",
-			"visible_text": "Dependencies: %d/%d ready" % [dependency_ready, dependency_total],
-		},
-		{
-			"id": "next_actions",
-			"label": "Next",
-			"status": "ready" if next_actions.is_empty() else "action",
-			"visible_text": _resources_next_actions_text(next_actions),
-		},
-	]
-	var group_texts := PackedStringArray()
+	var selected_name := String(selected_snapshot.get("display_name", ""))
+	if selected_name == "":
+		selected_name = "None"
+	var group_cards: Array[Dictionary] = []
 	for group in groups:
 		if not group is Dictionary:
 			continue
-		group_texts.append("%s %s" % [
-			String((group as Dictionary).get("label", "")),
-			String((group as Dictionary).get("status_text", "")),
-		])
+		group_cards.append(_resource_shelf_group_card(group as Dictionary, source_badge_rows))
+	var context_chips := PackedStringArray(["Selected HexTileMap: %s" % selected_name])
+	var missing_count := int(missing_snapshot.get("missing_count", 0))
 	return {
-		"surface_id": "resources_readiness_board",
+		"surface_id": "resource_shelf",
 		"visible": true,
-		"readiness_rows": rows,
-		"group_summary_text": _join_text(group_texts, " | "),
-		"source_badge_text": _source_badge_rows_text(source_badge_rows),
-		"visible_text": _readiness_rows_text(rows),
-		"node_path_visible": false,
+		"primary": true,
+		"context_chips": context_chips,
+		"context_chips_visible": true,
+		"context_chips_text": _join_text(context_chips, " "),
+		"selected_hex_tile_map_chip_text": context_chips[0],
+		"global_map_chip_duplicated": false,
+		"group_cards": group_cards,
+		"group_ids": _resource_shelf_group_ids(group_cards),
+		"unique_card": _resource_shelf_card_for_group(group_cards, "unique"),
+		"shared_card": _resource_shelf_card_for_group(group_cards, "shared"),
+		"optional_card": _resource_shelf_card_for_group(group_cards, "optional"),
+		"card_count": group_cards.size(),
+		"resource_rows_primary": false,
+		"readiness_label_visible": false,
+		"next_actions_label_visible": false,
+		"source_badges_label_visible": false,
+		"create_missing_resources_cta": {
+			"visible": true,
+			"primary": true,
+			"text": "Create Missing Resources",
+			"enabled": selected and missing_count > 0,
+			"missing_count": missing_count,
+		},
+		"save_all_cta": {
+			"visible": true,
+			"text": "Save All",
+			"enabled": _workspace_has_saveable_resources(),
+		},
+		"empty_cta": {
+			"visible": not selected,
+			"primary_action": "Select a HexTileMap node",
+			"secondary_actions": PackedStringArray(["Create Level Document", "Choose Tile Catalog"]) if not selected else PackedStringArray(),
+		},
 		"primary_path_text_visible": false,
 	}
+
+
+func _resource_shelf_group_card(group: Dictionary, source_badge_rows: Array) -> Dictionary:
+	var group_id := String(group.get("group_id", ""))
+	var slots: Array[Dictionary] = []
+	var slot_rows = group.get("slot_status_rows", []) as Array
+	for row in slot_rows:
+		if not row is Dictionary:
+			continue
+		var slot_id := String((row as Dictionary).get("slot_id", ""))
+		var source_row := _source_badge_row_for_slot(source_badge_rows, slot_id)
+		slots.append({
+			"slot_id": slot_id,
+			"label": String((row as Dictionary).get("label", "")),
+			"present": bool((row as Dictionary).get("present", false)),
+			"status_badge": "Ready" if bool((row as Dictionary).get("present", false)) else "Missing",
+			"source_badge": String((row as Dictionary).get("source_badge", source_row.get("source_badge", "Missing"))),
+			"tooltip": String(source_row.get("tooltip", "")),
+		})
+	var missing_count := int(group.get("missing_count", 0))
+	return {
+		"group_id": group_id,
+		"title": _resource_shelf_group_title(group_id, String(group.get("label", ""))),
+		"status_badge": "Ready" if missing_count == 0 else "Missing: %d" % missing_count,
+		"ready_count": int(group.get("ready_count", 0)),
+		"missing_count": missing_count,
+		"slot_cards": slots,
+		"slot_labels": group.get("slot_labels", PackedStringArray()),
+		"tooltip": String(group.get("tooltip", "")),
+		"visible_text": "%s | %s" % [
+			_resource_shelf_group_title(group_id, String(group.get("label", ""))),
+			String(group.get("status_text", "")),
+		],
+		"primary_path_text_visible": false,
+	}
+
+
+func _resource_shelf_group_title(group_id: String, fallback: String) -> String:
+	match group_id:
+		"unique":
+			return "Unique to this map"
+		"shared":
+			return "Shared project assets"
+		"optional":
+			return "Optional"
+	return fallback
+
+
+func _source_badge_row_for_slot(rows: Array, slot_id: String) -> Dictionary:
+	for row in rows:
+		if row is Dictionary and String((row as Dictionary).get("slot_id", "")) == slot_id:
+			return row as Dictionary
+	return {}
+
+
+func _resource_shelf_group_ids(cards: Array) -> PackedStringArray:
+	var ids := PackedStringArray()
+	for card in cards:
+		if card is Dictionary:
+			ids.append(String((card as Dictionary).get("group_id", "")))
+	return ids
+
+
+func _resource_shelf_card_for_group(cards: Array, group_id: String) -> Dictionary:
+	for card in cards:
+		if card is Dictionary and String((card as Dictionary).get("group_id", "")) == group_id:
+			return card as Dictionary
+	return {}
+
+
+func _workspace_has_saveable_resources() -> bool:
+	var context := workspace_asset_context()
+	for slot_id in [
+		HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT,
+		HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG,
+		HexMapWorkspaceAssetContext.SLOT_OBJECT_DATABASE,
+		HexMapWorkspaceAssetContext.SLOT_LABEL_DATABASE,
+		HexMapWorkspaceAssetContext.SLOT_LAYER_STACK,
+		HexMapWorkspaceAssetContext.SLOT_MOVEMENT_PROFILE,
+		HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE,
+		HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE,
+		HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE,
+	]:
+		var resource := context.asset_for_slot(String(slot_id))
+		if resource != null and resource.resource_path != "":
+			return true
+	return false
+
+
+func _work_tab_context_chips(tab_name: String) -> PackedStringArray:
+	match HexMapWorkspaceComponentRegistry.canonical_tab_name(tab_name):
+		HexMapWorkspaceComponentRegistry.TAB_GENERATE:
+			return PackedStringArray([
+				_resource_context_chip(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, "Catalog"),
+				"Target: generated terrain",
+				"Graph: %s" % ("Ready" if _selected_hex_tile_map_has_graph_resource() else "New"),
+			])
+		HexMapWorkspaceComponentRegistry.TAB_CATALOG:
+			return PackedStringArray([
+				_resource_context_chip(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG, "Catalog"),
+			])
+		HexMapWorkspaceComponentRegistry.TAB_LAYERS:
+			return PackedStringArray([
+				_resource_context_chip(HexMapWorkspaceAssetContext.SLOT_LAYER_STACK, "Layer Stack"),
+				"Target: %s" % _selected_hex_tile_map_target_label(),
+			])
+		HexMapWorkspaceComponentRegistry.TAB_VALIDATE:
+			return PackedStringArray([
+				_resource_context_chip(HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE, "Suite"),
+				"Issues: %d" % (_last_workspace_validation_result.issue_count() if _last_workspace_validation_result != null else 0),
+			])
+		HexMapWorkspaceComponentRegistry.TAB_QA:
+			return PackedStringArray([
+				_resource_context_chip(HexMapWorkspaceAssetContext.SLOT_GENERATION_PROFILE, "Profile"),
+				_resource_context_chip(HexMapWorkspaceAssetContext.SLOT_VALIDATION_RULE_SUITE, "Suite"),
+				_resource_context_chip(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "Promotion"),
+			])
+		HexMapWorkspaceComponentRegistry.TAB_EXPORT:
+			return PackedStringArray([
+				_resource_context_chip(HexMapWorkspaceAssetContext.SLOT_EXPORT_PROFILE, "Profile"),
+				_resource_context_chip(HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT, "Source"),
+			])
+	return PackedStringArray()
+
+
+func _resource_context_chip(slot_id: String, label: String) -> String:
+	var resource := workspace_asset_context().asset_for_slot(slot_id)
+	var value := "Missing"
+	if resource != null:
+		value = resource.resource_name if resource.resource_name != "" else "Linked"
+	return "%s: %s" % [label, value]
+
+
+func _selected_hex_tile_map_has_graph_resource() -> bool:
+	var selected := _ensure_session_state().current_selected_hex_tile_map_layer()
+	return selected is HexTileMapLayer and (selected as HexTileMapLayer).generation_graph_resource != null
+
+
+func _selected_hex_tile_map_target_label() -> String:
+	var selected := _ensure_session_state().current_selected_hex_tile_map_layer()
+	if selected is HexTileMapLayer:
+		return selected.name if selected.name != "" else "HexTileMap"
+	return "None"
 
 
 func _resource_source_badge_rows(groups: Array, selected_snapshot: Dictionary) -> Array[Dictionary]:
@@ -1667,6 +1872,18 @@ func _source_badge_rows_text(rows: Array) -> String:
 		if not row is Dictionary:
 			continue
 		parts.append(String((row as Dictionary).get("visible_text", "")))
+	return _join_text(parts, " | ")
+
+
+func _resource_shelf_slot_cards_text(rows: Array) -> String:
+	var parts := PackedStringArray()
+	for row in rows:
+		if not row is Dictionary:
+			continue
+		parts.append("%s: %s" % [
+			String((row as Dictionary).get("label", "")),
+			String((row as Dictionary).get("source_badge", "")),
+		])
 	return _join_text(parts, " | ")
 
 
@@ -1785,6 +2002,12 @@ func validate_screen_snapshot() -> Dictionary:
 		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_VALIDATE),
 		"purpose_text": String(empty_state.get("purpose_text", "")),
 		"empty_state": empty_state,
+		"context_chips": _work_tab_context_chips(HexMapWorkspaceComponentRegistry.TAB_VALIDATE),
+		"context_chips_visible": true,
+		"context_chips_text": _join_text(_work_tab_context_chips(HexMapWorkspaceComponentRegistry.TAB_VALIDATE), " "),
+		"context_chips_detail_target": HexMapWorkspaceComponentRegistry.TAB_DOCUMENT,
+		"global_map_chip_duplicated": false,
+		"resource_row_primary": false,
 		"validation_state": validation_state,
 		"view_state": validation_state.get("view_state", {}),
 		"validation_progress_state": validation_progress_state,
@@ -2239,6 +2462,12 @@ func catalog_screen_snapshot() -> Dictionary:
 		"catalog_context_chips": PackedStringArray([
 			"Catalog: %s" % _catalog_display_name(catalog),
 		]),
+		"context_chips": _work_tab_context_chips(HexMapWorkspaceComponentRegistry.TAB_CATALOG),
+		"context_chips_visible": true,
+		"context_chips_text": _join_text(_work_tab_context_chips(HexMapWorkspaceComponentRegistry.TAB_CATALOG), " "),
+		"context_chips_detail_target": HexMapWorkspaceComponentRegistry.TAB_DOCUMENT,
+		"global_map_chip_duplicated": false,
+		"resource_row_primary": false,
 		"catalog_source": catalog_source,
 		"catalog_source_badge": catalog_source_badge,
 		"catalog_slot": catalog_slot,
@@ -2452,9 +2681,7 @@ func layer_stack_screen_snapshot() -> Dictionary:
 		relationship,
 		String(role_editor.get("selected_role", ""))
 	)
-	var selected_map_name := String(relationship.get("selected_node_name", ""))
-	if selected_map_name == "":
-		selected_map_name = "None"
+	var layer_context_chips := _work_tab_context_chips(HexMapWorkspaceComponentRegistry.TAB_LAYERS)
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_LAYERS,
 		"screen_role": screen_role,
@@ -2468,10 +2695,13 @@ func layer_stack_screen_snapshot() -> Dictionary:
 		"empty_state": empty_state,
 		"empty_state_text": String(empty_state.get("empty_state_text", "")),
 		"layer_stack": stack,
-		"layer_context_chips": PackedStringArray([
-			"Layer Stack: %s" % _layer_stack_display_label(stack),
-			"Map: %s" % selected_map_name,
-		]),
+		"layer_context_chips": layer_context_chips,
+		"context_chips": layer_context_chips,
+		"context_chips_visible": true,
+		"context_chips_text": _join_text(layer_context_chips, " "),
+		"context_chips_detail_target": HexMapWorkspaceComponentRegistry.TAB_DOCUMENT,
+		"global_map_chip_duplicated": false,
+		"resource_row_primary": false,
 		"layer_stack_slot": stack_slot,
 		"role_component_present": tab_has_component(HexMapWorkspaceComponentRegistry.TAB_LAYERS, "layer_stack_role_panel"),
 		"role_stack_visual_component_present": tab_has_component(HexMapWorkspaceComponentRegistry.TAB_LAYERS, "layer_role_stack_visual"),
@@ -3196,6 +3426,8 @@ func paint_brush_screen_snapshot() -> Dictionary:
 		"context_chips": paint_workspace.get("context_chips", []),
 		"context_chips_visible": bool(paint_workspace.get("context_chips_visible", false)),
 		"context_chips_text": String(paint_workspace.get("context_chips_text", "")),
+		"context_chips_detail_target": HexMapWorkspaceComponentRegistry.TAB_DOCUMENT,
+		"global_map_chip_duplicated": false,
 		"brush_palette": paint_workspace.get("brush_palette", {}),
 		"brush_palette_visible": bool(paint_workspace.get("brush_palette_visible", false)),
 		"brush_shape_controls": paint_workspace.get("brush_shape_controls", {}),
@@ -3301,6 +3533,12 @@ func qa_screen_snapshot() -> Dictionary:
 		"purpose_text": String(empty_state.get("purpose_text", "")),
 		"empty_state": empty_state,
 		"empty_state_text": String(empty_state.get("empty_state_text", "")),
+		"context_chips": _work_tab_context_chips(HexMapWorkspaceComponentRegistry.TAB_QA),
+		"context_chips_visible": true,
+		"context_chips_text": _join_text(_work_tab_context_chips(HexMapWorkspaceComponentRegistry.TAB_QA), " "),
+		"context_chips_detail_target": HexMapWorkspaceComponentRegistry.TAB_DOCUMENT,
+		"global_map_chip_duplicated": false,
+		"resource_row_primary": false,
 		"generate_role_text": "Generate previews one candidate; QA compares seed batches and adopts a winner.",
 		"seed_lab_component_present": tab_has_component(HexMapWorkspaceComponentRegistry.TAB_QA, "qa_seed_lab_panel"),
 		"qa_workflow_owner": String(ownership.get("qa_workflow_owner", "QA")),
@@ -3786,6 +4024,12 @@ func export_screen_snapshot() -> Dictionary:
 		"purpose_text": String(empty_state.get("purpose_text", "")),
 		"empty_state": empty_state,
 		"empty_state_text": String(empty_state.get("empty_state_text", "")),
+		"context_chips": _work_tab_context_chips(HexMapWorkspaceComponentRegistry.TAB_EXPORT),
+		"context_chips_visible": true,
+		"context_chips_text": _join_text(_work_tab_context_chips(HexMapWorkspaceComponentRegistry.TAB_EXPORT), " "),
+		"context_chips_detail_target": HexMapWorkspaceComponentRegistry.TAB_DOCUMENT,
+		"global_map_chip_duplicated": false,
+		"resource_row_primary": false,
 		"export_state": export_state,
 		"view_state": export_view_state,
 		"purpose_component_present": tab_has_component(HexMapWorkspaceComponentRegistry.TAB_EXPORT, "export_purpose_panel"),
@@ -4331,6 +4575,7 @@ func _mount_resources_context_panel() -> void:
 	var built := HexMapResourcesScreen.build_resources_context_panel(resource_group_rows())
 	_resources_context_panel = built.get("root", null) as VBoxContainer
 	_resources_context_status_label = built.get("status_label", null) as Label
+	_resources_shelf_status_label = built.get("shelf_status_label", null) as Label
 	_resources_readiness_label = built.get("readiness_label", null) as Label
 	_resources_group_labels = built.get("group_labels", {}) as Dictionary
 	_resources_source_badges_label = built.get("source_badges_label", null) as Label
@@ -4452,6 +4697,9 @@ func _mount_missing_unique_resources_panel() -> void:
 	_missing_unique_resources_prefix_edit.text_changed.connect(_on_missing_unique_resources_prefix_changed)
 	_missing_unique_resources_create_button = built.get("create_button", null) as Button
 	_missing_unique_resources_create_button.pressed.connect(_on_create_missing_unique_resources_pressed)
+	_resources_save_all_button = built.get("save_all_button", null) as Button
+	if _resources_save_all_button != null:
+		_resources_save_all_button.pressed.connect(_on_resources_save_all_pressed)
 
 	(page as Control).add_child(_missing_unique_resources_panel)
 	_register_tab_component(
@@ -5801,6 +6049,10 @@ func _on_create_missing_unique_resources_pressed() -> void:
 	)
 
 
+func _on_resources_save_all_pressed() -> void:
+	save_all_workspace_resources()
+
+
 func _apply_selected_hex_tile_map_to_edit_tool() -> void:
 	if _edit_tool == null:
 		return
@@ -5879,33 +6131,37 @@ func _refresh_resources_context_panel() -> void:
 		return
 	var screen := resources_screen_snapshot()
 	var snapshot = screen.get("selected_hex_tile_map", {}) as Dictionary
-	var summary = screen.get("selected_hex_tile_map_summary", {}) as Dictionary
+	var shelf = screen.get("resources_shelf", {}) as Dictionary
 	var empty_state := _resources_tab_empty_state()
 	if _resources_context_status_label != null:
-		_resources_context_status_label.text = _empty_state_inline_text(empty_state) \
-			if bool(empty_state.get("visible", false)) else String(summary.get("visible_text", "No HexTileMap selected"))
+		_resources_context_status_label.text = String(shelf.get("selected_hex_tile_map_chip_text", "Selected HexTileMap: None"))
 		_resources_context_status_label.tooltip_text = String(empty_state.get("help_tooltip", _selected_hex_tile_map_tooltip(snapshot)))
+	if _resources_shelf_status_label != null:
+		_resources_shelf_status_label.text = "Unique / Shared / Optional"
+		_resources_shelf_status_label.tooltip_text = "Resources is the asset shelf. Work tabs show context chips and link details back here."
 	if _resources_readiness_label != null:
-		var visual_summary = screen.get("resources_visual_summary", {}) as Dictionary
-		_resources_readiness_label.text = String(visual_summary.get("visible_text", ""))
-		_resources_readiness_label.tooltip_text = "Resources readiness groups selected node, Level Document, dependencies, and next action."
-	var groups = screen.get("resource_groups", []) as Array
-	for group in groups:
-		var group_id := String(group.get("group_id", ""))
+		_resources_readiness_label.text = ""
+		_resources_readiness_label.visible = false
+	var group_cards = shelf.get("group_cards", []) as Array
+	for card in group_cards:
+		if not card is Dictionary:
+			continue
+		var group_id := String((card as Dictionary).get("group_id", ""))
 		var label = _resources_group_labels.get(group_id, null) as Label
 		if label == null:
 			continue
-		label.text = "%s: %s" % [
-			String(group.get("label", "")),
-			String(group.get("status_text", "")),
+		label.text = "%s\n%s\n%s" % [
+			String((card as Dictionary).get("title", "")),
+			String((card as Dictionary).get("status_badge", "")),
+			_resource_shelf_slot_cards_text((card as Dictionary).get("slot_cards", []) as Array),
 		]
-		label.tooltip_text = String(group.get("tooltip", ""))
+		label.tooltip_text = String((card as Dictionary).get("tooltip", ""))
 	if _resources_source_badges_label != null:
-		_resources_source_badges_label.text = "Sources: %s" % _source_badge_rows_text(screen.get("source_badge_rows", []) as Array)
-		_resources_source_badges_label.tooltip_text = "Source badges explain ownership; paths stay in row tooltips and debug reports."
+		_resources_source_badges_label.text = ""
+		_resources_source_badges_label.visible = false
 	if _resources_context_next_actions_label != null:
-		var next_actions = screen.get("next_actions", PackedStringArray()) as PackedStringArray
-		_resources_context_next_actions_label.text = _resources_next_actions_text(next_actions)
+		_resources_context_next_actions_label.text = ""
+		_resources_context_next_actions_label.visible = false
 
 
 func _refresh_catalog_detail_panel() -> void:
@@ -6568,6 +6824,11 @@ func _refresh_missing_unique_resources_panel() -> void:
 	if _missing_unique_resources_create_button != null:
 		_missing_unique_resources_create_button.disabled = not bool(snapshot.get("can_create", false))
 		_missing_unique_resources_create_button.tooltip_text = String(snapshot.get("create_button_tooltip", ""))
+	if _resources_save_all_button != null:
+		var shelf = resources_screen_snapshot().get("resources_shelf", {}) as Dictionary
+		var save_all_cta = shelf.get("save_all_cta", {}) as Dictionary
+		_resources_save_all_button.disabled = not bool(save_all_cta.get("enabled", false))
+		_resources_save_all_button.tooltip_text = "Save all selected project resources that already have paths."
 
 
 func _selected_hex_tile_map_status_text(layer: Node) -> String:

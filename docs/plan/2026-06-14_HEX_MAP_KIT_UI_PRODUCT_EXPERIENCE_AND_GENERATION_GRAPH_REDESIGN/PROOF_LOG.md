@@ -388,3 +388,27 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_workspace_component_registry.gd`
     - `tests/test_editor_layer.gd`
     - `tests/test_editor_workspace.gd`
+
+### RESCTX-42_RESOURCES_SHELF_AND_CONTEXT_CHIPS
+
+proof:
+  plan: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/RESCTX-42_RESOURCES_SHELF_AND_CONTEXT_CHIPS/`
+  review: `docs/review/autopilot/RESCTX-42_RESOURCES_SHELF_AND_CONTEXT_CHIPS_SELF_REVIEW_2026-06-15.md`
+  execution:
+    - `docs/review/autopilot/RESCTX-42_RESOURCES_SHELF_AND_CONTEXT_CHIPS_SELF_REVIEW_2026-06-15.md`
+  ui_metrics:
+    - `.godot_user/ui-metrics/20260615-191640-55354/workspace_layout_metrics.md`（UI task; P0 failures = 0, P1 issues = 0）
+  tests:
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/resctx42-target/logs/test_editor_document.gd.log --path . --script res://tests/test_editor_document.gd`（exit 0）
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/resctx42-target/logs/test_editor_workspace.gd.log --path . --script res://tests/test_editor_workspace.gd`（exit 0）
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/resctx42-target/logs/test_editor_paint.gd.log --path . --script res://tests/test_editor_paint.gd`（exit 0）
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/resctx42-target/logs/test_build_screen_full.gd.log --path . --script res://tests/test_build_screen_full.gd`（exit 0）
+    - `TEST_JOBS=4 ./tools/test.sh`（run id `20260615-191640-55354`, exit 0）
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_resources_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_paint_screen.gd`
+    - `tests/test_editor_document.gd`
+    - `tests/test_editor_workspace.gd`
+    - `tests/test_editor_paint.gd`

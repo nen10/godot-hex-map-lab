@@ -25,6 +25,9 @@ func _test_paint_brush_asset_screen_routes_missing_assets_without_raw_controls()
 	_assert_true(bool(paint_screen["paint_workspace_is_primary"]), "SCREEN-31 Paint workspace is primary")
 	_assert_true(not bool(paint_screen["resource_row_primary"]), "SCREEN-31 Paint does not lead with a Resource row")
 	_assert_true(bool(paint_screen["context_chips_visible"]), "SCREEN-31 Paint shows context chips")
+	var paint_context_chips = paint_screen["context_chips"] as Array
+	for chip in paint_context_chips:
+		_assert_true(String((chip as Dictionary).get("label", "")) != "Map", "RESCTX-42 Paint context chips do not duplicate global Map")
 	_assert_true(bool(paint_screen["brush_palette_visible"]), "SCREEN-31 Paint shows brush palette")
 	_assert_true(bool(paint_screen["brush_shape_controls_visible"]), "SCREEN-31 Paint shows brush shape controls")
 	var shape_controls = paint_screen["brush_shape_controls"] as Dictionary
@@ -233,4 +236,3 @@ func _test_paint_brush_asset_screen_routes_missing_assets_without_raw_controls()
 	paint_layer.queue_free()
 	workspace.queue_free()
 	await process_frame
-

@@ -68,20 +68,33 @@ func _test_document_asset_screen_manages_project_document_without_samples() -> v
 	_assert_eq(String(selected_summary["visible_text"]), "No HexTileMap selected", "SCREEN-10 Resources summary starts with no-selection state")
 	_assert_true(not bool(selected_summary["node_path_visible"]), "SCREEN-10 Resources summary keeps node path out of primary text")
 	var resources_visual = snapshot["resources_visual_summary"] as Dictionary
-	_assert_eq(String(resources_visual["surface_id"]), "resources_readiness_board", "SCREEN-NEXT-10 Resources exposes readiness board")
-	_assert_true(not bool(resources_visual["primary_path_text_visible"]), "SCREEN-NEXT-10 Resources readiness keeps paths out of primary text")
-	var resources_readiness_rows = _entries_by_id(resources_visual["readiness_rows"] as Array)
-	_assert_eq(String((resources_readiness_rows["selected_node"] as Dictionary)["status"]), "missing", "SCREEN-NEXT-10 Resources node readiness starts missing")
-	_assert_eq(String((resources_readiness_rows["level_document"] as Dictionary)["status"]), "missing", "SCREEN-NEXT-10 Resources document readiness starts missing")
-	_assert_true(String(snapshot["mounted_resources_readiness_text"]).contains("Node: Missing"), "SCREEN-NEXT-10 mounted Resources readiness label shows node state")
+	_assert_eq(String(resources_visual["surface_id"]), "resource_shelf", "RESCTX-42 Resources exposes resource shelf")
+	_assert_true(bool(resources_visual["primary"]), "RESCTX-42 Resources shelf is primary")
+	_assert_true(not bool(resources_visual["primary_path_text_visible"]), "RESCTX-42 Resources shelf keeps paths out of primary text")
+	_assert_eq(String(snapshot["first_surface"]), "resource_shelf", "RESCTX-42 Resources first surface is the shelf")
+	_assert_true(bool(snapshot["resource_shelf_primary"]), "RESCTX-42 Resources snapshot marks shelf primary")
+	_assert_true(PackedStringArray(snapshot["resource_shelf_group_ids"]).has("unique"), "RESCTX-42 Resources shelf has Unique card")
+	_assert_true(PackedStringArray(snapshot["resource_shelf_group_ids"]).has("shared"), "RESCTX-42 Resources shelf has Shared card")
+	_assert_true(PackedStringArray(snapshot["resource_shelf_group_ids"]).has("optional"), "RESCTX-42 Resources shelf has Optional card")
+	_assert_eq(String(resources_visual["selected_hex_tile_map_chip_text"]), "Selected HexTileMap: None", "RESCTX-42 Resources chip names selected HexTileMap")
+	_assert_true(not bool(resources_visual["global_map_chip_duplicated"]), "RESCTX-42 Resources chip does not duplicate global Map")
+	var unique_card = resources_visual["unique_card"] as Dictionary
+	_assert_eq(String(unique_card["title"]), "Unique to this map", "RESCTX-42 Unique shelf title matches spec")
+	var unique_slots = _rows_by_slot(unique_card["slot_cards"] as Array)
+	_assert_eq(String((unique_slots[HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT] as Dictionary)["status_badge"]), "Missing", "RESCTX-42 Level Document starts missing in shelf")
+	_assert_true(not bool(snapshot["resources_readiness_label_visible"]), "RESCTX-42 readiness label is removed")
+	_assert_true(not bool(snapshot["resources_next_actions_label_visible"]), "RESCTX-42 next-actions label is removed")
+	_assert_eq(String(snapshot["mounted_resources_readiness_text"]), "", "RESCTX-42 mounted readiness label is empty")
 	_assert_true((snapshot["next_actions"] as PackedStringArray).has("Select a HexTileMap node"), "SCREEN-10 Resources next action points to node selection")
-	_assert_true(bool(snapshot["clear_next_actions_beyond_resource_rows"]), "SCREEN-10 Resources exposes next actions beyond resource rows")
+	_assert_true(not bool(snapshot["clear_next_actions_beyond_resource_rows"]), "RESCTX-42 next actions are not rendered as a label row")
 	var source_badge_rows = _rows_by_slot(snapshot["source_badge_rows"] as Array)
 	_assert_eq(String((source_badge_rows[HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT] as Dictionary)["source_badge"]), "Missing", "SCREEN-10 Resources source badge row marks missing document")
 	var source_badge_explanations = snapshot["source_badge_explanations"] as Dictionary
 	_assert_true(source_badge_explanations.has("Node"), "SCREEN-10 Resources explains Node source badge")
 	_assert_true(source_badge_explanations.has("Manual Override"), "SCREEN-10 Resources explains Manual Override source badge")
 	_assert_eq(String(snapshot["create_missing_resources_button_text"]), "Create Missing Resources", "TAB-50 Resources screen keeps Create Missing Resources")
+	_assert_true(bool(snapshot["create_missing_resources_primary_cta"]), "RESCTX-42 Create Missing Resources is the primary CTA")
+	_assert_eq(String(snapshot["save_all_button_text"]), "Save All", "RESCTX-42 Resources exposes Save All action")
 	_assert_eq(workspace.workspace_asset_context().level_document, null, "Document screen starts without a sample document")
 	_assert_true(not session.show_bundled_samples_in_main_selectors, "Document screen starts with sample mode OFF")
 
@@ -97,9 +110,10 @@ func _test_document_asset_screen_manages_project_document_without_samples() -> v
 	_assert_eq(session.document_saved_path, document_path, "created document updates session saved path")
 	snapshot = workspace.document_screen_snapshot()
 	resources_visual = snapshot["resources_visual_summary"] as Dictionary
-	resources_readiness_rows = _entries_by_id(resources_visual["readiness_rows"] as Array)
-	_assert_eq(String((resources_readiness_rows["level_document"] as Dictionary)["status"]), "ready", "SCREEN-NEXT-10 Resources document readiness becomes ready")
-	_assert_true(String(snapshot["mounted_resources_readiness_text"]).contains("Level Document: Ready"), "SCREEN-NEXT-10 mounted Resources readiness updates after document creation")
+	unique_card = resources_visual["unique_card"] as Dictionary
+	unique_slots = _rows_by_slot(unique_card["slot_cards"] as Array)
+	_assert_eq(String((unique_slots[HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT] as Dictionary)["status_badge"]), "Ready", "RESCTX-42 Resources shelf document badge becomes ready")
+	_assert_eq(String(snapshot["mounted_resources_readiness_text"]), "", "RESCTX-42 mounted readiness label stays removed after document creation")
 	_assert_eq(
 		workspace.tab_asset_slot_snapshot("Document", HexMapWorkspaceAssetContext.SLOT_LEVEL_DOCUMENT).get("current_source", ""),
 		HexMapEditorAssetSlotState.SOURCE_PROJECT,
@@ -179,5 +193,4 @@ func _test_document_inspector_component_summarizes_document_and_validation() -> 
 
 	inspector.queue_free()
 	await process_frame
-
 
