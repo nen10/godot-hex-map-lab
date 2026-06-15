@@ -25,6 +25,7 @@ Commit process: `docs/process/CODEX_AUTOPILOT_COMMIT_POLICY.md`
 - metric は**回帰検知のみ**（合格根拠にしない / `PROCESS-60`）。
 - 新規 analog test は作らない。`dist` freshness は通常テスト化しない（`PROC-90` のみ再生成）。
 - 生成 engine を新規に作らない。core static（`hex_map_generator.gd` 他）を headless pass で再利用（`GENERATION_GRAPH_MODEL.md` §1/§9）。
+- screen / wireframe task は `docs/policy/LAYOUT_SKETCH_POLICY.md` に準拠する（§6 チェックリスト）。
 
 plan_dir 規約: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/<TASK-ID>_<slug>/`（READY 化時に作成）。
 
@@ -42,7 +43,7 @@ plan_dir 規約: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GEN
 
 | id | status | deps | deliverable | target files | acceptance |
 |---|---|---|---|---|---|
-| `DESIGN-10_BACKBONE_WIREFRAMES` | `READY` | `ADOPT-00` | Build/Paint/Export + 支援 Catalog/Layers/Resources の wireframe（QA/Validate 除外） | `<plan_dir>/WIREFRAMES.md` | S: 各画面 ASCII wireframe / Resource 退避先 / primary visual surface 明記。E: 各 wireframe で「最初に見えるもの」「primary action」がラベル説明なしで成立。 |
+| `DESIGN-10_BACKBONE_WIREFRAMES` | `READY` | `ADOPT-00` | Build/Paint/Export + 支援 Catalog/Layers/Resources の wireframe（QA/Validate 除外・`docs/policy/LAYOUT_SKETCH_POLICY.md` 準拠） | `<plan_dir>/WIREFRAMES.md` | S: 各画面 ASCII wireframe / Resource 退避先 / primary visual surface 明記 + LAYOUT_SKETCH_POLICY §6 チェックリスト全項目。E: 各 wireframe で「最初に見えるもの」「primary action」がラベル説明なしで成立（normal + empty の2状態）。 |
 | `DESIGN-11_TAB_IA_AND_PRIORITY` | `BACKLOG` | `DESIGN-10` | tab IA：`Generate`→`Build`、Primary(Build/Paint)/支援(Catalog/Layers/Resources)/utility(Export/Settings)、QA/Validate は park 表示、top strip | `<plan_dir>/TAB_IA.md` | S: 分類表 + tab 間依存導線。E: top strip に現在の進行が見える設計。 |
 
 ---

@@ -73,8 +73,9 @@ Y7. manual / dist 最終化
 
 #### `DESIGN-10_BACKBONE_WIREFRAMES` — dep: ADOPT-00
 - 対象: **Build / Paint / Export + 支援 Catalog / Layers / Resources**（QA/Validate は除外）。
+- 準拠: `docs/policy/LAYOUT_SKETCH_POLICY.md`（§6 チェックリスト全項目）。
 - DoD(structural): 各画面 ASCII wireframe。Resource row の退避先明記。primary visual surface 明記。
-- DoD(experiential): 各 wireframe で「最初に見えるもの」「primary action」がラベル説明なしで成立。
+- DoD(experiential): 各 wireframe で「最初に見えるもの」「primary action」がラベル説明なしで成立（normal + empty の2状態）。
 
 #### `DESIGN-11_TAB_IA_AND_PRIORITY` — dep: DESIGN-10
 - DoD: `Generate`→`Build` 改名/上位化。Primary(Build/Paint) / 支援(Catalog/Layers/Resources) / utility(Export/Settings) 分類。QA/Validate は park 表示。top strip に進行状態。
