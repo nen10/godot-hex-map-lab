@@ -36,6 +36,7 @@ TEST_SCRIPTS=(
   "res://tests/test_graph_runtime_build.gd"
   "res://tests/test_graph_load_context.gd"
   "res://tests/test_build_graph_canvas.gd"
+  "res://tests/test_build_screen_full.gd"
   "res://tests/test_generation_promote.gd"
   "res://tests/test_hex_adapter.gd"
   "res://tests/test_hex_tile_map_layer.gd"

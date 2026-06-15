@@ -5111,6 +5111,7 @@ func _mount_generation_panel() -> void:
 	_build_screen.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_build_screen.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_build_screen.load_graph_requested.connect(_on_build_load_graph_requested)
+	_build_screen.build_context_requested.connect(_on_build_context_requested)
 	(page as Control).add_child(_build_screen)
 	_register_tab_component(HexMapWorkspaceComponentRegistry.TAB_GENERATE, "build_graph_screen", _build_screen)
 
@@ -5186,6 +5187,10 @@ func _popup_generation_graph_dialog(overwrite_selected: bool) -> bool:
 
 func _on_build_load_graph_requested(overwrite_selected: bool) -> void:
 	_popup_generation_graph_dialog(overwrite_selected)
+
+
+func _on_build_context_requested() -> void:
+	ensure_build_graph_context("workspace.build_screen.generate")
 
 
 func _on_generation_graph_file_selected(path: String) -> void:

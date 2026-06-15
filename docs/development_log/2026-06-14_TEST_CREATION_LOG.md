@@ -40,6 +40,8 @@
   - Generation Graph Resource の editor load context ownership、新規 node embed 復元、overwrite generated 層置換、手動層保持
 - `tests/test_build_graph_canvas.gd`
   - Build tab graph canvas、typed connection rejection、GraphEdit→Dictionary model同期、3-node chain preview、run cache/dirty/failure state、failure node highlight、palette/inspector contract
+- `tests/test_build_screen_full.gd`
+  - Build tab Simple/Profile entry、Profile→preset graph、canvas 一体化、terrain promote、graph-less selected layer の UI button bootstrap
 - `tests/test_generation_promote.gd`
   - Generation Graph output の Document promote、generated層置換、manual層保持、overlay/object/terrain role、save/load roundtrip、Build screen vertical slice、Build context bootstrap
 - `tests/test_hex_adapter.gd`

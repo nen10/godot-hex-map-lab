@@ -69,7 +69,7 @@ plan_dir 規約: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GEN
 
 | id | status | deps | deliverable | target files | acceptance |
 |---|---|---|---|---|---|
-| `SCREEN-30_BUILD_TAB_FULL` | `READY` | `GRAPH-13` | Simple Build(入口) と Graph(本体) を1画面で両立 / preview・promote・dirty | editor, tests | E: 初心者は Profile→Generate、上級者は graph、両方が最初の画面から辿れる。 |
+| `SCREEN-30_BUILD_TAB_FULL` | `COMPLETE` | `GRAPH-13` | Simple Build(入口) と Graph(本体) を1画面で両立 / preview・promote・dirty | editor, tests | E: 初心者は Profile→Generate、上級者は graph、両方が最初の画面から辿れる。 |
 | `SCREEN-31_PAINT_AS_DESIGN_WORKSPACE` | `READY` | `DESIGN-10` | Paint を brush 作業面（純ランダムを補うデザイン管理） | `addons/hex_map_kit/editor/hex_map_edit_tool.gd`, tests | S: brush palette / active layer / selected cell / last edit / viewport 同期。E: Paint 先頭に Resource row 無し・編集面が主。 |
 | `SCREEN-32_EXPORT_AS_HANDOFF` | `READY` | `DESIGN-10`, `RUNTIME-50` | handoff 3形態を purpose card 化 | `addons/hex_map_kit/editor/hex_map_export_screen.gd`, tests | S: 3形態 card（(a) data resource(.tres) / (b) scene(.tscn) / (c) graph resource）+ Debug Report / JSON / Package(process-only)。E: 目的から選べる / gameplay framework 化しない。 |
 
@@ -118,7 +118,7 @@ Codex は self-review で nonblocking work を見つけたらここに `follow-u
 
 ## 10. Current pointer
 
-Current recommended next task: `SCREEN-30_BUILD_TAB_FULL`。
+Current recommended next task: `SCREEN-31_PAINT_AS_DESIGN_WORKSPACE`。
 
 理由:
 - `ADOPT-00` は `COMPLETE`：二層 DoD gate を self-review template / queue rules / planning policy へ実装し、QA park を規則化（proof は `PROOF_LOG.md`）。
@@ -131,11 +131,12 @@ Current recommended next task: `SCREEN-30_BUILD_TAB_FULL`。
 - `RUNTIME-50` は `COMPLETE`：runtime Map Build API、embed/reference semantics、seed 再現性、Layer 適用の proof 済み（proof は `PROOF_LOG.md`）。
 - `RUNTIME-51` は `COMPLETE`：graph load default=new node embed copy、overwrite opt-in/generated-only merge、既存選択追跡再利用の proof 済み（proof は `PROOF_LOG.md`）。
 - Phase Y2 は `COMPLETE`：phase review matrix は `docs/review/roadmap/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN_Y2_PHASE_REVIEW_2026-06-15.md`。
-- `SCREEN-30` は `READY`：`GRAPH-13` completion により dependency が満たされた。
+- `SCREEN-30` は `COMPLETE`：Simple Profile→preset graph→Generate→terrain promote、graph-less selected layer の UI button bootstrap、dirty/last run/state visibility の proof 済み（proof は `PROOF_LOG.md`）。
+- `SCREEN-31` は `READY`：`DESIGN-10` completion により dependency が満たされた。
 - `SCREEN-32` は `READY`：`DESIGN-10` と `RUNTIME-50` completion により dependency が満たされた。
 - `DESIGN-10` は `COMPLETE`：6タブ normal/empty wireframe と §6 self-check 済み（proof は `PROOF_LOG.md`）。
 - `DESIGN-11` は `COMPLETE`：tab IA / priority / top strip の proof 済み（proof は `PROOF_LOG.md`）。
-- Phase Y2 は完了。次の先頭 READY は `SCREEN-30`。
+- Phase Y3 進行中。次の先頭 READY は `SCREEN-31`。
 
 実行順（Roadmap §5）:
 ```

@@ -30,6 +30,7 @@
 - `tests/test_graph_runtime_build.gd`
 - `tests/test_graph_load_context.gd`
 - `tests/test_build_graph_canvas.gd`
+- `tests/test_build_screen_full.gd`
 - `tests/test_generation_promote.gd`
 - `tests/test_hex_adapter.gd`
 - `tests/test_hex_tile_map_layer.gd`

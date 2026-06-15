@@ -5,12 +5,14 @@ extends VBoxContainer
 signal graph_generated(report: Dictionary)
 signal promote_requested(node_id: String, role: String)
 signal load_graph_requested(overwrite_selected: bool)
+signal build_context_requested
 
 const HexMapWorkspaceAssetContextScript = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
 const HexMapBuildGraphCanvasScript = preload("res://addons/hex_map_kit/editor/hex_map_build_graph_canvas.gd")
 const HexMapBuildNodePaletteScript = preload("res://addons/hex_map_kit/editor/hex_map_build_node_palette.gd")
 const HexMapBuildNodeInspectorScript = preload("res://addons/hex_map_kit/editor/hex_map_build_node_inspector.gd")
 const HexMapPreviewThumbnailScript = preload("res://addons/hex_map_kit/editor/hex_map_preview_thumbnail.gd")
+const HexGenerationPresetScript = preload("res://addons/hex_map_kit/generation/hex_generation_preset.gd")
 const HexGenerationPromoteScript = preload("res://addons/hex_map_kit/generation/hex_generation_promote.gd")
 const HexGenerationGraphResourceScript = preload("res://addons/hex_map_kit/adapter/hex_generation_graph_resource.gd")
 const HexTileMapLayerScript = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
@@ -24,6 +26,8 @@ var _workspace_asset_context: HexMapWorkspaceAssetContextScript = null
 var _context_label: Label
 var _load_graph_button: Button
 var _overwrite_selected_check: CheckBox
+var _profile_option: OptionButton
+var _simple_generate_button: Button
 var _generate_button: Button
 var _cancel_button: Button
 var _run_count_spin: SpinBox
@@ -39,6 +43,8 @@ var _last_report: Dictionary = {}
 var _last_promote_result: Dictionary = {}
 var _last_build_context_result: Dictionary = {}
 var _last_graph_load_result: Dictionary = {}
+var _last_simple_generate_result: Dictionary = {}
+var _context_hex_tile_map_layer: HexTileMapLayerScript = null
 var _run_busy := false
 var _cancel_requested := false
 var _run_progress_snapshot: Dictionary = {}
@@ -116,6 +122,60 @@ func build_vertical_slice_chain_and_preview() -> Dictionary:
 	return run_graph()
 
 
+func run_simple_profile_graph(options: Dictionary = {}) -> Dictionary:
+	if _canvas == null:
+		_last_simple_generate_result = _simple_generate_result(false, "Build graph canvas is unavailable.")
+		return _last_simple_generate_result.duplicate(true)
+
+	var profile = _active_generation_profile()
+	var graph := HexGenerationPresetScript.from_profile(profile)
+	var selected_node_id := HexGenerationPresetScript.default_selected_node_id()
+	var promote_role := String(options.get("promote_role", HexGenerationPresetScript.default_promote_role()))
+	var restore_report := _canvas.restore_graph_model(graph, selected_node_id)
+	var run_report := {}
+	var promote_result := {}
+	if bool(restore_report.get("ok", false)):
+		run_report = run_graph({
+			"count": int(options.get("count", 1)),
+			"interrupt_options": options.get("interrupt_options", {}),
+		})
+		if bool(run_report.get("ok", false)) and _workspace_asset_context != null and _workspace_asset_context.level_document != null:
+			_canvas.select_graph_node(selected_node_id)
+			promote_result = promote_selected_output(promote_role)
+	else:
+		_refresh_preview()
+		_refresh_selected_node()
+
+	var profile_id := _profile_id(profile)
+	var profile_display_name := _profile_display_name(profile)
+	var canvas_snapshot := _canvas.canvas_snapshot()
+	var graph_resource = _store_current_canvas_graph_on_context_layer(promote_role) if bool(restore_report.get("ok", false)) else null
+	_last_simple_generate_result = {
+		"ok": bool(restore_report.get("ok", false)) and bool(run_report.get("ok", false)),
+		"blocked_reason": "" if bool(restore_report.get("ok", false)) else String(restore_report.get("reason", "Preset graph could not be restored.")),
+		"profile_id": profile_id,
+		"profile_display_name": profile_display_name,
+		"uses_project_resource": profile != null,
+		"graph_node_count": int(canvas_snapshot.get("node_count", 0)),
+		"graph_connection_count": int(canvas_snapshot.get("connection_count", 0)),
+		"preset_graph_visible_in_canvas": int(canvas_snapshot.get("node_count", 0)) >= 3 and int(canvas_snapshot.get("connection_count", 0)) >= 2,
+		"selected_node_id": _canvas.selected_node_id(),
+		"promote_target_role": promote_role,
+		"graph_resource": graph_resource,
+		"context_layer_has_graph_resource": _context_hex_tile_map_layer != null and _context_hex_tile_map_layer.generation_graph_resource != null,
+		"restore_report": restore_report,
+		"run_report": run_report,
+		"promote_result": promote_result,
+		"status_text": "Simple profile graph generated.",
+	}
+	if _status_label != null and bool(_last_simple_generate_result["ok"]):
+		_status_label.text = String(_last_simple_generate_result["status_text"])
+	_refresh_context()
+	_refresh_selected_node()
+	_refresh_preview()
+	return _last_simple_generate_result.duplicate(true)
+
+
 func ensure_graph_context_for_hex_tile_map_layer(
 	layer: HexTileMapLayerScript,
 	options: Dictionary = {}
@@ -124,8 +184,10 @@ func ensure_graph_context_for_hex_tile_map_layer(
 		_last_build_context_result = _build_context_result(false, "Build graph canvas is unavailable.")
 		return _last_build_context_result.duplicate(true)
 	if layer == null:
+		_context_hex_tile_map_layer = null
 		_last_build_context_result = _build_context_result(false, "Choose or create a HexTileMapLayer before building a graph.")
 		return _last_build_context_result.duplicate(true)
+	_context_hex_tile_map_layer = layer
 	if _workspace_asset_context == null:
 		_workspace_asset_context = HexMapWorkspaceAssetContextScript.new()
 
@@ -270,6 +332,18 @@ func build_screen_snapshot() -> Dictionary:
 		"overwrite_selected_graph": _overwrite_selected_check != null and _overwrite_selected_check.button_pressed,
 		"overwrite_selected_graph_default": false,
 		"last_graph_load": _last_graph_load_result.duplicate(true),
+		"simple_profile_bar_present": _profile_option != null and _simple_generate_button != null,
+		"simple_profile_option_present": _profile_option != null,
+		"simple_generate_button_present": _simple_generate_button != null,
+		"simple_profile_selected": _selected_profile_label(),
+		"simple_profile_uses_project_resource": _active_generation_profile() != null,
+		"simple_generate_result": _last_simple_generate_result.duplicate(true),
+		"simple_and_graph_same_model": bool(_last_simple_generate_result.get("preset_graph_visible_in_canvas", false)) \
+			and int(canvas_snapshot.get("node_count", 0)) == int(_last_simple_generate_result.get("graph_node_count", -1)),
+		"preset_graph_visible_in_canvas": bool(_last_simple_generate_result.get("preset_graph_visible_in_canvas", false)),
+		"promote_target_role": String(_last_simple_generate_result.get("promote_target_role", HexGenerationPresetScript.default_promote_role())),
+		"dirty_status_visible": true,
+		"last_run_visible": true,
 		"generate_button_present": _generate_button != null,
 		"cancel_button_present": _cancel_button != null,
 		"cancel_available": _cancel_button != null and not _cancel_button.disabled,
@@ -357,6 +431,24 @@ func _build_ui() -> void:
 	_cancel_button.pressed.connect(_on_cancel_pressed)
 	top_row.add_child(_cancel_button)
 	add_child(top_row)
+
+	var simple_row := HBoxContainer.new()
+	simple_row.name = "Build Simple Profile Bar"
+	simple_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var profile_label := Label.new()
+	profile_label.name = "Build Simple Profile Label"
+	profile_label.text = "Profile"
+	simple_row.add_child(profile_label)
+	_profile_option = OptionButton.new()
+	_profile_option.name = "Build Simple Profile Option"
+	_profile_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	simple_row.add_child(_profile_option)
+	_simple_generate_button = Button.new()
+	_simple_generate_button.name = "Build Simple Generate Button"
+	_simple_generate_button.text = "Generate (Simple)"
+	_simple_generate_button.pressed.connect(_on_simple_generate_pressed)
+	simple_row.add_child(_simple_generate_button)
+	add_child(simple_row)
 
 	var split := HSplitContainer.new()
 	split.name = "Build Work Surface"
@@ -453,6 +545,8 @@ func _update_run_controls() -> void:
 	if _generate_button != null:
 		_generate_button.text = "Generating" if _run_busy else "Generate"
 		_generate_button.disabled = _run_busy
+	if _simple_generate_button != null:
+		_simple_generate_button.disabled = _run_busy
 	if _cancel_button != null:
 		_cancel_button.disabled = not _run_busy
 
@@ -483,6 +577,46 @@ func _refresh_context() -> void:
 		if _workspace_asset_context.tile_catalog != null:
 			catalog_text = "Catalog: linked"
 	_context_label.text = "( %s ) ( %s ) ( %s )" % [map_text, catalog_text, target_text]
+	_refresh_profile_options()
+
+
+func _refresh_profile_options() -> void:
+	if _profile_option == null:
+		return
+	var current_id := -1
+	if _profile_option.item_count > 0:
+		current_id = _profile_option.get_selected_id()
+	_profile_option.clear()
+	var profile = _active_generation_profile()
+	_profile_option.add_item(_profile_display_name(profile), 0)
+	_profile_option.set_item_metadata(0, profile)
+	_profile_option.select(0 if current_id < 0 else 0)
+
+
+func _active_generation_profile():
+	if _workspace_asset_context == null:
+		return null
+	return _workspace_asset_context.generation_profile
+
+
+func _selected_profile_label() -> String:
+	if _profile_option == null or _profile_option.item_count == 0:
+		return ""
+	return _profile_option.get_item_text(_profile_option.selected)
+
+
+func _profile_id(profile) -> String:
+	if profile == null:
+		return "default_profile"
+	var value = profile.get("profile_id") if profile is Resource else ""
+	return String(value) if String(value) != "" else "project_generation"
+
+
+func _profile_display_name(profile) -> String:
+	if profile == null:
+		return "Default Profile"
+	var value = profile.get("display_name") if profile is Resource else ""
+	return String(value) if String(value) != "" else _profile_id(profile)
 
 
 func _build_context_result(ok: bool, reason: String) -> Dictionary:
@@ -493,6 +627,49 @@ func _build_context_result(ok: bool, reason: String) -> Dictionary:
 		"created_document": false,
 		"status_text": reason,
 	}
+
+
+func _simple_generate_result(ok: bool, reason: String) -> Dictionary:
+	return {
+		"ok": ok,
+		"blocked_reason": reason,
+		"profile_id": "",
+		"profile_display_name": "",
+		"uses_project_resource": false,
+		"graph_node_count": 0,
+		"graph_connection_count": 0,
+		"preset_graph_visible_in_canvas": false,
+		"selected_node_id": "",
+		"promote_target_role": HexGenerationPresetScript.default_promote_role(),
+		"graph_resource": null,
+		"context_layer_has_graph_resource": false,
+		"restore_report": {},
+		"run_report": {},
+		"promote_result": {},
+		"status_text": reason,
+	}
+
+
+func _store_current_canvas_graph_on_context_layer(promote_role: String):
+	if _context_hex_tile_map_layer == null or _canvas == null:
+		return null
+	var graph_resource = _context_hex_tile_map_layer.generation_graph_resource
+	if graph_resource == null:
+		graph_resource = HexGenerationGraphResourceScript.new()
+		graph_resource.graph_id = "%s_simple_build_graph" % _resource_prefix_from_node(_context_hex_tile_map_layer.name).to_snake_case()
+		graph_resource.resource_name = "%s Simple Build Graph" % _resource_prefix_from_node(_context_hex_tile_map_layer.name)
+	graph_resource.ownership_semantics = "embed"
+	graph_resource.semantics_reference_path = ""
+	graph_resource.set_from_dict(_canvas.build_graph_model())
+	graph_resource.promote_targets = HexGenerationPresetScript.promote_targets_for_profile(_active_generation_profile())
+	if not (graph_resource.semantics_snapshot is Dictionary):
+		graph_resource.semantics_snapshot = {}
+	graph_resource.semantics_snapshot = {
+		"embed": true,
+		"promote_target_role": promote_role,
+	}
+	_context_hex_tile_map_layer.generation_graph_resource = graph_resource
+	return graph_resource
 
 
 func _graph_load_result(ok: bool, reason: String) -> Dictionary:
@@ -550,7 +727,13 @@ func _refresh_preview() -> void:
 
 
 func _on_generate_pressed() -> void:
+	build_context_requested.emit()
 	run_graph({"count": 1})
+
+
+func _on_simple_generate_pressed() -> void:
+	build_context_requested.emit()
+	run_simple_profile_graph({"count": 1})
 
 
 func _on_load_graph_pressed() -> void:
