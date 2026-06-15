@@ -178,3 +178,33 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_workspace.gd`
     - `tests/test_generation_promote.gd`
     - `tests/test_editor_plugin_test_base.gd`
+
+### GRAPH-13_RUN_UX
+
+proof:
+  plan: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/GRAPH-13_RUN_UX/`
+  review: `docs/review/autopilot/GRAPH-13_RUN_UX_SELF_REVIEW_2026-06-15.md`
+  execution:
+    - `docs/review/autopilot/GRAPH-13_RUN_UX_SELF_REVIEW_2026-06-15.md`
+  ui_metrics:
+    - `.godot_user/ui-metrics/20260615-171816-63647/workspace_layout_metrics.md`（UI-facing graph task; P0 failures = 0, P1 issues = 0）
+  tests:
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/graph13-runner-dirty.log --path . --script res://tests/test_generation_graph_runner_dirty.gd`（exit 0）
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/graph13-build-canvas.log --path . --script res://tests/test_build_graph_canvas.gd`（exit 0）
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/graph13-generation-promote.log --path . --script res://tests/test_generation_promote.gd`（exit 0）
+    - `./tools/test.sh`（run id `20260615-171816-63647`, exit 0）
+  docs:
+    - `docs/TEST.md`
+    - `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+  major files:
+    - `addons/hex_map_kit/generation/hex_generation_graph_runner.gd`
+    - `addons/hex_map_kit/generation/hex_generation_node_types.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_graph_canvas.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_screen.gd`
+    - `tests/test_generation_graph_runner_dirty.gd`
+    - `tests/test_build_graph_canvas.gd`
+    - `tools/test.sh`
+    - `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/GRAPH-13_RUN_UX/SUB_TASKS.md`
+    - `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/GRAPH-13_RUN_UX/UX.md`
+    - `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/GRAPH-13_RUN_UX/POLICY.md`
+    - `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/GRAPH-13_RUN_UX/IMPLEMENTATION_PLAN.md`

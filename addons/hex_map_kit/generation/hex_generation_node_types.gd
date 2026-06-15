@@ -184,13 +184,14 @@ static func _run_shape(_inputs: Dictionary, params: Dictionary, _context: Dictio
 
 static func _run_wall_field(inputs: Dictionary, params: Dictionary, context: Dictionary, _resource_refs: Dictionary):
 	var data = _clone_terrain(inputs.get("in", null))
-	var walls = HexMapGeneratorScript.generate_random_walls(
+	var wall_result = HexMapGeneratorScript.generate_random_walls_interruptible(
 		data.cells,
 		clampf(float(params.get("wall_probability", 0.0)), 0.0, 1.0),
 		_seed(params, context),
-		_points_param(params, "protected_floor")
+		_points_param(params, "protected_floor"),
+		_interrupt_options(context)
 	)
-	data.set_walls(walls)
+	data.set_walls(wall_result["walls"])
 	return data
 
 
@@ -203,11 +204,11 @@ static func _run_connectivity(inputs: Dictionary, params: Dictionary, context: D
 		"none":
 			pass
 		"sparse":
-			HexMapGeneratorScript.restore_connectivity_by(HexMapGeneratorScript.CONNECT_SPARSE, data, terminals, seed)
+			HexMapGeneratorScript.restore_connectivity_by(HexMapGeneratorScript.CONNECT_SPARSE, data, terminals, seed, _interrupt_options(context))
 		"terminal":
 			HexMapGeneratorScript.restore_terminal_connectivity(data, terminals, seed)
 		"dense", "default", _:
-			HexMapGeneratorScript.restore_connectivity(data, seed)
+			HexMapGeneratorScript.restore_connectivity(data, seed, _interrupt_options(context))
 	return data
 
 
@@ -236,14 +237,21 @@ static func _run_item_generator(inputs: Dictionary, params: Dictionary, context:
 	var item_pool = params.get("item_pool", [])
 	var blocked = _points_param(params, "blocked")
 	if mode == "limited":
-		return HexMapGeneratorScript.generate_limited_items(cells, item_pool, _seed(params, context), blocked)
-	return HexMapGeneratorScript.generate_random_items(
+		return HexMapGeneratorScript.generate_limited_items_interruptible(
+			cells,
+			item_pool,
+			_seed(params, context),
+			blocked,
+			_interrupt_options(context)
+		)["data"]
+	return HexMapGeneratorScript.generate_random_items_interruptible(
 		cells,
 		clampf(float(params.get("placement_probability", 1.0)), 0.0, 1.0),
 		item_pool,
 		_seed(params, context),
-		blocked
-	)
+		blocked,
+		_interrupt_options(context)
+	)["data"]
 
 
 static func _run_compose(inputs: Dictionary, params: Dictionary, _context: Dictionary, _resource_refs: Dictionary):
@@ -373,6 +381,11 @@ static func _seed(params: Dictionary, context: Dictionary, salt: int = 0) -> int
 static func _points_param(params: Dictionary, key: String) -> Array:
 	var value = params.get(key, [])
 	return value.duplicate() if value is Array else []
+
+
+static func _interrupt_options(context: Dictionary) -> Dictionary:
+	var options = context.get("interrupt_options", {})
+	return options if options is Dictionary else {}
 
 
 static func _filter_by_distance_params(points: Array, params: Dictionary) -> Array:

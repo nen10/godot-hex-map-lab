@@ -30,8 +30,10 @@
   - 形状/overlay/アイテム生成、連結性回復、interrupt/cancel、seed 決定、対称性
 - `tests/test_generation_graph.gd`
   - Generation Graph の Dictionary model、port 型検証、headless node pass 連鎖、Source ノード、topo 実行
+- `tests/test_generation_graph_runner_dirty.gd`
+  - Generation Graph runner の dirty cache 再利用、downstream 再計算、interrupt/cancel、partial cache 非確定
 - `tests/test_build_graph_canvas.gd`
-  - Build tab graph canvas、typed connection rejection、GraphEdit→Dictionary model同期、3-node chain preview、palette/inspector contract
+  - Build tab graph canvas、typed connection rejection、GraphEdit→Dictionary model同期、3-node chain preview、run cache/dirty/failure state、failure node highlight、palette/inspector contract
 - `tests/test_generation_promote.gd`
   - Generation Graph output の Document promote、generated層置換、manual層保持、overlay/object/terrain role、save/load roundtrip、Build screen vertical slice、Build context bootstrap
 - `tests/test_hex_adapter.gd`

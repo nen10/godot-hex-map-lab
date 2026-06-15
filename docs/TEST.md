@@ -25,6 +25,7 @@
 - `tests/test_hex_core.gd`
 - `tests/test_hex_map_generation.gd`
 - `tests/test_generation_graph.gd`
+- `tests/test_generation_graph_runner_dirty.gd`
 - `tests/test_build_graph_canvas.gd`
 - `tests/test_generation_promote.gd`
 - `tests/test_hex_adapter.gd`

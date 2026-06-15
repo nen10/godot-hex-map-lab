@@ -57,6 +57,15 @@ var _last_run_report: Dictionary = {}
 var _last_preview_snapshot: Dictionary = HexMapPreviewThumbnailScript.unavailable_preview("not_run")
 var _last_status := "Graph canvas ready."
 var _last_rejected_connection: Dictionary = {}
+var _graph_revision := 0
+var _last_successful_run_revision := -1
+var _dirty_node_ids: PackedStringArray = PackedStringArray()
+var _last_cache_node_ids: PackedStringArray = PackedStringArray()
+var _last_run_cache: Dictionary = {}
+var _last_failure_node_id := ""
+var _last_failure_message := ""
+var _last_cancelled_node_id := ""
+var _last_progress_snapshot: Dictionary = {}
 
 
 func _ready() -> void:
@@ -124,6 +133,7 @@ func add_graph_node(node_type: String, position: Vector2 = Vector2.ZERO, node_id
 	if _selected_node_id == "":
 		select_graph_node(actual_id)
 	_last_status = "Added %s." % graph_node.title
+	_mark_dirty_from_node(actual_id)
 	graph_changed.emit()
 	return actual_id
 
@@ -139,6 +149,13 @@ func clear_graph() -> void:
 	_last_run_report = {}
 	_last_preview_snapshot = HexMapPreviewThumbnailScript.unavailable_preview("empty_graph")
 	_last_status = "Graph cleared."
+	_last_cache_node_ids = PackedStringArray()
+	_last_run_cache = {}
+	_last_successful_run_revision = -1
+	_clear_failure_highlight()
+	_last_cancelled_node_id = ""
+	_last_progress_snapshot = {}
+	_mark_dirty_all()
 	graph_changed.emit()
 	selected_graph_node_changed.emit("")
 
@@ -167,6 +184,7 @@ func request_connection(from_node: String, from_port: int, to_node: String, to_p
 		to_node,
 		_input_name_for_slot(to_node, to_port),
 	]
+	_mark_dirty_from_node(to_node)
 	graph_changed.emit()
 	return validation
 
@@ -240,6 +258,7 @@ func set_node_params(node_id: String, params: Dictionary) -> void:
 		return
 	graph_node.set_meta("hex_generation_params", params.duplicate(true))
 	_last_status = "Updated %s parameters." % node_id
+	_mark_dirty_from_node(node_id)
 	graph_changed.emit()
 
 
@@ -249,6 +268,7 @@ func set_node_resource_refs(node_id: String, resource_refs: Dictionary) -> void:
 		return
 	graph_node.set_meta("hex_generation_resource_refs", resource_refs.duplicate())
 	_last_status = "Updated %s resource refs." % node_id
+	_mark_dirty_from_node(node_id)
 	graph_changed.emit()
 
 
@@ -336,11 +356,30 @@ func validate_graph_model() -> Dictionary:
 
 
 func run_graph(context: Dictionary = {}) -> Dictionary:
-	_last_run_report = HexGenerationGraphRunnerScript.run_with_report(build_graph_model(), context)
-	if bool(_last_run_report.get("ok", false)):
-		_last_status = "Graph generated %d node outputs." % int((_last_run_report.get("cache", {}) as Dictionary).size())
+	var run_context := context.duplicate(true)
+	run_context["previous_cache"] = _last_run_cache.duplicate(true)
+	run_context["dirty_node_ids"] = _dirty_node_ids.duplicate()
+	var report = HexGenerationGraphRunnerScript.run_with_report(build_graph_model(), run_context)
+	_last_progress_snapshot = _progress_snapshot_from_context(run_context)
+	if bool(report.get("ok", false)):
+		_last_run_report = report.duplicate(true)
+		_last_run_cache = (report.get("cache", {}) as Dictionary).duplicate(true)
+		_last_cache_node_ids = _cache_node_ids(_last_run_cache)
+		_last_successful_run_revision = _graph_revision
+		_dirty_node_ids = PackedStringArray()
+		_clear_failure_highlight()
+		_last_cancelled_node_id = ""
+		_last_status = "Graph generated %d node outputs." % int(_last_run_cache.size())
+	elif bool(report.get("cancelled", false)):
+		_last_run_report = report.duplicate(true)
+		_last_cancelled_node_id = _first_error_node_id(report)
+		_clear_failure_highlight()
+		_last_status = _first_error_message(report)
 	else:
-		_last_status = _first_error_message(_last_run_report)
+		_last_run_report = report.duplicate(true)
+		_last_cancelled_node_id = ""
+		_set_failure_highlight(_first_error_node_id(report), _first_error_message(report))
+		_last_status = _first_error_message(report)
 	_update_last_preview_for_selected_node()
 	graph_run_completed.emit(_last_run_report.duplicate(true))
 	graph_changed.emit()
@@ -380,6 +419,30 @@ func canvas_snapshot() -> Dictionary:
 		"last_rejected_connection": _last_rejected_connection.duplicate(true),
 		"dominant_surface": true,
 		"port_type_colors": _port_color_snapshot(),
+		"run_state": run_state_snapshot(),
+	}
+
+
+func run_state_snapshot() -> Dictionary:
+	return {
+		"graph_revision": _graph_revision,
+		"last_successful_run_revision": _last_successful_run_revision,
+		"cache_ready": _last_successful_run_revision == _graph_revision and not _last_cache_node_ids.is_empty(),
+		"cache_dirty": not _dirty_node_ids.is_empty(),
+		"dirty_node_ids": _dirty_node_ids.duplicate(),
+		"cache_node_ids": _last_cache_node_ids.duplicate(),
+		"cache_node_count": _last_cache_node_ids.size(),
+		"recomputed_node_ids": _last_run_report.get("recomputed_node_ids", PackedStringArray()),
+		"reused_node_ids": _last_run_report.get("reused_node_ids", PackedStringArray()),
+		"failure_node_id": _last_failure_node_id,
+		"failure_message": _last_failure_message,
+		"failure_visible": _last_failure_node_id != "",
+		"failure_node_highlighted": _failure_node_highlighted(),
+		"cancelled": bool(_last_run_report.get("cancelled", false)),
+		"cancelled_node_id": _last_cancelled_node_id,
+		"progress": float(_last_progress_snapshot.get("progress", 0.0)),
+		"progress_phase": String(_last_progress_snapshot.get("phase", "")),
+		"progress_node_id": String(_last_progress_snapshot.get("node_id", "")),
 	}
 
 
@@ -459,6 +522,7 @@ func _on_disconnection_request(from_node: StringName, from_port: int, to_node: S
 			break
 	disconnect_node(from_node, from_port, to_node, to_port)
 	_last_status = "Disconnected graph ports."
+	_mark_dirty_from_node(String(to_node))
 	graph_changed.emit()
 
 
@@ -575,6 +639,57 @@ func _first_error_message(report: Dictionary) -> String:
 	return String(error.get("message", "Graph could not run."))
 
 
+func _first_error_node_id(report: Dictionary) -> String:
+	var errors = report.get("errors", []) as Array
+	if errors.is_empty():
+		return ""
+	var error = errors[0] as Dictionary
+	return String(error.get("node", ""))
+
+
+func _set_failure_highlight(node_id: String, message: String) -> void:
+	_clear_failure_highlight()
+	_last_failure_node_id = node_id
+	_last_failure_message = message
+	var graph_node := _graph_node(node_id)
+	if graph_node == null:
+		return
+	graph_node.modulate = Color(1.0, 0.72, 0.72, 1.0)
+	graph_node.tooltip_text = message
+	graph_node.set_meta("hex_generation_failure_highlighted", true)
+
+
+func _clear_failure_highlight() -> void:
+	if _last_failure_node_id != "":
+		var graph_node := _graph_node(_last_failure_node_id)
+		if graph_node != null:
+			graph_node.modulate = Color.WHITE
+			graph_node.tooltip_text = ""
+			graph_node.set_meta("hex_generation_failure_highlighted", false)
+	_last_failure_node_id = ""
+	_last_failure_message = ""
+
+
+func _failure_node_highlighted() -> bool:
+	var graph_node := _graph_node(_last_failure_node_id)
+	if graph_node == null:
+		return false
+	return bool(graph_node.get_meta("hex_generation_failure_highlighted", false))
+
+
+func _progress_snapshot_from_context(context: Dictionary) -> Dictionary:
+	var options = context.get("interrupt_options", {})
+	if not options is Dictionary:
+		return {}
+	var progress_options = options as Dictionary
+	return {
+		"phase": String(progress_options.get("phase", "")),
+		"node_id": String(progress_options.get("node_id", progress_options.get("node", ""))),
+		"progress": float(progress_options.get("progress", 0.0)),
+		"cancelled": bool(progress_options.get("cancelled", false)),
+	}
+
+
 func _update_last_preview_for_selected_node() -> void:
 	var output = selected_output()
 	if output is HexMapDataScript:
@@ -611,3 +726,59 @@ func _port_color_snapshot() -> Dictionary:
 		HexGenerationPortsScript.OVERLAY: _color_for_port_type(HexGenerationPortsScript.OVERLAY).to_html(false),
 		HexGenerationPortsScript.RESULT: _color_for_port_type(HexGenerationPortsScript.RESULT).to_html(false),
 	}
+
+
+func _mark_dirty_all() -> void:
+	_graph_revision += 1
+	_dirty_node_ids = _node_order.duplicate()
+
+
+func _mark_dirty_from_node(node_id: String) -> void:
+	if node_id == "":
+		_mark_dirty_all()
+		return
+	_graph_revision += 1
+	var dirty := _dirty_node_set()
+	dirty[node_id] = true
+	for downstream_id in _downstream_node_ids(node_id):
+		dirty[String(downstream_id)] = true
+	_dirty_node_ids = _sorted_node_ids(dirty.keys())
+
+
+func _dirty_node_set() -> Dictionary:
+	var result := {}
+	for node_id in _dirty_node_ids:
+		result[String(node_id)] = true
+	return result
+
+
+func _downstream_node_ids(node_id: String) -> PackedStringArray:
+	var result := PackedStringArray()
+	var visited := {}
+	var queue: Array[String] = [node_id]
+	while not queue.is_empty():
+		var current := queue.pop_front()
+		for connection in _connections:
+			if String(connection.get("from_node", "")) != current:
+				continue
+			var next_node := String(connection.get("to_node", ""))
+			if next_node == "" or visited.has(next_node):
+				continue
+			visited[next_node] = true
+			result.append(next_node)
+			queue.append(next_node)
+	return result
+
+
+func _cache_node_ids(cache: Dictionary) -> PackedStringArray:
+	return _sorted_node_ids(cache.keys())
+
+
+func _sorted_node_ids(values: Array) -> PackedStringArray:
+	var result: Array[String] = []
+	for value in values:
+		var text := String(value)
+		if text != "":
+			result.append(text)
+	result.sort()
+	return PackedStringArray(result)

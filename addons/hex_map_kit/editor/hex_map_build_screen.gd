@@ -22,6 +22,10 @@ const SCREEN_SCRIPT := "hex_map_build_screen.gd"
 var _workspace_asset_context: HexMapWorkspaceAssetContextScript = null
 var _context_label: Label
 var _generate_button: Button
+var _cancel_button: Button
+var _run_count_spin: SpinBox
+var _seed_randomize_check: CheckBox
+var _shape_randomize_check: CheckBox
 var _status_label: Label
 var _canvas: HexMapBuildGraphCanvasScript
 var _palette: HexMapBuildNodePaletteScript
@@ -31,6 +35,11 @@ var _inspector: HexMapBuildNodeInspectorScript
 var _last_report: Dictionary = {}
 var _last_promote_result: Dictionary = {}
 var _last_build_context_result: Dictionary = {}
+var _run_busy := false
+var _cancel_requested := false
+var _run_progress_snapshot: Dictionary = {}
+var _external_progress_callback: Callable
+var _external_cancel_callback: Callable
 
 
 func _ready() -> void:
@@ -65,14 +74,30 @@ func output_preview() -> HexMapPreviewThumbnailScript:
 	return _preview
 
 
-func run_graph() -> Dictionary:
+func run_graph(options: Dictionary = {}) -> Dictionary:
 	if _canvas == null:
 		return {}
-	_last_report = _canvas.run_graph(_run_context())
+	_run_busy = true
+	_cancel_requested = false
+	_run_progress_snapshot = {}
+	_update_run_controls()
+	var context := _run_context()
+	context["interrupt_options"] = _build_interrupt_options(options)
+	_last_report = _canvas.run_graph(context)
+	_run_busy = false
+	_update_run_controls()
 	_refresh_preview()
 	_refresh_selected_node()
 	if _status_label != null:
-		_status_label.text = String((_canvas.canvas_snapshot() as Dictionary).get("status_text", ""))
+		var run_state := _canvas.run_state_snapshot()
+		if bool(run_state.get("cancelled", false)):
+			_status_label.text = "Graph run cancelled."
+		elif bool(run_state.get("failure_visible", false)):
+			_status_label.text = "Graph stopped at %s." % String(run_state.get("failure_node_id", ""))
+		else:
+			_status_label.text = String((_canvas.canvas_snapshot() as Dictionary).get("status_text", ""))
+	_last_report["requested_count"] = int(options.get("count", _run_count_value()))
+	_last_report["primary_generate"] = true
 	graph_generated.emit(_last_report.duplicate(true))
 	return _last_report.duplicate(true)
 
@@ -189,6 +214,7 @@ func promote_selected_output(role: String = "overlay") -> Dictionary:
 
 func build_screen_snapshot() -> Dictionary:
 	var canvas_snapshot := _canvas.canvas_snapshot() if _canvas != null else {}
+	var run_state := _canvas.run_state_snapshot() if _canvas != null else {}
 	var inspector_snapshot := _inspector.inspector_snapshot() if _inspector != null else {}
 	var preview_snapshot := _preview.preview_snapshot() if _preview != null else HexMapPreviewThumbnailScript.unavailable_preview("missing")
 	return {
@@ -203,9 +229,26 @@ func build_screen_snapshot() -> Dictionary:
 		"resource_row_primary": false,
 		"primary_action": "Generate",
 		"generate_button_present": _generate_button != null,
+		"cancel_button_present": _cancel_button != null,
+		"cancel_available": _cancel_button != null and not _cancel_button.disabled,
+		"run_busy": _run_busy,
+		"run_progress": float(_run_progress_snapshot.get("progress", run_state.get("progress", 0.0))),
+		"run_progress_phase": String(_run_progress_snapshot.get("phase", run_state.get("progress_phase", ""))),
+		"run_progress_node_id": String(_run_progress_snapshot.get("node_id", run_state.get("progress_node_id", ""))),
+		"last_cancelled": bool(run_state.get("cancelled", false)),
+		"primary_generate_count": 1,
+		"generate_default_count": 1,
+		"batch_controls_secondary": true,
+		"batch_count": _run_count_value(),
+		"seed_randomize": _seed_randomize_check != null and _seed_randomize_check.button_pressed,
+		"shape_randomize": _shape_randomize_check != null and _shape_randomize_check.button_pressed,
 		"status_text": _status_label.text if _status_label != null else "",
 		"context_text": _context_label.text if _context_label != null else "",
 		"canvas": canvas_snapshot,
+		"run_state": run_state,
+		"cache_ready": bool(run_state.get("cache_ready", false)),
+		"dirty_node_ids": run_state.get("dirty_node_ids", PackedStringArray()),
+		"failure_node_id": String(run_state.get("failure_node_id", "")),
 		"palette": _palette.palette_snapshot() if _palette != null else {},
 		"inspector": inspector_snapshot,
 		"preview": preview_snapshot,
@@ -255,6 +298,12 @@ func _build_ui() -> void:
 	_generate_button.text = "Generate"
 	_generate_button.pressed.connect(_on_generate_pressed)
 	top_row.add_child(_generate_button)
+	_cancel_button = Button.new()
+	_cancel_button.name = "Build Cancel Button"
+	_cancel_button.text = "Cancel"
+	_cancel_button.disabled = true
+	_cancel_button.pressed.connect(_on_cancel_pressed)
+	top_row.add_child(_cancel_button)
 	add_child(top_row)
 
 	var split := HSplitContainer.new()
@@ -286,6 +335,30 @@ func _build_ui() -> void:
 	preview_panel.add_child(_preview_status_label)
 	split.add_child(preview_panel)
 
+	var batch_row := HBoxContainer.new()
+	batch_row.name = "Build Batch Options"
+	batch_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var batch_label := Label.new()
+	batch_label.name = "Build Batch Label"
+	batch_label.text = "Batch"
+	batch_row.add_child(batch_label)
+	_run_count_spin = SpinBox.new()
+	_run_count_spin.name = "Build Batch Count"
+	_run_count_spin.min_value = 1
+	_run_count_spin.max_value = 32
+	_run_count_spin.step = 1
+	_run_count_spin.value = 1
+	batch_row.add_child(_run_count_spin)
+	_seed_randomize_check = CheckBox.new()
+	_seed_randomize_check.name = "Build Seed Randomize"
+	_seed_randomize_check.text = "Seed"
+	batch_row.add_child(_seed_randomize_check)
+	_shape_randomize_check = CheckBox.new()
+	_shape_randomize_check.name = "Build Shape Randomize"
+	_shape_randomize_check.text = "Shape"
+	batch_row.add_child(_shape_randomize_check)
+	add_child(batch_row)
+
 	_inspector = HexMapBuildNodeInspectorScript.new()
 	add_child(_inspector)
 
@@ -311,6 +384,39 @@ func _run_context() -> Dictionary:
 		result["document"] = _workspace_asset_context.level_document
 		result["document_terrain"] = _workspace_asset_context.level_document
 	return result
+
+
+func _build_interrupt_options(options: Dictionary) -> Dictionary:
+	var interrupt_options = (options.get("interrupt_options", {}) as Dictionary).duplicate()
+	_external_progress_callback = interrupt_options.get("progress_callback", Callable())
+	_external_cancel_callback = interrupt_options.get("cancel_callback", Callable())
+	if not interrupt_options.has("chunk_size"):
+		interrupt_options["chunk_size"] = 16
+	interrupt_options["progress_callback"] = Callable(self, "_on_graph_run_progress")
+	interrupt_options["cancel_callback"] = Callable(self, "_on_graph_run_cancel_check")
+	return interrupt_options
+
+
+func _update_run_controls() -> void:
+	if _generate_button != null:
+		_generate_button.text = "Generating" if _run_busy else "Generate"
+		_generate_button.disabled = _run_busy
+	if _cancel_button != null:
+		_cancel_button.disabled = not _run_busy
+
+
+func _on_graph_run_progress(status: Dictionary) -> void:
+	_run_progress_snapshot = status.duplicate(true)
+	if _external_progress_callback.is_valid():
+		_external_progress_callback.call(status)
+
+
+func _on_graph_run_cancel_check(status: Dictionary) -> bool:
+	if _cancel_requested:
+		return true
+	if _external_cancel_callback.is_valid():
+		return bool(_external_cancel_callback.call(status))
+	return false
 
 
 func _refresh_context() -> void:
@@ -349,6 +455,10 @@ func _resource_prefix_from_node(node_name: String) -> String:
 	return "BuildGraph" if result == "" else result
 
 
+func _run_count_value() -> int:
+	return max(1, int(_run_count_spin.value if _run_count_spin != null else 1))
+
+
 func _refresh_selected_node() -> void:
 	if _inspector == null or _canvas == null:
 		return
@@ -376,7 +486,13 @@ func _refresh_preview() -> void:
 
 
 func _on_generate_pressed() -> void:
-	run_graph()
+	run_graph({"count": 1})
+
+
+func _on_cancel_pressed() -> void:
+	_cancel_requested = true
+	if _status_label != null:
+		_status_label.text = "Cancel requested."
 
 
 func _on_palette_node_type_requested(node_type: String) -> void:
