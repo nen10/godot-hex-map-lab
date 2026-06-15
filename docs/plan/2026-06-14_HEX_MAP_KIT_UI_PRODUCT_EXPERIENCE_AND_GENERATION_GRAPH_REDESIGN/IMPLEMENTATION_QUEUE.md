@@ -105,8 +105,8 @@ plan_dir 規約: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GEN
 
 | id | status | deps | deliverable | target files | acceptance |
 |---|---|---|---|---|---|
-| `DOC-70_WORKFLOW_MANUAL` | `READY` | `GRAPH-12_VERTICAL_SLICE_THREE_NODE_CHAIN`, `SCREEN-31_PAINT_AS_DESIGN_WORKSPACE` | workflow manual を新導線に | `docs/manual/MANUAL_WORKFLOW.md`, `README.md` | 手順が `Build graph → Promote layer → Paint → Export handoff`。Resource 一覧でなく作業目的ベース。analog test は作らない。 |
-| `PROC-90_FINAL_DIST_REGEN` | `BACKLOG` | `DOC-70_WORKFLOW_MANUAL` | dist 再生成 | `tools/package_addon.sh`, `dist/` | manifest/zip が現 addon tree と一致。通常 test gate にしない。 |
+| `DOC-70_WORKFLOW_MANUAL` | `COMPLETE` | `GRAPH-12_VERTICAL_SLICE_THREE_NODE_CHAIN`, `SCREEN-31_PAINT_AS_DESIGN_WORKSPACE` | workflow manual を新導線に | `docs/manual/MANUAL_WORKFLOW.md`, `README.md` | 手順が `Build graph → Promote layer → Paint → Export handoff`。Resource 一覧でなく作業目的ベース。analog test は作らない。 |
+| `PROC-90_FINAL_DIST_REGEN` | `READY` | `DOC-70_WORKFLOW_MANUAL` | dist 再生成 | `tools/package_addon.sh`, `dist/` | manifest/zip が現 addon tree と一致。通常 test gate にしない。 |
 
 ---
 
@@ -118,7 +118,7 @@ Codex は self-review で nonblocking work を見つけたらここに `follow-u
 
 ## 10. Current pointer
 
-Current recommended next task: `DOC-70_WORKFLOW_MANUAL`。
+Current recommended next task: `PROC-90_FINAL_DIST_REGEN`。
 
 理由:
 - `ADOPT-00` は `COMPLETE`：二層 DoD gate を self-review template / queue rules / planning policy へ実装し、QA park を規則化（proof は `PROOF_LOG.md`）。
@@ -143,6 +143,7 @@ Current recommended next task: `DOC-70_WORKFLOW_MANUAL`。
 - Phase Y4 は `COMPLETE`：phase review matrix は `docs/review/roadmap/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN_Y4_PHASE_REVIEW_2026-06-15.md`。次の backlog 候補は `PROCESS-60`。
 - `PROCESS-60` は `COMPLETE`：UI layout metric は regression signal、P0 は標準テスト上の regression failure、合格根拠は experiential DoD と明文化（proof は `PROOF_LOG.md`）。
 - Phase Y6 は `COMPLETE`：phase review matrix は `docs/review/roadmap/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN_Y6_PHASE_REVIEW_2026-06-15.md`。次の READY は `DOC-70`。
+- `DOC-70` は `COMPLETE`：manual / README を `Build graph → Promote layer → Paint → Export handoff` の作業目的ベースに更新（proof は `PROOF_LOG.md`）。
 
 実行順（Roadmap §5）:
 ```

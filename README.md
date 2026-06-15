@@ -20,7 +20,7 @@ Hex 座標系・ランダム壁生成・通路生成(連結性回復)処理を G
   - `HexMapResource` による runtime map `.tres` 保存
   - `HexMapTileAdapter` / `HexTileMapLayer` による `TileMapLayer` 反映
   - `HexTileMapLayer` による実行時 helper
-  - EditorPlugin の Hex Map Workspace、Resources tab、選択中 HexTileMap の auto-link、Catalog、Layer Stack、Validation、Seed Lab、Distribution Editor
+  - EditorPlugin の Hex Map Workspace、Build graph、Promote、Paint、Catalog、Layer Stack、Resources shelf、Export handoff
 - Debug scene
   - flat-top / pointy-top の配置確認
   - 生成 map、toric domain、9 split、対称生成 overlay の視覚確認
@@ -38,7 +38,7 @@ Hex 座標系・ランダム壁生成・通路生成(連結性回復)処理を G
 
 このリポジトリの editor workspace 運用は `docs/manual/MANUAL_WORKFLOW.md` / `docs/manual/MANUAL_EDITOR_PLUGIN.md` に記載されています。テスト実行は `docs/TEST.md`、テスト設計は `docs/policy/TEST_DESIGN_POLICY.md`、テスト作成ログは `docs/development_log/2026-06-14_TEST_CREATION_LOG.md` を参照してください。サンプル運用・デバッグ overlay 境界・PACKAGE ビルドと Export の分離は `docs/review/roadmap/FALLBACK_LEDGER_2026-06-10.md` と `docs/manual/MANUAL_PACKAGE.md` を参照しています。
 
-Editor authoring starts in **Hex Map Workspace** by selecting a `HexTileMap` scene node and using the `Resources` tab. The production workflow is project asset selection: create or select a Level Document, Tile Catalog, TileSet, Object Database, Label Database, Layer Stack, Movement Profile, Generation Profile, Validation Rule Suite, Export Profile, and Runtime Handoff destination through Resource pickers and FileDialogs. `Resources` auto-links node-owned resources back to the selected `HexTileMap`; Generate can stay `Preview only` or explicitly `Apply to selected Document`. Resource rows use source badges such as `Node`, `Project`, `Document Dependency`, `Manual Override`, `Sample Learning`, and `Missing` to show ownership. Normal tile and object workflows use catalog keys and object keys rather than raw tile source numbers or editable path text. Bundled samples live in Settings / Samples for learning and can be duplicated into project assets when you want to adapt them.
+Editor authoring starts in **Hex Map Workspace** with the production route: **Build graph -> Promote layer -> Paint -> Export handoff**. Build creates or restores the graph context, runs generation passes, previews intermediate output, and promotes useful terrain/overlay/object output into the Level Document. Paint finishes the same document with brush-driven edits while layer writable sources keep generated and hand-authored content distinct. Export creates the Godot handoff as a runtime map resource, runtime scene, or generation graph resource for the runtime Map Build API. `Resources`, `Catalog`, and `Layers` are support shelves for selected map bindings, catalog keys, and role-layer structure; normal tile and object workflows use catalog/object keys rather than raw tile source numbers or editable path text. Bundled samples live in Settings / Samples for learning and can be duplicated into project assets when you want to adapt them.
 
 For onboarding, use **Learn with bundled samples** to open Settings / Samples. Sample mode is OFF by default; turning it ON exposes bundled learning candidates while keeping selected project assets primary. `Duplicate sample catalog to project` copies the sample catalog, tile texture, and object scene into project-owned files.
 

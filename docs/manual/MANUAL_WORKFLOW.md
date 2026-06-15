@@ -1,6 +1,6 @@
 # Workflow Manual
 
-This page connects setup, authoring, validation, examples, and runtime use for Hex Map Kit.
+This page connects setup, Build graph authoring, Paint finishing, runtime handoff, examples, and runtime use for Hex Map Kit.
 
 ## 1. Setup
 
@@ -19,7 +19,7 @@ enabled=PackedStringArray("res://addons/hex_map_kit/plugin.cfg")
 
 For production authoring, prepare project assets in the workspace:
 
-- a selected `HexTileMap` scene node
+- a selected `HexTileMapLayer` scene node, or a Build-created `HexTileMapLayer`
 - a saved `HexMapDocumentResource`
 - a project `HexTileCatalogResource`
 - a project `TileSet`
@@ -45,80 +45,79 @@ Sample onboarding path:
 2. Sample mode starts OFF, so main screens stay focused on project asset selection.
 3. `Show bundled samples in asset selectors` reveals learning candidates without replacing selected project assets.
 4. `Duplicate sample catalog to project` creates project-owned copies of the catalog, tile texture, and object scene dependencies.
-5. After duplication, use the project copy in Catalog/Paint/Generate like any other project asset.
+5. After duplication, use the project copy in Catalog/Build/Paint like any other project asset.
 
 More setup details: `docs/manual/MANUAL_SETUP.md`.
 
-## 2. Use The Editor By Goal
+## 2. Build, Paint, Export By Goal
 
-Open **Hex Map Workspace** and work from the authoring goal:
+Open **Hex Map Workspace** and work from the production path:
 
-Workflow task screens and intent:
+```text
+Build graph -> Promote layer -> Paint -> Export handoff
+```
 
-1. `Resources`: bind selected scene ownership, manage dependencies, and keep production sources explicit.
-2. `Catalog`: prepare tile and scene assignments through project-owned `HexTileCatalogResource` plus `TileSet` / scene entries.
-3. `Layers`: configure role-layer mapping and apply document data by role.
-4. `Paint`: edit canonical document intent in the viewport with selected project assets.
-5. `Validate`: read, sort, and focus issue groups before runtime handoff.
-6. `QA`: compare generation alternatives with score/severity visibility and selected-seed preview.
-7. `Generate`: run generation outputs and output-target decisions.
-8. `Export`: hand off runtime-friendly `HexMapResource` from current Level Document.
-9. `Settings`: control learning helpers and editor debug options.
+The workspace screens support that route:
 
-- Resources: select the `HexTileMap` context, create or select the Level Document, create missing node-owned resources, and manage shared project resources through the Level Document dependency slots.
-- Generate: choose generator shape, seed, catalog keys, target, orientation, tile size, and output target.
-- QA: run Seed Lab batch comparison and promote a selected seed to a document.
-- Catalog: select a `HexTileCatalogResource`, catalog `TileSet`, and scene-entry `PackedScene`; validate catalog status.
-- Paint: edit terrain, floor tile keys, wall tile keys, objects, and labels in the viewport using resources selected in `Resources` and `Catalog`.
-- Layers: create missing role layers and apply the document through a `HexTileMapLayer` layer stack.
-- Validate: inspect domain/severity grouped issues, focus cells/resources/catalog entries, and read fix suggestions.
-- Export: create a Runtime Handoff `HexMapResource` from the current Level Document.
-- Settings: learn with bundled samples or duplicate sample assets into project-owned resources.
-- Support: use `Copy Debug Report` when a compact status row is not enough.
-
-Sample/debug boundaries:
-
-- Samples are learning/onboarding assets and are not silent production defaults.
-- `Export` is runtime handoff, not package build output.
-- Debug overlay rendering is separate from normal gameplay rendering and is driven by Validate/debug-report flow.
-
-Normal editor selection uses Resource pickers and FileDialogs. Saved paths may be displayed as read-only status, but path text is not the primary input workflow.
+1. `Build`: author and run a generation graph, inspect intermediate output, and promote useful output into the Level Document.
+2. `Paint`: finish the generated map with brush-driven document edits.
+3. `Export`: hand off the map to Godot runtime as a data resource, scene, or graph resource.
+4. `Catalog`: maintain the tile/object vocabulary used by Build and Paint.
+5. `Layers`: review role layers, visibility, lock state, and writable source boundaries.
+6. `Resources`: manage selected map bindings and project asset shelves.
+7. `Settings`: use samples for learning and debug/report controls.
+8. `Validate` / `QA`: support issue review or seed comparison when useful; they are not the main production route.
 
 Recommended workspace pass:
 
-1. Select a `HexTileMap` in the Scene tree and confirm `Resources` shows the selected node.
-2. In `Resources`, create or select the Level Document, missing node-owned unique resources, shared project resources, and profile resources.
-3. In `Generate`, preview a generated result or explicitly apply it to the selected document.
-4. In `Paint`, edit the document with terrain, object, and label brushes from the selected project resources.
-5. In `Catalog`, repair missing tile/scene entries, assign the catalog `TileSet`, and validate catalog status. In a new empty project, configure Catalog before painting if no brush keys exist yet.
-6. In `Validate`, inspect domain/severity issues and focus cells, resources, or catalog entries.
-7. In `QA`, compare seeds and promote the selected result to the Level Document when it should become canonical.
-8. In `Export`, choose a `HexExportProfileResource` and Runtime Handoff destination, then create a runtime `HexMapResource`.
+1. Select a `HexTileMapLayer` in the Scene tree, or start from Build when a graph needs a new self-contained map layer. Build can create the missing Level Document / embedded graph context instead of leaving the run path blocked by resource references.
+2. In `Build`, choose Simple Build for an on-ramp or open the graph canvas for the full pipeline. Connect generation passes such as Shape, Wall, Connectivity, Region Filter, Item Generator, and Promote.
+3. Press `Generate` for the current graph. Use the preview and selected node output to inspect terrain, selection, overlay, or result data.
+4. Promote the output that should become real map content. Promote writes by role into the Level Document and respects layer writable source boundaries so generated layers and hand-painted document layers can coexist.
+5. In `Paint`, use the brush palette, active layer, selected cell, and catalog/object keys to finish or correct the map by hand.
+6. Use `Catalog`, `Layers`, and `Resources` only when the current step needs vocabulary, role structure, or project asset bindings.
+7. In `Export`, choose the handoff purpose: runtime data resource, runtime scene, or generation graph resource for runtime Map Build API.
 
-`Resources` auto-links the selected `HexTileMap` while auto-link is on. If no node is selected, the tab shows `No HexTileMap selected` and keeps production asset selection visible instead of filling the workspace with samples.
+Support shelf responsibilities:
+
+- `Resources`: selected `HexTileMapLayer`, Level Document, graph resource, catalog, object database, label database, layer stack, movement profile, validation profile, generation profile, and export profile bindings.
+- `Catalog`: catalog key vocabulary, TileSet binding, tile previews, and scene entry resources. Normal Build/Paint flows use catalog keys instead of raw `source_id` / `atlas_coords`.
+- `Layers`: terrain, overlay, object, collision, navigation, and debug role layers, including writable source (`generated`, `document`, `target`, or `readonly`).
+- `Validate`: issue review and focus actions. Use it as a support lens before runtime handoff, not as the center of the workflow.
+- `QA`: seed comparison and selected-seed preview when comparing alternatives. Graph-based regeneration is the primary control surface.
+
+Sample/debug/process boundaries:
+
+- Samples are learning/onboarding assets and are not silent production defaults.
+- `Export` is runtime handoff, not package build output.
+- Package artifacts are developer process outputs from `tools/package_addon.sh`.
+- Debug overlay rendering is separate from normal gameplay rendering and is driven by Validate/debug-report flow.
+- Normal editor selection uses Resource pickers and FileDialogs. Saved paths may be displayed as read-only status, but path text is not the primary input workflow.
+
+`Resources` auto-links the selected `HexTileMapLayer` while auto-link is on. If no node is selected, the tab keeps production asset selection visible instead of filling the workspace with samples.
 
 The selected Level Document is the canonical authoring source. `HexTileMapLayer.hex_map` is runtime/display snapshot data for preview, target import, or Runtime Handoff output; it does not replace the Level Document as the map you save, validate, or continue editing.
 
 Fallback, mirror/debug/sample/manual override rules are tracked in [`docs/review/roadmap/FALLBACK_LEDGER_2026-06-10.md`](docs/review/roadmap/FALLBACK_LEDGER_2026-06-10.md), including owner and removal condition for each tracked decision.
 
-Resource rows show ownership through source badges:
+Resource shelves show ownership through source badges:
 
 | Badge | Meaning | Normal action |
 |---|---|---|
-| `Node` | The selected `HexTileMap` owns the relationship. | Create or select it in `Resources`; auto-link writes it back while enabled. |
+| `Node` | The selected `HexTileMapLayer` owns the relationship. | Create or select it in `Resources`; auto-link writes it back while enabled. |
 | `Project` | A project resource was selected explicitly. | Use it as the production source. |
 | `Document Dependency` | The selected Level Document hydrated this shared dependency. | Keep it when the document already owns the relationship. |
 | `Manual Override` | The workspace selection intentionally overrides the document dependency. | Use it for the current session, then write it back if it should become canonical. |
 | `Sample Learning` | A bundled sample asset is visible for learning. | Duplicate it into project files before adapting it. |
 | `Missing` | No resource is selected. | Create or select a project asset, or leave optional resources missing. |
 
-Generate output target:
+Build output target:
 
-1. Use `Preview only` to update the target display while leaving the selected Level Document unchanged.
-2. Use `Apply to selected Document` and press `Apply to Document` when the generated preview should become the selected `HexTileMap` Level Document.
-3. If no `HexTileMap`, Level Document, or generated preview is available, the apply action stays blocked with a visible reason.
+1. Use graph preview to inspect intermediate output while leaving the selected Level Document unchanged.
+2. Use Promote nodes or promote actions when a generated terrain/overlay/object output should become canonical document content.
+3. If no `HexTileMapLayer`, Level Document, graph, or generated preview is available, Build shows the missing context or creates the missing context instead of relying on hidden sample defaults.
 
-QA Seed Lab promotion follows the same ownership model: promoted seeds update the project Level Document relationship in `Resources` and remain unsaved until the document save workflow writes the resource.
+QA Seed Lab promotion follows the same ownership model when used as a support flow: promoted seeds update the project Level Document relationship in `Resources` and remain unsaved until the document save workflow writes the resource.
 
 Profile assets are concrete project resources: `HexValidationRuleSuiteResource` stores validation rule enablement and severity policy, `HexGenerationProfileResource` stores generator defaults and parameters, and `HexExportProfileResource` stores Runtime Handoff output options.
 
@@ -152,7 +151,7 @@ var document = HexEditorWorkflowExample.build_authoring_document()
 var info = HexEditorWorkflowExample.workflow_summary(document)
 ```
 
-In the editor, create or select the Level Document from `Resources`. With auto-link on, selecting or creating the Level Document writes the resource relationship back to the selected `HexTileMap`; shared project resources write to that document's dependencies and hydrate back into the Workspace context for Generate, Paint, Validate, QA, and Export.
+In the editor, create or select the Level Document from `Resources`, or let Build create the missing context for a graph run. With auto-link on, selecting or creating the Level Document writes the resource relationship back to the selected `HexTileMapLayer`; shared project resources write to that document's dependencies and hydrate back into the Workspace context for Build, Paint, and Export support flows.
 
 ## 4. Use Catalog Keys
 
@@ -174,7 +173,7 @@ terrain_layer.default_wall_key = "terrain.wall"
 
 Individual payloads can also carry `catalog_key`. Missing catalog assignments are validation issues; document apply does not silently substitute numeric tiles.
 
-In the editor, use `Catalog Resource`, `TileSet`, `Scene Entry Resource`, `Add Atlas Entry`, `Add Scene Entry`, and `Validate Catalog`. Paint and Generate controls then choose catalog keys rather than tile coordinates.
+In the editor, use `Catalog Resource`, `TileSet`, `Scene Entry Resource`, `Add Atlas Entry`, `Add Scene Entry`, and `Validate Catalog`. Build and Paint controls then choose catalog keys rather than tile coordinates.
 
 ## 5. Use A Layer Stack
 
@@ -188,7 +187,7 @@ In the editor, use `Catalog Resource`, `TileSet`, `Scene Entry Resource`, `Add A
 - overlay
 - debug
 
-Use a layer stack when applying one document to multiple child layers. Use the single-layer path only for simple scenes or advanced debugging.
+Use a layer stack when applying one document to multiple child layers. Build Promote writes generated output into role-aware document layers; Paint writes hand-authored document intent. Use the single-layer path only for simple scenes or advanced debugging.
 
 ```gdscript
 var stack = HexLayerStackResource.standard_template()
@@ -208,9 +207,9 @@ Object authoring uses a typed object database:
 
 Script-side runtime object export is covered in section 10.
 
-## 7. Validate Before Runtime Handoff
+## 7. Use Validate As A Support Lens
 
-Run validation before treating a document as runtime-ready.
+Use validation when the map needs issue review before runtime handoff. Validation is a support lens for the Build/Paint/Export route, not the center of the workflow.
 
 ```gdscript
 var result = HexMapDocumentValidator.validate_document(document, {
@@ -229,14 +228,20 @@ In the editor, use the validation dashboard for domain/severity rows, focus targ
 
 ## 8. Create Runtime Handoff
 
-Use the editor `Export` tab when runtime code needs a saved `HexMapResource` generated from the current Level Document.
+Use the editor `Export` tab when runtime code needs a handoff generated from the current Level Document or generation graph.
 
-The current Export tab workflow is:
+The current Export tab presents three handoff purposes:
 
-1. Select the Level Document.
+1. `Runtime Map Resource`: write a runtime-friendly `HexMapResource`.
+2. `Runtime Scene`: write a scene containing the runtime layer node tree.
+3. `Generation Graph`: save a graph resource that runtime code can execute through the runtime Map Build API.
+
+Common handoff steps:
+
+1. Confirm the current Level Document or graph context.
 2. Optionally select a `HexExportProfileResource`.
-3. Choose a Runtime Handoff destination with the FileDialog.
-4. Run the handoff to write a `HexMapResource`.
+3. Choose an explicit destination with the FileDialog.
+4. Run the selected handoff action.
 
 This workflow is not Save Document. Authoring saves keep the `HexMapDocumentResource`. It is also not Package Build or Debug Report; package artifacts are process-only (`tools/package_addon.sh`, `docs/manual/MANUAL_PACKAGE.md`) and debug reports are support/diagnostic text.
 
