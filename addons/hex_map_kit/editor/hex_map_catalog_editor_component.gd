@@ -90,6 +90,69 @@ static func entry_rows(catalog: HexTileCatalogResource) -> Array[Dictionary]:
 	return rows
 
 
+static func visual_board(
+	catalog: HexTileCatalogResource,
+	selected_key: String = "",
+	source: String = HexMapWorkspaceAssetContext.SOURCE_NONE,
+	source_badge: String = ""
+) -> Dictionary:
+	var cards := entry_cards(catalog, source, source_badge)
+	var actual_selected_key := selected_key.strip_edges()
+	if actual_selected_key == "" and not cards.is_empty():
+		actual_selected_key = String(cards[0].get("key", ""))
+	for index in range(cards.size()):
+		cards[index]["selected"] = String(cards[index].get("key", "")) == actual_selected_key
+	var empty_cta := catalog_board_empty_cta(catalog, cards)
+	return {
+		"surface_id": "catalog_visual_board",
+		"visible": true,
+		"primary": true,
+		"cards": cards,
+		"card_count": cards.size(),
+		"card_keys": _card_keys(cards),
+		"tile_card_count": _card_count_for_kind(cards, "tile"),
+		"object_card_count": _card_count_for_kind(cards, "object"),
+		"tile_object_unified": _card_count_for_kind(cards, "tile") > 0 and _card_count_for_kind(cards, "object") > 0,
+		"selected_key": actual_selected_key,
+		"raw_source_id_visible": false,
+		"raw_atlas_coords_visible": false,
+		"raw_metadata_in_tooltip": true,
+		"sample_tutorial_source_separated": source == HexMapWorkspaceAssetContext.SOURCE_SAMPLE,
+		"production_cards_count": 0 if source == HexMapWorkspaceAssetContext.SOURCE_SAMPLE else cards.size(),
+		"tutorial_cards_count": cards.size() if source == HexMapWorkspaceAssetContext.SOURCE_SAMPLE else 0,
+		"source_group": _board_source_group(source),
+		"source_badge": source_badge,
+		"empty_cta": empty_cta,
+	}
+
+
+static func entry_cards(
+	catalog: HexTileCatalogResource,
+	source: String = HexMapWorkspaceAssetContext.SOURCE_NONE,
+	source_badge: String = ""
+) -> Array[Dictionary]:
+	if catalog == null:
+		return []
+	var cards: Array[Dictionary] = []
+	for entry in catalog.entries:
+		var detail := entry_detail_from_entry(catalog, entry)
+		cards.append(_entry_card_from_detail(detail, source, source_badge))
+	return cards
+
+
+static func catalog_board_empty_cta(catalog: HexTileCatalogResource, cards: Array) -> Dictionary:
+	var visible := catalog == null or cards.is_empty()
+	return {
+		"visible": visible,
+		"actions": PackedStringArray([
+			"Create Catalog",
+			"Choose Catalog",
+			"Open sample",
+		]) if visible else PackedStringArray(),
+		"primary_action": "Create Catalog" if visible else "",
+	}
+
+
 static func paint_entry_rows(catalog: HexTileCatalogResource, validation = null) -> Array[Dictionary]:
 	if catalog == null:
 		return []
@@ -367,6 +430,85 @@ static func atlas_text(value) -> String:
 	if value is Vector2i:
 		return "(%d,%d)" % [value.x, value.y]
 	return str(value)
+
+
+static func _entry_card_from_detail(
+	detail: Dictionary,
+	source: String,
+	source_badge: String
+) -> Dictionary:
+	var metadata = detail.get("metadata", {}) as Dictionary
+	var preview = detail.get("preview", {}) as Dictionary
+	var badge = detail.get("preview_badge", {}) as Dictionary
+	var asset_kind := _board_asset_kind(String(detail.get("type", "")))
+	var raw_tooltip := _raw_metadata_tooltip(metadata)
+	return {
+		"id": String(detail.get("key", "")),
+		"key": String(detail.get("key", "")),
+		"title": String(detail.get("meaning", "")),
+		"asset_kind": asset_kind,
+		"type_label": String(detail.get("type_label", "")),
+		"preview": preview.duplicate(true),
+		"preview_available": bool(detail.get("preview_available", false)),
+		"preview_render_kind": String(detail.get("preview_render_kind", "")),
+		"badge_text": String(detail.get("preview_badge_text", "")),
+		"badge_tone": String(badge.get("tone", "")),
+		"missing": not bool(detail.get("preview_available", false)),
+		"missing_badge": not bool(detail.get("preview_available", false)),
+		"source_group": _board_source_group(source),
+		"source_badge": source_badge,
+		"sample_source": source == HexMapWorkspaceAssetContext.SOURCE_SAMPLE,
+		"raw_source_id_visible": false,
+		"raw_atlas_coords_visible": false,
+		"raw_metadata_tooltip": raw_tooltip,
+		"card_tooltip": raw_tooltip,
+		"selected": false,
+	}
+
+
+static func _board_asset_kind(entry_type: String) -> String:
+	match entry_type:
+		HexTileCatalogEntry.TYPE_ATLAS:
+			return "tile"
+		HexTileCatalogEntry.TYPE_SCENE:
+			return "object"
+		HexTileCatalogEntry.TYPE_PLACEHOLDER:
+			return "placeholder"
+	return "invalid"
+
+
+static func _board_source_group(source: String) -> String:
+	return "tutorial_sample" if source == HexMapWorkspaceAssetContext.SOURCE_SAMPLE else "production"
+
+
+static func _raw_metadata_tooltip(metadata: Dictionary) -> String:
+	var parts := PackedStringArray()
+	if metadata.has("source_id"):
+		parts.append("source_id: %d" % int(metadata.get("source_id", 0)))
+	if metadata.has("atlas_coords"):
+		parts.append("atlas_coords: %s" % atlas_text(metadata.get("atlas_coords", Vector2i.ZERO)))
+	if metadata.has("alternative_tile"):
+		parts.append("alternative_tile: %d" % int(metadata.get("alternative_tile", 0)))
+	var scene_path := String(metadata.get("scene_resource_path", ""))
+	if scene_path != "":
+		parts.append("scene: %s" % scene_path)
+	return "\n".join(parts)
+
+
+static func _card_keys(cards: Array) -> PackedStringArray:
+	var keys := PackedStringArray()
+	for card in cards:
+		if card is Dictionary:
+			keys.append(String((card as Dictionary).get("key", "")))
+	return keys
+
+
+static func _card_count_for_kind(cards: Array, asset_kind: String) -> int:
+	var count := 0
+	for card in cards:
+		if card is Dictionary and String((card as Dictionary).get("asset_kind", "")) == asset_kind:
+			count += 1
+	return count
 
 
 static func entry_value(entry, property: String, fallback = null):

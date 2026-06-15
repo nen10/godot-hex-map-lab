@@ -20,6 +20,10 @@ func _test_catalog_asset_screen_manages_project_catalog_without_samples() -> voi
 		"Catalog screen exposes catalog asset component"
 	)
 	_assert_true(
+		PackedStringArray(snapshot["component_ids"]).has("catalog_visual_board"),
+		"SCREEN-40 Catalog screen exposes visual board component"
+	)
+	_assert_true(
 		PackedStringArray(snapshot["component_ids"]).has("catalog_detail_panel"),
 		"TAB-52 Catalog screen exposes entry detail component"
 	)
@@ -63,6 +67,20 @@ func _test_catalog_asset_screen_manages_project_catalog_without_samples() -> voi
 	_assert_true(bool(snapshot["entry_list_visible"]), "SCREEN-20 Catalog exposes entry list state")
 	_assert_true(bool(snapshot["entry_detail_visible"]), "SCREEN-20 Catalog exposes entry detail state")
 	_assert_true(bool(snapshot["tags_status_visible"]), "SCREEN-20 Catalog exposes tags/status state")
+	_assert_eq(String(snapshot["first_surface"]), "catalog_visual_board", "SCREEN-40 Catalog opens on visual board")
+	_assert_true(bool(snapshot["catalog_board_primary"]), "SCREEN-40 Catalog visual board is primary")
+	_assert_true(bool(snapshot["catalog_board_visible"]), "SCREEN-40 Catalog visual board is visible")
+	_assert_true(not bool(snapshot["catalog_board_raw_source_id_visible"]), "SCREEN-40 Catalog board hides raw source_id")
+	_assert_true(not bool(snapshot["catalog_board_raw_atlas_coords_visible"]), "SCREEN-40 Catalog board hides raw atlas coords")
+	_assert_true(bool(snapshot["catalog_board_raw_metadata_in_tooltip"]), "SCREEN-40 Catalog board keeps raw metadata in tooltip")
+	_assert_true((snapshot["catalog_context_chips"] as PackedStringArray)[0].begins_with("Catalog:"), "SCREEN-40 Catalog exposes Catalog context chip")
+	var board_empty_cta = snapshot["catalog_board_empty_cta"] as Dictionary
+	_assert_true(bool(board_empty_cta["visible"]), "SCREEN-40 Catalog empty board shows CTA")
+	_assert_eq(
+		board_empty_cta["actions"],
+		PackedStringArray(["Create Catalog", "Choose Catalog", "Open sample"]),
+		"SCREEN-40 Catalog empty CTA offers create, choose, and sample actions"
+	)
 	_assert_true(not bool(snapshot["paint_catalog_entry_management_visible"]), "SCREEN-20 Paint does not own catalog management")
 	_assert_eq(workspace.workspace_asset_context().tile_catalog, null, "Catalog screen starts without sample catalog")
 	_assert_eq(workspace.generation_dock().tile_catalog(), null, "Catalog screen does not inject generation sample catalog")
@@ -124,6 +142,28 @@ func _test_catalog_asset_screen_manages_project_catalog_without_samples() -> voi
 	_assert_eq(int(snapshot["entry_count"]), 2, "Catalog screen snapshot reports created entries")
 	_assert_true(PackedStringArray(snapshot["entry_keys"]).has("terrain.floor"), "Catalog screen snapshot lists atlas key")
 	_assert_true(PackedStringArray(snapshot["entry_keys"]).has("object.spawn"), "Catalog screen snapshot lists scene key")
+	_assert_eq(int(snapshot["catalog_board_card_count"]), 2, "SCREEN-40 Catalog board reports two cards")
+	_assert_eq(int(snapshot["catalog_board_tile_count"]), 1, "SCREEN-40 Catalog board has one tile card")
+	_assert_eq(int(snapshot["catalog_board_object_count"]), 1, "SCREEN-40 Catalog board has one object card")
+	_assert_true(bool(snapshot["tile_object_unified_board"]), "SCREEN-40 Catalog board unifies tile and object cards")
+	_assert_eq(
+		snapshot["catalog_board_card_ids"],
+		PackedStringArray(["terrain.floor", "object.spawn"]),
+		"SCREEN-40 Catalog board card ids follow catalog entries"
+	)
+	var board_cards = _entries_by_id(snapshot["catalog_board_cards"] as Array)
+	var tile_card = board_cards["terrain.floor"] as Dictionary
+	var object_card = board_cards["object.spawn"] as Dictionary
+	_assert_eq(String(tile_card["asset_kind"]), "tile", "SCREEN-40 atlas entry is a tile card")
+	_assert_eq(String(object_card["asset_kind"]), "object", "SCREEN-40 scene entry is an object card")
+	_assert_true(bool(tile_card["preview_available"]), "SCREEN-40 tile card carries preview")
+	_assert_true(bool(object_card["preview_available"]), "SCREEN-40 object card carries preview")
+	_assert_eq(String(tile_card["badge_text"]), "Preview ready", "SCREEN-40 tile card exposes preview badge")
+	_assert_true(not bool(tile_card["raw_source_id_visible"]), "SCREEN-40 tile card hides raw source_id")
+	_assert_true(not bool(tile_card["raw_atlas_coords_visible"]), "SCREEN-40 tile card hides raw atlas coords")
+	_assert_true(String(tile_card["raw_metadata_tooltip"]).contains("source_id"), "SCREEN-40 tile card keeps source_id in tooltip")
+	_assert_true(String(tile_card["raw_metadata_tooltip"]).contains("atlas_coords"), "SCREEN-40 tile card keeps atlas coords in tooltip")
+	_assert_eq(String(tile_card["source_group"]), "production", "SCREEN-40 project catalog cards stay in production group")
 	_assert_true(bool(snapshot["create_edit_entry_available"]), "SCREEN-20 Catalog exposes create/edit entry availability")
 	_assert_true(bool(snapshot["create_atlas_entry_available"]), "SCREEN-20 Catalog exposes atlas entry creation")
 	_assert_true(bool(snapshot["create_scene_entry_available"]), "SCREEN-20 Catalog exposes scene entry creation")
@@ -227,6 +267,10 @@ func _test_catalog_asset_screen_manages_project_catalog_without_samples() -> voi
 		"Placeholder entry has no preview.",
 		"CAT-NEXT-11 mounted Catalog badge tooltip explains placeholder preview absence"
 	)
+	board_cards = _entries_by_id(snapshot["catalog_board_cards"] as Array)
+	var placeholder_card = board_cards["placeholder.todo"] as Dictionary
+	_assert_true(bool(placeholder_card["missing_badge"]), "SCREEN-40 placeholder card exposes missing badge")
+	_assert_eq(String(placeholder_card["badge_tone"]), "warning", "SCREEN-40 placeholder missing badge uses warning tone")
 
 	var open_result = workspace.open_tile_catalog()
 	_assert_true(bool(open_result["ok"]), "Catalog screen opens selected Tile Catalog")
@@ -243,7 +287,30 @@ func _test_catalog_asset_screen_manages_project_catalog_without_samples() -> voi
 	_assert_eq(workspace.workspace_asset_context().tile_catalog, null, "cleared catalog leaves workspace context")
 	_assert_true(not session.show_bundled_samples_in_main_selectors, "Catalog screen actions do not enable sample mode")
 
+	var sample_catalog := HexTileCatalogResource.new()
+	var sample_entry_result = HexMapCatalogEditorComponent.create_atlas_entry(
+		sample_catalog,
+		"sample.floor",
+		tile_set,
+		0,
+		Vector2i.ZERO
+	)
+	_assert_true(bool(sample_entry_result["ok"]), "SCREEN-40 sample test creates sample catalog entry")
+	workspace.workspace_asset_context().set_tile_catalog(
+		sample_catalog,
+		HexMapWorkspaceAssetContext.SOURCE_SAMPLE,
+		HexMapWorkspaceAssetContext.SOURCE_BADGE_SAMPLE
+	)
+	snapshot = workspace.catalog_screen_snapshot()
+	_assert_true(bool(snapshot["sample_tutorial_source_separated"]), "SCREEN-40 sample catalog is marked tutorial source")
+	_assert_eq(String(snapshot["catalog_board_source_group"]), "tutorial_sample", "SCREEN-40 sample catalog cards use tutorial source group")
+	_assert_eq(int(snapshot["catalog_board_production_cards"]), 0, "SCREEN-40 sample catalog does not count as production cards")
+	_assert_eq(int(snapshot["catalog_board_tutorial_cards"]), 1, "SCREEN-40 sample catalog cards count as tutorial cards")
+	board_cards = _entries_by_id(snapshot["catalog_board_cards"] as Array)
+	var sample_card = board_cards["sample.floor"] as Dictionary
+	_assert_true(bool(sample_card["sample_source"]), "SCREEN-40 sample card carries sample source flag")
+	_assert_eq(String(sample_card["source_group"]), "tutorial_sample", "SCREEN-40 sample card source group is tutorial")
+	_assert_true(not session.show_bundled_samples_in_main_selectors, "SCREEN-40 sample source marking does not enable sample mode")
+
 	workspace.queue_free()
 	await process_frame
-
-

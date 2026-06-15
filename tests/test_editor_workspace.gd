@@ -518,7 +518,7 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 			"slots": PackedStringArray(),
 		},
 		"Catalog": {
-			"components": PackedStringArray(["catalog_detail_panel", "catalog_asset_panel"]),
+			"components": PackedStringArray(["catalog_visual_board", "catalog_detail_panel", "catalog_asset_panel"]),
 			"screen_script": "hex_map_catalog_screen.gd",
 			"screen_role_source": "HexMapCatalogScreen",
 			"slots": PackedStringArray([HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG]),
@@ -567,6 +567,7 @@ func _test_workspace_tab_content_query_contract_lists_expected_components_and_sl
 	var builder_components := {
 		"resources_context_panel": "build_resources_context_panel",
 		"missing_unique_resources_panel": "build_missing_unique_resources_panel",
+		"catalog_visual_board": "build_catalog_detail_panel",
 		"catalog_detail_panel": "build_catalog_detail_panel",
 		"layer_stack_role_panel": "build_layer_stack_role_panel",
 		"validation_issue_navigator": "build_validation_issue_navigator",

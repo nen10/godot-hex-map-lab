@@ -65,6 +65,9 @@ var _resources_context_next_actions_label: Label
 var _resources_source_badges_label: Label
 var _resources_group_labels: Dictionary = {}
 var _catalog_detail_panel: VBoxContainer
+var _catalog_board_status_label: Label
+var _catalog_board_grid: GridContainer
+var _catalog_empty_cta_label: Label
 var _catalog_detail_status_label: Label
 var _catalog_detail_entry_label: Label
 var _catalog_detail_preview_control: HexTileCatalogPreviewControl
@@ -2207,6 +2210,14 @@ func catalog_screen_snapshot() -> Dictionary:
 	var entry_detail := catalog_entry_detail(_selected_catalog_entry_key)
 	var validation_status := _catalog_validation_status(catalog)
 	var empty_state := _catalog_tab_empty_state(entry_rows, entry_detail)
+	var catalog_source := context.asset_source(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG)
+	var catalog_source_badge := context.asset_source_badge(HexMapWorkspaceAssetContext.SLOT_TILE_CATALOG)
+	var catalog_board := HexMapCatalogEditorComponent.visual_board(
+		catalog,
+		_selected_catalog_entry_key,
+		catalog_source,
+		catalog_source_badge
+	)
 	return {
 		"tab": HexMapWorkspaceComponentRegistry.TAB_CATALOG,
 		"screen_role": screen_role,
@@ -2218,10 +2229,33 @@ func catalog_screen_snapshot() -> Dictionary:
 		"catalog_component_owner_rows": catalog_editor_component_owner_rows(),
 		"asset_slot_ids": tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_CATALOG),
 		"purpose_text": String(empty_state.get("purpose_text", "")),
+		"first_surface": "catalog_visual_board",
 		"empty_state": empty_state,
 		"empty_state_text": String(empty_state.get("empty_state_text", "")),
 		"tile_catalog": catalog,
+		"catalog_context_chips": PackedStringArray([
+			"Catalog: %s" % _catalog_display_name(catalog),
+		]),
+		"catalog_source": catalog_source,
+		"catalog_source_badge": catalog_source_badge,
 		"catalog_slot": catalog_slot,
+		"catalog_board": catalog_board,
+		"catalog_board_primary": bool(catalog_board.get("primary", false)),
+		"catalog_board_visible": bool(catalog_board.get("visible", false)),
+		"catalog_board_cards": catalog_board.get("cards", []),
+		"catalog_board_card_ids": catalog_board.get("card_keys", PackedStringArray()),
+		"catalog_board_card_count": int(catalog_board.get("card_count", 0)),
+		"catalog_board_tile_count": int(catalog_board.get("tile_card_count", 0)),
+		"catalog_board_object_count": int(catalog_board.get("object_card_count", 0)),
+		"tile_object_unified_board": bool(catalog_board.get("tile_object_unified", false)),
+		"catalog_board_empty_cta": catalog_board.get("empty_cta", {}),
+		"catalog_board_raw_source_id_visible": bool(catalog_board.get("raw_source_id_visible", false)),
+		"catalog_board_raw_atlas_coords_visible": bool(catalog_board.get("raw_atlas_coords_visible", false)),
+		"catalog_board_raw_metadata_in_tooltip": bool(catalog_board.get("raw_metadata_in_tooltip", false)),
+		"sample_tutorial_source_separated": bool(catalog_board.get("sample_tutorial_source_separated", false)),
+		"catalog_board_source_group": String(catalog_board.get("source_group", "")),
+		"catalog_board_production_cards": int(catalog_board.get("production_cards_count", 0)),
+		"catalog_board_tutorial_cards": int(catalog_board.get("tutorial_cards_count", 0)),
 		"tile_set": catalog.tile_set if catalog != null else null,
 		"tile_set_present": catalog != null and catalog.tile_set != null,
 		"tile_set_tooltip": _catalog_tile_set_tooltip(),
@@ -2286,6 +2320,16 @@ func catalog_entry_rows() -> Array[Dictionary]:
 func catalog_entry_detail(entry_key: String = "") -> Dictionary:
 	var catalog := workspace_asset_context().tile_catalog
 	return HexMapCatalogEditorComponent.entry_detail(catalog, entry_key)
+
+
+func _catalog_display_name(catalog: HexTileCatalogResource) -> String:
+	if catalog == null:
+		return "Missing"
+	var display_name := String(catalog.display_name)
+	if display_name != "":
+		return display_name
+	var catalog_id := String(catalog.catalog_id)
+	return catalog_id if catalog_id != "" else "Unnamed Catalog"
 
 
 func select_catalog_entry(entry_key: String) -> Dictionary:
@@ -4277,12 +4321,21 @@ func _mount_catalog_detail_panel() -> void:
 		return
 	var built := HexMapCatalogScreen.build_catalog_detail_panel()
 	_catalog_detail_panel = built.get("root", null) as VBoxContainer
+	_catalog_board_status_label = built.get("board_status_label", null) as Label
+	_catalog_board_grid = built.get("board_grid", null) as GridContainer
+	_catalog_empty_cta_label = built.get("empty_cta_label", null) as Label
 	_catalog_detail_status_label = built.get("status_label", null) as Label
 	_catalog_detail_entry_label = built.get("entry_label", null) as Label
 	_catalog_detail_preview_control = built.get("preview_control", null) as HexTileCatalogPreviewControl
 	_catalog_detail_preview_badge_label = built.get("preview_badge_label", null) as Label
 
 	(page as Control).add_child(_catalog_detail_panel)
+	if _catalog_board_grid != null:
+		_register_tab_component(
+			HexMapWorkspaceComponentRegistry.TAB_CATALOG,
+			"catalog_visual_board",
+			_catalog_board_grid
+		)
 	_register_tab_component(
 		HexMapWorkspaceComponentRegistry.TAB_CATALOG,
 		"catalog_detail_panel",
@@ -5630,6 +5683,10 @@ func _on_export_secondary_action_pressed(action_id: String) -> void:
 	press_export_secondary_action(action_id)
 
 
+func _on_catalog_board_card_pressed(entry_key: String) -> void:
+	select_catalog_entry(entry_key)
+
+
 func _popup_missing_unique_resources_directory_dialog() -> bool:
 	if not Engine.is_editor_hint():
 		return false
@@ -5806,6 +5863,8 @@ func _refresh_catalog_detail_panel() -> void:
 	var snapshot := catalog_screen_snapshot()
 	var entry_detail = snapshot.get("entry_detail", {}) as Dictionary
 	var empty_state = snapshot.get("empty_state", {}) as Dictionary
+	var catalog_board = snapshot.get("catalog_board", {}) as Dictionary
+	_refresh_catalog_visual_board(catalog_board)
 	if _catalog_detail_status_label != null:
 		_catalog_detail_status_label.text = "TileSet: %s | Entries: %d" % [
 			"Linked" if bool(snapshot.get("tile_set_present", false)) else "Missing",
@@ -5835,6 +5894,57 @@ func _refresh_catalog_detail_panel() -> void:
 	if _catalog_detail_preview_badge_label != null:
 		_catalog_detail_preview_badge_label.text = String(entry_detail.get("preview_badge_text", "Preview unavailable"))
 		_catalog_detail_preview_badge_label.tooltip_text = String(entry_detail.get("preview_badge_tooltip", entry_detail.get("preview_unavailable_reason", "")))
+
+
+func _refresh_catalog_visual_board(board: Dictionary) -> void:
+	var cards = board.get("cards", []) as Array
+	if _catalog_board_status_label != null:
+		_catalog_board_status_label.text = "Catalog: %s | Cards: %d" % [
+			String(board.get("source_badge", "None")),
+			int(board.get("card_count", cards.size())),
+		]
+		_catalog_board_status_label.tooltip_text = "Catalog board is the primary surface. Raw source and atlas metadata stay in card tooltips."
+	if _catalog_empty_cta_label != null:
+		var empty_cta = board.get("empty_cta", {}) as Dictionary
+		_catalog_empty_cta_label.visible = bool(empty_cta.get("visible", false))
+		_catalog_empty_cta_label.text = _catalog_board_empty_cta_text(empty_cta)
+	if _catalog_board_grid == null:
+		return
+	_catalog_board_grid.visible = bool(board.get("visible", true))
+	for child in _catalog_board_grid.get_children():
+		_catalog_board_grid.remove_child(child)
+		child.queue_free()
+	for card in cards:
+		if not card is Dictionary:
+			continue
+		_catalog_board_grid.add_child(_catalog_board_card_button(card as Dictionary))
+
+
+func _catalog_board_card_button(card: Dictionary) -> Button:
+	var button := Button.new()
+	var key := String(card.get("key", ""))
+	button.name = "Catalog Card %s" % key
+	button.text = "%s\n%s | %s" % [
+		String(card.get("title", key)),
+		String(card.get("asset_kind", "")),
+		String(card.get("badge_text", "")),
+	]
+	button.disabled = key == ""
+	button.tooltip_text = String(card.get("card_tooltip", ""))
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.set_meta("hex_catalog_entry_key", key)
+	button.set_meta("hex_catalog_asset_kind", String(card.get("asset_kind", "")))
+	button.pressed.connect(_on_catalog_board_card_pressed.bind(key))
+	return button
+
+
+func _catalog_board_empty_cta_text(empty_cta: Dictionary) -> String:
+	if not bool(empty_cta.get("visible", false)):
+		return ""
+	var actions = empty_cta.get("actions", PackedStringArray()) as PackedStringArray
+	if actions.is_empty():
+		return ""
+	return _join_text(actions, " | ")
 
 
 func _catalog_tile_set_tooltip() -> String:

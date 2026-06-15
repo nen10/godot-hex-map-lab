@@ -81,6 +81,7 @@ static func component_rows() -> Array[Dictionary]:
 			"HexMapGenDock"
 		),
 		_component(TAB_PAINT, "brush_palette", "HexMapEditTool", "BrushPalette", "paint"),
+		_component(TAB_CATALOG, "catalog_visual_board", "GridContainer", "CatalogVisualBoard", "catalog"),
 		_component(TAB_CATALOG, "catalog_detail_panel", "VBoxContainer", "CatalogDetailPanel", "catalog"),
 		_component(
 			TAB_CATALOG,

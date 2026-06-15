@@ -346,3 +346,24 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_export_workflow_state.gd`
     - `addons/hex_map_kit/editor/hex_map_workspace.gd`
     - `tests/test_editor_output.gd`
+
+### SCREEN-40_CATALOG_VISUAL_BOARD
+
+proof:
+  plan: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/SCREEN-40_CATALOG_VISUAL_BOARD/`
+  review: `docs/review/autopilot/SCREEN-40_CATALOG_VISUAL_BOARD_SELF_REVIEW_2026-06-15.md`
+  execution:
+    - `docs/review/autopilot/SCREEN-40_CATALOG_VISUAL_BOARD_SELF_REVIEW_2026-06-15.md`
+  ui_metrics:
+    - `.godot_user/ui-metrics/20260615-184103-1111/workspace_layout_metrics.md`（UI task; P0 failures = 0, P1 issues = 0）
+  tests:
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/screen40-targeted/logs/test_editor_catalog.gd.log --path . --script res://tests/test_editor_catalog.gd`（exit 0）
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/screen40-workspace/logs/test_editor_workspace.gd.log --path . --script res://tests/test_editor_workspace.gd`（exit 0）
+    - `TEST_JOBS=4 ./tools/test.sh`（run id `20260615-184103-1111`, exit 0）
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_catalog_editor_component.gd`
+    - `addons/hex_map_kit/editor/hex_map_catalog_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace_component_registry.gd`
+    - `tests/test_editor_catalog.gd`
+    - `tests/test_editor_workspace.gd`

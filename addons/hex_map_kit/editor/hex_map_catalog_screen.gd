@@ -19,6 +19,7 @@ static func screen_contract() -> Dictionary:
 		"user_task": USER_TASK,
 		"owns": PackedStringArray([
 			"tile_catalog",
+			"catalog_visual_board",
 			"catalog_entry_list",
 			"catalog_entry_detail",
 			"catalog_entry_validation",
@@ -37,6 +38,7 @@ static func ownership_fields() -> Dictionary:
 
 static func component_owner_rows() -> Array[Dictionary]:
 	return [
+		_component_owner("catalog_visual_board", "GridContainer", "CatalogVisualBoard"),
 		_component_owner("catalog_detail_panel", "VBoxContainer", "CatalogDetailPanel"),
 		_component_owner("catalog_asset_panel", "HexMapWorkspaceAssetPanel", "CatalogPanel"),
 	]
@@ -47,6 +49,24 @@ static func build_catalog_detail_panel() -> Dictionary:
 	var title := Label.new()
 	title.text = "Catalog Entries"
 	panel.add_child(title)
+
+	var board_status_label := _wrapped_label()
+	board_status_label.name = "Catalog Visual Board Status"
+	panel.add_child(board_status_label)
+
+	var board_grid := GridContainer.new()
+	board_grid.name = "Catalog Visual Board"
+	board_grid.columns = 2
+	board_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	board_grid.set_meta("hex_workspace_component_id", "catalog_visual_board")
+	board_grid.set_meta("hex_workspace_screen_script", SCREEN_SCRIPT)
+	board_grid.set_meta("hex_workspace_screen_role_source", "HexMapCatalogScreen")
+	board_grid.set_meta("hex_workspace_builder", "build_catalog_detail_panel")
+	panel.add_child(board_grid)
+
+	var empty_cta_label := _wrapped_label()
+	empty_cta_label.name = "Catalog Empty CTA"
+	panel.add_child(empty_cta_label)
 
 	var status_label := _wrapped_label()
 	panel.add_child(status_label)
@@ -70,6 +90,9 @@ static func build_catalog_detail_panel() -> Dictionary:
 
 	return {
 		"root": panel,
+		"board_status_label": board_status_label,
+		"board_grid": board_grid,
+		"empty_cta_label": empty_cta_label,
 		"status_label": status_label,
 		"entry_label": entry_label,
 		"preview_control": preview_control,
