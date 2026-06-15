@@ -71,7 +71,7 @@ plan_dir 規約: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GEN
 |---|---|---|---|---|---|
 | `SCREEN-30_BUILD_TAB_FULL` | `COMPLETE` | `GRAPH-13` | Simple Build(入口) と Graph(本体) を1画面で両立 / preview・promote・dirty | editor, tests | E: 初心者は Profile→Generate、上級者は graph、両方が最初の画面から辿れる。 |
 | `SCREEN-31_PAINT_AS_DESIGN_WORKSPACE` | `COMPLETE` | `DESIGN-10` | Paint を brush 作業面（純ランダムを補うデザイン管理） | `addons/hex_map_kit/editor/hex_map_edit_tool.gd`, tests | S: brush palette / active layer / selected cell / last edit / viewport 同期。E: Paint 先頭に Resource row 無し・編集面が主。 |
-| `SCREEN-32_EXPORT_AS_HANDOFF` | `READY` | `DESIGN-10`, `RUNTIME-50` | handoff 3形態を purpose card 化 | `addons/hex_map_kit/editor/hex_map_export_screen.gd`, tests | S: 3形態 card（(a) data resource(.tres) / (b) scene(.tscn) / (c) graph resource）+ Debug Report / JSON / Package(process-only)。E: 目的から選べる / gameplay framework 化しない。 |
+| `SCREEN-32_EXPORT_AS_HANDOFF` | `COMPLETE` | `DESIGN-10`, `RUNTIME-50` | handoff 3形態を purpose card 化 | `addons/hex_map_kit/editor/hex_map_export_screen.gd`, tests | S: 3形態 card（(a) data resource(.tres) / (b) scene(.tscn) / (c) graph resource）+ Debug Report / JSON / Package(process-only)。E: 目的から選べる / gameplay framework 化しない。 |
 
 ---
 
@@ -118,7 +118,7 @@ Codex は self-review で nonblocking work を見つけたらここに `follow-u
 
 ## 10. Current pointer
 
-Current recommended next task: `SCREEN-32_EXPORT_AS_HANDOFF`。
+Current recommended next task: `SCREEN-40_CATALOG_VISUAL_BOARD`。
 
 理由:
 - `ADOPT-00` は `COMPLETE`：二層 DoD gate を self-review template / queue rules / planning policy へ実装し、QA park を規則化（proof は `PROOF_LOG.md`）。
@@ -133,10 +133,11 @@ Current recommended next task: `SCREEN-32_EXPORT_AS_HANDOFF`。
 - Phase Y2 は `COMPLETE`：phase review matrix は `docs/review/roadmap/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN_Y2_PHASE_REVIEW_2026-06-15.md`。
 - `SCREEN-30` は `COMPLETE`：Simple Profile→preset graph→Generate→terrain promote、graph-less selected layer の UI button bootstrap、dirty/last run/state visibility の proof 済み（proof は `PROOF_LOG.md`）。
 - `SCREEN-31` は `COMPLETE`：Paint workspace chips、brush palette、shape controls、empty CTA、viewport selected cell / last edit 同期の proof 済み（proof は `PROOF_LOG.md`）。
-- `SCREEN-32` は `READY`：`DESIGN-10` と `RUNTIME-50` completion により dependency が満たされた。
+- `SCREEN-32` は `COMPLETE`：Runtime Map Resource / Runtime Scene / Generation Graph の 3 purpose card、Debug Report / JSON Snapshot / Package(process-only) secondary row、scene/graph/json/debug action proof 済み（proof は `PROOF_LOG.md`）。
+- Phase Y3 は `COMPLETE`：phase review matrix は `docs/review/roadmap/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN_Y3_PHASE_REVIEW_2026-06-15.md`。
 - `DESIGN-10` は `COMPLETE`：6タブ normal/empty wireframe と §6 self-check 済み（proof は `PROOF_LOG.md`）。
 - `DESIGN-11` は `COMPLETE`：tab IA / priority / top strip の proof 済み（proof は `PROOF_LOG.md`）。
-- Phase Y3 進行中。次の先頭 READY は `SCREEN-32`。
+- Phase Y4 進行中。次の先頭 READY は `SCREEN-40`。
 
 実行順（Roadmap §5）:
 ```

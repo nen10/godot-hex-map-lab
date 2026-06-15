@@ -42,6 +42,35 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 	_assert_eq(String((handoff_rows["destination"] as Dictionary)["status"]), "missing", "SCREEN-NEXT-10 Export destination readiness starts missing")
 	_assert_eq(String((handoff_rows["run_action"] as Dictionary)["status"]), "blocked", "SCREEN-NEXT-10 Export action readiness starts blocked")
 	_assert_true(String(snapshot["mounted_runtime_handoff_summary_text"]).contains("Source: Level Document missing"), "SCREEN-NEXT-10 mounted Export handoff summary shows missing source")
+	var purpose_cards = _entries_by_id(snapshot["purpose_cards"] as Array)
+	_assert_eq(
+		snapshot["purpose_card_ids"],
+		PackedStringArray([
+			HexMapExportScreen.PURPOSE_RUNTIME_MAP,
+			HexMapExportScreen.PURPOSE_RUNTIME_SCENE,
+			HexMapExportScreen.PURPOSE_GENERATION_GRAPH,
+		]),
+		"SCREEN-32 Export exposes three Godot handoff purpose cards"
+	)
+	_assert_eq(String((purpose_cards[HexMapExportScreen.PURPOSE_RUNTIME_MAP] as Dictionary)["title"]), "Runtime Map Resource (.tres)", "SCREEN-32 Export names Runtime Map Resource card")
+	_assert_eq(String((purpose_cards[HexMapExportScreen.PURPOSE_RUNTIME_SCENE] as Dictionary)["action_label"]), "Create Scene", "SCREEN-32 Export names Runtime Scene action")
+	_assert_eq(String((purpose_cards[HexMapExportScreen.PURPOSE_GENERATION_GRAPH] as Dictionary)["target_resource_class"]), "HexGenerationGraphResource", "SCREEN-32 Export names graph resource target")
+	_assert_true(bool((purpose_cards[HexMapExportScreen.PURPOSE_RUNTIME_MAP] as Dictionary)["primary"]), "SCREEN-32 Runtime Map Resource remains primary")
+	_assert_true(not bool((purpose_cards[HexMapExportScreen.PURPOSE_RUNTIME_MAP] as Dictionary)["enabled"]), "SCREEN-32 Runtime Map card starts disabled without document")
+	_assert_true(not bool((purpose_cards[HexMapExportScreen.PURPOSE_GENERATION_GRAPH] as Dictionary)["gameplay_framework"]), "SCREEN-32 Graph card is not a gameplay framework")
+	var secondary_actions = _entries_by_id(snapshot["secondary_actions"] as Array)
+	_assert_eq(
+		snapshot["secondary_action_ids"],
+		PackedStringArray([
+			HexMapExportScreen.SECONDARY_DEBUG_REPORT,
+			HexMapExportScreen.SECONDARY_JSON_SNAPSHOT,
+			HexMapExportScreen.SECONDARY_PACKAGE_BUILD,
+		]),
+		"SCREEN-32 Export exposes Debug Report, JSON Snapshot, and Package secondary row"
+	)
+	_assert_true(bool((secondary_actions[HexMapExportScreen.SECONDARY_PACKAGE_BUILD] as Dictionary)["process_only"]), "SCREEN-32 Package is process-only")
+	_assert_true(not bool((secondary_actions[HexMapExportScreen.SECONDARY_PACKAGE_BUILD] as Dictionary)["enabled"]), "SCREEN-32 Package secondary action is disabled")
+	_assert_true(String((secondary_actions[HexMapExportScreen.SECONDARY_PACKAGE_BUILD] as Dictionary)["tooltip"]).contains("release/package process"), "SCREEN-32 disabled Package action explains process boundary")
 	var output_type = snapshot["output_type"] as Dictionary
 	_assert_eq(output_type["label"], "Runtime Handoff Resource", "TAB-56 Export names output type")
 	_assert_eq(output_type["source"], "Current Level Document", "TAB-56 Export names source")
@@ -66,8 +95,11 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 	)
 	_assert_true(not bool(snapshot["unsupported_export_buttons_visible"]), "TAB-56 unsupported export buttons are hidden")
 	_assert_true(not bool(snapshot["data_export_button_visible"]), "TAB-56 data export button is hidden")
-	_assert_true(not bool(snapshot["package_build_button_visible"]), "TAB-56 package build button is hidden")
-	_assert_true(not bool(snapshot["debug_report_export_button_visible"]), "TAB-56 debug report export button is hidden")
+	_assert_true(bool(snapshot["json_snapshot_export_button_visible"]), "SCREEN-32 JSON Snapshot secondary action is visible")
+	_assert_true(bool(snapshot["package_build_button_visible"]), "SCREEN-32 Package secondary action is visible")
+	_assert_true(bool(snapshot["package_build_button_disabled"]), "SCREEN-32 Package secondary action is disabled")
+	_assert_true(String(snapshot["package_build_tooltip"]).contains("release/package process"), "SCREEN-32 Package secondary action explains process boundary")
+	_assert_true(bool(snapshot["debug_report_export_button_visible"]), "SCREEN-32 Debug Report secondary action is visible")
 	_assert_true(bool(snapshot["experimental_exports_hidden"]), "TAB-56 experimental exports are hidden")
 	var modes = snapshot["output_modes"] as Array
 	_assert_eq(_export_mode_status(modes, "runtime_handoff_resource"), "available", "TAB-56 runtime handoff is available")
@@ -76,15 +108,18 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 	_assert_eq(_export_mode_status(modes, "debug_report"), "diagnostic", "TAB-56 debug report is diagnostic")
 	_assert_eq(
 		snapshot["visible_output_mode_ids"],
-		PackedStringArray(["runtime_handoff_resource"]),
-		"INFO-72 Export tab visible output is Runtime Handoff only"
+		PackedStringArray([
+			HexMapExportScreen.PURPOSE_RUNTIME_MAP,
+			HexMapExportScreen.PURPOSE_RUNTIME_SCENE,
+			HexMapExportScreen.PURPOSE_GENERATION_GRAPH,
+		]),
+		"SCREEN-32 Export tab visible outputs are three Godot handoff cards"
 	)
 	var visible_mode_labels = snapshot["visible_output_mode_labels"] as PackedStringArray
-	_assert_true(visible_mode_labels.has("Runtime Handoff"), "INFO-72 Export visible mode names Runtime Handoff")
-	_assert_true(not visible_mode_labels.has("Data Export"), "INFO-72 Data Export is classified but not visible")
-	_assert_true(not visible_mode_labels.has("Package Build"), "INFO-72 Package Build is classified but not visible")
-	_assert_true(not visible_mode_labels.has("Debug Report"), "INFO-72 Debug Report is classified but not visible")
-	_assert_eq(int(snapshot["normal_export_action_count"]), 1, "SCREEN-25 Export exposes one normal export action")
+	_assert_true(visible_mode_labels.has("Runtime Map Resource (.tres)"), "SCREEN-32 Export visible mode names Runtime Map Resource")
+	_assert_true(visible_mode_labels.has("Runtime Scene (.tscn)"), "SCREEN-32 Export visible mode names Runtime Scene")
+	_assert_true(visible_mode_labels.has("Generation Graph (.tres)"), "SCREEN-32 Export visible mode names Generation Graph")
+	_assert_eq(int(snapshot["normal_export_action_count"]), 3, "SCREEN-32 Export exposes three normal export actions")
 	_assert_true(String(snapshot["package_support_boundary"]).contains("developer release process"), "SCREEN-25 Export explains package boundary")
 	_assert_true(String(snapshot["debug_export_boundary"]).contains("diagnostic"), "SCREEN-25 Export explains debug export boundary")
 	_assert_true(
@@ -201,6 +236,10 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 	_assert_true(bool(output_type["source_ready"]), "TAB-56 Export source becomes ready")
 	_assert_true(bool(output_type["destination_ready"]), "TAB-56 Export destination becomes ready")
 	_assert_eq(snapshot["cannot_export_reason"], "", "TAB-56 Export clears blocked reason when ready")
+	purpose_cards = _entries_by_id(snapshot["purpose_cards"] as Array)
+	_assert_true(bool((purpose_cards[HexMapExportScreen.PURPOSE_RUNTIME_MAP] as Dictionary)["enabled"]), "SCREEN-32 Runtime Map card enables when document and destination are ready")
+	_assert_true(bool((purpose_cards[HexMapExportScreen.PURPOSE_RUNTIME_SCENE] as Dictionary)["enabled"]), "SCREEN-32 Runtime Scene card enables when document and destination are ready")
+	_assert_true(not bool((purpose_cards[HexMapExportScreen.PURPOSE_GENERATION_GRAPH] as Dictionary)["enabled"]), "SCREEN-32 Graph card waits for selected layer graph")
 	handoff_summary = snapshot["runtime_handoff_summary"] as Dictionary
 	handoff_rows = _entries_by_id(handoff_summary["readiness_rows"] as Array)
 	_assert_eq(String((handoff_rows["source_document"] as Dictionary)["status"]), "ready", "SCREEN-NEXT-10 Export source readiness becomes ready")
@@ -235,6 +274,69 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 	handoff_rows = _entries_by_id(handoff_summary["readiness_rows"] as Array)
 	_assert_eq(String((handoff_rows["result_state"] as Dictionary)["status"]), HexMapExportWorkflowState.STATE_EXPORTED, "SCREEN-NEXT-10 Export readiness result reports exported state")
 
+	var selected_layer := HexTileMapLayer.new()
+	selected_layer.name = "Screen32ExportLayer"
+	selected_layer.level_document_resource = document
+	var graph_resource := HexGenerationGraphResource.new()
+	graph_resource.graph_id = "screen32_export_graph"
+	graph_resource.resource_name = "Screen32 Export Graph"
+	graph_resource.nodes = [{
+		"id": "source",
+		"type": "source",
+		"params": {},
+		"resource_refs": {},
+	}]
+	graph_resource.semantics_snapshot = {"level_document": document}
+	selected_layer.generation_graph_resource = graph_resource
+	root.add_child(selected_layer)
+	workspace.set_selected_hex_tile_map_layer(selected_layer)
+	snapshot = workspace.export_screen_snapshot()
+	purpose_cards = _entries_by_id(snapshot["purpose_cards"] as Array)
+	_assert_true(bool((purpose_cards[HexMapExportScreen.PURPOSE_GENERATION_GRAPH] as Dictionary)["enabled"]), "SCREEN-32 Graph card enables when selected layer has graph resource")
+
+	var scene_path = "%s.tscn" % export_path.get_basename()
+	var scene_result = workspace.press_export_purpose_action(HexMapExportScreen.PURPOSE_RUNTIME_SCENE)
+	_assert_true(bool(scene_result["ok"]), "SCREEN-32 Runtime Scene card writes .tscn handoff")
+	_assert_eq(String(scene_result["resource_class"]), "PackedScene", "SCREEN-32 Runtime Scene result reports PackedScene")
+	_assert_true(not bool(scene_result["gameplay_framework"]), "SCREEN-32 Runtime Scene result is not a gameplay framework")
+	_assert_true(FileAccess.file_exists(scene_path), "SCREEN-32 Runtime Scene handoff file exists")
+	var loaded_scene = ResourceLoader.load(scene_path, "", ResourceLoader.CACHE_MODE_IGNORE) as PackedScene
+	_assert_true(loaded_scene is PackedScene, "SCREEN-32 Runtime Scene handoff loads as PackedScene")
+	var scene_instance = loaded_scene.instantiate()
+	_assert_true(scene_instance is HexTileMapLayer, "SCREEN-32 Runtime Scene root is HexTileMapLayer")
+	_assert_true((scene_instance as HexTileMapLayer).level_document_resource is HexMapDocumentResource, "SCREEN-32 Runtime Scene embeds Level Document resource")
+	scene_instance.free()
+
+	var graph_path = "%s_graph.tres" % export_path.get_basename()
+	var graph_result = workspace.press_export_purpose_action(HexMapExportScreen.PURPOSE_GENERATION_GRAPH)
+	_assert_true(bool(graph_result["ok"]), "SCREEN-32 Generation Graph card writes graph .tres")
+	_assert_eq(String(graph_result["resource_class"]), "HexGenerationGraphResource", "SCREEN-32 Graph result reports graph resource")
+	_assert_eq(String(graph_result["ownership_semantics"]), "embed", "SCREEN-32 Graph export uses embed semantics")
+	_assert_true(not bool(graph_result["gameplay_framework"]), "SCREEN-32 Graph result is not a gameplay framework")
+	_assert_true(FileAccess.file_exists(graph_path), "SCREEN-32 Graph handoff file exists")
+	var loaded_graph = ResourceLoader.load(graph_path, "", ResourceLoader.CACHE_MODE_IGNORE) as HexGenerationGraphResource
+	_assert_true(loaded_graph is HexGenerationGraphResource, "SCREEN-32 Graph handoff loads as HexGenerationGraphResource")
+	_assert_eq(loaded_graph.ownership_semantics, "embed", "SCREEN-32 loaded graph keeps embed semantics")
+	_assert_eq(loaded_graph.semantics_reference_path, "", "SCREEN-32 loaded graph is self-contained")
+
+	var json_path = "%s_snapshot.json" % export_path.get_basename()
+	var json_result = workspace.press_export_secondary_action(HexMapExportScreen.SECONDARY_JSON_SNAPSHOT)
+	_assert_true(bool(json_result["ok"]), "SCREEN-32 JSON Snapshot secondary action writes JSON")
+	_assert_true(FileAccess.file_exists(json_path), "SCREEN-32 JSON Snapshot file exists")
+	var json_text = FileAccess.get_file_as_string(json_path)
+	_assert_true(json_text.contains("Runtime Scene (.tscn)"), "SCREEN-32 JSON Snapshot records purpose cards")
+	_assert_true(json_text.contains("\"gameplay_framework\": false"), "SCREEN-32 JSON Snapshot records no gameplay framework boundary")
+
+	var debug_result = workspace.press_export_secondary_action(HexMapExportScreen.SECONDARY_DEBUG_REPORT)
+	_assert_true(bool(debug_result["ok"]), "SCREEN-32 Debug Report secondary action copies report")
+	_assert_true(String(debug_result["debug_report"]).contains("Hex Map Workspace"), "SCREEN-32 Debug Report includes workspace state")
+
+	var package_result = workspace.press_export_secondary_action(HexMapExportScreen.SECONDARY_PACKAGE_BUILD)
+	_assert_true(not bool(package_result["ok"]), "SCREEN-32 Package secondary action remains disabled")
+	_assert_eq(int(package_result["error"]), ERR_UNAVAILABLE, "SCREEN-32 Package disabled action reports unavailable")
+	_assert_true(bool(package_result["process_only"]), "SCREEN-32 Package result is process-only")
+	_assert_true(String(package_result["disabled_reason"]).contains("release/package process"), "SCREEN-32 Package disabled result explains process boundary")
+
 	var next_export_path = "%s/runtime_handoff_next.tres" % output_dir
 	var next_destination = workspace.select_export_destination(next_export_path)
 	_assert_true(bool(next_destination["ok"]), "Export screen accepts another user-selected destination")
@@ -248,6 +350,6 @@ func _test_export_asset_screen_requires_user_destination_and_exports_project_doc
 	_assert_eq(workspace.workspace_asset_context().export_profile, null, "cleared export profile leaves workspace context")
 	_assert_true(not session.show_bundled_samples_in_main_selectors, "Export screen actions do not enable sample mode")
 
+	selected_layer.queue_free()
 	workspace.queue_free()
 	await process_frame
-

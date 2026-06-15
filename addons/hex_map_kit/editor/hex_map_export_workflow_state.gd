@@ -12,6 +12,8 @@ var state_id := STATE_NO_DESTINATION
 var active_state_ids := PackedStringArray([STATE_NO_DESTINATION])
 var destination := {}
 var output_type := {}
+var purpose_cards: Array[Dictionary] = []
+var secondary_actions: Array[Dictionary] = []
 var last_result := {}
 var can_export := false
 var exporting := false
@@ -21,6 +23,8 @@ var block_reason := ""
 func update_from_context(context: Dictionary) -> void:
 	destination = (context.get("destination", {}) as Dictionary).duplicate(true)
 	output_type = (context.get("output_type", {}) as Dictionary).duplicate(true)
+	purpose_cards = _duplicate_dictionary_array(context.get("purpose_cards", []) as Array)
+	secondary_actions = _duplicate_dictionary_array(context.get("secondary_actions", []) as Array)
 	last_result = (context.get("last_result", {}) as Dictionary).duplicate(true)
 	can_export = bool(context.get("can_export", false))
 	exporting = bool(context.get("exporting", false))
@@ -36,6 +40,8 @@ func to_state_snapshot() -> Dictionary:
 		"active_state_ids": active_state_ids,
 		"destination": destination.duplicate(true),
 		"output_type": output_type.duplicate(true),
+		"purpose_cards": _duplicate_dictionary_array(purpose_cards),
+		"secondary_actions": _duplicate_dictionary_array(secondary_actions),
 		"last_result": last_result.duplicate(true),
 		"can_export": can_export,
 		"exporting": exporting,
@@ -56,6 +62,8 @@ func to_view_state() -> Dictionary:
 		"status_text": _status_text(),
 		"destination": destination.duplicate(true),
 		"output_type": output_type.duplicate(true),
+		"purpose_cards": _duplicate_dictionary_array(purpose_cards),
+		"secondary_actions": _duplicate_dictionary_array(secondary_actions),
 		"last_result": last_result.duplicate(true),
 		"block_reason": block_reason,
 	}
@@ -98,7 +106,15 @@ func _last_result_matches_destination() -> bool:
 		return false
 	var result_path := String(last_result.get("path", ""))
 	var destination_path := String(destination.get("path", ""))
-	return result_path != "" and result_path == destination_path
+	if result_path == "":
+		return false
+	if result_path == destination_path:
+		return true
+	var output_paths = destination.get("output_paths", {}) as Dictionary
+	for key in output_paths.keys():
+		if result_path == String(output_paths[key]):
+			return true
+	return false
 
 
 func _status_text() -> String:
@@ -112,3 +128,11 @@ func _status_text() -> String:
 		STATE_READY:
 			return "Ready to export Runtime Handoff."
 	return "Choose Runtime Handoff destination."
+
+
+func _duplicate_dictionary_array(value: Array) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for entry in value:
+		if entry is Dictionary:
+			result.append((entry as Dictionary).duplicate(true))
+	return result

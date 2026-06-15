@@ -115,8 +115,10 @@ var _qa_promoted_document: HexMapDocumentResource = null
 var _export_purpose_panel: VBoxContainer
 var _export_purpose_status_label: Label
 var _export_runtime_handoff_summary_label: Label
+var _export_purpose_card_buttons: Dictionary = {}
 var _export_purpose_mode_label: Label
 var _export_purpose_backlog_label: Label
+var _export_secondary_action_buttons: Dictionary = {}
 var _export_destination_panel: VBoxContainer
 var _export_destination_label: Label
 var _export_recent_destinations_label: Label
@@ -587,10 +589,15 @@ func _sync_export_workflow_state(exporting: bool = false) -> void:
 	var context := workspace_asset_context()
 	var destination := _export_destination_context()
 	var output_type := _export_output_type_context(context, destination)
+	var purpose_context := _export_purpose_context(context, destination)
+	var purpose_cards := HexMapExportScreen.purpose_cards(purpose_context)
+	var secondary_actions := HexMapExportScreen.secondary_actions(purpose_context)
 	var can_export := context.level_document != null and _ensure_session_state().export_saved_path != ""
 	_export_workflow_state.update_from_context({
 		"destination": destination,
 		"output_type": output_type,
+		"purpose_cards": purpose_cards,
+		"secondary_actions": secondary_actions,
 		"last_result": _last_export_action_result,
 		"can_export": can_export,
 		"exporting": exporting,
@@ -3678,9 +3685,12 @@ func export_screen_snapshot() -> Dictionary:
 	var destination := _export_destination_context()
 	var output_type := _export_output_type_context(context, destination)
 	var empty_state := _export_tab_empty_state(context, destination)
+	var purpose_context := _export_purpose_context(context, destination)
+	var purpose_cards := HexMapExportScreen.purpose_cards(purpose_context)
+	var secondary_actions := HexMapExportScreen.secondary_actions(purpose_context)
 	var output_modes := _export_output_modes()
-	var visible_output_mode_ids := _export_visible_output_mode_ids(output_modes)
-	var visible_output_mode_labels := _export_visible_output_mode_labels(output_modes)
+	var visible_output_mode_ids := _export_purpose_card_ids(purpose_cards)
+	var visible_output_mode_labels := _export_purpose_card_titles(purpose_cards)
 	var can_export := context.level_document != null and session.export_saved_path != ""
 	var export_state := export_workflow_state_snapshot()
 	var export_view_state = export_state.get("view_state", {}) as Dictionary
@@ -3708,10 +3718,15 @@ func export_screen_snapshot() -> Dictionary:
 		"active_output_type": String(output_type.get("id", "runtime_handoff_resource")),
 		"active_output_type_visible": true,
 		"output_type": output_type,
+		"purpose_cards": purpose_cards,
+		"purpose_card_ids": _export_purpose_card_ids(purpose_cards),
+		"primary_purpose_id": HexMapExportScreen.PURPOSE_RUNTIME_MAP,
+		"secondary_actions": secondary_actions,
+		"secondary_action_ids": _export_secondary_action_ids(secondary_actions),
 		"output_modes": output_modes,
 		"visible_output_mode_ids": visible_output_mode_ids,
 		"visible_output_mode_labels": visible_output_mode_labels,
-		"normal_export_action_count": visible_output_mode_ids.size(),
+		"normal_export_action_count": purpose_cards.size(),
 		"export_type_taxonomy_visible": true,
 		"runtime_handoff_purpose": String(output_type.get("result_purpose_text", "")),
 		"runtime_handoff_result_usage": String(output_type.get("result_usage", "")),
@@ -3744,6 +3759,8 @@ func export_screen_snapshot() -> Dictionary:
 		"use_recent_button_tooltip": _export_use_recent_button_tooltip(session),
 		"run_button_disabled": not can_export,
 		"run_button_tooltip": _export_run_button_tooltip(context, destination),
+		"runtime_scene_handoff": _export_scene_handoff_context(destination),
+		"generation_graph_handoff": _export_graph_handoff_context(destination),
 		"package_handoff": _export_handoff_context(session.export_saved_path, null),
 		"runtime_handoff": _export_handoff_context(session.export_saved_path, null),
 		"export_result_state_visible": true,
@@ -3752,8 +3769,14 @@ func export_screen_snapshot() -> Dictionary:
 		"export_result_state_source": String(output_type.get("result_state_source", "")),
 		"unsupported_export_buttons_visible": false,
 		"data_export_button_visible": false,
-		"package_build_button_visible": false,
-		"debug_report_export_button_visible": false,
+		"json_snapshot_export_button_visible": true,
+		"package_build_button_visible": true,
+		"package_build_button_disabled": true,
+		"package_build_tooltip": _export_secondary_action_tooltip(
+			secondary_actions,
+			HexMapExportScreen.SECONDARY_PACKAGE_BUILD
+		),
+		"debug_report_export_button_visible": true,
 		"experimental_exports_hidden": true,
 		"sample_candidates_visible": session.show_bundled_samples_in_main_selectors,
 		"sample_destination_available": false,
@@ -3920,6 +3943,161 @@ func export_selected_document_to_destination(path: String = "") -> Dictionary:
 	_refresh_export_purpose_panel()
 	_refresh_export_destination_panel()
 	return result
+
+
+func press_export_purpose_action(purpose_id: String, path: String = "") -> Dictionary:
+	match purpose_id:
+		HexMapExportScreen.PURPOSE_RUNTIME_MAP:
+			return export_selected_document_to_destination(path)
+		HexMapExportScreen.PURPOSE_RUNTIME_SCENE:
+			return export_runtime_scene_to_destination(path)
+		HexMapExportScreen.PURPOSE_GENERATION_GRAPH:
+			return export_generation_graph_to_destination(path)
+	return _finalize_export_action_result(
+		_export_action_result(false, ERR_INVALID_PARAMETER, _export_path_for_purpose(purpose_id, path))
+	)
+
+
+func press_export_secondary_action(action_id: String, path: String = "") -> Dictionary:
+	match action_id:
+		HexMapExportScreen.SECONDARY_DEBUG_REPORT:
+			return copy_export_debug_report()
+		HexMapExportScreen.SECONDARY_JSON_SNAPSHOT:
+			return export_json_snapshot_to_destination(path)
+		HexMapExportScreen.SECONDARY_PACKAGE_BUILD:
+			var result := _export_action_result(
+				false,
+				ERR_UNAVAILABLE,
+				_export_path_for_purpose(action_id, path)
+			)
+			result["disabled_reason"] = _export_secondary_action_tooltip(
+				HexMapExportScreen.secondary_actions(_export_purpose_context(
+					workspace_asset_context(),
+					_export_destination_context()
+				)),
+				HexMapExportScreen.SECONDARY_PACKAGE_BUILD
+			)
+			result["process_only"] = true
+			return _finalize_export_action_result(result)
+	return _finalize_export_action_result(
+		_export_action_result(false, ERR_INVALID_PARAMETER, _export_path_for_purpose(action_id, path))
+	)
+
+
+func export_runtime_scene_to_destination(path: String = "") -> Dictionary:
+	var actual_path := _export_path_for_purpose(HexMapExportScreen.PURPOSE_RUNTIME_SCENE, path)
+	if actual_path == "":
+		return _finalize_export_action_result(_export_action_result(false, ERR_INVALID_PARAMETER, actual_path))
+	var document := workspace_asset_context().level_document
+	if document == null:
+		return _finalize_export_action_result(_export_action_result(false, ERR_DOES_NOT_EXIST, actual_path))
+
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(actual_path.get_base_dir()))
+	_sync_export_workflow_state(true)
+	var layer := HexTileMapLayer.new()
+	layer.name = "RuntimeHexMapLayer"
+	layer.level_document_resource = document
+	layer.hex_map = HexMapDocumentAdapter.to_map_resource(document)
+	var selected_layer := _ensure_session_state().current_selected_hex_tile_map_layer() as HexTileMapLayer
+	if selected_layer != null:
+		layer.display_tile_set_resource = selected_layer.display_tile_set_resource
+		layer.layer_stack_resource = selected_layer.layer_stack_resource
+		layer.generation_graph_resource = selected_layer.generation_graph_resource
+	var scene := PackedScene.new()
+	var error := scene.pack(layer)
+	if error == OK:
+		error = ResourceSaver.save(scene, actual_path)
+	layer.free()
+
+	var result := _export_action_result(error == OK, error, actual_path)
+	result["resource"] = scene if error == OK else null
+	result["resource_class"] = "PackedScene"
+	result["output_type"] = HexMapExportScreen.PURPOSE_RUNTIME_SCENE
+	result["purpose_text"] = "Runtime scene handoff"
+	result["gameplay_framework"] = false
+	result["runtime_scene_handoff"] = {
+		"path": actual_path,
+		"resource_class": "PackedScene",
+		"root_node_type": "HexTileMapLayer",
+		"gameplay_framework": false,
+	}
+	return _finalize_export_action_result(result)
+
+
+func export_generation_graph_to_destination(path: String = "") -> Dictionary:
+	var actual_path := _export_path_for_purpose(HexMapExportScreen.PURPOSE_GENERATION_GRAPH, path)
+	if actual_path == "":
+		return _finalize_export_action_result(_export_action_result(false, ERR_INVALID_PARAMETER, actual_path))
+	var graph := _selected_generation_graph_resource()
+	if graph == null:
+		var missing_result := _export_action_result(false, ERR_DOES_NOT_EXIST, actual_path)
+		missing_result["blocked_reason"] = "Generation Graph is not linked to the selected HexTileMapLayer."
+		return _finalize_export_action_result(missing_result)
+
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(actual_path.get_base_dir()))
+	_sync_export_workflow_state(true)
+	var graph_copy := HexMapGraphInstantiator.duplicate_graph_for_embed(graph)
+	var error := ResourceSaver.save(graph_copy, actual_path)
+	var result := _export_action_result(error == OK, error, actual_path)
+	if error == OK:
+		graph_copy.resource_path = actual_path
+	result["resource"] = graph_copy if error == OK else null
+	result["resource_class"] = "HexGenerationGraphResource"
+	result["output_type"] = HexMapExportScreen.PURPOSE_GENERATION_GRAPH
+	result["purpose_text"] = "Generation Graph resource handoff"
+	result["ownership_semantics"] = graph_copy.ownership_semantics
+	result["semantics_reference_path"] = graph_copy.semantics_reference_path
+	result["gameplay_framework"] = false
+	result["generation_graph_handoff"] = {
+		"path": actual_path,
+		"resource_class": "HexGenerationGraphResource",
+		"ownership_semantics": graph_copy.ownership_semantics,
+		"gameplay_framework": false,
+	}
+	return _finalize_export_action_result(result)
+
+
+func copy_export_debug_report() -> Dictionary:
+	var report := workspace_state_debug_report_text()
+	var result := _export_action_result(report != "", OK if report != "" else ERR_UNAVAILABLE, "")
+	result["action_id"] = HexMapExportScreen.SECONDARY_DEBUG_REPORT
+	result["debug_report"] = report
+	result["copied"] = report != ""
+	return _finalize_export_action_result(result)
+
+
+func export_debug_report_to_destination(path: String = "") -> Dictionary:
+	var actual_path := _export_path_for_purpose(HexMapExportScreen.SECONDARY_DEBUG_REPORT, path)
+	var report := workspace_state_debug_report_text()
+	var result := _write_text_export(
+		actual_path,
+		report,
+		HexMapExportScreen.SECONDARY_DEBUG_REPORT,
+		"Debug report"
+	)
+	return _finalize_export_action_result(result)
+
+
+func export_json_snapshot_to_destination(path: String = "") -> Dictionary:
+	if workspace_asset_context().level_document == null:
+		return _finalize_export_action_result(
+			_export_action_result(
+				false,
+				ERR_DOES_NOT_EXIST,
+				_export_path_for_purpose(HexMapExportScreen.SECONDARY_JSON_SNAPSHOT, path)
+			)
+		)
+	var actual_path := _export_path_for_purpose(HexMapExportScreen.SECONDARY_JSON_SNAPSHOT, path)
+	var payload := _export_json_snapshot_payload()
+	var json_text := JSON.stringify(payload, "\t")
+	var result := _write_text_export(
+		actual_path,
+		json_text,
+		HexMapExportScreen.SECONDARY_JSON_SNAPSHOT,
+		"JSON snapshot"
+	)
+	result["json_snapshot"] = payload
+	return _finalize_export_action_result(result)
 
 
 func _build_ui() -> void:
@@ -4241,8 +4419,18 @@ func _mount_export_purpose_panel() -> void:
 	_export_purpose_panel = built.get("root", null) as VBoxContainer
 	_export_purpose_status_label = built.get("status_label", null) as Label
 	_export_runtime_handoff_summary_label = built.get("runtime_handoff_summary_label", null) as Label
+	_export_purpose_card_buttons = built.get("purpose_card_buttons", {}) as Dictionary
 	_export_purpose_mode_label = built.get("mode_label", null) as Label
 	_export_purpose_backlog_label = built.get("backlog_label", null) as Label
+	_export_secondary_action_buttons = built.get("secondary_action_buttons", {}) as Dictionary
+	for card_id in _export_purpose_card_buttons.keys():
+		var button = _export_purpose_card_buttons[card_id] as Button
+		if button != null:
+			button.pressed.connect(_on_export_purpose_card_pressed.bind(String(card_id)))
+	for action_id in _export_secondary_action_buttons.keys():
+		var button = _export_secondary_action_buttons[action_id] as Button
+		if button != null:
+			button.pressed.connect(_on_export_secondary_action_pressed.bind(String(action_id)))
 
 	(page as Control).add_child(_export_purpose_panel)
 	_register_tab_component(
@@ -4682,6 +4870,72 @@ func _export_action_result(ok: bool, error: int, path: String) -> Dictionary:
 	}
 
 
+func _finalize_export_action_result(result: Dictionary) -> Dictionary:
+	_last_export_action_result = result.duplicate(true)
+	var export_state := export_workflow_state_snapshot()
+	result["export_state"] = export_state
+	result["view_state"] = export_state.get("view_state", {})
+	_refresh_export_purpose_panel()
+	_refresh_export_destination_panel()
+	return result
+
+
+func _write_text_export(path: String, text: String, output_type: String, purpose_text: String) -> Dictionary:
+	if path.strip_edges() == "":
+		var invalid_result := _export_action_result(false, ERR_INVALID_PARAMETER, path)
+		invalid_result["output_type"] = output_type
+		invalid_result["purpose_text"] = purpose_text
+		return invalid_result
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	var error := OK
+	if file == null:
+		error = FileAccess.get_open_error()
+	else:
+		file.store_string(text)
+	var result := _export_action_result(error == OK, error, path)
+	result["output_type"] = output_type
+	result["purpose_text"] = purpose_text
+	result["resource_class"] = "Text"
+	result["byte_count"] = text.length()
+	return result
+
+
+func _export_json_snapshot_payload() -> Dictionary:
+	var snapshot := export_screen_snapshot()
+	return {
+		"tab": String(snapshot.get("tab", "")),
+		"screen_role_source": String(snapshot.get("screen_role_source", "")),
+		"handoff_boundary": "godot_loadable_map",
+		"gameplay_framework": false,
+		"purpose_cards": _duplicate_dictionary_array(snapshot.get("purpose_cards", []) as Array),
+		"secondary_actions": _duplicate_dictionary_array(snapshot.get("secondary_actions", []) as Array),
+		"purpose_card_ids": PackedStringArray(snapshot.get("purpose_card_ids", PackedStringArray())),
+		"secondary_action_ids": PackedStringArray(snapshot.get("secondary_action_ids", PackedStringArray())),
+		"destination": (snapshot.get("destination", {}) as Dictionary).duplicate(true),
+		"export_state": _export_state_json_payload(snapshot.get("export_state", {}) as Dictionary),
+	}
+
+
+func _export_state_json_payload(state: Dictionary) -> Dictionary:
+	return {
+		"state_id": String(state.get("state_id", "")),
+		"state_source": String(state.get("state_source", "")),
+		"active_state_ids": PackedStringArray(state.get("active_state_ids", PackedStringArray())),
+		"can_export": bool(state.get("can_export", false)),
+		"exporting": bool(state.get("exporting", false)),
+		"block_reason": String(state.get("block_reason", "")),
+	}
+
+
+func _duplicate_dictionary_array(value: Array) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for entry in value:
+		if entry is Dictionary:
+			result.append((entry as Dictionary).duplicate(true))
+	return result
+
+
 func _profile_resource_context(context: HexMapWorkspaceAssetContext, slot_id: String) -> Dictionary:
 	var resource := context.asset_for_slot(slot_id) if context != null else null
 	var required_type := HexMapWorkspaceAssetResourceFactory.resource_type_name(slot_id)
@@ -4803,14 +5057,41 @@ func _export_destination_context() -> Dictionary:
 	var recent: Array[String] = []
 	for destination in session.recent_export_destinations:
 		recent.append(String(destination))
+	var output_paths := _export_output_paths(session.export_saved_path)
 	return {
 		"selected": session.export_saved_path != "",
 		"path": session.export_saved_path,
+		"output_paths": output_paths,
 		"recent_destinations": recent,
 		"uses_file_dialog": true,
 		"editable_path_text_visible": false,
 		"output_type": "runtime_handoff_resource",
 		"target_resource_class": "HexMapResource",
+	}
+
+
+func _export_purpose_context(context: HexMapWorkspaceAssetContext, destination: Dictionary) -> Dictionary:
+	var selected_snapshot := selected_hex_tile_map_snapshot()
+	var graph_resource = selected_snapshot.get("generation_graph", null) as HexGenerationGraphResource
+	return {
+		"source_ready": context != null and context.level_document != null,
+		"destination_ready": bool(destination.get("selected", false)),
+		"graph_ready": graph_resource != null,
+		"graph_resource": graph_resource,
+		"block_reason": _export_cannot_export_reason(context, destination),
+	}
+
+
+func _export_output_paths(base_path: String) -> Dictionary:
+	var path := base_path.strip_edges()
+	if path == "":
+		return {}
+	return {
+		HexMapExportScreen.PURPOSE_RUNTIME_MAP: path,
+		HexMapExportScreen.PURPOSE_RUNTIME_SCENE: _path_with_extension(path, ".tscn"),
+		HexMapExportScreen.PURPOSE_GENERATION_GRAPH: _path_with_suffix_and_extension(path, "_graph", ".tres"),
+		HexMapExportScreen.SECONDARY_DEBUG_REPORT: _path_with_suffix_and_extension(path, "_debug", ".txt"),
+		HexMapExportScreen.SECONDARY_JSON_SNAPSHOT: _path_with_suffix_and_extension(path, "_snapshot", ".json"),
 	}
 
 
@@ -4995,6 +5276,39 @@ func _export_visible_output_mode_labels(modes: Array) -> PackedStringArray:
 	return labels
 
 
+func _export_purpose_card_ids(cards: Array) -> PackedStringArray:
+	var ids := PackedStringArray()
+	for card in cards:
+		if card is Dictionary and bool((card as Dictionary).get("visible", false)):
+			ids.append(String((card as Dictionary).get("id", "")))
+	return ids
+
+
+func _export_purpose_card_titles(cards: Array) -> PackedStringArray:
+	var titles := PackedStringArray()
+	for card in cards:
+		if card is Dictionary and bool((card as Dictionary).get("visible", false)):
+			titles.append(String((card as Dictionary).get("title", "")))
+	return titles
+
+
+func _export_secondary_action_ids(actions: Array) -> PackedStringArray:
+	var ids := PackedStringArray()
+	for action in actions:
+		if action is Dictionary and bool((action as Dictionary).get("visible", false)):
+			ids.append(String((action as Dictionary).get("id", "")))
+	return ids
+
+
+func _export_secondary_action_tooltip(actions: Array, action_id: String) -> String:
+	for action in actions:
+		if not action is Dictionary:
+			continue
+		if String((action as Dictionary).get("id", "")) == action_id:
+			return String((action as Dictionary).get("tooltip", ""))
+	return ""
+
+
 func _export_use_recent_button_tooltip(session) -> String:
 	if session == null or session.recent_export_destinations.is_empty():
 		return "No recent Runtime Handoff destinations."
@@ -5025,6 +5339,68 @@ func _export_handoff_context(path: String, resource) -> Dictionary:
 		"cell_count": map_data.cells.size() if map_data != null else 0,
 		"wall_count": map_data.walls.size() if map_data != null else 0,
 	}
+
+
+func _export_scene_handoff_context(destination: Dictionary) -> Dictionary:
+	var paths = destination.get("output_paths", {}) as Dictionary
+	var path := String(paths.get(HexMapExportScreen.PURPOSE_RUNTIME_SCENE, ""))
+	return {
+		"selected": path != "",
+		"path": path,
+		"resource_class": "PackedScene" if path != "" else "",
+		"gameplay_framework": false,
+	}
+
+
+func _export_graph_handoff_context(destination: Dictionary) -> Dictionary:
+	var paths = destination.get("output_paths", {}) as Dictionary
+	var path := String(paths.get(HexMapExportScreen.PURPOSE_GENERATION_GRAPH, ""))
+	var graph := _selected_generation_graph_resource()
+	return {
+		"selected": path != "",
+		"path": path,
+		"resource_class": "HexGenerationGraphResource" if path != "" else "",
+		"graph_ready": graph != null,
+		"ownership_semantics": "embed" if graph != null else "",
+		"gameplay_framework": false,
+	}
+
+
+func _selected_generation_graph_resource() -> HexGenerationGraphResource:
+	var layer := _ensure_session_state().current_selected_hex_tile_map_layer() as HexTileMapLayer
+	return layer.generation_graph_resource if layer != null else null
+
+
+func _export_path_for_purpose(purpose_id: String, path: String = "") -> String:
+	var actual_path := path.strip_edges()
+	if actual_path != "":
+		return _path_for_purpose_extension(purpose_id, actual_path)
+	var destination := _export_destination_context()
+	var output_paths = destination.get("output_paths", {}) as Dictionary
+	return String(output_paths.get(purpose_id, ""))
+
+
+func _path_for_purpose_extension(purpose_id: String, path: String) -> String:
+	match purpose_id:
+		HexMapExportScreen.PURPOSE_RUNTIME_SCENE:
+			return _path_with_extension(path, ".tscn")
+		HexMapExportScreen.PURPOSE_GENERATION_GRAPH:
+			return _path_with_extension(path, ".tres")
+		HexMapExportScreen.SECONDARY_DEBUG_REPORT:
+			return _path_with_extension(path, ".txt")
+		HexMapExportScreen.SECONDARY_JSON_SNAPSHOT:
+			return _path_with_extension(path, ".json")
+	return path
+
+
+func _path_with_extension(path: String, extension: String) -> String:
+	var actual_extension := extension if extension.begins_with(".") else ".%s" % extension
+	return "%s%s" % [path.get_basename(), actual_extension]
+
+
+func _path_with_suffix_and_extension(path: String, suffix: String, extension: String) -> String:
+	var actual_extension := extension if extension.begins_with(".") else ".%s" % extension
+	return "%s%s%s" % [path.get_basename(), suffix, actual_extension]
 
 
 func _generation_profile_preset(preset_id: String) -> Resource:
@@ -5244,6 +5620,14 @@ func _on_export_use_recent_pressed() -> void:
 
 func _on_export_run_workspace_pressed() -> void:
 	export_selected_document_to_destination()
+
+
+func _on_export_purpose_card_pressed(purpose_id: String) -> void:
+	press_export_purpose_action(purpose_id)
+
+
+func _on_export_secondary_action_pressed(action_id: String) -> void:
+	press_export_secondary_action(action_id)
 
 
 func _popup_missing_unique_resources_directory_dialog() -> bool:
@@ -5820,6 +6204,8 @@ func _refresh_export_purpose_panel() -> void:
 	var snapshot := export_screen_snapshot()
 	var output_type = snapshot.get("output_type", {}) as Dictionary
 	var empty_state = snapshot.get("empty_state", {}) as Dictionary
+	var purpose_cards = snapshot.get("purpose_cards", []) as Array
+	var secondary_actions = snapshot.get("secondary_actions", []) as Array
 	if _export_purpose_status_label != null:
 		_export_purpose_status_label.text = String(snapshot.get("purpose_text", ""))
 		_export_purpose_status_label.tooltip_text = String(empty_state.get("help_tooltip", ""))
@@ -5836,6 +6222,39 @@ func _refresh_export_purpose_panel() -> void:
 		]
 	if _export_purpose_backlog_label != null:
 		_export_purpose_backlog_label.text = _export_backlog_modes_text(snapshot.get("output_modes", []) as Array)
+	_refresh_export_purpose_card_buttons(purpose_cards)
+	_refresh_export_secondary_action_buttons(secondary_actions)
+
+
+func _refresh_export_purpose_card_buttons(cards: Array) -> void:
+	for card in cards:
+		if not card is Dictionary:
+			continue
+		var card_id := String((card as Dictionary).get("id", ""))
+		var button = _export_purpose_card_buttons.get(card_id, null) as Button
+		if button == null:
+			continue
+		button.text = "%s\n%s" % [
+			String((card as Dictionary).get("title", "")),
+			String((card as Dictionary).get("action_label", "")),
+		]
+		button.disabled = not bool((card as Dictionary).get("enabled", false))
+		button.tooltip_text = String((card as Dictionary).get("disabled_reason", ""))
+		if button.tooltip_text == "":
+			button.tooltip_text = String((card as Dictionary).get("purpose", ""))
+
+
+func _refresh_export_secondary_action_buttons(actions: Array) -> void:
+	for action in actions:
+		if not action is Dictionary:
+			continue
+		var action_id := String((action as Dictionary).get("id", ""))
+		var button = _export_secondary_action_buttons.get(action_id, null) as Button
+		if button == null:
+			continue
+		button.text = String((action as Dictionary).get("action_label", ""))
+		button.disabled = not bool((action as Dictionary).get("enabled", false))
+		button.tooltip_text = String((action as Dictionary).get("tooltip", ""))
 
 
 func _export_backlog_modes_text(modes: Array) -> String:
