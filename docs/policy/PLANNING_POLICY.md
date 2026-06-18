@@ -197,6 +197,8 @@ C3以上で、複数の依存や test proof がある場合に追加する。C4/
 
 ## Review before implementation
 
+設計レビューの観点は `docs/policy/DESIGN_REVIEW_POLICY.md` に従う。
+
 `UX.md`, `POLICY.md`, `IMPLEMENTATION_PLAN.md` を確認する:
 
 - complexity class に対して必要な planning artifacts が揃っているか。

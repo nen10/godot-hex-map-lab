@@ -33,6 +33,7 @@ Read the smallest relevant set.
 | Decide a roadmap from feedback / brainstorm | `docs/policy/ROADMAP_DECISION_POLICY.md` |
 | Convert a roadmap to implementation queue | `docs/policy/IMPLEMENTATION_QUEUE_DESIGN_POLICY.md` |
 | Write task-level UX / POLICY / IMPLEMENTATION_PLAN | `docs/policy/PLANNING_POLICY.md` |
+| Review roadmap / queue / task design / implementation proof | `docs/policy/DESIGN_REVIEW_POLICY.md` |
 | Implement a task | `docs/policy/IMPLEMENTATION_POLICY.md` |
 | Design or update tests | `docs/policy/TEST_DESIGN_POLICY.md` |
 | Execute an existing queue | `docs/process/CODEX_AUTOPILOT_ORCHESTRATION.md` |
