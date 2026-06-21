@@ -194,22 +194,16 @@ func _build_param_controls() -> void:
 			control = _build_shift_hex_pad()
 		else:
 			control = _create_param_control(key, _params.get(key, _param_default(key, _node_type)))
-		if control != null:
-			if key == "item_pool" or key == "shift_offset":
-				_params_container.add_child(row)
-				if key == "item_pool":
-					_params_container.add_child(control)
-				else:
-					row.add_child(control)
-				_param_controls[key] = {"row": row, "control": control}
-				var visible_flag := bool(visibility.get(key, true))
-				row.visible = visible_flag
-				control.visible = visible_flag
-				continue
-			_param_controls[key] = {"row": row, "control": control}
 		_params_container.add_child(row)
-		var visible_flag := bool(visibility.get(key, true))
-		row.visible = visible_flag
+		if control != null:
+			if key == "item_pool":
+				_params_container.add_child(control)
+				control.visible = bool(visibility.get(key, true))
+			else:
+				row.add_child(control)
+			_param_controls[key] = {"row": row, "control": control}
+		
+		row.visible = bool(visibility.get(key, true))
 
 
 func _refresh_param_controls() -> void:
@@ -251,9 +245,6 @@ func _build_option_control(key: String, current_value) -> OptionButton:
 		control.select(selected_index)
 	elif options.size() > 0:
 		control.select(0)
-		var first_value = options[0].get("value", null)
-		if first_value != null:
-			call_deferred("set_param", key, first_value)
 	control.item_selected.connect(func(idx: int):
 		var value = control.get_item_metadata(idx)
 		if value != null:
@@ -422,14 +413,14 @@ func _refresh_shift_hex_panel(panel: HexCellButtonPanel) -> void:
 		direction_labels[key] = _hex_direction_short_label(direction)
 		direction_metadata[key] = {"direction": direction}
 		pressable[key] = true
-	direction_labels[offset_vec.key()] = "(%d,%d,%d)" % [offset_vec.q, offset_vec.r, offset_vec.s]
+	direction_labels[HexVector.zero().key()] = "(%d,%d,%d)" % [sq, sr, ss]
 	panel.configure({
 		"shape_kind": "directions",
 		"flat_top": _effective_flat_top,
 		"cell_radius": 14.0,
 		"cell_gap": 1.0,
 		"padding": Vector2(6, 6),
-		"center_cell": offset_vec,
+		"center_cell": HexVector.zero(),
 		"pressable_cells": pressable,
 		"label_by_cell": direction_labels,
 		"metadata_by_cell": direction_metadata,

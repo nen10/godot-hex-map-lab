@@ -17,6 +17,8 @@ const HexGenerationNodeTypesScript = preload("res://addons/hex_map_kit/generatio
 const HexGenerationPortsScript = preload("res://addons/hex_map_kit/generation/hex_generation_ports.gd")
 const HexGenerationGraphResourceScript = preload("res://addons/hex_map_kit/adapter/hex_generation_graph_resource.gd")
 const HexTileMapLayerScript = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
+const HexLayerStackResourceScript = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
+const HexMapDocumentApplierScript = preload("res://addons/hex_map_kit/adapter/hex_map_document_applier.gd")
 
 const TAB_NAME := "Build"
 const WORKFLOW_OWNER := "Build"
@@ -206,6 +208,15 @@ func ensure_graph_context_for_hex_tile_map_layer(
 			HexMapWorkspaceAssetContextScript.SOURCE_PROJECT,
 			"Selected Node"
 		)
+	else:
+		var stack = HexLayerStackResourceScript.standard_template() as HexLayerStackResourceScript
+		if stack != null:
+			layer.layer_stack_resource = stack
+			_workspace_asset_context.set_layer_stack(
+				stack,
+				HexMapWorkspaceAssetContextScript.SOURCE_PROJECT,
+				"Selected Node"
+			)
 
 	var created_graph := false
 	var restore_report := {}
@@ -914,12 +925,56 @@ func _auto_preview_after_generate() -> void:
 		_preview_applied = true
 		_refresh_preview_buttons()
 		return
-	var role := _output_type_to_promote_role(output_type)
 	_snapshot_document_for_revert()
-	var _result := promote_selected_output(role)
+	_promote_terminal_outputs()
 	_apply_document_to_context_layer()
 	_preview_applied = true
 	_refresh_preview_buttons()
+
+
+func _promote_terminal_outputs() -> void:
+	var graph_model := _canvas.build_graph_model()
+	var nodes: Dictionary = graph_model.get("nodes", {})
+	var edges: Array = graph_model.get("edges", [])
+	var cache: Dictionary = _last_report.get("cache", {})
+	var promoted_terrain := false
+	var promoted_overlay := false
+	for node_id in nodes.keys():
+		if not cache.has(String(node_id)):
+			continue
+		var node_entry = nodes[String(node_id)] as Dictionary
+		var output = cache[String(node_id)]
+		if output == null:
+			continue
+		var has_outgoing := false
+		for edge in edges:
+			var edge_dict = edge as Dictionary
+			if String(edge_dict.get("from_node", "")) == String(node_id):
+				has_outgoing = true
+				break
+		if not has_outgoing:
+			var terminal_type := HexGenerationNodeTypesScript.output_type_for_node(node_entry)
+			if terminal_type == HexGenerationPortsScript.TERRAIN and not promoted_terrain:
+				HexGenerationPromoteScript.promote(
+					output,
+					_workspace_asset_context.level_document,
+					"terrain",
+					{"graph_node_id": String(node_id)}
+				)
+				promoted_terrain = true
+			elif terminal_type == HexGenerationPortsScript.OVERLAY and not promoted_overlay:
+				HexGenerationPromoteScript.promote(
+					output,
+					_workspace_asset_context.level_document,
+					"overlay",
+					{"graph_node_id": String(node_id)}
+				)
+				promoted_overlay = true
+	if not promoted_terrain and not promoted_overlay:
+		var sel_output = _canvas.selected_output()
+		if sel_output != null:
+			var role := _output_type_to_promote_role(_canvas.selected_output_type())
+			promote_selected_output(role)
 
 
 func _snapshot_document_for_revert() -> void:
@@ -936,7 +991,12 @@ func _apply_document_to_context_layer() -> void:
 		return
 	if _workspace_asset_context == null or _workspace_asset_context.level_document == null:
 		return
-	_context_hex_tile_map_layer.apply_document(_workspace_asset_context.level_document)
+	_context_hex_tile_map_layer.ensure_display_tiles()
+	var apply_state := HexMapDocumentApplierScript.prepare_document_apply(_workspace_asset_context.level_document)
+	if bool(apply_state.get("ok", false)):
+		var resource = apply_state.get("map_resource", null)
+		if resource != null:
+			_context_hex_tile_map_layer.apply_map(resource)
 
 
 func _on_apply_pressed() -> void:
