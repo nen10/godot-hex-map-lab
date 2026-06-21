@@ -220,7 +220,7 @@ static func _run_shape(_inputs: Dictionary, params: Dictionary, _context: Dictio
 
 static func _run_wall_field(inputs: Dictionary, params: Dictionary, context: Dictionary, _resource_refs: Dictionary):
 	var data = _clone_terrain(inputs.get("in", null))
-	var mode = String(params.get("mode", "random_probability"))
+	var mode = String(params.get("wall_method", params.get("mode", "random_probability")))
 	match mode:
 		"markov_mesh":
 			var max_extent := 0
@@ -259,7 +259,7 @@ static func _run_wall_field(inputs: Dictionary, params: Dictionary, context: Dic
 static func _run_connectivity(inputs: Dictionary, params: Dictionary, context: Dictionary, _resource_refs: Dictionary):
 	var data = _clone_terrain(inputs.get("in", null))
 	var terminals = inputs.get("terminals", _points_param(params, "terminals"))
-	var method = String(params.get("mode", params.get("method", "dense")))
+	var method = String(params.get("method", params.get("mode", "dense")))
 	var seed = _seed(params, context, 101)
 	match method:
 		"none":
@@ -275,26 +275,32 @@ static func _run_connectivity(inputs: Dictionary, params: Dictionary, context: D
 
 static func _run_region_filter(inputs: Dictionary, params: Dictionary, _context: Dictionary, _resource_refs: Dictionary) -> Array:
 	var source = inputs.get("in", null)
-	var mode = String(params.get("mode", "floor"))
-	var selection: Array = []
-	if source != null and source.has_method("item_cells") and mode != "query":
-		var item_key = String(params.get("item_key", _terrain_item_key(mode)))
-		selection = HexMapDataScript.unique_points(source.item_cells(item_key))
-	elif mode == "query":
-		var operation = String(params.get("op", params.get("operation", HexOverlayDataScript.ITEM_QUERY_OR)))
-		selection = HexOverlayDataScript.query_item_cells(_selectors_for_source(params.get("selectors", []), source), operation)
-	elif source is HexOverlayDataScript:
-		var overlay_key = String(params.get("item_key", ""))
-		selection = source.item_cells(overlay_key) if overlay_key != "" else source.occupied_cells()
-	else:
+	if source == null:
 		return []
+	var filter_target = String(params.get("filter_target", params.get("mode", "floor")))
+	var selection: Array = []
+	if source is HexOverlayDataScript:
+		if filter_target == "item_key":
+			var item_key = String(params.get("item_key", ""))
+			if item_key != "":
+				selection = HexMapDataScript.unique_points(source.item_cells(item_key))
+		else:
+			selection = source.occupied_cells()
+	elif source.has_method("item_cells"):
+		if filter_target == "item_key":
+			var item_key = String(params.get("item_key", ""))
+			if item_key != "":
+				selection = HexMapDataScript.unique_points(source.item_cells(item_key))
+		else:
+			var item_key = _terrain_item_key(filter_target)
+			selection = HexMapDataScript.unique_points(source.item_cells(item_key))
 	selection = _apply_shift(selection, params)
 	return _filter_by_distance_params(selection, params)
 
 
 static func _run_item_generator(inputs: Dictionary, params: Dictionary, context: Dictionary, _resource_refs: Dictionary):
 	var cells = HexMapDataScript.unique_points(inputs.get("scope", []))
-	var mode = String(params.get("mode", "weighted"))
+	var mode = String(params.get("placement_method", params.get("mode", "weighted")))
 	var item_pool = params.get("item_pool", [])
 	var blocked = _points_param(params, "blocked")
 	match mode:

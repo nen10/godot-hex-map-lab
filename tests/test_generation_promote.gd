@@ -28,7 +28,7 @@ func _test_region_filter_limits_floor_by_spawn_distance() -> void:
 		"height": 4,
 	})
 	HexGenerationGraph.add_node(graph, "spawn_floor", "region_filter", {
-		"mode": "floor",
+		"filter_target": "floor",
 		"within_distance_of": [HexVector.zero()],
 		"max_distance": 2,
 	})
@@ -121,10 +121,14 @@ func _test_build_screen_vertical_slice_promotes_overlay() -> void:
 	await process_frame
 
 	var report = screen.build_vertical_slice_chain_and_preview()
-	_assert_true(bool(report["ok"]), "GRAPH-12 Build screen runs Shape->Wall->Connectivity->Filter->Item")
+	_assert_true(bool(report["ok"]), "GRAPH-12 Build screen runs Shape->Wall->Connectivity->Filter->Item->Result")
 	var snapshot = screen.build_screen_snapshot()
 	_assert_true(bool(snapshot["preview_available"]), "GRAPH-12 item output preview is available before promote")
 	_assert_true(bool(snapshot["promote_available"]), "GRAPH-12 promote is available for selected generated output")
+	screen.graph_canvas().select_graph_node("connectivity")
+	var promote_terrain = screen.promote_selected_output("terrain")
+	_assert_true(bool(promote_terrain["ok"]), "GRAPH-12 Build screen promotes connectivity output as terrain")
+	screen.graph_canvas().select_graph_node("weighted_items")
 	var promote = screen.promote_selected_output("overlay")
 	_assert_true(bool(promote["ok"]), "GRAPH-12 Build screen promotes selected overlay output")
 	_assert_eq(context.level_document.overlay_layers.size(), 1, "GRAPH-12 promote creates document overlay layer")
@@ -161,6 +165,7 @@ func _test_build_context_bootstrap_selected_graphless_layer() -> void:
 	var snapshot = workspace.generation_screen_snapshot()
 	_assert_true(bool(snapshot["build_context_ready"]), "GRAPH-12A Build snapshot records ready context")
 	_assert_true(bool(snapshot["preview_available"]), "GRAPH-12A Build preview is available after bootstrap run")
+	workspace.build_screen().graph_canvas().select_graph_node("weighted_items")
 	var promote = workspace.build_screen().promote_selected_output("overlay")
 	_assert_true(bool(promote["ok"]), "GRAPH-12A promoted output after bootstrap")
 	_assert_true(selected_layer.level_document_resource.overlay_layers.size() > 0, "GRAPH-12A promoted overlay writes to selected document")

@@ -575,7 +575,7 @@ static func default_params_for_type(node_type: String) -> Dictionary:
 			}
 		HexGenerationNodeTypesScript.NODE_REGION_FILTER:
 			return {
-				"mode": "floor",
+				"filter_target": "floor",
 				"shift_q": 0,
 				"shift_r": 0,
 				"shift_s": 0,
@@ -584,7 +584,7 @@ static func default_params_for_type(node_type: String) -> Dictionary:
 			}
 		HexGenerationNodeTypesScript.NODE_ITEM_GENERATOR:
 			return {
-				"mode": "weighted",
+				"placement_method": "weighted",
 				"placement_probability": 1.0,
 				"seed": 99,
 				"item_pool": [{"name": "spawn", "weight": 1.0}],
@@ -809,12 +809,15 @@ func build_default_vertical_slice_chain() -> PackedStringArray:
 	var connect := add_graph_node(HexGenerationNodeTypesScript.NODE_CONNECTIVITY, Vector2(430, 120), "connectivity")
 	var filter := add_graph_node(HexGenerationNodeTypesScript.NODE_REGION_FILTER, Vector2(650, 120), "spawn_floor_filter")
 	var items := add_graph_node(HexGenerationNodeTypesScript.NODE_ITEM_GENERATOR, Vector2(890, 120), "weighted_items")
+	var result := add_graph_node(HexGenerationNodeTypesScript.NODE_RESULT, Vector2(1150, 120), "result")
 	request_connection(shape, 0, walls, 0)
 	request_connection(walls, 0, connect, 0)
 	request_connection(connect, 0, filter, 0)
 	request_connection(filter, 0, items, 0)
-	select_graph_node(items)
-	return PackedStringArray([shape, walls, connect, filter, items])
+	request_connection(connect, 0, result, 1)
+	request_connection(items, 0, result, 0)
+	select_graph_node(result)
+	return PackedStringArray([shape, walls, connect, filter, items, result])
 
 
 func _port_color_snapshot() -> Dictionary:

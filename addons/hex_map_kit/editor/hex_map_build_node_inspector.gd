@@ -67,7 +67,7 @@ func set_param(key: String, value: Variant) -> void:
 func set_promote_enabled(enabled: bool) -> void:
 	_promote_enabled = enabled
 	if _promote_button != null:
-		_promote_button.disabled = not _promote_enabled or _output_type == "" or not _preview_available
+		_promote_button.disabled = not _promote_enabled or _output_type == "" or (not _preview_available and _output_type != HexGenerationPortsScript.RESULT)
 
 
 func set_effective_flat_top(flat_top: bool) -> void:
@@ -150,7 +150,7 @@ func _refresh_ui() -> void:
 	_refresh_param_controls()
 	var refs := _resource_ref_fields_for_type(_node_type)
 	_resource_ref_label.text = "Resource refs: %s" % (", ".join(refs) if not refs.is_empty() else "none")
-	_promote_button.disabled = not _promote_enabled or _output_type == "" or not _preview_available
+	_promote_button.disabled = not _promote_enabled or _output_type == "" or (not _preview_available and _output_type != HexGenerationPortsScript.RESULT)
 
 
 func _refresh_warnings() -> void:
@@ -239,7 +239,7 @@ func _build_option_control(key: String, current_value) -> OptionButton:
 		var opt = options[i] as Dictionary
 		control.add_item(String(opt.get("label", "")))
 		control.set_item_metadata(i, opt.get("value", ""))
-		if String(opt.get("value", "")) == String(current_value):
+		if String(opt.get("value", "")) == str(current_value):
 			selected_index = i
 	if selected_index >= 0:
 		control.select(selected_index)
@@ -497,7 +497,7 @@ func _hex_direction_short_label(direction: HexVector) -> String:
 
 func _param_control_type(node_type: String, key: String) -> String:
 	match key:
-		"shape", "method", "mode", "kind", "write_policy", "existing_policy", "op", "output_type", "distribution_id", "operation", "orientation":
+		"shape", "method", "wall_method", "filter_target", "placement_method", "kind", "write_policy", "existing_policy", "op", "output_type", "distribution_id", "operation", "orientation":
 			return "option"
 		"wall_probability", "placement_probability":
 			return "spin_float"
@@ -526,33 +526,24 @@ func _param_options(node_type: String, key: String) -> Array[Dictionary]:
 				{"label": "Terminal", "value": "terminal"},
 				{"label": "None", "value": "none"},
 			]
-		"mode":
-			if node_type == HexGenerationNodeTypesScript.NODE_REGION_FILTER:
-				return [
-					{"label": "Floor", "value": "floor"},
-					{"label": "Wall", "value": "wall"},
-					{"label": "Any", "value": "any"},
-					{"label": "Query", "value": "query"},
-				]
-			if node_type == HexGenerationNodeTypesScript.NODE_WALL_FIELD:
-				return [
-					{"label": "Random Probability", "value": "random_probability"},
-					{"label": "Markov Mesh", "value": "markov_mesh"},
-				]
-			if node_type == HexGenerationNodeTypesScript.NODE_CONNECTIVITY:
-				return [
-					{"label": "Dense", "value": "dense"},
-					{"label": "Sparse", "value": "sparse"},
-					{"label": "Terminal", "value": "terminal"},
-					{"label": "None", "value": "none"},
-				]
-			if node_type == HexGenerationNodeTypesScript.NODE_ITEM_GENERATOR:
-				return [
-					{"label": "Weighted", "value": "weighted"},
-					{"label": "Limited", "value": "limited"},
-					{"label": "Adjacency Rules", "value": "adjacency_rules"},
-				]
-			return []
+		"wall_method":
+			return [
+				{"label": "Random Probability", "value": "random_probability"},
+				{"label": "Markov Mesh", "value": "markov_mesh"},
+			]
+		"filter_target":
+			return [
+				{"label": "Floor", "value": "floor"},
+				{"label": "Wall", "value": "wall"},
+				{"label": "Any", "value": "any"},
+				{"label": "Item Key", "value": "item_key"},
+			]
+		"placement_method":
+			return [
+				{"label": "Weighted", "value": "weighted"},
+				{"label": "Limited", "value": "limited"},
+				{"label": "Adjacency Rules", "value": "adjacency_rules"},
+			]
 		"kind":
 			return [
 				{"label": "Provided", "value": "provided"},
@@ -659,13 +650,11 @@ func _param_default(key: String, node_type: String) -> Variant:
 			return 0.3
 		"distribution_id":
 			return 20
-		"mode":
-			if node_type == HexGenerationNodeTypesScript.NODE_WALL_FIELD:
-				return "random_probability"
-			if node_type == HexGenerationNodeTypesScript.NODE_CONNECTIVITY:
-				return "dense"
-			if node_type == HexGenerationNodeTypesScript.NODE_REGION_FILTER:
-				return "floor"
+		"wall_method":
+			return "random_probability"
+		"filter_target":
+			return "floor"
+		"placement_method":
 			return "weighted"
 		"placement_probability":
 			return 0.5
@@ -704,22 +693,21 @@ func _param_visibility_for_type(node_type: String, params: Dictionary) -> Dictio
 			result["radius"] = shape == "hexagon"
 			result["toric"] = shape != "hexagon"
 		HexGenerationNodeTypesScript.NODE_REGION_FILTER:
-			var mode := String(params.get("mode", "floor"))
-			result["item_key"] = mode != "query"
-			result["op"] = mode == "query"
+			var ft := String(params.get("filter_target", params.get("mode", "floor")))
+			result["item_key"] = ft == "item_key"
 		HexGenerationNodeTypesScript.NODE_ITEM_GENERATOR:
-			var ig_mode := String(params.get("mode", "weighted"))
-			result["placement_probability"] = ig_mode == "weighted"
-			result["probability_rules"] = ig_mode == "adjacency_rules"
-			result["neighbor_radius"] = ig_mode == "adjacency_rules"
-			result["include_generated_reference"] = ig_mode == "adjacency_rules"
+			var pm := String(params.get("placement_method", params.get("mode", "weighted")))
+			result["placement_probability"] = pm == "weighted"
+			result["probability_rules"] = pm == "adjacency_rules"
+			result["neighbor_radius"] = pm == "adjacency_rules"
+			result["include_generated_reference"] = pm == "adjacency_rules"
 		HexGenerationNodeTypesScript.NODE_SOURCE:
 			var kind := String(params.get("kind", "provided"))
 			result["source_key"] = kind == "provided" or kind == "context"
 		HexGenerationNodeTypesScript.NODE_WALL_FIELD:
-			var wf_mode := String(params.get("mode", "random_probability"))
-			result["wall_probability"] = wf_mode != "markov_mesh"
-			result["distribution_id"] = wf_mode == "markov_mesh"
+			var wm := String(params.get("wall_method", params.get("mode", "random_probability")))
+			result["wall_probability"] = wm != "markov_mesh"
+			result["distribution_id"] = wm == "markov_mesh"
 	return result
 
 
@@ -730,13 +718,13 @@ func _param_keys_for_type(node_type: String) -> Array:
 		HexGenerationNodeTypesScript.NODE_SHAPE:
 			return ["shape", "width", "height", "size", "radius", "toric"]
 		HexGenerationNodeTypesScript.NODE_WALL_FIELD:
-			return ["mode", "wall_probability", "distribution_id", "seed"]
+			return ["wall_method", "wall_probability", "distribution_id", "seed"]
 		HexGenerationNodeTypesScript.NODE_CONNECTIVITY:
-			return ["mode", "seed"]
+			return ["method", "seed"]
 		HexGenerationNodeTypesScript.NODE_REGION_FILTER:
-			return ["mode", "item_key", "selectors", "op", "shift_offset"]
+			return ["filter_target", "item_key", "shift_offset"]
 		HexGenerationNodeTypesScript.NODE_ITEM_GENERATOR:
-			return ["mode", "placement_probability", "item_pool", "probability_rules", "neighbor_radius", "include_generated_reference", "seed"]
+			return ["placement_method", "placement_probability", "item_pool", "probability_rules", "neighbor_radius", "include_generated_reference", "seed"]
 		HexGenerationNodeTypesScript.NODE_COMPOSE:
 			return ["write_policy", "existing_policy"]
 		HexGenerationNodeTypesScript.NODE_SET_OPERATION:
@@ -760,5 +748,22 @@ func _on_promote_pressed() -> void:
 
 
 func _migrate_params() -> void:
-	if _node_type == HexGenerationNodeTypesScript.NODE_CONNECTIVITY and _params.has("method") and not _params.has("mode"):
-		_params["mode"] = _params["method"]
+	if not _params.has("mode"):
+		return
+	match _node_type:
+		HexGenerationNodeTypesScript.NODE_CONNECTIVITY:
+			if not _params.has("method"):
+				_params["method"] = _params["mode"]
+			_params.erase("mode")
+		HexGenerationNodeTypesScript.NODE_WALL_FIELD:
+			if not _params.has("wall_method"):
+				_params["wall_method"] = _params["mode"]
+			_params.erase("mode")
+		HexGenerationNodeTypesScript.NODE_REGION_FILTER:
+			if not _params.has("filter_target"):
+				_params["filter_target"] = _params["mode"]
+			_params.erase("mode")
+		HexGenerationNodeTypesScript.NODE_ITEM_GENERATOR:
+			if not _params.has("placement_method"):
+				_params["placement_method"] = _params["mode"]
+			_params.erase("mode")

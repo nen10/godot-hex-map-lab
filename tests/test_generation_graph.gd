@@ -31,6 +31,7 @@ func _run() -> void:
 	_test_cycle_is_rejected()
 	_test_same_graph_and_seed_are_deterministic()
 	_test_empty_graph_runs_to_empty_cache()
+	_test_overlay_to_region_filter_returns_occupied_cells()
 
 	if _failures.is_empty():
 		print("test_generation_graph.gd: all tests passed")
@@ -83,10 +84,10 @@ func _test_filter_to_item_generator_chain_limits_overlay_to_selection() -> void:
 		"height": 3,
 	})
 	HexGenerationGraph.add_node(graph, "floor_filter", "region_filter", {
-		"mode": "floor",
+		"filter_target": "floor",
 	})
 	HexGenerationGraph.add_node(graph, "items", "item_generator", {
-		"mode": "weighted",
+		"placement_method": "weighted",
 		"placement_probability": 1.0,
 		"seed": 99,
 		"item_pool": [{"name": "spawn", "weight": 1.0}],
@@ -113,7 +114,7 @@ func _test_source_node_reads_map_resource() -> void:
 		"kind": "map_resource",
 	}, {"map": map_resource})
 	HexGenerationGraph.add_node(graph, "walls", "region_filter", {
-		"mode": "wall",
+		"filter_target": "wall",
 	})
 	HexGenerationGraph.add_edge(graph, "source", "walls", "in")
 
@@ -135,9 +136,8 @@ func _test_source_node_reads_document_overlay() -> void:
 		"layer_id": "object_marks",
 	}, {"document": document})
 	HexGenerationGraph.add_node(graph, "door_cells", "region_filter", {
-		"mode": "query",
-		"selectors": [{"item_key": "door"}],
-		"op": HexOverlayData.ITEM_QUERY_OR,
+		"filter_target": "item_key",
+		"item_key": "door",
 	})
 	HexGenerationGraph.add_edge(graph, "source", "door_cells", "in")
 
@@ -198,6 +198,32 @@ func _test_empty_graph_runs_to_empty_cache() -> void:
 	var report = HexGenerationGraphRunner.run_with_report(HexGenerationGraph.new_graph())
 	_assert_true(report["ok"], "empty graph is valid")
 	_assert_eq(report["cache"], {}, "empty graph runs to an empty cache")
+
+
+func _test_overlay_to_region_filter_returns_occupied_cells() -> void:
+	var graph = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(graph, "shape", "shape", {
+		"shape": "rectangle", "width": 4, "height": 3,
+	})
+	HexGenerationGraph.add_node(graph, "floor_filter", "region_filter", {
+		"filter_target": "floor",
+	})
+	HexGenerationGraph.add_node(graph, "items", "item_generator", {
+		"placement_method": "weighted",
+		"placement_probability": 1.0, "seed": 99,
+		"item_pool": [{"name": "chest", "weight": 1.0}],
+	})
+	HexGenerationGraph.add_node(graph, "overlay_filter", "region_filter", {
+		"filter_target": "floor",
+	})
+	HexGenerationGraph.add_edge(graph, "shape", "floor_filter", "in")
+	HexGenerationGraph.add_edge(graph, "floor_filter", "items", "scope")
+	HexGenerationGraph.add_edge(graph, "items", "overlay_filter", "in")
+	var cache = HexGenerationGraphRunner.run(graph)
+	var overlay_selection = cache["overlay_filter"] as Array
+	var overlay = cache["items"]
+	_assert_true(overlay_selection.size() > 0, "overlay region filter returns occupied cells")
+	_assert_eq(overlay_selection.size(), overlay.occupied_cells().size(), "overlay filter_target=floor falls back to occupied_cells()")
 
 
 func _cell(q: int, r: int):
