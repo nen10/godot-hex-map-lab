@@ -93,8 +93,10 @@ func _validate_report(report: Dictionary) -> void:
 		_failures.append("Headless layout snapshot has no visible controls.")
 	if not bool(layout.get("has_graph_canvas", false)):
 		_failures.append("Build Graph Canvas is not visible in the layout snapshot.")
-	if not bool(layout.get("has_output_preview", false)):
-		_failures.append("Build Output Preview is not visible in the layout snapshot.")
+	if not bool(layout.get("has_apply_button", false)):
+		_failures.append("Build Apply Button is not visible in the layout snapshot.")
+	if not bool(layout.get("has_revert_button", false)):
+		_failures.append("Build Revert Button is not visible in the layout snapshot.")
 	if not bool(layout.get("has_inspector", false)):
 		_failures.append("Build Node Inspector is not visible in the layout snapshot.")
 	if not bool(layout.get("has_generate_action", false)):
@@ -182,11 +184,11 @@ func _layout_report(snapshot: Dictionary) -> Dictionary:
 		"control_count": int(snapshot.get("control_count", 0)),
 		"has_graph_canvas": _has_control_name(controls, "Build Graph Canvas"),
 		"has_node_palette": _has_control_name(controls, "Build Node Palette"),
-		"has_output_preview": _has_control_name(controls, "Build Output Preview"),
+		"has_apply_button": _has_control_name(controls, "Build Apply Button"),
+		"has_revert_button": _has_control_name(controls, "Build Revert Button"),
 		"has_inspector": _has_control_script(controls, "hex_map_build_node_inspector.gd"),
 		"has_generate_action": _has_control_name(controls, "Build Generate Button"),
 		"graph_canvas_rect": _rect_for_control_name(controls, "Build Graph Canvas"),
-		"output_preview_rect": _rect_for_control_name(controls, "Build Output Preview"),
 		"inspector_rect": _rect_for_control_script(controls, "hex_map_build_node_inspector.gd"),
 	}
 
@@ -298,6 +300,8 @@ func _markdown_report(report: Dictionary) -> String:
 	lines.append("- has_graph_canvas: `%s`" % str(layout.get("has_graph_canvas", false)))
 	lines.append("- has_node_palette: `%s`" % str(layout.get("has_node_palette", false)))
 	lines.append("- has_output_preview: `%s`" % str(layout.get("has_output_preview", false)))
+	lines.append("- has_apply_button: `%s`" % str(layout.get("has_apply_button", false)))
+	lines.append("- has_revert_button: `%s`" % str(layout.get("has_revert_button", false)))
 	lines.append("- has_inspector: `%s`" % str(layout.get("has_inspector", false)))
 	lines.append("- has_generate_action: `%s`" % str(layout.get("has_generate_action", false)))
 	lines.append("- raster_capture_status: `%s`" % String(raster.get("status", "")))

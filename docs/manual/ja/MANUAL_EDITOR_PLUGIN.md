@@ -27,7 +27,7 @@ Godot を起動すると、エディターに **Hex Map Workspace** ドックが
 8. `Export`: ランタイム受け渡し出力の選択。
 9. `Settings`: サンプル学習、デバッグ、レポート設定。
 
-旧マニュアルや一部内部名に出てくる `Generate` は、現在の UI では `Build` に統合された互換/補助パスです。旧 Generate パネルは Build タブ内の生成補助として残っています。
+`Generate` は旧マニュアル・内部コードでのレガシー互換名です。現在の UI では `Build` タブが主導線です。旧 Generate パネル（`hex_map_gen_dock.gd`）は非表示の互換コードであり、ユーザーからは見えません。
 
 最初の本番向け通し作業は、選択済み `HexTileMapLayer` から始め、`Resources` -> `Build` -> `Paint` -> `Catalog` -> `Validate` -> `QA` -> `Export` の順に進めます。本番作業はバンドルサンプルではなく、シーンノードとプロジェクト所有のリソーススロットから始めます。
 
@@ -74,29 +74,23 @@ Auto-link が有効な間、選択または作成したノード所有リソー�
 | `Sample Learning` | バンドルサンプルが学習候補として表示されています。 | 本番用に編集する前にプロジェクトへ複製します。 |
 | `Missing` | リソースが選択されていません。 | プロジェクトアセットを作成/選択するか、許容される任意リソースとして未選択のままにします。 |
 
-## 3. Build/Generate でマップを作る
+## 3. Build でマップを作る
 
-現在の主導線は `Build` です。グラフキャンバスで Shape、Wall、Connectivity、Region Filter、Item Generator、Promote などの生成パスを接続し、`Generate` を押して現在のグラフを実行します。Simple Build は最初の導入用で、同じ生成モデルをプリセットグラフとして扱います。
+主導線は `Build` タブです。グラフキャンバスで Shape、Wall Field、Connectivity、Region Filter、Item Generator、Compose などの生成ノードを接続し、`Generate` を押すとグラフが実行され、結果がシーンのビューポートに自動反映されます。Simple Build は導入用で、同じ生成モデルをプリセットグラフとして扱います。
 
 Build の主な操作:
 
 - `Load Graph`: 既存の生成グラフを読み込みます。
 - `Overwrite selected`: 選択中ノード/グラフを上書き対象にします。
-- `Generate`: 現在のグラフを実行します。
-- `Generate (Simple)`: profile から簡易生成を実行します。
-- output preview: 選択出力を確認します。
-- Promote: Level Document が選択されている場合、選択出力を terrain/overlay/object などの役割へ昇格します。
+- `Generate`: 現在のグラフを実行し、結果をビューポートにプレビュー表示します。
+- `Generate (Simple)`: profile から簡易生成を実行し、ビューポートに反映します。
+- `Apply`: プレビュー表示中の生成結果を確定し、Level Document に保存します。
+- `Revert`: プレビュー表示中の生成結果を破棄し、ひとつ前の状態に戻します。
+- ノードインスペクター: 選択中のグラフノードのパラメータを編集可能なコントロール（ドロップダウン、数値入力、チェックボックス）で変更できます。パラメータ変更後、次回 `Generate` で差分ノードのみ再計算されます。
+- 接続警告: ノード選択時に、必須入力ポートの未接続や出力タイプの不一致がある場合、インスペクターに警告が表示されます。
+- Promote: 選択出力を任意の役割 (terrain/overlay/object) で明示的に Level Document へ昇格します。
 
-旧 Generate パネルでは、明示パラメーターから terrain や overlay を生成できます。パラメーターを変えても自動再生成はされません。現在の設定で実行するには `Generate` を押します。
-
-旧 Generate の代表的なコントロール:
-
-- `Generator`: `Simple` または `Hex-inward Markov mesh model`。
-- `Shape`: generator に応じた hexagon、rectangle、square、torus。
-- `Wall Prob`: 壁確率。`0.00` から `1.00`。
-- `Seed`: 決定的な生成 seed。
-- `Rand`: seed を置き換えます。
-- `Restore Connectivity`: 生成後に floor 領域を再接続します。
+旧 Generate パネル（`hex_map_gen_dock.gd`）は非表示のレガシー互換コードであり、通常の操作では使用しません。
 
 表示には `Target`、orientation、tile size、catalog key を選びます。
 
@@ -111,10 +105,11 @@ Build の主な操作:
 
 通常の制作では catalog entry と target `TileSet` が表示詳細を所有します。numeric source や atlas controls は通常の入力面ではありません。
 
-Output target は生成結果の扱いを決めます。
+出力の扱い:
 
-- `Preview only`: target display を更新し、選択中 Level Document は変更しません。
-- `Apply to selected Document`: `HexTileMapLayer`、Level Document、generated preview が揃うと `Apply to Document` が有効になります。適用すると生成ドキュメント状態が選択ノードの Level Document にコピーされ、generation metadata が記録されます。
+- `Generate` を押すと、グラフの出力が自動的に選択中の HexTileMapLayer の Level Document に書き込まれ、ビューポートにプレビュー表示されます。
+- `Apply` ボタンでプレビューを確定します（すでに Document に書き込み済みです）。
+- `Revert` ボタンでプレビューを破棄し、Generate 前の状態に戻します。
 
 `HexTileMapLayer` が未選択、または選択ノードに Level Document がない場合、適用パスは理由付きでブロックされます。
 
@@ -122,7 +117,7 @@ Output target は生成結果の扱いを決めます。
 
 マップの形状とルールは決まっているが seed を比較したい場合は Seed Lab を使います。
 
-1. `Build` または旧 Generate パネルで生成設定を用意します。
+1. `Build` で生成設定を用意します。
 2. `QA` の Seed Lab で seed count を指定します。
 3. `Run Batch` を実行します。
 4. rank、seed、score、validation、preview、promotion 状態を score table で比較します。

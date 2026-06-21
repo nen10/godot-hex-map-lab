@@ -77,6 +77,21 @@ func _ready() -> void:
 		connection_request.connect(_on_connection_request)
 	if not disconnection_request.is_connected(_on_disconnection_request):
 		disconnection_request.connect(_on_disconnection_request)
+	if not node_selected.is_connected(_on_graph_node_selected):
+		node_selected.connect(_on_graph_node_selected)
+	if not node_deselected.is_connected(_on_graph_node_deselected):
+		node_deselected.connect(_on_graph_node_deselected)
+
+
+func _on_graph_node_selected(node: Node) -> void:
+	var graph_node := node as GraphNode
+	if graph_node == null:
+		return
+	select_graph_node(graph_node.name)
+
+
+func _on_graph_node_deselected(_node: Node) -> void:
+	select_graph_node("")
 
 
 func add_graph_node(node_type: String, position: Vector2 = Vector2.ZERO, node_id: String = "") -> String:

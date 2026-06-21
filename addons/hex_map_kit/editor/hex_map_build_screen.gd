@@ -11,9 +11,9 @@ const HexMapWorkspaceAssetContextScript = preload("res://addons/hex_map_kit/edit
 const HexMapBuildGraphCanvasScript = preload("res://addons/hex_map_kit/editor/hex_map_build_graph_canvas.gd")
 const HexMapBuildNodePaletteScript = preload("res://addons/hex_map_kit/editor/hex_map_build_node_palette.gd")
 const HexMapBuildNodeInspectorScript = preload("res://addons/hex_map_kit/editor/hex_map_build_node_inspector.gd")
-const HexMapPreviewThumbnailScript = preload("res://addons/hex_map_kit/editor/hex_map_preview_thumbnail.gd")
 const HexGenerationPresetScript = preload("res://addons/hex_map_kit/generation/hex_generation_preset.gd")
 const HexGenerationPromoteScript = preload("res://addons/hex_map_kit/generation/hex_generation_promote.gd")
+const HexGenerationNodeTypesScript = preload("res://addons/hex_map_kit/generation/hex_generation_node_types.gd")
 const HexGenerationGraphResourceScript = preload("res://addons/hex_map_kit/adapter/hex_generation_graph_resource.gd")
 const HexTileMapLayerScript = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 
@@ -36,9 +36,13 @@ var _shape_randomize_check: CheckBox
 var _status_label: Label
 var _canvas: HexMapBuildGraphCanvasScript
 var _palette: HexMapBuildNodePaletteScript
-var _preview: HexMapPreviewThumbnailScript
-var _preview_status_label: Label
 var _inspector: HexMapBuildNodeInspectorScript
+var _apply_button: Button
+var _revert_button: Button
+var _preview_applied := false
+var _revert_terrain_layers: Array = []
+var _revert_overlay_layers: Array = []
+var _revert_object_placements: Array = []
 var _last_report: Dictionary = {}
 var _last_promote_result: Dictionary = {}
 var _last_build_context_result: Dictionary = {}
@@ -80,10 +84,6 @@ func node_palette() -> HexMapBuildNodePaletteScript:
 	return _palette
 
 
-func output_preview() -> HexMapPreviewThumbnailScript:
-	return _preview
-
-
 func run_graph(options: Dictionary = {}) -> Dictionary:
 	if _canvas == null:
 		return {}
@@ -96,7 +96,6 @@ func run_graph(options: Dictionary = {}) -> Dictionary:
 	_last_report = _canvas.run_graph(context)
 	_run_busy = false
 	_update_run_controls()
-	_refresh_preview()
 	_refresh_selected_node()
 	if _status_label != null:
 		var run_state := _canvas.run_state_snapshot()
@@ -143,7 +142,6 @@ func run_simple_profile_graph(options: Dictionary = {}) -> Dictionary:
 			_canvas.select_graph_node(selected_node_id)
 			promote_result = promote_selected_output(promote_role)
 	else:
-		_refresh_preview()
 		_refresh_selected_node()
 
 	var profile_id := _profile_id(profile)
@@ -172,7 +170,6 @@ func run_simple_profile_graph(options: Dictionary = {}) -> Dictionary:
 		_status_label.text = String(_last_simple_generate_result["status_text"])
 	_refresh_context()
 	_refresh_selected_node()
-	_refresh_preview()
 	return _last_simple_generate_result.duplicate(true)
 
 
@@ -234,7 +231,6 @@ func ensure_graph_context_for_hex_tile_map_layer(
 	if bool(options.get("run", true)):
 		run_report = run_graph()
 	else:
-		_refresh_preview()
 		_refresh_selected_node()
 	_last_build_context_result = {
 		"ok": bool(restore_report.get("ok", false)),
@@ -271,7 +267,6 @@ func load_graph_resource(graph_resource: HexGenerationGraphResourceScript, optio
 	if bool(options.get("run", false)):
 		run_report = run_graph()
 	else:
-		_refresh_preview()
 		_refresh_selected_node()
 	_last_graph_load_result = {
 		"ok": bool(restore_report.get("ok", false)),
@@ -305,6 +300,8 @@ func promote_selected_output(role: String = "overlay") -> Dictionary:
 		role,
 		{"graph_node_id": _canvas.selected_node_id()}
 	)
+	if bool(_last_promote_result.get("ok", false)):
+		_apply_document_to_context_layer()
 	if _status_label != null:
 		_status_label.text = String(_last_promote_result.get("status_text", _last_promote_result.get("blocked_reason", "")))
 	_refresh_selected_node()
@@ -315,7 +312,6 @@ func build_screen_snapshot() -> Dictionary:
 	var canvas_snapshot := _canvas.canvas_snapshot() if _canvas != null else {}
 	var run_state := _canvas.run_state_snapshot() if _canvas != null else {}
 	var inspector_snapshot := _inspector.inspector_snapshot() if _inspector != null else {}
-	var preview_snapshot := _preview.preview_snapshot() if _preview != null else HexMapPreviewThumbnailScript.unavailable_preview("missing")
 	return {
 		"component": "HexMapBuildScreen",
 		"screen_role_source": "HexMapBuildScreen",
@@ -371,8 +367,9 @@ func build_screen_snapshot() -> Dictionary:
 		"failure_node_id": String(run_state.get("failure_node_id", "")),
 		"palette": _palette.palette_snapshot() if _palette != null else {},
 		"inspector": inspector_snapshot,
-		"preview": preview_snapshot,
-		"preview_available": bool(preview_snapshot.get("available", false)),
+		"preview_available": bool(run_state.get("cache_ready", false)),
+		"preview": canvas_snapshot.get("preview", {}),
+		"preview_applied": _preview_applied,
 		"three_node_chain_ready": int(canvas_snapshot.get("node_count", 0)) >= 3 and int(canvas_snapshot.get("connection_count", 0)) >= 2,
 		"graph_chain_runs": bool(_last_report.get("ok", false)),
 		"promote_result": _last_promote_result.duplicate(true),
@@ -394,7 +391,6 @@ static func screen_contract() -> Dictionary:
 			"build_graph_canvas",
 			"build_node_palette",
 			"build_node_inspector",
-			"build_output_preview",
 		]),
 		"delegates": {},
 	}
@@ -434,6 +430,18 @@ func _build_ui() -> void:
 	_cancel_button.disabled = true
 	_cancel_button.pressed.connect(_on_cancel_pressed)
 	top_row.add_child(_cancel_button)
+	_apply_button = Button.new()
+	_apply_button.name = "Build Apply Button"
+	_apply_button.text = "Apply"
+	_apply_button.disabled = true
+	_apply_button.pressed.connect(_on_apply_pressed)
+	top_row.add_child(_apply_button)
+	_revert_button = Button.new()
+	_revert_button.name = "Build Revert Button"
+	_revert_button.text = "Revert"
+	_revert_button.disabled = true
+	_revert_button.pressed.connect(_on_revert_pressed)
+	top_row.add_child(_revert_button)
 	add_child(top_row)
 
 	var simple_row := HBoxContainer.new()
@@ -469,19 +477,6 @@ func _build_ui() -> void:
 	_canvas = HexMapBuildGraphCanvasScript.new()
 	canvas_area.add_child(_canvas)
 	split.add_child(canvas_area)
-
-	var preview_panel := VBoxContainer.new()
-	preview_panel.name = "Build Output Preview"
-	preview_panel.custom_minimum_size = Vector2(190, 180)
-	_preview = HexMapPreviewThumbnailScript.new()
-	_preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_preview.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	preview_panel.add_child(_preview)
-	_preview_status_label = Label.new()
-	_preview_status_label.name = "Build Preview Status"
-	_preview_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	preview_panel.add_child(_preview_status_label)
-	split.add_child(preview_panel)
 
 	var batch_row := HBoxContainer.new()
 	batch_row.name = "Build Batch Options"
@@ -521,7 +516,7 @@ func _build_ui() -> void:
 	_canvas.graph_run_completed.connect(_on_canvas_graph_run_completed)
 	_inspector.node_params_changed.connect(_on_inspector_params_changed)
 	_inspector.promote_requested.connect(_on_inspector_promote_requested)
-	_refresh_preview()
+	_refresh_context()
 
 
 func _run_context() -> Dictionary:
@@ -732,28 +727,72 @@ func _refresh_selected_node() -> void:
 	if node.is_empty():
 		_inspector.clear_inspector()
 		return
-	_inspector.inspect_node(node, _canvas.selected_output_type(), _canvas.selected_preview_snapshot())
+	var warnings := _compute_connection_warnings(node)
+	_inspector.inspect_node(node, _canvas.selected_output_type(), _canvas.selected_preview_snapshot(), warnings)
 	_inspector.set_promote_enabled(_workspace_asset_context != null and _workspace_asset_context.level_document != null)
 
 
-func _refresh_preview() -> void:
-	if _preview == null or _canvas == null:
-		return
-	var snapshot := _canvas.selected_preview_snapshot()
-	_preview.set_preview_snapshot(snapshot)
-	if _preview_status_label != null:
-		if bool(snapshot.get("available", false)):
-			_preview_status_label.text = "%s preview: %d cells" % [
-				String(snapshot.get("source_kind", "")),
-				int(snapshot.get("cell_count", int(snapshot.get("entry_count", 0)))),
-			]
-		else:
-			_preview_status_label.text = "Preview waits for Generate."
+func _compute_connection_warnings(node: Dictionary) -> Array[Dictionary]:
+	var warnings: Array[Dictionary] = []
+	var graph_model := _canvas.build_graph_model()
+	var node_id := String(node.get("id", ""))
+	if node_id == "":
+		return warnings
+	var node_type := String(node.get("type", ""))
+	var edges: Array = graph_model.get("edges", [])
+
+	var input_defs := HexGenerationNodeTypesScript.input_definitions(node_type)
+	for port_name in input_defs.keys():
+		var port_def = input_defs[port_name] as Dictionary
+		if bool(port_def.get("required", false)):
+			var connected := false
+			for edge in edges:
+				var edge_dict = edge as Dictionary
+				if String(edge_dict.get("to_node", "")) == node_id and String(edge_dict.get("to_port", "")) == port_name:
+					connected = true
+					break
+			if not connected:
+				warnings.append({"text": "Missing required input: %s" % port_name, "level": "error"})
+
+	var has_outgoing := false
+	for edge in edges:
+		var edge_dict = edge as Dictionary
+		if String(edge_dict.get("from_node", "")) == node_id:
+			has_outgoing = true
+			break
+	if not has_outgoing and node_type != HexGenerationNodeTypesScript.NODE_COMPOSE:
+		warnings.append({"text": "Output is unused. Connect to downstream node.", "level": "info"})
+
+	var params := node.get("params", {}) as Dictionary
+	var output_type := _canvas.selected_output_type()
+	if node_type == HexGenerationNodeTypesScript.NODE_SOURCE:
+		var kind := String(params.get("kind", "provided"))
+		var source_output := output_type
+		if source_output != "":
+			for edge in edges:
+				var edge_dict = edge as Dictionary
+				if String(edge_dict.get("from_node", "")) == node_id:
+					var to_node_id := String(edge_dict.get("to_node", ""))
+					var to_port := String(edge_dict.get("to_port", ""))
+					var to_node = _canvas.selected_node_dictionary()
+					var to_nodes: Dictionary = graph_model.get("nodes", {})
+					var to_node_entry = to_nodes.get(to_node_id, {}) as Dictionary
+					var to_type := String(to_node_entry.get("type", ""))
+					if to_type != "":
+						var input_def := HexGenerationNodeTypesScript.input_definition(to_type, to_port)
+						var accepts: Array = input_def.get("accepts", [])
+						if not accepts.is_empty() and not accepts.has(source_output):
+							warnings.append({"text": "Output type (%s) mismatches input port '%s' on %s (accepts: %s)" % [source_output, to_port, to_node_id, String(", ".join(accepts))], "level": "warning"})
+							break
+
+	return warnings
 
 
 func _on_generate_pressed() -> void:
 	build_context_requested.emit()
-	run_graph({"count": 1})
+	var report := run_graph({"count": 1})
+	if bool(report.get("ok", false)):
+		_auto_preview_after_generate()
 
 
 func _on_simple_generate_pressed() -> void:
@@ -781,7 +820,6 @@ func _on_palette_node_type_requested(node_type: String) -> void:
 
 func _on_canvas_selected_node_changed(_node_id: String) -> void:
 	_refresh_selected_node()
-	_refresh_preview()
 
 
 func _on_canvas_graph_changed() -> void:
@@ -790,7 +828,6 @@ func _on_canvas_graph_changed() -> void:
 
 
 func _on_canvas_graph_run_completed(_report: Dictionary) -> void:
-	_refresh_preview()
 	_refresh_selected_node()
 
 
@@ -803,3 +840,81 @@ func _on_inspector_promote_requested(node_id: String, role: String) -> void:
 		_canvas.select_graph_node(node_id)
 	promote_selected_output(role)
 	promote_requested.emit(node_id, role)
+
+
+func _auto_preview_after_generate() -> void:
+	if _canvas == null or _workspace_asset_context == null or _workspace_asset_context.level_document == null:
+		return
+	if _context_hex_tile_map_layer == null or not is_instance_valid(_context_hex_tile_map_layer):
+		return
+	var output = _canvas.selected_output()
+	if output == null:
+		return
+	var output_type := _canvas.selected_output_type()
+	var role := _output_type_to_promote_role(output_type)
+	_snapshot_document_for_revert()
+	var _result := promote_selected_output(role)
+	_apply_document_to_context_layer()
+	_preview_applied = true
+	_refresh_preview_buttons()
+
+
+func _snapshot_document_for_revert() -> void:
+	if _workspace_asset_context == null or _workspace_asset_context.level_document == null:
+		return
+	var doc = _workspace_asset_context.level_document
+	_revert_terrain_layers = doc.terrain_layers.duplicate(true)
+	_revert_overlay_layers = doc.overlay_layers.duplicate(true)
+	_revert_object_placements = doc.object_placements.duplicate(true)
+
+
+func _apply_document_to_context_layer() -> void:
+	if _context_hex_tile_map_layer == null or not is_instance_valid(_context_hex_tile_map_layer):
+		return
+	if _workspace_asset_context == null or _workspace_asset_context.level_document == null:
+		return
+	_context_hex_tile_map_layer.apply_document(_workspace_asset_context.level_document)
+
+
+func _on_apply_pressed() -> void:
+	_preview_applied = false
+	_revert_terrain_layers.clear()
+	_revert_overlay_layers.clear()
+	_revert_object_placements.clear()
+	_refresh_preview_buttons()
+	if _status_label != null:
+		_status_label.text = "Preview applied to Layer."
+
+
+func _on_revert_pressed() -> void:
+	if _workspace_asset_context == null or _workspace_asset_context.level_document == null:
+		return
+	if _revert_terrain_layers.is_empty() and _revert_overlay_layers.is_empty() and _revert_object_placements.is_empty():
+		return
+	var doc = _workspace_asset_context.level_document
+	doc.terrain_layers = _revert_terrain_layers.duplicate(true)
+	doc.overlay_layers = _revert_overlay_layers.duplicate(true)
+	doc.object_placements = _revert_object_placements.duplicate(true)
+	_apply_document_to_context_layer()
+	_preview_applied = false
+	_revert_terrain_layers.clear()
+	_revert_overlay_layers.clear()
+	_revert_object_placements.clear()
+	_refresh_preview_buttons()
+	if _status_label != null:
+		_status_label.text = "Reverted to previous state."
+
+
+func _refresh_preview_buttons() -> void:
+	if _apply_button != null:
+		_apply_button.disabled = not _preview_applied
+	if _revert_button != null:
+		_revert_button.disabled = not _preview_applied
+
+
+func _output_type_to_promote_role(output_type: String) -> String:
+	match output_type:
+		"overlay":
+			return "overlay"
+		_:
+			return "terrain"

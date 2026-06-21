@@ -39,11 +39,11 @@
 
 | 項目 | 判定 | 根拠/補足 |
 |---|---|---|
-| Workspace dock とタブ構成 | 成立 | `plugin.gd` が `HexMapWorkspace` dock を追加し、`hex_map_workspace_component_registry.gd` が `Build`, `Paint`, `Catalog`, `Layers`, `Resources`, `Validate`, `QA`, `Export`, `Settings` を返します。`Generate` は `Build` の互換 alias です。 |
+| Workspace dock とタブ構成 | 成立 | `plugin.gd` が `HexMapWorkspace` dock を追加し、`hex_map_workspace_component_registry.gd` が `Build`, `Paint`, `Catalog`, `Layers`, `Resources`, `Validate`, `QA`, `Export`, `Settings` を返します。`Generate` は旧名称であり、現在の主タブ名は `Build` です。 |
 | Resources の作成/選択/保存 | 成立 | `hex_map_workspace.gd` が Resources asset panel と missing unique resources panel を mount し、factory が Level Document、Catalog、Object DB、Label DB、Layer Stack、Profile 系 resource を作成します。`tests/test_editor_document.gd` と `tests/test_editor_workspace.gd` に UI contract が確認されています。 |
 | `Create Missing Resources` | 成立 | 選択中 `HexTileMapLayer` に対して Level Document と Layer Stack を作成し、既存共有リソースを維持するテストがあります。 |
-| Build graph 実行 | 成立 | `hex_map_build_screen.gd` に graph canvas、`Generate`、`Generate (Simple)`、preview、promote path があります。`tests/test_build_graph_canvas.gd` が primary surface と実行/preview を確認しています。 |
-| 旧 Generate の preview / apply to selected Document | 成立 | `hex_map_gen_dock.gd` に output target、`Preview only`、`Apply to Document` があり、`tests/test_editor_generation.gd` が preview-only と selected document apply を区別して確認しています。日本語版では主導線を Build とし、旧 Generate は互換/補助パスとして記述しました。 |
+| Build graph 実行 | 成立 | `hex_map_build_screen.gd` に graph canvas、`Generate`、`Generate (Simple)`、Apply/Revert ボタン、パラメータ編集インスペクター、接続警告があります。`tests/test_build_graph_canvas.gd` が primary surface と実行を確認しています。 |
+| 旧 Generate の preview / apply to selected Document | 成立 | `hex_map_gen_dock.gd` に output target、`Preview only`、`Apply to Document` があります。現在の主導線は Build タブで、Generate 後はビューポートに自動プレビューされ、Apply/Revert で確定/破棄します。旧 gen_dock は非表示のレガシー互換コードです。 |
 | Catalog の TileSet 割り当て、atlas/scene entry 作成、検証 | 成立 | `catalog_screen_snapshot()` と catalog component が visual board、entry detail、validate を持ち、`tests/test_editor_catalog.gd` が arbitrary project TileSet、atlas entry、scene entry、preview、validate を確認しています。 |
 | Paint の terrain/object/label 編集 | 成立 | `hex_map_edit_tool.gd` が brush palette と viewport input path を持ち、`tests/test_editor_paint.gd` が catalog/object/label brush、viewport click、document/target/display update を確認しています。 |
 | Paint の Undo / Redo | 部分成立 | `hex_map_edit_tool.gd` に UndoRedo 接続と do/undo method 登録があります。ただし、今回確認した範囲では「UI からの完全な visible tile rollback」を直接断言する専用テストは見つけていません。本文では code path 上の接続ありとして注意書きにしました。 |
@@ -60,7 +60,7 @@
 
 ## 日本語版で反映した差分
 
-- 現行タブ名は `Build` です。`Generate` は互換 alias / Build 内補助として説明しました。
+- 現行タブ名は `Build` です。`Generate` は旧名称であり、現在は非表示のレガシー互換コード（`hex_map_gen_dock.gd`）のことを指します。
 - Export は単一の Runtime Handoff ではなく、`Runtime Map Resource`, `Runtime Scene`, `Generation Graph` の 3 目的に更新しました。
 - Debug Report は現行 UI では Export secondary action と Paint tool 側 copy path があるため、その位置づけに変更しました。
 - Samples は learning/onboarding と project duplicate のための導線であり、production fallback ではないと明記しました。
