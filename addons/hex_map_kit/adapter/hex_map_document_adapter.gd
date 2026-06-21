@@ -8,6 +8,7 @@ const HexMapDocumentOverlayLayerResourceScript = preload("res://addons/hex_map_k
 const HexMapDocumentTerrainLayerResourceScript = preload("res://addons/hex_map_kit/adapter/hex_map_document_terrain_layer_resource.gd")
 const HexMapValidationResultScript = preload("res://addons/hex_map_kit/adapter/hex_map_validation_result.gd")
 const HexMapResourceScript = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
+const HexOverlayResourceScript = preload("res://addons/hex_map_kit/adapter/hex_overlay_resource.gd")
 const HexMapTileAdapterScript = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexMapDataScript = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
 const HexVectorScript = preload("res://addons/hex_map_kit/core/hex_vector.gd")
@@ -418,8 +419,46 @@ static func _duplicate_resources(entries: Array) -> Array[Resource]:
 	var result: Array[Resource] = []
 	for entry in entries:
 		if entry is Resource:
-			result.append(entry.duplicate(true))
+			result.append(_duplicate_document_resource(entry))
 	return result
+
+
+static func _duplicate_document_resource(entry: Resource) -> Resource:
+	if entry is HexMapDocumentTerrainLayerResourceScript:
+		return _duplicate_terrain_layer(entry as HexMapDocumentTerrainLayerResourceScript)
+	if entry is HexMapDocumentOverlayLayerResourceScript:
+		return _duplicate_overlay_layer(entry as HexMapDocumentOverlayLayerResourceScript)
+	return entry.duplicate(true)
+
+
+static func _duplicate_terrain_layer(layer: HexMapDocumentTerrainLayerResourceScript) -> HexMapDocumentTerrainLayerResourceScript:
+	var copy = HexMapDocumentTerrainLayerResourceScript.new()
+	copy.layer_id = layer.layer_id
+	copy.display_name = layer.display_name
+	copy.role = layer.role
+	copy.default_floor_key = layer.default_floor_key
+	copy.default_wall_key = layer.default_wall_key
+	copy.tile_assignments = _duplicate_entries(layer.tile_assignments)
+	copy.metadata = _duplicate_dictionary(layer.metadata)
+	if layer.map != null:
+		copy.map = HexMapResourceScript.from_map_data(layer.map.to_map_data(), layer.map.orientation)
+	return copy
+
+
+static func _duplicate_overlay_layer(layer: HexMapDocumentOverlayLayerResourceScript) -> HexMapDocumentOverlayLayerResourceScript:
+	var copy = HexMapDocumentOverlayLayerResourceScript.new()
+	copy.layer_id = layer.layer_id
+	copy.display_name = layer.display_name
+	copy.role = layer.role
+	copy.item_key = layer.item_key
+	copy.catalog_key = layer.catalog_key
+	copy.tile_assignments = _duplicate_entries(layer.tile_assignments)
+	copy.z_index = layer.z_index
+	copy.visible = layer.visible
+	copy.metadata = _duplicate_dictionary(layer.metadata)
+	if layer.overlay != null:
+		copy.overlay = HexOverlayResourceScript.from_overlay_data(layer.overlay.to_overlay_data(), layer.overlay.orientation)
+	return copy
 
 
 static func _document_map_data(document):

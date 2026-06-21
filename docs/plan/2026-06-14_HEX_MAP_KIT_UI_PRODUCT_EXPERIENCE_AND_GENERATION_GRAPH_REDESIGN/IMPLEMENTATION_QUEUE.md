@@ -114,13 +114,26 @@ plan_dir 規約: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GEN
 
 Codex は self-review で nonblocking work を見つけたらここに `follow-up-ready` task を追記する（テンプレは `docs/plan/2026-06-10_UI_LAYOUT_METRICS_AND_UNQUEUED_FOLLOWUP/IMPLEMENTATION_QUEUE.md` §8 参照）。
 
+### 2026-06-22 Build Generate viewport repair track
+
+| id | status | deps | deliverable | target files | acceptance |
+|---|---|---|---|---|---|
+| `REPAIR-10_BUILD_GENERATE_VIEWPORT_AND_GRAPH_RECOVERY` | `COMPLETE` | completed roadmap main route | Build `Generate` / `Generate (Simple)` projects to a real `HexTileMapLayer` viewport preview with Apply/Revert; handoff uncertainty matrix and diagnostic proof | `addons/hex_map_kit/editor/hex_map_build_screen.gd`, `addons/hex_map_kit/editor/hex_map_workspace.gd`, `addons/hex_map_kit/editor/hex_map_build_graph_canvas.gd`, `addons/hex_map_kit/generation/hex_generation_preset.gd`, tests, `tools/build_generate_viewport_probe.gd`, `<plan_dir>/REPAIR-10.../` | S: synchronous context provider / Result-priority projection / projection report / targeted tests + `./tools/test.sh`. E: pressing top Generate shows generated result in the Godot viewport on selected/new `HexTileMapLayer`; Apply keeps it, Revert restores previous display. |
+| `REPAIR-11_GRAPH_RESULT_MULTI_OVERLAY_CONTRACT` | `READY` | `REPAIR-10` | Result owns `1 terrain + N overlay`, each overlay preserved as separate generated overlay layer | generation + adapter + tests | S: multi-overlay graph output and promote semantics. E: multiple overlay outputs remain inspectable and separately applied. |
+| `REPAIR-12_INTERMEDIATE_OUTPUT_CHILD_NODES` | `BACKLOG` | `REPAIR-10` | Intermediate generated terrain/overlay outputs are run-replaced child nodes, not mixed into main scene node data | editor scene ownership + tests | S: one child node per intermediate output. E: user can inspect intermediate output without corrupting main target layer. |
+| `REPAIR-13_GRAPH_WIDE_STATE_AND_FILTER_SPLIT` | `BACKLOG` | `REPAIR-10` | Graph-wide generation state model, old Generate mapping, Terrain Filter / Overlay Filter split | generation/editor inspector + tests | S: state constraints are explicit and testable. E: Region/Filter controls match incoming data and planned item keys. |
+| `REPAIR-14_GRAPH_CANVAS_EDGE_DELETE` | `BACKLOG` | `REPAIR-10` | Edge deletion interaction works and is visibly discoverable | `hex_map_build_graph_canvas.gd`, screen tests | S: edge selection/delete proof. E: user can delete edges without relying on broken context-menu behavior. |
+| `REPAIR-15_MARKOV_ADJACENCY_MAPPING` | `BACKLOG` | `REPAIR-13` | Markov Mesh and adjacency rules mapped against old Generate intent | generation state docs/code/tests | S: parity matrix and graph node methods. E: mode combinations behave like the intended old Generate workflow. |
+
 ---
 
 ## 10. Current pointer
 
-Current recommended next task: none — roadmap queue complete.
+Current recommended next task: `REPAIR-11_GRAPH_RESULT_MULTI_OVERLAY_CONTRACT`.
 
 理由:
+- `REPAIR-10` は `COMPLETE`：Build `Generate` / `Generate (Simple)` が selected/new `HexTileMapLayer` へviewport projectionし、Apply/Revert契約とprojection reportを持つ。`HexMapPreviewThumbnail` は secondary proof扱い。proof は `PROOF_LOG.md`。
+- 次の未解決設計は Result multi-overlay contract。これは viewport hotfix 外として `REPAIR-11` に分離済み。
 - `ADOPT-00` は `COMPLETE`：二層 DoD gate を self-review template / queue rules / planning policy へ実装し、QA park を規則化（proof は `PROOF_LOG.md`）。
 - `GRAPH-10` は `COMPLETE`：headless graph backbone の proof 済み（proof は `PROOF_LOG.md`）。
 - `GRAPH-11` は `COMPLETE`：Build graph canvas / palette / inspector / preview / run の proof 済み（proof は `PROOF_LOG.md`）。

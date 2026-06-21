@@ -1874,6 +1874,8 @@ func _test_hex_map_document_adapter_roundtrips_canonical_payload_entries() -> vo
 	_assert_eq(object_entries[0]["metadata"]["unique"], false, "document adapter exposes object metadata")
 	_assert_eq(label_entries[0]["text"], "North", "document adapter exposes label placement")
 	_assert_eq(copy.terrain_layers[0] is HexMapDocumentTerrainLayerResource, true, "duplicate preserves typed terrain layer")
+	_assert_keys_eq(copy.terrain_layers[0].map.to_map_data().cells, data.cells, "duplicate preserves terrain map cells")
+	_assert_eq(copy.terrain_layers[0].map.orientation, HexMapResource.ORIENTATION_POINTY_TOP, "duplicate preserves terrain map orientation")
 	_assert_eq(copy.object_placements[0] is HexMapDocumentObjectPlacementResource, true, "duplicate preserves typed object placement")
 
 

@@ -41,9 +41,9 @@
 - `tests/test_build_graph_canvas.gd`
   - Build tab graph canvas、typed connection rejection、GraphEdit→Dictionary model同期、3-node chain preview、run cache/dirty/failure state、failure node highlight、palette/inspector contract
 - `tests/test_build_screen_full.gd`
-  - Build tab Simple/Profile entry、Profile→preset graph、canvas 一体化、terrain promote、graph-less selected layer の UI button bootstrap
+  - Build tab Simple/Profile entry、Profile→preset graph、canvas 一体化、terrain promote、graph-less selected layer の UI button bootstrap、Simple Generate の viewport projection / Apply-Revert pending state
 - `tests/test_generation_promote.gd`
-  - Generation Graph output の Document promote、generated層置換、manual層保持、overlay/object/terrain role、save/load roundtrip、Build screen vertical slice、Build context bootstrap
+  - Generation Graph output の Document promote、generated層置換、manual層保持、overlay/object/terrain role、save/load roundtrip、Build screen vertical slice、Build context bootstrap、top Generate の new/selected HexTileMapLayer viewport projection、Apply/Revert preview contract
 - `tests/test_hex_adapter.gd`
   - canonical resource adapter、save/load roundtrip、validation エンジン、依存解決、プロファイル検証
 - `tests/test_hex_tile_map_layer.gd`

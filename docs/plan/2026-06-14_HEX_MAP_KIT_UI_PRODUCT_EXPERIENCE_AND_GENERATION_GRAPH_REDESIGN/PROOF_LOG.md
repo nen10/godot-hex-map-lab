@@ -2,6 +2,47 @@
 
 Companion to `IMPLEMENTATION_QUEUE.md`（queue を executor context 用に lean に保つため分離）。完了時に `### <TASK-ID>` proof entry を追記する。
 
+### REPAIR-10_BUILD_GENERATE_VIEWPORT_AND_GRAPH_RECOVERY
+
+proof:
+  plan: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/REPAIR-10_BUILD_GENERATE_VIEWPORT_AND_GRAPH_RECOVERY/`
+  source_handoff:
+    - `docs/development_log/2026-06-21_BUILD_TAB_UX_IMPLEMENTATION_HANDOFF.md`
+    - `docs/development_log/2026-06-22_BUILD_GENERATE_VIEWPORT_PREVIEW_DESIGN_CLARIFICATION.md`
+    - `docs/development_log/2026-06-22_BUILD_GENERATE_VIEWPORT_PREVIEW_REPAIR_MATRIX.md`
+  diagnostic_probe:
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/repair10-viewport-probe.log --path . --script res://tools/build_generate_viewport_probe.gd`（exit 0）
+    - `.godot_user/visual-verification/REPAIR-10_BUILD_GENERATE_VIEWPORT_AND_GRAPH_RECOVERY/2026-06-22_020936/build_generate_viewport_probe.json`
+    - probe result: `selected_layer_inside_tree=true`, `selected_layer_display_used_cell_count=24`, `viewport_projection_ok=true`, `preview_commit_state=preview_pending`, `node_thumbnail_secondary=true`
+  tests:
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/repair10-generation-promote.log --path . --script res://tests/test_generation_promote.gd`（exit 0）
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/repair10-build-screen-full.log --path . --script res://tests/test_build_screen_full.gd`（exit 0）
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/test-runs/repair10-build-graph-canvas.log --path . --script res://tests/test_build_graph_canvas.gd`（exit 0）
+    - `./tools/test.sh`（run id `20260622-021019-48573`, exit 0）
+  acceptance:
+    - Top `Generate` synchronously acquires Build context before graph run.
+    - No selected layer path creates/selects `BuildHexMapLayer` and records successful viewport projection.
+    - Selected graphless layer path keeps the selected `HexTileMapLayer`, attaches document/graph, and records successful viewport projection.
+    - Result output promotion applies terrain + overlay to the active document/layer path.
+    - `Apply` keeps the projected result and disables Revert; `Revert` restores the previous in-memory document and viewport display.
+    - Thumbnail/cache-only proof is rejected by tests via `node_thumbnail_secondary` and `viewport_apply_report.projection_ok`.
+  follow_up_tasks:
+    - `REPAIR-11_GRAPH_RESULT_MULTI_OVERLAY_CONTRACT`
+    - `REPAIR-12_INTERMEDIATE_OUTPUT_CHILD_NODES`
+    - `REPAIR-13_GRAPH_WIDE_STATE_AND_FILTER_SPLIT`
+    - `REPAIR-14_GRAPH_CANVAS_EDGE_DELETE`
+    - `REPAIR-15_MARKOV_ADJACENCY_MAPPING`
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_build_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_graph_canvas.gd`
+    - `addons/hex_map_kit/generation/hex_generation_preset.gd`
+    - `addons/hex_map_kit/adapter/hex_map_document_adapter.gd`
+    - `tools/build_generate_viewport_probe.gd`
+    - `tests/test_generation_promote.gd`
+    - `tests/test_build_screen_full.gd`
+    - `tests/test_build_graph_canvas.gd`
+
 ### ADOPT-00 Baselines and acceptance gate
 
 proof:

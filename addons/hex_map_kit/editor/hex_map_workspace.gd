@@ -688,7 +688,7 @@ func clear_selected_hex_tile_map_layer(reason: String = "workspace.selected_hex_
 	return set_selected_hex_tile_map_layer(null, reason)
 
 
-func ensure_build_graph_context(reason: String = "workspace.build_graph_context") -> Dictionary:
+func ensure_build_graph_context(reason: String = "workspace.build_graph_context", options: Dictionary = {}) -> Dictionary:
 	var session := _ensure_session_state()
 	var hex_layer := session.current_selected_hex_tile_map_layer() as HexTileMapLayer
 	var created_layer := false
@@ -705,7 +705,8 @@ func ensure_build_graph_context(reason: String = "workspace.build_graph_context"
 			"created_layer": created_layer,
 			"selected_layer": hex_layer,
 		}
-	var build_result := _build_screen.ensure_graph_context_for_hex_tile_map_layer(hex_layer)
+	var build_options := options.duplicate(true)
+	var build_result := _build_screen.ensure_graph_context_for_hex_tile_map_layer(hex_layer, build_options)
 	_sync_selected_hex_tile_map_resources()
 	if hex_layer.level_document_resource != null:
 		session.set_document(
@@ -5838,6 +5839,7 @@ func _mount_generation_panel() -> void:
 		return
 	_build_screen = HexMapBuildScreen.new()
 	_build_screen.set_workspace_asset_context(workspace_asset_context())
+	_build_screen.set_build_context_provider(Callable(self, "_provide_build_context_for_screen"))
 	_build_screen.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_build_screen.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_build_screen.load_graph_requested.connect(_on_build_load_graph_requested)
@@ -5921,6 +5923,11 @@ func _on_build_load_graph_requested(overwrite_selected: bool) -> void:
 
 func _on_build_context_requested() -> void:
 	ensure_build_graph_context("workspace.build_screen.generate")
+
+
+func _provide_build_context_for_screen(options: Dictionary = {}) -> Dictionary:
+	var reason := String(options.get("reason", "workspace.build_screen.generate"))
+	return ensure_build_graph_context(reason, options)
 
 
 func _on_generation_graph_file_selected(path: String) -> void:

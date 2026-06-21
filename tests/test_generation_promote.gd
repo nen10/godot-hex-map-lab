@@ -17,6 +17,9 @@ func _run() -> void:
 	await _test_build_context_bootstrap_selected_graphless_layer()
 	await _test_build_context_bootstrap_creates_layer_when_none_selected()
 	await _test_build_context_bootstrap_preserves_existing_resources()
+	await _test_top_generate_creates_layer_and_projects_viewport_preview()
+	await _test_top_generate_uses_selected_graphless_layer_for_viewport_preview()
+	await _test_top_generate_apply_revert_preview_contract()
 	_finish("res://tests/test_generation_promote.gd")
 
 
@@ -231,3 +234,156 @@ func _test_build_context_bootstrap_preserves_existing_resources() -> void:
 	scene_root.queue_free()
 	workspace.queue_free()
 	await process_frame
+
+
+func _test_top_generate_creates_layer_and_projects_viewport_preview() -> void:
+	var workspace = HexMapWorkspace.new()
+	root.add_child(workspace)
+	await process_frame
+
+	var button = workspace.build_screen().find_child("Build Generate Button", true, false) as Button
+	_assert_true(button is Button, "Build top Generate button is mounted")
+	button.emit_signal("pressed")
+	await process_frame
+
+	var selected_layer = workspace.editor_session_state().current_selected_hex_tile_map_layer() as HexTileMapLayer
+	_assert_true(selected_layer is HexTileMapLayer, "Generate creates/selects a Build HexTileMapLayer when none is selected")
+	_assert_true(String(selected_layer.name).begins_with("BuildHexMapLayer"), "Generate-created layer uses BuildHexMapLayer naming")
+	_assert_true(selected_layer.level_document_resource is HexMapDocumentResource, "Generate-created layer owns a Level Document")
+	_assert_true(selected_layer.generation_graph_resource is HexGenerationGraphResource, "Generate-created layer owns an embedded graph")
+	_assert_true(selected_layer.level_document_resource.overlay_layers.size() > 0, "Generate-created Result preview writes generated overlay to the document")
+	_assert_true(selected_layer.display_used_cell_count() > 0, "Generate projects the result to the selected viewport layer")
+
+	var snapshot = workspace.generation_screen_snapshot()
+	_assert_true(bool(snapshot["viewport_preview_visible"]), "Generate snapshot records visible viewport preview")
+	_assert_true(int(snapshot["viewport_preview_cell_count"]) > 0, "Generate snapshot records viewport display cell count")
+	_assert_viewport_projection_ok(snapshot, "Generate creates a successful viewport projection report")
+	_assert_eq(String(snapshot["preview_commit_state"]), "preview_pending", "Generate leaves preview pending Apply/Revert")
+	_assert_true(String(snapshot["viewport_preview_layer_path"]).contains("BuildHexMapLayer"), "Generate snapshot records viewport layer path")
+	_assert_true(bool(snapshot["node_thumbnail_secondary"]), "Generate marks node thumbnail as secondary proof only")
+
+	workspace.queue_free()
+	await process_frame
+
+
+func _test_top_generate_uses_selected_graphless_layer_for_viewport_preview() -> void:
+	var workspace = HexMapWorkspace.new()
+	root.add_child(workspace)
+	await process_frame
+	var scene_root = Node2D.new()
+	root.add_child(scene_root)
+	var selected_layer = HexTileMapLayer.new()
+	selected_layer.name = "SelectedGraphlessTopGenerateLayer"
+	scene_root.add_child(selected_layer)
+	await process_frame
+	workspace.set_selected_hex_tile_map_node(selected_layer, "test.top_generate.select_graphless")
+
+	var button = workspace.build_screen().find_child("Build Generate Button", true, false) as Button
+	_assert_true(button is Button, "Build top Generate button is mounted for selected layer")
+	button.emit_signal("pressed")
+	await process_frame
+
+	_assert_eq(workspace.editor_session_state().current_selected_hex_tile_map_layer(), selected_layer, "Generate keeps the selected HexTileMapLayer as target")
+	_assert_true(selected_layer.level_document_resource is HexMapDocumentResource, "Generate attaches a document to selected graphless layer")
+	_assert_true(selected_layer.generation_graph_resource is HexGenerationGraphResource, "Generate attaches graph resource to selected graphless layer")
+	_assert_true(selected_layer.level_document_resource.overlay_layers.size() > 0, "Selected layer Generate Result writes generated overlay to the document")
+	_assert_true(selected_layer.display_used_cell_count() > 0, "Generate projects to the selected graphless layer viewport display")
+	var snapshot = workspace.generation_screen_snapshot()
+	_assert_eq(String(snapshot["preview_commit_state"]), "preview_pending", "Selected layer Generate creates a pending preview")
+	_assert_true(bool(snapshot["viewport_preview_visible"]), "Selected layer Generate records viewport preview visibility")
+	_assert_viewport_projection_ok(snapshot, "Selected layer Generate creates a successful viewport projection report")
+	_assert_true(String(snapshot["viewport_preview_layer_path"]).contains("SelectedGraphlessTopGenerateLayer"), "Selected layer path is recorded as preview target")
+
+	scene_root.queue_free()
+	workspace.queue_free()
+	await process_frame
+
+
+func _test_top_generate_apply_revert_preview_contract() -> void:
+	var workspace = HexMapWorkspace.new()
+	root.add_child(workspace)
+	await process_frame
+	var scene_root = Node2D.new()
+	root.add_child(scene_root)
+	var selected_layer = HexTileMapLayer.new()
+	selected_layer.name = "ApplyRevertTopGenerateLayer"
+	var original_document = HexMapDocumentAdapter.from_map_resource(
+		HexMapResource.from_map_data(HexMapData.rectangle(1, 1))
+	)
+	selected_layer.level_document_resource = original_document
+	scene_root.add_child(selected_layer)
+	await process_frame
+	selected_layer.ensure_display_tiles()
+	selected_layer.apply_document(original_document)
+	workspace.set_selected_hex_tile_map_node(selected_layer, "test.top_generate.apply_revert")
+	var original_cells := int(HexMapDocumentAdapter.document_summary(original_document)["cells"])
+	_assert_eq(original_cells, 1, "Apply/Revert fixture starts with one document cell")
+
+	var generate_button = workspace.build_screen().find_child("Build Generate Button", true, false) as Button
+	var apply_button = workspace.build_screen().find_child("Build Apply Button", true, false) as Button
+	var revert_button = workspace.build_screen().find_child("Build Revert Button", true, false) as Button
+	_assert_true(generate_button is Button, "Build top Generate button is mounted for Apply/Revert")
+	_assert_true(apply_button is Button, "Build Apply button is mounted")
+	_assert_true(revert_button is Button, "Build Revert button is mounted")
+
+	generate_button.emit_signal("pressed")
+	await process_frame
+	var pending_snapshot = workspace.generation_screen_snapshot()
+	_assert_eq(String(pending_snapshot["preview_commit_state"]), "preview_pending", "Generate enters preview pending state")
+	_assert_true(bool(pending_snapshot["viewport_preview_visible"]), "Generate applies pending preview to viewport")
+	_assert_viewport_projection_ok(pending_snapshot, "Apply/Revert Generate creates a successful viewport projection report")
+	_assert_true(not apply_button.disabled, "Apply is enabled while preview is pending")
+	_assert_true(not revert_button.disabled, "Revert is enabled while preview is pending")
+	_assert_true(_generated_terrain_cell_count(selected_layer.level_document_resource) > original_cells, "Pending preview writes generated terrain into the in-memory document")
+
+	revert_button.emit_signal("pressed")
+	await process_frame
+	var reverted_snapshot = workspace.generation_screen_snapshot()
+	_assert_eq(String(reverted_snapshot["preview_commit_state"]), "reverted", "Revert records reverted state")
+	_assert_eq(int(HexMapDocumentAdapter.document_summary(selected_layer.level_document_resource)["cells"]), original_cells, "Revert restores previous document cells")
+	_assert_eq(selected_layer.display_used_cell_count(), original_cells, "Revert reapplies previous document to viewport")
+	_assert_true(apply_button.disabled, "Apply disables after Revert")
+	_assert_true(revert_button.disabled, "Revert disables after Revert")
+
+	generate_button.emit_signal("pressed")
+	await process_frame
+	apply_button.emit_signal("pressed")
+	await process_frame
+	var applied_snapshot = workspace.generation_screen_snapshot()
+	_assert_eq(String(applied_snapshot["preview_commit_state"]), "applied", "Apply records applied state")
+	_assert_true(bool(applied_snapshot["viewport_preview_visible"]), "Apply keeps the generated result visible in viewport")
+	_assert_viewport_projection_ok(applied_snapshot, "Apply keeps a successful viewport projection report")
+	_assert_true(apply_button.disabled, "Apply disables after commit")
+	_assert_true(revert_button.disabled, "Revert disables after commit")
+	_assert_true(_generated_terrain_cell_count(selected_layer.level_document_resource) > original_cells, "Apply keeps generated document cells")
+
+	scene_root.queue_free()
+	workspace.queue_free()
+	await process_frame
+
+
+func _generated_terrain_cell_count(document: HexMapDocumentResource) -> int:
+	if document == null:
+		return 0
+	var total := 0
+	for layer in document.terrain_layers:
+		if layer == null:
+			continue
+		var metadata = layer.get("metadata")
+		if not metadata is Dictionary or String((metadata as Dictionary).get("writable_source", "")) != "generated":
+			continue
+		var map = layer.get("map")
+		if map != null and map.has_method("to_map_data"):
+			var data = map.to_map_data()
+			if data != null:
+				total += data.cells.size()
+	return total
+
+
+func _assert_viewport_projection_ok(snapshot: Dictionary, message: String) -> void:
+	var report := snapshot.get("viewport_apply_report", {}) as Dictionary
+	_assert_true(bool(report.get("projection_ok", false)), message)
+	_assert_true(bool(report.get("layer_inside_tree", false)), "%s: target layer is inside tree" % message)
+	_assert_true(bool(report.get("display_tiles_ready", false)), "%s: display tiles are ready" % message)
+	_assert_true(int(report.get("display_tile_source_count", 0)) > 0, "%s: tile source exists" % message)
+	_assert_true(int(report.get("display_used_cell_count", 0)) > 0, "%s: display cells exist" % message)

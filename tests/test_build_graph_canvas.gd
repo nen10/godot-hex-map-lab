@@ -30,6 +30,8 @@ func _test_build_screen_opens_on_graph_canvas() -> void:
 	_assert_true(bool(snapshot["canvas_is_dominant"]), "GRAPH-11 graph canvas is the dominant work surface")
 	_assert_true(not bool(snapshot["resource_row_primary"]), "GRAPH-11 resources are not the primary row")
 	_assert_true(bool(snapshot["generate_button_present"]), "GRAPH-11 Build screen exposes Generate primary action")
+	_assert_true(bool(snapshot["commit_actions_below_canvas"]), "REPAIR-10 Apply/Revert actions are below the graph canvas")
+	_assert_true(int(snapshot["canvas_minimum_height"]) >= 420, "REPAIR-10 Build graph canvas has dominant minimum height")
 
 	screen.queue_free()
 	await process_frame
@@ -136,6 +138,7 @@ func _test_build_screen_generate_is_primary_and_batch_secondary() -> void:
 	_assert_eq(int(snapshot["primary_generate_count"]), 1, "GRAPH-13 primary Generate means N=1")
 	_assert_eq(int(snapshot["generate_default_count"]), 1, "GRAPH-13 default run count is one")
 	_assert_true(bool(snapshot["batch_controls_secondary"]), "GRAPH-13 N/randomize controls are secondary")
+	_assert_true(bool(snapshot["commit_actions_below_canvas"]), "REPAIR-10 batch and commit controls share the lower graph action row")
 	_assert_eq(int(snapshot["batch_count"]), 1, "GRAPH-13 batch count defaults to one")
 	_assert_true(not bool(snapshot["seed_randomize"]), "GRAPH-13 seed randomize defaults off")
 	_assert_true(not bool(snapshot["shape_randomize"]), "GRAPH-13 shape randomize defaults off")

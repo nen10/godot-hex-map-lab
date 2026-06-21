@@ -19,6 +19,7 @@ const HexGenerationGraphResourceScript = preload("res://addons/hex_map_kit/adapt
 const HexTileMapLayerScript = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 const HexLayerStackResourceScript = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
 const HexMapDocumentApplierScript = preload("res://addons/hex_map_kit/adapter/hex_map_document_applier.gd")
+const HexMapDocumentAdapterScript = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
 
 const TAB_NAME := "Build"
 const WORKFLOW_OWNER := "Build"
@@ -51,7 +52,10 @@ var _last_promote_result: Dictionary = {}
 var _last_build_context_result: Dictionary = {}
 var _last_graph_load_result: Dictionary = {}
 var _last_simple_generate_result: Dictionary = {}
+var _last_viewport_apply_report: Dictionary = {}
 var _context_hex_tile_map_layer: HexTileMapLayerScript = null
+var _build_context_provider: Callable
+var _preview_commit_state := "none"
 var _run_busy := false
 var _cancel_requested := false
 var _run_progress_snapshot: Dictionary = {}
@@ -69,6 +73,10 @@ func _ready() -> void:
 func set_workspace_asset_context(context: HexMapWorkspaceAssetContextScript) -> void:
 	_workspace_asset_context = context
 	_refresh_context()
+
+
+func set_build_context_provider(provider: Callable) -> void:
+	_build_context_provider = provider
 
 
 func workspace_asset_context() -> HexMapWorkspaceAssetContextScript:
@@ -143,7 +151,14 @@ func run_simple_profile_graph(options: Dictionary = {}) -> Dictionary:
 		})
 		if bool(run_report.get("ok", false)) and _workspace_asset_context != null and _workspace_asset_context.level_document != null:
 			_canvas.select_graph_node(selected_node_id)
-			promote_result = promote_selected_output(promote_role)
+			_auto_preview_after_generate()
+			promote_result = _last_promote_result.duplicate(true)
+			if promote_result.is_empty():
+				promote_result = {
+					"ok": _last_viewport_projection_ok(),
+					"written_role": promote_role,
+					"blocked_reason": String(_last_viewport_apply_report.get("blocked_reason", "")),
+				}
 	else:
 		_refresh_selected_node()
 
@@ -313,7 +328,7 @@ func promote_selected_output(role: String = "overlay") -> Dictionary:
 		{"graph_node_id": _canvas.selected_node_id()}
 	)
 	if bool(_last_promote_result.get("ok", false)):
-		_apply_document_to_context_layer()
+		_last_viewport_apply_report = _apply_document_to_context_layer()
 	if _status_label != null:
 		_status_label.text = String(_last_promote_result.get("status_text", _last_promote_result.get("blocked_reason", "")))
 	_refresh_selected_node()
@@ -381,7 +396,16 @@ func build_screen_snapshot() -> Dictionary:
 		"inspector": inspector_snapshot,
 		"preview_available": bool(run_state.get("cache_ready", false)),
 		"preview": canvas_snapshot.get("preview", {}),
+		"node_thumbnail_secondary": true,
 		"preview_applied": _preview_applied,
+		"preview_commit_state": _preview_commit_state,
+		"viewport_preview_visible": _viewport_preview_visible(),
+		"viewport_preview_layer_path": _context_layer_path(),
+		"viewport_preview_cell_count": _viewport_preview_cell_count(),
+		"viewport_apply_report": _last_viewport_apply_report.duplicate(true),
+		"viewport_projection_status": String(_last_viewport_apply_report.get("projection_status", "not_projected")),
+		"commit_actions_below_canvas": true,
+		"canvas_minimum_height": int(_canvas.custom_minimum_size.y) if _canvas != null else 0,
 		"three_node_chain_ready": int(canvas_snapshot.get("node_count", 0)) >= 3 and int(canvas_snapshot.get("connection_count", 0)) >= 2,
 		"graph_chain_runs": bool(_last_report.get("ok", false)),
 		"promote_result": _last_promote_result.duplicate(true),
@@ -424,42 +448,28 @@ func _build_ui() -> void:
 	_load_graph_button = Button.new()
 	_load_graph_button.name = "Build Load Graph Button"
 	_load_graph_button.text = "Load Graph"
+	_style_compact_control(_load_graph_button)
 	_load_graph_button.pressed.connect(_on_load_graph_pressed)
 	top_row.add_child(_load_graph_button)
 	_overwrite_selected_check = CheckBox.new()
 	_overwrite_selected_check.name = "Build Overwrite Selected Graph"
 	_overwrite_selected_check.text = "Overwrite selected"
 	_overwrite_selected_check.button_pressed = false
+	_style_compact_control(_overwrite_selected_check)
 	top_row.add_child(_overwrite_selected_check)
 	_generate_button = Button.new()
 	_generate_button.name = "Build Generate Button"
 	_generate_button.text = "Generate"
+	_style_compact_control(_generate_button)
 	_generate_button.pressed.connect(_on_generate_pressed)
 	top_row.add_child(_generate_button)
 	_cancel_button = Button.new()
 	_cancel_button.name = "Build Cancel Button"
 	_cancel_button.text = "Cancel"
 	_cancel_button.disabled = true
+	_style_compact_control(_cancel_button)
 	_cancel_button.pressed.connect(_on_cancel_pressed)
 	top_row.add_child(_cancel_button)
-	_apply_button = Button.new()
-	_apply_button.name = "Build Apply Button"
-	_apply_button.text = "Apply"
-	_apply_button.disabled = true
-	_apply_button.pressed.connect(_on_apply_pressed)
-	top_row.add_child(_apply_button)
-	_revert_button = Button.new()
-	_revert_button.name = "Build Revert Button"
-	_revert_button.text = "Revert"
-	_revert_button.disabled = true
-	_revert_button.pressed.connect(_on_revert_pressed)
-	top_row.add_child(_revert_button)
-	var _remove_button := Button.new()
-	_remove_button.name = "Build Remove Button"
-	_remove_button.text = "Remove"
-	_remove_button.tooltip_text = "Remove selected node or connection"
-	_remove_button.pressed.connect(_on_remove_pressed)
-	top_row.add_child(_remove_button)
 	add_child(top_row)
 
 	var simple_row := HBoxContainer.new()
@@ -476,6 +486,7 @@ func _build_ui() -> void:
 	_simple_generate_button = Button.new()
 	_simple_generate_button.name = "Build Simple Generate Button"
 	_simple_generate_button.text = "Generate (Simple)"
+	_style_compact_control(_simple_generate_button)
 	_simple_generate_button.pressed.connect(_on_simple_generate_pressed)
 	simple_row.add_child(_simple_generate_button)
 	add_child(simple_row)
@@ -484,6 +495,8 @@ func _build_ui() -> void:
 	split.name = "Build Work Surface"
 	split.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	split.size_flags_stretch_ratio = 3.0
+	split.custom_minimum_size = Vector2(0, 420)
 	add_child(split)
 
 	var canvas_area := HBoxContainer.new()
@@ -496,31 +509,62 @@ func _build_ui() -> void:
 	canvas_area.add_child(_canvas)
 	split.add_child(canvas_area)
 
-	var batch_row := HBoxContainer.new()
-	batch_row.name = "Build Batch Options"
-	batch_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var action_row := HBoxContainer.new()
+	action_row.name = "Build Graph Actions"
+	action_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var batch_label := Label.new()
 	batch_label.name = "Build Batch Label"
 	batch_label.text = "Batch"
-	batch_row.add_child(batch_label)
+	batch_label.add_theme_font_size_override("font_size", 12)
+	action_row.add_child(batch_label)
 	_run_count_spin = SpinBox.new()
 	_run_count_spin.name = "Build Batch Count"
 	_run_count_spin.min_value = 1
 	_run_count_spin.max_value = 32
 	_run_count_spin.step = 1
 	_run_count_spin.value = 1
-	batch_row.add_child(_run_count_spin)
+	_run_count_spin.custom_minimum_size = Vector2(72, 0)
+	_style_compact_control(_run_count_spin)
+	action_row.add_child(_run_count_spin)
 	_seed_randomize_check = CheckBox.new()
 	_seed_randomize_check.name = "Build Seed Randomize"
 	_seed_randomize_check.text = "Seed"
-	batch_row.add_child(_seed_randomize_check)
+	_style_compact_control(_seed_randomize_check)
+	action_row.add_child(_seed_randomize_check)
 	_shape_randomize_check = CheckBox.new()
 	_shape_randomize_check.name = "Build Shape Randomize"
 	_shape_randomize_check.text = "Shape"
-	batch_row.add_child(_shape_randomize_check)
-	add_child(batch_row)
+	_style_compact_control(_shape_randomize_check)
+	action_row.add_child(_shape_randomize_check)
+	var action_spacer := Control.new()
+	action_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	action_row.add_child(action_spacer)
+	_apply_button = Button.new()
+	_apply_button.name = "Build Apply Button"
+	_apply_button.text = "Apply"
+	_apply_button.disabled = true
+	_style_compact_control(_apply_button)
+	_apply_button.pressed.connect(_on_apply_pressed)
+	action_row.add_child(_apply_button)
+	_revert_button = Button.new()
+	_revert_button.name = "Build Revert Button"
+	_revert_button.text = "Revert"
+	_revert_button.disabled = true
+	_style_compact_control(_revert_button)
+	_revert_button.pressed.connect(_on_revert_pressed)
+	action_row.add_child(_revert_button)
+	var _remove_button := Button.new()
+	_remove_button.name = "Build Remove Button"
+	_remove_button.text = "Remove"
+	_remove_button.tooltip_text = "Remove selected node or connection"
+	_style_compact_control(_remove_button)
+	_remove_button.pressed.connect(_on_remove_pressed)
+	action_row.add_child(_remove_button)
+	add_child(action_row)
 
 	_inspector = HexMapBuildNodeInspectorScript.new()
+	_inspector.custom_minimum_size = Vector2(0, 150)
+	_inspector.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	add_child(_inspector)
 
 	_status_label = Label.new()
@@ -535,6 +579,12 @@ func _build_ui() -> void:
 	_inspector.node_params_changed.connect(_on_inspector_params_changed)
 	_inspector.promote_requested.connect(_on_inspector_promote_requested)
 	_refresh_context()
+
+
+func _style_compact_control(control: Control) -> void:
+	if control == null:
+		return
+	control.add_theme_font_size_override("font_size", 12)
 
 
 func _run_context() -> Dictionary:
@@ -835,14 +885,22 @@ func _find_effective_flat_top(node: Dictionary) -> bool:
 
 
 func _on_generate_pressed() -> void:
-	build_context_requested.emit()
+	var context_result := _ensure_build_context_for_generate("build_screen.generate")
+	if _build_context_provider.is_valid() and not bool(context_result.get("ok", false)):
+		if _status_label != null:
+			_status_label.text = String(context_result.get("blocked_reason", "Build context is unavailable."))
+		return
 	var report := run_graph({"count": 1})
 	if bool(report.get("ok", false)):
 		_auto_preview_after_generate()
 
 
 func _on_simple_generate_pressed() -> void:
-	build_context_requested.emit()
+	var context_result := _ensure_build_context_for_generate("build_screen.simple_generate")
+	if _build_context_provider.is_valid() and not bool(context_result.get("ok", false)):
+		if _status_label != null:
+			_status_label.text = String(context_result.get("blocked_reason", "Build context is unavailable."))
+		return
 	run_simple_profile_graph({"count": 1})
 
 
@@ -888,51 +946,204 @@ func _on_inspector_promote_requested(node_id: String, role: String) -> void:
 	promote_requested.emit(node_id, role)
 
 
+func _ensure_build_context_for_generate(reason: String) -> Dictionary:
+	if _build_context_provider.is_valid():
+		var provided = _build_context_provider.call({"reason": reason, "run": false})
+		if provided is Dictionary:
+			var result := (provided as Dictionary).duplicate(true)
+			_apply_build_context_result(result)
+			return result
+		return _build_context_result(false, "Build context provider returned no result.")
+	build_context_requested.emit()
+	_apply_build_context_result(_last_build_context_result)
+	return _last_build_context_result.duplicate(true)
+
+
+func _apply_build_context_result(result: Dictionary) -> void:
+	var layer = result.get("selected_layer", null) as HexTileMapLayerScript
+	if layer != null and is_instance_valid(layer):
+		_context_hex_tile_map_layer = layer
+		if _workspace_asset_context == null:
+			_workspace_asset_context = HexMapWorkspaceAssetContextScript.new()
+		if layer.level_document_resource != null:
+			_workspace_asset_context.set_level_document(
+				layer.level_document_resource,
+				HexMapWorkspaceAssetContextScript.SOURCE_PROJECT,
+				"Selected Node"
+			)
+		if layer.layer_stack_resource != null:
+			_workspace_asset_context.set_layer_stack(
+				layer.layer_stack_resource,
+				HexMapWorkspaceAssetContextScript.SOURCE_PROJECT,
+				"Selected Node"
+			)
+	if bool(result.get("ok", false)):
+		_last_build_context_result = result.duplicate(true)
+	_refresh_context()
+
+
 func _auto_preview_after_generate() -> void:
 	if _canvas == null or _workspace_asset_context == null or _workspace_asset_context.level_document == null:
 		return
 	if _context_hex_tile_map_layer == null or not is_instance_valid(_context_hex_tile_map_layer):
 		return
 	var output = _canvas.selected_output()
-	if output == null:
-		return
 	var output_type := _canvas.selected_output_type()
-	if output_type == HexGenerationPortsScript.RESULT:
+	if output != null and output_type == HexGenerationPortsScript.RESULT:
 		_snapshot_document_for_revert()
-		if output.get("primary_map") != null:
-			var terrain_res = output.get("primary_map")
-			if terrain_res != null and terrain_res.has_method("to_map_data"):
-				HexGenerationPromoteScript.promote(
-					terrain_res.to_map_data(),
-					_workspace_asset_context.level_document,
-					"terrain",
-					{"graph_node_id": _canvas.selected_node_id()}
-				)
-		if output.get("overlay_map") != null:
-			var overlay_res = output.get("overlay_map")
-			if overlay_res != null and overlay_res.has_method("to_overlay_data"):
-				HexGenerationPromoteScript.promote(
-					overlay_res.to_overlay_data(),
-					_workspace_asset_context.level_document,
-					"overlay",
-					{"graph_node_id": _canvas.selected_node_id()}
-				)
-		var result_node := _canvas.selected_node_dictionary()
-		var result_params = result_node.get("params", {}) as Dictionary
-		var orientation_val := int(result_params.get("orientation", 0))
-		_context_hex_tile_map_layer.flat_top = orientation_val == 0
-		_apply_document_to_context_layer()
-		_preview_applied = true
-		_refresh_preview_buttons()
+		if _promote_result_output(output, _canvas.selected_node_id(), _canvas.selected_node_dictionary()):
+			_commit_viewport_preview("result")
 		return
 	_snapshot_document_for_revert()
-	_promote_terminal_outputs()
-	_apply_document_to_context_layer()
-	_preview_applied = true
+	if _promote_terminal_result_outputs():
+		_commit_viewport_preview("result")
+		return
+	var target_projection := _promote_graph_resource_targets()
+	if bool(target_projection.get("available", false)):
+		if bool(target_projection.get("promoted", false)):
+			_commit_viewport_preview("promote_targets")
+		elif _status_label != null:
+			_status_label.text = String(target_projection.get("blocked_reason", "Graph promote target did not produce a preview."))
+		return
+	if _promote_terminal_outputs():
+		_commit_viewport_preview("terminal_outputs")
+		return
+	if output != null:
+		var role := _output_type_to_promote_role(output_type)
+		var promote_result := promote_selected_output(role)
+		if bool(promote_result.get("ok", false)):
+			_preview_applied = _last_viewport_projection_ok()
+			_preview_commit_state = "preview_pending" if _preview_applied else "none"
+			_refresh_preview_buttons()
+
+
+func _promote_terminal_result_outputs() -> bool:
+	var graph_model := _canvas.build_graph_model()
+	var nodes: Dictionary = graph_model.get("nodes", {})
+	var edges: Array = graph_model.get("edges", [])
+	var cache: Dictionary = _last_report.get("cache", {})
+	for node_id in nodes.keys():
+		var text_id := String(node_id)
+		if not cache.has(text_id):
+			continue
+		var node_entry = nodes[text_id] as Dictionary
+		if String(node_entry.get("type", "")) != HexGenerationNodeTypesScript.NODE_RESULT:
+			continue
+		var has_outgoing := false
+		for edge in edges:
+			var edge_dict = edge as Dictionary
+			if String(edge_dict.get("from_node", "")) == text_id:
+				has_outgoing = true
+				break
+		if has_outgoing:
+			continue
+		if _promote_result_output(cache[text_id], text_id, node_entry):
+			return true
+	return false
+
+
+func _promote_result_output(output, node_id: String, node_entry: Dictionary) -> bool:
+	return bool(_promote_result_report(output, node_id, node_entry).get("ok", false))
+
+
+func _promote_result_report(output, node_id: String, node_entry: Dictionary) -> Dictionary:
+	if output == null:
+		_last_promote_result = {
+			"ok": false,
+			"written_role": "result",
+			"blocked_reason": "Result output is empty.",
+		}
+		return _last_promote_result.duplicate(true)
+	var promoted := false
+	var total_count := 0
+	var terrain_result := {}
+	var overlay_result := {}
+	if output.get("primary_map") != null:
+		var terrain_res = output.get("primary_map")
+		if terrain_res != null and terrain_res.has_method("to_map_data"):
+			terrain_result = HexGenerationPromoteScript.promote(
+				terrain_res.to_map_data(),
+				_workspace_asset_context.level_document,
+				"terrain",
+				{"graph_node_id": node_id}
+			)
+			promoted = promoted or bool(terrain_result.get("ok", false))
+			total_count += int(terrain_result.get("cell_count", 0))
+	if output.get("overlay_map") != null:
+		var overlay_res = output.get("overlay_map")
+		if overlay_res != null and overlay_res.has_method("to_overlay_data"):
+			overlay_result = HexGenerationPromoteScript.promote(
+				overlay_res.to_overlay_data(),
+				_workspace_asset_context.level_document,
+				"overlay",
+				{"graph_node_id": node_id}
+			)
+			promoted = promoted or bool(overlay_result.get("ok", false))
+			total_count += int(overlay_result.get("cell_count", 0))
+	var result_params = node_entry.get("params", {}) as Dictionary
+	var orientation_val := int(result_params.get("orientation", 0))
+	_context_hex_tile_map_layer.flat_top = orientation_val == 0
+	_last_promote_result = {
+		"ok": promoted,
+		"written_role": "result",
+		"cell_count": total_count,
+		"terrain_result": terrain_result,
+		"overlay_result": overlay_result,
+		"blocked_reason": "" if promoted else "Result output had no promotable terrain or overlay.",
+	}
+	return _last_promote_result.duplicate(true)
+
+
+func _commit_viewport_preview(source: String) -> void:
+	_last_viewport_apply_report = _apply_document_to_context_layer()
+	_preview_applied = _viewport_projection_ok(_last_viewport_apply_report)
+	_preview_commit_state = "preview_pending" if _preview_applied else "none"
+	if _status_label != null:
+		if _preview_applied:
+			_status_label.text = "Generated preview shown in viewport (%s)." % source
+		else:
+			_status_label.text = String(_last_viewport_apply_report.get("blocked_reason", "Generated data could not be shown in viewport."))
 	_refresh_preview_buttons()
 
 
-func _promote_terminal_outputs() -> void:
+func _promote_graph_resource_targets() -> Dictionary:
+	if _context_hex_tile_map_layer == null or not is_instance_valid(_context_hex_tile_map_layer):
+		return {"available": false, "promoted": false}
+	var graph_resource = _context_hex_tile_map_layer.generation_graph_resource
+	if graph_resource == null or graph_resource.promote_targets.is_empty():
+		return {"available": false, "promoted": false}
+	var cache: Dictionary = _last_report.get("cache", {})
+	var promoted := false
+	var blocked_reason := ""
+	for raw_target in graph_resource.promote_targets:
+		var target = raw_target as Dictionary
+		var node_id := String(target.get("node_id", ""))
+		var role := String(target.get("role", ""))
+		if node_id == "" or role == "" or not cache.has(node_id):
+			continue
+		var result := {}
+		var target_node := _canvas.node_dictionary(node_id)
+		if role == HexGenerationPortsScript.RESULT or String(HexGenerationNodeTypesScript.output_type_for_node(target_node)) == HexGenerationPortsScript.RESULT:
+			result = _promote_result_report(cache[node_id], node_id, target_node)
+		else:
+			result = HexGenerationPromoteScript.promote(
+				cache[node_id],
+				_workspace_asset_context.level_document,
+				role,
+				{"graph_node_id": node_id}
+			)
+		if bool(result.get("ok", false)):
+			promoted = true
+		elif blocked_reason == "":
+			blocked_reason = String(result.get("blocked_reason", "Promote target failed."))
+	return {
+		"available": true,
+		"promoted": promoted,
+		"blocked_reason": blocked_reason,
+	}
+
+
+func _promote_terminal_outputs() -> bool:
 	var graph_model := _canvas.build_graph_model()
 	var nodes: Dictionary = graph_model.get("nodes", {})
 	var edges: Array = graph_model.get("edges", [])
@@ -974,7 +1185,9 @@ func _promote_terminal_outputs() -> void:
 		var sel_output = _canvas.selected_output()
 		if sel_output != null:
 			var role := _output_type_to_promote_role(_canvas.selected_output_type())
-			promote_selected_output(role)
+			var result := promote_selected_output(role)
+			return bool(result.get("ok", false))
+	return promoted_terrain or promoted_overlay
 
 
 func _snapshot_document_for_revert() -> void:
@@ -986,21 +1199,139 @@ func _snapshot_document_for_revert() -> void:
 	_revert_object_placements = doc.object_placements.duplicate(true)
 
 
-func _apply_document_to_context_layer() -> void:
+func _apply_document_to_context_layer() -> Dictionary:
 	if _context_hex_tile_map_layer == null or not is_instance_valid(_context_hex_tile_map_layer):
-		return
+		_last_viewport_apply_report = {"ok": false, "blocked_reason": "No Build viewport layer."}
+		return _last_viewport_apply_report.duplicate(true)
 	if _workspace_asset_context == null or _workspace_asset_context.level_document == null:
-		return
-	_context_hex_tile_map_layer.ensure_display_tiles()
-	var apply_state := HexMapDocumentApplierScript.prepare_document_apply(_workspace_asset_context.level_document)
+		_last_viewport_apply_report = {"ok": false, "blocked_reason": "No Build Level Document."}
+		return _last_viewport_apply_report.duplicate(true)
+	if _context_hex_tile_map_layer.level_document_resource != _workspace_asset_context.level_document:
+		_context_hex_tile_map_layer.level_document_resource = _workspace_asset_context.level_document
+	var tiles_ok := _context_hex_tile_map_layer.ensure_display_tiles()
+	var viewport_document = _viewport_document_snapshot(_workspace_asset_context.level_document)
+	var apply_state := HexMapDocumentApplierScript.prepare_document_apply(viewport_document)
 	if bool(apply_state.get("ok", false)):
 		var resource = apply_state.get("map_resource", null)
 		if resource != null:
-			_context_hex_tile_map_layer.apply_map(resource)
+			_last_viewport_apply_report = _context_hex_tile_map_layer.apply_map(resource)
+			_last_viewport_apply_report["ok"] = not bool(_last_viewport_apply_report.get("cancelled", false))
+			_finalize_viewport_apply_report(tiles_ok)
+			return _last_viewport_apply_report.duplicate(true)
+	_last_viewport_apply_report = {
+		"ok": false,
+		"blocked_reason": String(apply_state.get("blocked_reason", "Cannot prepare generated document preview.")),
+		"display_tiles_ready": tiles_ok,
+	}
+	_finalize_viewport_apply_report(tiles_ok)
+	return _last_viewport_apply_report.duplicate(true)
+
+
+func _finalize_viewport_apply_report(tiles_ok: bool) -> void:
+	if _context_hex_tile_map_layer == null or not is_instance_valid(_context_hex_tile_map_layer):
+		return
+	var display_status := _context_hex_tile_map_layer.display_layer_status()
+	var display_layer := _context_hex_tile_map_layer.display_tile_map_layer()
+	_last_viewport_apply_report["display_tiles_ready"] = tiles_ok
+	_last_viewport_apply_report["display_used_cell_count"] = _context_hex_tile_map_layer.display_used_cell_count()
+	_last_viewport_apply_report["layer_inside_tree"] = _context_hex_tile_map_layer.is_inside_tree()
+	_last_viewport_apply_report["layer_path"] = _context_layer_path()
+	_last_viewport_apply_report["display_tile_map_path"] = str(display_layer.get_path()) if display_layer != null and display_layer.is_inside_tree() else ""
+	_last_viewport_apply_report["display_status"] = display_status
+	_last_viewport_apply_report["display_tile_source_count"] = int(display_status.get("tile_set_source_count", 0))
+	_last_viewport_apply_report["projection_ok"] = _viewport_projection_ok(_last_viewport_apply_report)
+	_last_viewport_apply_report["projection_status"] = "visible" if bool(_last_viewport_apply_report["projection_ok"]) else "failed"
+	if not bool(_last_viewport_apply_report["projection_ok"]) and String(_last_viewport_apply_report.get("blocked_reason", "")) == "":
+		_last_viewport_apply_report["blocked_reason"] = _viewport_projection_blocked_reason(_last_viewport_apply_report)
+
+
+func _viewport_projection_ok(report: Dictionary) -> bool:
+	return bool(report.get("ok", false)) \
+		and bool(report.get("display_tiles_ready", false)) \
+		and bool(report.get("layer_inside_tree", false)) \
+		and int(report.get("display_tile_source_count", 0)) > 0 \
+		and int(report.get("display_used_cell_count", 0)) > 0
+
+
+func _last_viewport_projection_ok() -> bool:
+	return _viewport_projection_ok(_last_viewport_apply_report)
+
+
+func _viewport_projection_blocked_reason(report: Dictionary) -> String:
+	if not bool(report.get("ok", false)):
+		return String(report.get("blocked_reason", "Layer apply failed."))
+	if not bool(report.get("layer_inside_tree", false)):
+		return "Build viewport layer is not inside the scene tree."
+	if not bool(report.get("display_tiles_ready", false)):
+		return "Build viewport display tiles are not ready."
+	if int(report.get("display_tile_source_count", 0)) <= 0:
+		return "Build viewport display tile set has no sources."
+	if int(report.get("display_used_cell_count", 0)) <= 0:
+		return "Build viewport display has no used cells."
+	return "Generated data could not be shown in viewport."
+
+
+func _viewport_document_snapshot(document):
+	var copy = HexMapDocumentAdapterScript.duplicate_document(document)
+	if copy == null:
+		return document
+	var ordered := _viewport_ordered_terrain_layers(copy.terrain_layers)
+	copy.terrain_layers.clear()
+	for layer in ordered:
+		copy.terrain_layers.append(layer)
+	return copy
+
+
+func _viewport_ordered_terrain_layers(layers: Array) -> Array:
+	if layers.size() <= 1:
+		return layers.duplicate(false)
+	var generated_nonempty: Array = []
+	var other_nonempty: Array = []
+	var empty_layers: Array = []
+	for layer in layers:
+		var cell_count := _terrain_layer_cell_count(layer)
+		if cell_count <= 0:
+			empty_layers.append(layer)
+		elif _terrain_layer_is_generated(layer):
+			generated_nonempty.append(layer)
+		else:
+			other_nonempty.append(layer)
+	var ordered: Array = []
+	ordered.append_array(generated_nonempty)
+	ordered.append_array(other_nonempty)
+	ordered.append_array(empty_layers)
+	return ordered
+
+
+func _terrain_layer_cell_count(layer) -> int:
+	if layer == null:
+		return 0
+	var map = layer.get("map")
+	if map == null or not map.has_method("to_map_data"):
+		return 0
+	var data = map.to_map_data()
+	return data.cells.size() if data != null else 0
+
+
+func _terrain_layer_is_generated(layer) -> bool:
+	if layer == null:
+		return false
+	var metadata = layer.get("metadata")
+	if not metadata is Dictionary:
+		return false
+	return String((metadata as Dictionary).get("writable_source", "")) == "generated"
 
 
 func _on_apply_pressed() -> void:
+	if not _last_viewport_projection_ok():
+		_preview_applied = false
+		_preview_commit_state = "none"
+		_refresh_preview_buttons()
+		if _status_label != null:
+			_status_label.text = String(_last_viewport_apply_report.get("blocked_reason", "Cannot apply because viewport projection failed."))
+		return
 	_preview_applied = false
+	_preview_commit_state = "applied"
 	_revert_terrain_layers.clear()
 	_revert_overlay_layers.clear()
 	_revert_object_placements.clear()
@@ -1015,11 +1346,12 @@ func _on_revert_pressed() -> void:
 	if _revert_terrain_layers.is_empty() and _revert_overlay_layers.is_empty() and _revert_object_placements.is_empty():
 		return
 	var doc = _workspace_asset_context.level_document
-	doc.terrain_layers = _revert_terrain_layers.duplicate(true)
-	doc.overlay_layers = _revert_overlay_layers.duplicate(true)
-	doc.object_placements = _revert_object_placements.duplicate(true)
+	_replace_resource_array(doc.terrain_layers, _revert_terrain_layers)
+	_replace_resource_array(doc.overlay_layers, _revert_overlay_layers)
+	_replace_resource_array(doc.object_placements, _revert_object_placements)
 	_apply_document_to_context_layer()
 	_preview_applied = false
+	_preview_commit_state = "reverted"
 	_revert_terrain_layers.clear()
 	_revert_overlay_layers.clear()
 	_revert_object_placements.clear()
@@ -1028,11 +1360,37 @@ func _on_revert_pressed() -> void:
 		_status_label.text = "Reverted to previous state."
 
 
+func _replace_resource_array(target: Array, source: Array) -> void:
+	target.clear()
+	for entry in source:
+		target.append(entry)
+
+
 func _refresh_preview_buttons() -> void:
+	var can_commit := _preview_applied and _last_viewport_projection_ok()
 	if _apply_button != null:
-		_apply_button.disabled = not _preview_applied
+		_apply_button.disabled = not can_commit
 	if _revert_button != null:
-		_revert_button.disabled = not _preview_applied
+		_revert_button.disabled = not can_commit
+
+
+func _viewport_preview_cell_count() -> int:
+	if _context_hex_tile_map_layer == null or not is_instance_valid(_context_hex_tile_map_layer):
+		return 0
+	return _context_hex_tile_map_layer.display_used_cell_count()
+
+
+func _viewport_preview_visible() -> bool:
+	return (_preview_commit_state == "preview_pending" or _preview_commit_state == "applied") \
+		and _last_viewport_projection_ok()
+
+
+func _context_layer_path() -> String:
+	if _context_hex_tile_map_layer == null or not is_instance_valid(_context_hex_tile_map_layer):
+		return ""
+	if _context_hex_tile_map_layer.is_inside_tree():
+		return str(_context_hex_tile_map_layer.get_path())
+	return _context_hex_tile_map_layer.name
 
 
 func _output_type_to_promote_role(output_type: String) -> String:

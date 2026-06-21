@@ -76,7 +76,7 @@ func _ready() -> void:
 	name = "Build Graph Canvas"
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
-	custom_minimum_size = Vector2(520, 340)
+	custom_minimum_size = Vector2(640, 420)
 	if not connection_request.is_connected(_on_connection_request):
 		connection_request.connect(_on_connection_request)
 	if not disconnection_request.is_connected(_on_disconnection_request):
@@ -182,7 +182,8 @@ func add_graph_node(node_type: String, position: Vector2 = Vector2.ZERO, node_id
 	graph_node.name = actual_id
 	graph_node.title = title_for_node_type(node_type)
 	graph_node.position_offset = position
-	graph_node.custom_minimum_size = Vector2(180, 112)
+	graph_node.custom_minimum_size = Vector2(240, 120)
+	graph_node.set("resizable", true)
 	graph_node.set_meta("hex_generation_node_id", actual_id)
 	graph_node.set_meta("hex_generation_node_type", node_type)
 	graph_node.set_meta("hex_generation_params", default_params_for_type(node_type))
@@ -197,7 +198,10 @@ func add_graph_node(node_type: String, position: Vector2 = Vector2.ZERO, node_id
 		var input_name := String(input_names[row_index]) if row_index < input_names.size() else ""
 		var label := Label.new()
 		label.text = _slot_row_text(input_name, output_type if row_index == 0 else "")
-		label.clip_text = true
+		label.clip_text = false
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		label.custom_minimum_size = Vector2(192, 0)
+		label.add_theme_font_size_override("font_size", 12)
 		graph_node.add_child(label)
 		var has_left := input_name != ""
 		var left_type := _input_slot_type_id(node_type, input_name)

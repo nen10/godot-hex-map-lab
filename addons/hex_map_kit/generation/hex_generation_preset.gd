@@ -8,7 +8,8 @@ const HexGenerationNodeTypesScript = preload("res://addons/hex_map_kit/generatio
 const NODE_SHAPE := "shape"
 const NODE_WALLS := "walls"
 const NODE_CONNECTIVITY := "connectivity"
-const PROMOTE_ROLE_TERRAIN := "terrain"
+const NODE_RESULT := "result"
+const PROMOTE_ROLE_RESULT := "result"
 
 
 static func from_profile(profile_res = null) -> Dictionary:
@@ -38,24 +39,33 @@ static func from_profile(profile_res = null) -> Dictionary:
 			"seed": int(options.get("seed", 0)) + 101,
 		}
 	)
+	HexGenerationGraphScript.add_node(
+		graph,
+		NODE_RESULT,
+		HexGenerationNodeTypesScript.NODE_RESULT,
+		{
+			"orientation": 0,
+		}
+	)
 	HexGenerationGraphScript.add_edge(graph, NODE_SHAPE, NODE_WALLS, "in")
 	HexGenerationGraphScript.add_edge(graph, NODE_WALLS, NODE_CONNECTIVITY, "in")
+	HexGenerationGraphScript.add_edge(graph, NODE_CONNECTIVITY, NODE_RESULT, "terrain")
 	return graph
 
 
 static func promote_targets_for_profile(_profile_res = null) -> Array:
 	return [{
-		"node_id": NODE_CONNECTIVITY,
-		"role": PROMOTE_ROLE_TERRAIN,
+		"node_id": NODE_RESULT,
+		"role": PROMOTE_ROLE_RESULT,
 	}]
 
 
 static func default_selected_node_id() -> String:
-	return NODE_CONNECTIVITY
+	return NODE_RESULT
 
 
 static func default_promote_role() -> String:
-	return PROMOTE_ROLE_TERRAIN
+	return PROMOTE_ROLE_RESULT
 
 
 static func _profile_options(profile_res) -> Dictionary:
