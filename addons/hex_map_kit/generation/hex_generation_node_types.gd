@@ -6,12 +6,14 @@ const HexGenerationPortsScript = preload("res://addons/hex_map_kit/generation/he
 const HexMapDataScript = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
 const HexMapGeneratorScript = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
 const HexOverlayDataScript = preload("res://addons/hex_map_kit/core/hex_overlay_data.gd")
+const HexVectorScript = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const HexMapResourceScript = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
 const HexOverlayResourceScript = preload("res://addons/hex_map_kit/adapter/hex_overlay_resource.gd")
 const HexMapDocumentResourceScript = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
 const HexMapDocumentTerrainLayerResourceScript = preload("res://addons/hex_map_kit/adapter/hex_map_document_terrain_layer_resource.gd")
 const HexMapDocumentOverlayLayerResourceScript = preload("res://addons/hex_map_kit/adapter/hex_map_document_overlay_layer_resource.gd")
 const HexGenerationResultResourceScript = preload("res://addons/hex_map_kit/adapter/hex_generation_result_resource.gd")
+const HexAdjacencyRuleSetScript = preload("res://addons/hex_map_kit/adapter/hex_adjacency_rule_set.gd")
 
 const NODE_SOURCE := "source"
 const NODE_SHAPE := "shape"
@@ -20,6 +22,8 @@ const NODE_CONNECTIVITY := "connectivity"
 const NODE_REGION_FILTER := "region_filter"
 const NODE_ITEM_GENERATOR := "item_generator"
 const NODE_COMPOSE := "compose"
+const NODE_SET_OPERATION := "set_operation"
+const NODE_RESULT := "result"
 
 const PORT_OUT := "out"
 
@@ -94,6 +98,34 @@ static func registry() -> Dictionary:
 			"output": HexGenerationPortsScript.OVERLAY,
 			"run_method": "_run_compose",
 		},
+		NODE_SET_OPERATION: {
+			"inputs": {
+				"a": {
+					"accepts": [HexGenerationPortsScript.SELECTION],
+					"required": true,
+				},
+				"b": {
+					"accepts": [HexGenerationPortsScript.SELECTION],
+					"required": false,
+				},
+			},
+			"output": HexGenerationPortsScript.SELECTION,
+			"run_method": "_run_set_operation",
+		},
+		NODE_RESULT: {
+			"inputs": {
+				"terrain": {
+					"accepts": [HexGenerationPortsScript.TERRAIN],
+					"required": false,
+				},
+				"overlay": {
+					"accepts": [HexGenerationPortsScript.OVERLAY],
+					"required": false,
+				},
+			},
+			"output": HexGenerationPortsScript.RESULT,
+			"run_method": "_run_result",
+		},
 	}
 
 
@@ -135,6 +167,10 @@ static func run_node(node: Dictionary, inputs: Dictionary, context: Dictionary):
 			return _run_item_generator(inputs, params, context, resource_refs)
 		NODE_COMPOSE:
 			return _run_compose(inputs, params, context, resource_refs)
+		NODE_SET_OPERATION:
+			return _run_set_operation(inputs, params, context, resource_refs)
+		NODE_RESULT:
+			return _run_result(inputs, params, context, resource_refs)
 		_:
 			return null
 
@@ -184,21 +220,46 @@ static func _run_shape(_inputs: Dictionary, params: Dictionary, _context: Dictio
 
 static func _run_wall_field(inputs: Dictionary, params: Dictionary, context: Dictionary, _resource_refs: Dictionary):
 	var data = _clone_terrain(inputs.get("in", null))
-	var wall_result = HexMapGeneratorScript.generate_random_walls_interruptible(
-		data.cells,
-		clampf(float(params.get("wall_probability", 0.0)), 0.0, 1.0),
-		_seed(params, context),
-		_points_param(params, "protected_floor"),
-		_interrupt_options(context)
-	)
-	data.set_walls(wall_result["walls"])
+	var mode = String(params.get("mode", "random_probability"))
+	match mode:
+		"markov_mesh":
+			var max_extent := 0
+			for cell in data.cells:
+				max_extent = max(max_extent, abs(int(cell.q)), abs(int(cell.r)))
+			var radius := max(1, max_extent)
+			var symmetric_result = HexMapGeneratorScript.generate_symmetric_toric_walls_interruptible(
+				radius,
+				clampf(float(params.get("wall_probability", 0.3)), 0.0, 1.0),
+				_seed(params, context),
+				int(params.get("distribution_id", 20)),
+				_points_param(params, "protected_floor"),
+				null,
+				_interrupt_options(context)
+			)
+			var wall_set := {}
+			for wall in symmetric_result["walls"]:
+				wall_set[wall.key()] = true
+			var filtered_walls: Array = []
+			for cell in data.cells:
+				if wall_set.has(cell.key()):
+					filtered_walls.append(cell)
+			data.set_walls(filtered_walls)
+		"random_probability", _:
+			var wall_result = HexMapGeneratorScript.generate_random_walls_interruptible(
+				data.cells,
+				clampf(float(params.get("wall_probability", 0.0)), 0.0, 1.0),
+				_seed(params, context),
+				_points_param(params, "protected_floor"),
+				_interrupt_options(context)
+			)
+			data.set_walls(wall_result["walls"])
 	return data
 
 
 static func _run_connectivity(inputs: Dictionary, params: Dictionary, context: Dictionary, _resource_refs: Dictionary):
 	var data = _clone_terrain(inputs.get("in", null))
 	var terminals = inputs.get("terminals", _points_param(params, "terminals"))
-	var method = String(params.get("method", "dense"))
+	var method = String(params.get("mode", params.get("method", "dense")))
 	var seed = _seed(params, context, 101)
 	match method:
 		"none":
@@ -219,16 +280,16 @@ static func _run_region_filter(inputs: Dictionary, params: Dictionary, _context:
 	if source != null and source.has_method("item_cells") and mode != "query":
 		var item_key = String(params.get("item_key", _terrain_item_key(mode)))
 		selection = HexMapDataScript.unique_points(source.item_cells(item_key))
-		return _filter_by_distance_params(selection, params)
-	if mode == "query":
+	elif mode == "query":
 		var operation = String(params.get("op", params.get("operation", HexOverlayDataScript.ITEM_QUERY_OR)))
 		selection = HexOverlayDataScript.query_item_cells(_selectors_for_source(params.get("selectors", []), source), operation)
-		return _filter_by_distance_params(selection, params)
-	if source is HexOverlayDataScript:
+	elif source is HexOverlayDataScript:
 		var overlay_key = String(params.get("item_key", ""))
 		selection = source.item_cells(overlay_key) if overlay_key != "" else source.occupied_cells()
-		return _filter_by_distance_params(selection, params)
-	return []
+	else:
+		return []
+	selection = _apply_shift(selection, params)
+	return _filter_by_distance_params(selection, params)
 
 
 static func _run_item_generator(inputs: Dictionary, params: Dictionary, context: Dictionary, _resource_refs: Dictionary):
@@ -236,22 +297,43 @@ static func _run_item_generator(inputs: Dictionary, params: Dictionary, context:
 	var mode = String(params.get("mode", "weighted"))
 	var item_pool = params.get("item_pool", [])
 	var blocked = _points_param(params, "blocked")
-	if mode == "limited":
-		return HexMapGeneratorScript.generate_limited_items_interruptible(
-			cells,
-			item_pool,
-			_seed(params, context),
-			blocked,
-			_interrupt_options(context)
-		)["data"]
-	return HexMapGeneratorScript.generate_random_items_interruptible(
-		cells,
-		clampf(float(params.get("placement_probability", 1.0)), 0.0, 1.0),
-		item_pool,
-		_seed(params, context),
-		blocked,
-		_interrupt_options(context)
-	)["data"]
+	match mode:
+		"limited":
+			return HexMapGeneratorScript.generate_limited_items_interruptible(
+				cells,
+				item_pool,
+				_seed(params, context),
+				blocked,
+				_interrupt_options(context)
+			)["data"]
+		"adjacency_rules":
+			var rules_text = String(params.get("probability_rules", "default=0.5"))
+			var parse_result := HexAdjacencyRuleSetScript.parse_rules_text_report(rules_text)
+			var rules = parse_result.get("rules", {}) as Dictionary
+			var neighbor_radius := clampi(int(params.get("neighbor_radius", 1)), 1, 16)
+			var include_ref := bool(params.get("include_generated_reference", false))
+			var cyclic_size := _compute_cyclic_size(cells)
+			return HexMapGeneratorScript.generate_toric_adjacency_items_interruptible(
+				cells,
+				String(params.get("item_name", "item")),
+				cells,
+				rules,
+				_seed(params, context),
+				blocked,
+				cyclic_size,
+				neighbor_radius,
+				_interrupt_options(context),
+				include_ref
+			)["data"]
+		_:
+			return HexMapGeneratorScript.generate_random_items_interruptible(
+				cells,
+				clampf(float(params.get("placement_probability", 1.0)), 0.0, 1.0),
+				item_pool,
+				_seed(params, context),
+				blocked,
+				_interrupt_options(context)
+			)["data"]
 
 
 static func _run_compose(inputs: Dictionary, params: Dictionary, _context: Dictionary, _resource_refs: Dictionary):
@@ -263,6 +345,51 @@ static func _run_compose(inputs: Dictionary, params: Dictionary, _context: Dicti
 		String(params.get("existing_policy", HexOverlayDataScript.EXISTING_MERGE))
 	)
 	return base
+
+
+static func _run_set_operation(inputs: Dictionary, params: Dictionary, _context: Dictionary, _resource_refs: Dictionary) -> Array:
+	var a: Array = inputs.get("a", [])
+	var b: Array = inputs.get("b", [])
+	var operation = String(params.get("operation", "union"))
+	match operation:
+		"intersection":
+			if b.is_empty():
+				return a.duplicate()
+			return _intersect_selections(a, b)
+		"difference":
+			if b.is_empty():
+				return a.duplicate()
+			return _difference_selections(a, b)
+		"union", _:
+			if b.is_empty():
+				return a.duplicate()
+			return HexMapDataScript.unique_points(a + b)
+
+
+static func _intersect_selections(a: Array, b: Array) -> Array:
+	var b_set := HexMapDataScript.make_set(b)
+	var result: Array = []
+	for point in a:
+		if b_set.has(point.key()):
+			result.append(point)
+	return result
+
+
+static func _difference_selections(a: Array, b: Array) -> Array:
+	return HexMapDataScript.points_except(a, b)
+
+
+static func _run_result(inputs: Dictionary, params: Dictionary, _context: Dictionary, _resource_refs: Dictionary):
+	var result = HexGenerationResultResourceScript.new()
+	result.status = "generated"
+	var orientation_val := int(params.get("orientation", 0))
+	var terrain_input = inputs.get("terrain", null)
+	if terrain_input is HexMapDataScript:
+		result.primary_map = HexMapResourceScript.from_map_data(terrain_input as HexMapDataScript, orientation_val)
+	var overlay_input = inputs.get("overlay", null)
+	if overlay_input is HexOverlayDataScript:
+		result.overlay_map = HexOverlayResourceScript.from_overlay_data(overlay_input as HexOverlayDataScript, orientation_val)
+	return result
 
 
 static func _source_output_type(params: Dictionary) -> String:
@@ -403,4 +530,27 @@ static func _filter_by_distance_params(points: Array, params: Dictionary) -> Arr
 			if point.subtract(origin).l1_norm() <= max_distance:
 				result.append(point)
 				break
+	return HexMapDataScript.unique_points(result)
+
+
+static func _compute_cyclic_size(cells: Array) -> int:
+	var max_extent := 0
+	for cell in cells:
+		max_extent = max(max_extent, abs(int(cell.q)), abs(int(cell.r)), abs(int(cell.s)))
+	return max_extent * 2 + 1
+
+
+static func _apply_shift(points: Array, params: Dictionary) -> Array:
+	var sq := int(params.get("shift_q", 0))
+	var sr := int(params.get("shift_r", 0))
+	var ss := int(params.get("shift_s", 0))
+	if sq == 0 and sr == 0 and ss == 0:
+		return points
+	var shift_vec := HexVectorScript.new()
+	shift_vec.q = sq
+	shift_vec.r = sr
+	shift_vec.s = ss
+	var result: Array = []
+	for point in points:
+		result.append(point.add(shift_vec))
 	return HexMapDataScript.unique_points(result)

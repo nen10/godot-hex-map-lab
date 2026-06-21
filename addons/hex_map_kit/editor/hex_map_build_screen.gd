@@ -14,6 +14,7 @@ const HexMapBuildNodeInspectorScript = preload("res://addons/hex_map_kit/editor/
 const HexGenerationPresetScript = preload("res://addons/hex_map_kit/generation/hex_generation_preset.gd")
 const HexGenerationPromoteScript = preload("res://addons/hex_map_kit/generation/hex_generation_promote.gd")
 const HexGenerationNodeTypesScript = preload("res://addons/hex_map_kit/generation/hex_generation_node_types.gd")
+const HexGenerationPortsScript = preload("res://addons/hex_map_kit/generation/hex_generation_ports.gd")
 const HexGenerationGraphResourceScript = preload("res://addons/hex_map_kit/adapter/hex_generation_graph_resource.gd")
 const HexTileMapLayerScript = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 
@@ -442,6 +443,12 @@ func _build_ui() -> void:
 	_revert_button.disabled = true
 	_revert_button.pressed.connect(_on_revert_pressed)
 	top_row.add_child(_revert_button)
+	var _remove_button := Button.new()
+	_remove_button.name = "Build Remove Button"
+	_remove_button.text = "Remove"
+	_remove_button.tooltip_text = "Remove selected node or connection"
+	_remove_button.pressed.connect(_on_remove_pressed)
+	top_row.add_child(_remove_button)
 	add_child(top_row)
 
 	var simple_row := HBoxContainer.new()
@@ -729,6 +736,8 @@ func _refresh_selected_node() -> void:
 		return
 	var warnings := _compute_connection_warnings(node)
 	_inspector.inspect_node(node, _canvas.selected_output_type(), _canvas.selected_preview_snapshot(), warnings)
+	if String(node.get("type", "")) == HexGenerationNodeTypesScript.NODE_REGION_FILTER:
+		_inspector.set_effective_flat_top(_find_effective_flat_top(node))
 	_inspector.set_promote_enabled(_workspace_asset_context != null and _workspace_asset_context.level_document != null)
 
 
@@ -786,6 +795,32 @@ func _compute_connection_warnings(node: Dictionary) -> Array[Dictionary]:
 							break
 
 	return warnings
+
+
+func _find_effective_flat_top(node: Dictionary) -> bool:
+	var node_id := String(node.get("id", ""))
+	if node_id == "":
+		return true
+	var graph_model := _canvas.build_graph_model()
+	var nodes: Dictionary = graph_model.get("nodes", {})
+	var edges: Array = graph_model.get("edges", [])
+	var visited := {node_id: true}
+	var queue: Array[String] = [node_id]
+	while not queue.is_empty():
+		var current := queue.pop_front()
+		for edge in edges:
+			var edge_dict = edge as Dictionary
+			if String(edge_dict.get("from_node", "")) == current:
+				var to_node := String(edge_dict.get("to_node", ""))
+				if visited.has(to_node):
+					continue
+				visited[to_node] = true
+				var to_node_entry = nodes.get(to_node, {}) as Dictionary
+				if String(to_node_entry.get("type", "")) == HexGenerationNodeTypesScript.NODE_RESULT:
+					var to_params = to_node_entry.get("params", {}) as Dictionary
+					return int(to_params.get("orientation", 0)) == 0
+				queue.append(to_node)
+	return true
 
 
 func _on_generate_pressed() -> void:
@@ -851,6 +886,34 @@ func _auto_preview_after_generate() -> void:
 	if output == null:
 		return
 	var output_type := _canvas.selected_output_type()
+	if output_type == HexGenerationPortsScript.RESULT:
+		_snapshot_document_for_revert()
+		if output.get("primary_map") != null:
+			var terrain_res = output.get("primary_map")
+			if terrain_res != null and terrain_res.has_method("to_map_data"):
+				HexGenerationPromoteScript.promote(
+					terrain_res.to_map_data(),
+					_workspace_asset_context.level_document,
+					"terrain",
+					{"graph_node_id": _canvas.selected_node_id()}
+				)
+		if output.get("overlay_map") != null:
+			var overlay_res = output.get("overlay_map")
+			if overlay_res != null and overlay_res.has_method("to_overlay_data"):
+				HexGenerationPromoteScript.promote(
+					overlay_res.to_overlay_data(),
+					_workspace_asset_context.level_document,
+					"overlay",
+					{"graph_node_id": _canvas.selected_node_id()}
+				)
+		var result_node := _canvas.selected_node_dictionary()
+		var result_params = result_node.get("params", {}) as Dictionary
+		var orientation_val := int(result_params.get("orientation", 0))
+		_context_hex_tile_map_layer.flat_top = orientation_val == 0
+		_apply_document_to_context_layer()
+		_preview_applied = true
+		_refresh_preview_buttons()
+		return
 	var role := _output_type_to_promote_role(output_type)
 	_snapshot_document_for_revert()
 	var _result := promote_selected_output(role)
@@ -918,3 +981,10 @@ func _output_type_to_promote_role(output_type: String) -> String:
 			return "overlay"
 		_:
 			return "terrain"
+
+
+func _on_remove_pressed() -> void:
+	if _canvas != null:
+		_canvas.remove_selected()
+		if _status_label != null:
+			_status_label.text = "Removed selected."

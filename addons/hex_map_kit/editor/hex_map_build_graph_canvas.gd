@@ -21,8 +21,10 @@ const NODE_TYPE_ORDER := [
 	HexGenerationNodeTypesScript.NODE_WALL_FIELD,
 	HexGenerationNodeTypesScript.NODE_CONNECTIVITY,
 	HexGenerationNodeTypesScript.NODE_REGION_FILTER,
+	HexGenerationNodeTypesScript.NODE_SET_OPERATION,
 	HexGenerationNodeTypesScript.NODE_ITEM_GENERATOR,
 	HexGenerationNodeTypesScript.NODE_COMPOSE,
+	HexGenerationNodeTypesScript.NODE_RESULT,
 ]
 
 const SLOT_TYPES := {
@@ -47,6 +49,8 @@ const NODE_TITLES := {
 	HexGenerationNodeTypesScript.NODE_REGION_FILTER: "Region Filter",
 	HexGenerationNodeTypesScript.NODE_ITEM_GENERATOR: "Item Generator",
 	HexGenerationNodeTypesScript.NODE_COMPOSE: "Compose",
+	HexGenerationNodeTypesScript.NODE_SET_OPERATION: "Set Operation",
+	HexGenerationNodeTypesScript.NODE_RESULT: "Result",
 }
 
 var _node_counter := 0
@@ -81,6 +85,8 @@ func _ready() -> void:
 		node_selected.connect(_on_graph_node_selected)
 	if not node_deselected.is_connected(_on_graph_node_deselected):
 		node_deselected.connect(_on_graph_node_deselected)
+	if not delete_nodes_request.is_connected(_on_delete_nodes_request):
+		delete_nodes_request.connect(_on_delete_nodes_request)
 
 
 func _on_graph_node_selected(node: Node) -> void:
@@ -92,6 +98,72 @@ func _on_graph_node_selected(node: Node) -> void:
 
 func _on_graph_node_deselected(_node: Node) -> void:
 	select_graph_node("")
+
+
+func _on_delete_nodes_request(nodes: Array) -> void:
+	var any_removed := false
+	for node_ref in nodes:
+		var node_name := ""
+		if node_ref is Node:
+			node_name = (node_ref as Node).name
+		elif node_ref is String or node_ref is StringName:
+			node_name = String(node_ref)
+		else:
+			continue
+		if _remove_graph_node(node_name):
+			any_removed = true
+	if any_removed:
+		graph_changed.emit()
+
+
+func _gui_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_DELETE or event.keycode == KEY_BACKSPACE:
+			if _selected_node_id != "":
+				if _remove_graph_node(_selected_node_id):
+					select_graph_node("")
+					graph_changed.emit()
+			accept_event()
+			return
+
+
+func remove_graph_node(node_id: String) -> bool:
+	return _remove_graph_node(node_id)
+
+
+func remove_selected() -> void:
+	if _selected_node_id != "":
+		_remove_graph_node(_selected_node_id)
+		select_graph_node("")
+		graph_changed.emit()
+
+
+func _remove_graph_node(node_id: String) -> bool:
+	if node_id == "":
+		return false
+	var graph_node := _graph_node(node_id)
+	if graph_node == null:
+		return false
+	for i in range(_connections.size() - 1, -1, -1):
+		var conn := _connections[i] as Dictionary
+		if String(conn.get("from_node", "")) == node_id or String(conn.get("to_node", "")) == node_id:
+			disconnect_node(
+				String(conn.get("from_node", "")),
+				int(conn.get("from_port", -1)),
+				String(conn.get("to_node", "")),
+				int(conn.get("to_port", -1))
+			)
+			_connections.remove_at(i)
+	remove_child(graph_node)
+	graph_node.queue_free()
+	var new_order: PackedStringArray = PackedStringArray()
+	for nid in _node_order:
+		if String(nid) != node_id:
+			new_order.append(String(nid))
+	_node_order = new_order
+	_last_status = "Removed node %s." % node_id
+	_mark_dirty_all()
+	return true
 
 
 func add_graph_node(node_type: String, position: Vector2 = Vector2.ZERO, node_id: String = "") -> String:
@@ -504,6 +576,9 @@ static func default_params_for_type(node_type: String) -> Dictionary:
 		HexGenerationNodeTypesScript.NODE_REGION_FILTER:
 			return {
 				"mode": "floor",
+				"shift_q": 0,
+				"shift_r": 0,
+				"shift_s": 0,
 				"within_distance_of": [HexVectorScript.zero()],
 				"max_distance": 3,
 			}
@@ -518,6 +593,14 @@ static func default_params_for_type(node_type: String) -> Dictionary:
 			return {
 				"write_policy": HexOverlayDataScript.APPLY_ADD_ITEM,
 				"existing_policy": HexOverlayDataScript.EXISTING_MERGE,
+			}
+		HexGenerationNodeTypesScript.NODE_SET_OPERATION:
+			return {
+				"operation": "union",
+			}
+		HexGenerationNodeTypesScript.NODE_RESULT:
+			return {
+				"orientation": 0,
 			}
 	return {}
 

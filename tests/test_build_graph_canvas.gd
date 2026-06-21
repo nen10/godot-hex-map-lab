@@ -176,7 +176,7 @@ func _test_palette_and_inspector_reflect_graph_contract() -> void:
 	await process_frame
 
 	var palette_snapshot = screen.node_palette().palette_snapshot()
-	_assert_eq(int(palette_snapshot["button_count"]), 7, "GRAPH-11 palette exposes seven MVP node types")
+	_assert_eq(int(palette_snapshot["button_count"]), 9, "GRAPH-11 palette exposes nine MVP node types")
 	_assert_true((palette_snapshot["node_types"] as PackedStringArray).has(HexGenerationNodeTypes.NODE_REGION_FILTER), "GRAPH-11 palette includes Region Filter")
 
 	var canvas = screen.graph_canvas()
