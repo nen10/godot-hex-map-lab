@@ -201,7 +201,7 @@ func add_graph_node(node_type: String, position: Vector2 = Vector2.ZERO, node_id
 		label.clip_text = false
 		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		label.custom_minimum_size = Vector2(192, 0)
-		label.add_theme_font_size_override("font_size", 12)
+		label.add_theme_font_size_override("font_size", 24)
 		graph_node.add_child(label)
 		var has_left := input_name != ""
 		var left_type := _input_slot_type_id(node_type, input_name)
