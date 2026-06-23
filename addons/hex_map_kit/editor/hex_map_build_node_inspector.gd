@@ -568,9 +568,9 @@ func _param_options(node_type: String, key: String) -> Array[Dictionary]:
 			]
 		"distribution_id":
 			return [
-				{"label": "Ilands (11)", "value": "11"},
-				{"label": "Maze (20)", "value": "20"},
-				{"label": "Discrete (24)", "value": "24"},
+				{"label": "Ilands", "value": "11"},
+				{"label": "Maze", "value": "20"},
+				{"label": "Discrete", "value": "24"},
 			]
 		"op":
 			return [
