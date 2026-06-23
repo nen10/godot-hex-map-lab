@@ -202,3 +202,55 @@ Generate の成功は次の snapshot で確認する。
 5. Apply 後の Generate が初回 Generate と違う結果になる場合、Apply がどの state を暗黙に初期化しているか。
 6. Preview snapshot の対象は terrain / overlay / object document state で足りるか。
 7. Revert 後に graph output cache を残すか、invalid にするか。
+
+## 決定事項 (2026-06-23)
+
+ユーザー確認により、影響範囲（scope of influence）の上位分類を次に固定する。
+
+| 論点 | 決定 | 含意 |
+|---|---|---|
+| seed | **graph-wide base seed + node 固有 salt の合成** | runner の現挙動 `context.seed + params.seed + salt` を正式仕様とする。base seed は graph-wide、各 node の `seed` は salt として node-local。 |
+| orientation | **graph-wide に一本化（Result / layer 表示の単一 source）** | Shape / Result が個別に持つ orientation は廃止し、graph-wide setting から導出する。orientation 変更は cell topology を変えないため、run cache ではなく projection のみを invalidate する。 |
+| 中間 filter / selection レイヤーの可視化 | **保留 (defer)** | 開発者が graph を設計する上では可視化が親切だが、filter 対象 ItemKey 表示・Set Operation 後の selection 表示など設計点が過剰に増えるため、本 track では graph 内 derived/preview に留める。document への child-node 可視化は `REPAIR-12` 側で扱う。 |
+
+## State ownership tiers
+
+旧 Generate tab の monolithic state を、3 つの帰属に分解する。出力 document layer は状態を保持せず、producing node への provenance だけを持つ。
+
+| tier | 保存先 | 例 | 影響範囲 / dirty 伝播 |
+|---|---|---|---|
+| Node-local state | `node.params`（embedded `generation_graph_resource`） | Shape size、Wall probability、Filter 距離条件、Item pool | 変更で **当該 node + downstream subtree** を dirty 化。 |
+| Graph-wide state | graph-wide settings（`generation_graph_resource` に新設する `graph_settings` 等） | base seed、orientation、対象 layer/document context | seed 変更は **全 stochastic node** を dirty 化。orientation 変更は **projection のみ** を invalidate（run cache は再利用）。 |
+| Output-layer provenance | document layer `metadata` | `graph_node_id`、`target_role`、`writable_source`、`overlay_index`/`result_port` | 状態ではなく back-reference。再生成は node 側 state から行う。 |
+| Derived state | 保存しない（毎回再計算） | output_type、valid/invalid edge、topo order、overlay order、item-key 候補、missing required | graph 構造 + params から導出。 |
+
+## Scope 分類表（Codex 実装用）
+
+各 param を `scope` / `storage` / `dirty 伝播` で確定する。`storage` は実装時の保存先、`dirty` は変更時に再計算/再実行/再投影する範囲。
+
+| Node | Parameter | Scope | Storage | Dirty 伝播 |
+|---|---|---|---|---|
+| (graph) | base seed | graph-wide | `graph_settings.seed` | 全 stochastic node を再実行 |
+| (graph) | orientation | graph-wide | `graph_settings.orientation` | projection のみ再投影（run cache 維持） |
+| (context) | target layer / document | context | workspace asset context | context 再同期のみ |
+| Source | source kind / output_type / resource ref | node-local | `node.params` / `node.resource_refs` | 当該 node + downstream |
+| Shape | shape / width / height / radius / size / toric | node-local | `node.params` | 当該 node + downstream |
+| Wall Field | wall_method / wall_probability / protected_floor / distribution_id | node-local | `node.params` | 当該 node + downstream |
+| Wall Field | seed (salt) | node-local salt | `node.params.seed` | 当該 node + downstream |
+| Connectivity | method / terminals / preserve regions | node-local | `node.params` | 当該 node + downstream |
+| Connectivity | seed (salt) | node-local salt | `node.params.seed` | 当該 node + downstream |
+| Terrain Filter | filter_target / distance origin / max_distance / shift_q,r,s / invert | node-local | `node.params` | 当該 node + downstream |
+| Overlay Filter | item_key / match mode / distance origin / max_distance / shift / invert | node-local | `node.params` | 当該 node + downstream |
+| Set Operation | operation / input order / empty behavior | node-local | `node.params` / edge order | 当該 node + downstream |
+| Item Generator | placement_method / placement_probability / item_pool / item_name / blocked / adjacency rules | node-local | `node.params` | 当該 node + downstream |
+| Item Generator | seed (salt) | node-local salt | `node.params.seed` | 当該 node + downstream |
+| Result | terrain input / overlay inputs / object input | derived (edges) | graph edges | projection 再評価 |
+| Result | orientation | **削除 → graph-wide 参照** | `graph_settings.orientation` | projection のみ |
+
+## 実装含意（このtrackで埋める経路）
+
+1. `HexGenerationGraphResource` に graph-wide settings（最低 `seed`, `orientation`）を追加し、save/load round-trip させる。
+2. runner context は `graph_settings` から base seed / orientation を受け取り、node-local salt と合成する。
+3. **node param 変更を即座に graph resource へ flush**（Generate 時だけでなく）し、選択再同期で値が default に戻らないようにする（= #3 の根因修正）。
+4. orientation の dirty 伝播は run cache を維持し、projection だけを再実行する分岐にする。
+5. `Shape.orientation` / `Result.orientation` を廃止し、graph-wide orientation を参照する（migration は未公開前提で不要、ただし既存開発graphを無音破壊しない）。

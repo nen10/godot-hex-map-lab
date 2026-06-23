@@ -1,7 +1,7 @@
 # REPAIR-13 Graph-wide state と Filter分離 Sub Tasks
 
-日付: 2026-06-22
-状態: documentation draft
+日付: 2026-06-23
+状態: design decisions recorded
 前提: `REPAIR-10_BUILD_GENERATE_VIEWPORT_AND_GRAPH_RECOVERY`
 
 ## Complexity
@@ -66,6 +66,15 @@ Required artifacts:
 - `Apply`がviewport表示の発生源になっていないことのtest。
 - `Source`の出力型とFilter入力型の整合test。
 - Terrain Filter / Overlay Filterの接続可否と出力selectionのtest。
+
+## 解決済み設計判断 (2026-06-23)
+
+| 論点 | 決定 |
+|---|---|
+| seed | graph-wide base seed + node-local salt の合成。 |
+| orientation | graph-wide setting に一本化し、Result / layer projection の単一 source とする。 |
+| 中間 filter / selection 可視化 | 開発者には親切だが設計爆発を避けるため、このtaskでは保留。`REPAIR-12` の child/intermediate output 可視化設計へ送る。 |
+| document layer の状態所有 | document layer は生成設定 state を持たず、`graph_node_id` 等の provenance のみ持つ。設定 state の owner は graph resource / node params。 |
 
 ## 実装前の未決事項
 

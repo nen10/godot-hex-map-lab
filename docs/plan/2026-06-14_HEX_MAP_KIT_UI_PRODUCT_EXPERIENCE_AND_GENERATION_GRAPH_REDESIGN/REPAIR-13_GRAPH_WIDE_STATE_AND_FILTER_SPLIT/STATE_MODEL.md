@@ -16,6 +16,25 @@ Graph Edit State
 
 graph構造とnode paramsから導出できるものは、毎回再計算する。永続的に持つのは、graph編集state、run結果、preview状態、contextだけ。
 
+## graph-wide setting decisions
+
+2026-06-23 時点で、旧 Generate tab 由来の横断 state は次のように固定する。
+
+| setting | owner | rule |
+|---|---|---|
+| seed | graph-wide base seed + node-local salt | `context.seed` / `graph_settings.seed` を base とし、各 stochastic node の `params.seed` は salt として合成する。 |
+| orientation | graph-wide | `Result` / layer display の単一 source とする。個別 node param としての orientation は primary model から外す。 |
+| intermediate visualization | deferred | 中間 filter / selection output の可視化は親切だが、item-key / operator result 表示など設計点が増えるため `REPAIR-12` に送る。 |
+
+このため、graph-wide setting と node-local param は dirty 伝播が異なる。
+
+| change | dirty effect |
+|---|---|
+| node-local param | 当該 node + downstream を dirty 化 |
+| graph-wide seed | stochastic node と downstream を dirty 化 |
+| graph-wide orientation | run cache は保持し、viewport/document projection を invalidate |
+| context target layer/document | run cache は保持し、projection target を再評価 |
+
 ## state domains
 
 ### 1. Graph Edit State
@@ -29,6 +48,7 @@ graph構造とnode paramsから導出できるものは、毎回再計算する�
 - selected node
 - node params
 - node resource refs
+- graph-wide settings (`seed`, `orientation`)
 - graph revision
 
 発生event:
@@ -172,6 +192,8 @@ graph全体には以下を持つ。
 
 - param changeは必ずgraph revisionを進める。
 - param changeは該当nodeとdownstream nodeをdirtyにする。
+- graph-wide seed change は stochastic node と downstream node を dirty にする。
+- graph-wide orientation change は run cache を stale にせず、projection state を stale にする。
 - edge changeは接続先nodeとdownstream nodeをdirtyにする。
 - Generateはstale cacheだけで成功扱いしない。
 - Resultがある場合、viewport projectionはResultを優先する。
@@ -180,6 +202,8 @@ graph全体には以下を持つ。
 - `Compose`は初期primary flowでは使わず、final compositionはResultに寄せる。
 - Applyはviewport projectionを新規に発生させない。pending previewを確定するだけ。
 - Revertはdocument snapshotとviewport displayを両方戻す。
+- document layer は生成設定 state を所有しない。`metadata.graph_node_id` 等の provenance のみを持つ。
+- node params は Generate 時だけでなく、編集時に embedded graph resource へ flush される。
 
 ## 設計上の注意
 
