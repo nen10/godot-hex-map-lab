@@ -21,8 +21,8 @@ Build graph repair track の各 queue を、今後の相談開始点として使
 | `REPAIR-14_GRAPH_CANVAS_EDGE_DELETE` | `COMPLETE` | [REPAIR-14](./REPAIR-14_GRAPH_CANVAS_EDGE_DELETE/SUB_TASKS.md) | edge deletion interaction |
 | `REPAIR-15_OLD_GENERATE_STATE_MIGRATION_AUDIT` | `COMPLETE` | [REPAIR-15](./REPAIR-15_MARKOV_ADJACENCY_MAPPING/SUB_TASKS.md) | 旧Generateタブからの状態管理移行 全体監査 + 最適UI設計（limited count / symmetric scan / markov・adjacency parity を内包） |
 | `REPAIR-16_REGION_FILTER_NODE_TYPING_REDESIGN` | `COMPLETE` | [findings](../../development_log/2026-06-24_BUILD_NODE_DESIGN_GAPS_FINDINGS.md) | Terrain Filter / Overlay Filter を editor-real typed node として再設計 |
-| `REPAIR-17_ADJACENCY_RULES_WINDOW` | `BACKLOG-REDESIGN` | [findings](../../development_log/2026-06-24_BUILD_NODE_DESIGN_GAPS_FINDINGS.md) | probability_rules text を廃止し structured Adjacency Rules window へ |
-| `REPAIR-18_MARKOV_DISTRIBUTION_WINDOW` | `BACKLOG-REDESIGN` | [findings](../../development_log/2026-06-24_BUILD_NODE_DESIGN_GAPS_FINDINGS.md) | Markov Mesh custom distribution editor と custom_distribution 配線 |
+| `REPAIR-17_ADJACENCY_RULES_WINDOW` | `COMPLETE` | [findings](../../development_log/2026-06-24_BUILD_NODE_DESIGN_GAPS_FINDINGS.md) | probability_rules text を廃止し structured Adjacency Rules window へ |
+| `REPAIR-18_MARKOV_DISTRIBUTION_WINDOW` | `COMPLETE` | [findings](../../development_log/2026-06-24_BUILD_NODE_DESIGN_GAPS_FINDINGS.md) | Markov Mesh custom distribution editor と custom_distribution 配線 |
 
 ## 相談時の読み順
 

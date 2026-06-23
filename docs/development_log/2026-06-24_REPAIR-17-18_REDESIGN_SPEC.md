@@ -79,9 +79,19 @@ Markov Mesh の仕組みを知るユーザー: cell を外周→内周に走査�
 - REPAIR-17: structured(count/components) editor は破棄し、hex パネル + multiset モデルへ作り直す。core 拡張が必要。
 - よって REPAIR-17 / REPAIR-18 は `COMPLETE` を取り下げ、再設計タスクとして再オープンする。
 
-## 5. 未確定（ユーザー判断）
+## 5. 確定事項（ユーザー判断 2026-06-24）
 
-1. REPAIR-18 の custom 値域を 0..8（preset と統一・load 可）にしてよいか（推奨）。
-2. REPAIR-17 の core を multiset キーへ拡張してよいか（生成 semantics が変わる）。
-3. 参照 0 個ケース（Markov）の扱いをこの機に定義するか。
-4. これら window は editor 上の視覚が完了根拠（first impression）。headless では pixel 確認不可のため、実装後にユーザーの editor 確認が必要。
+1. REPAIR-18 の custom 値域は **0..8（preset と統一）**。`prob = weight/8`。
+2. REPAIR-17 の core を **component-size multiset キー**へ拡張する。
+3. **参照0個ケースを画面に包摂**する（Markov window に 0 reference cells セクション）。
+4. 視覚検証は非headless Godot の実描画 PNG キャプチャで実施する（`tools/probe_rule_windows.gd`）。「headless では UI 確認不可」は禁止ではなく負の蓄積であり、今後はレンダリングキャプチャで自己検証する。
+
+## 6. 実装結果（2026-06-24・視覚検証済み）
+
+- 本 spec どおり実装し、実描画キャプチャで確認:
+  - `.godot_user/visual-verification/REPAIR-17-18/markov_distribution_window.png`
+  - `.godot_user/visual-verification/REPAIR-17-18/adjacency_rules_window.png`
+- Markov window: 0/1/2/3 reference cells、参照 cell の wall=黒/floor=白、center は確率で濃淡、weight 0..8。
+- Adjacency window: hex パネルを任意個 add/remove、トグル present=黒/absent=白、center 濃淡=確率、保存は component-size multiset、default 確率。
+- core: `_adjacency_reference_stats` が `component_sizes` を返し、`_adjacency_rule_probability` が multiset キー優先で評価。
+- preset(Ilands/Maze/Discrete) 不変・独立。custom は `distribution_mode=custom` の時のみ適用。

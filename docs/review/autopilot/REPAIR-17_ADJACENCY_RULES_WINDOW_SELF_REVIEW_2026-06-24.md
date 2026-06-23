@@ -24,3 +24,13 @@ Replaced the Build graph Item Generator adjacency rules UI path with a structure
 ## Notes
 
 This is a first structured window. It records direction toggles in state, while the current core probability model still uses count/components; REPAIR-15 will audit whether direction masks should affect generation semantics beyond UI state.
+
+## Redesign completion update
+
+After user correction, the first-pass count/components editor was replaced with a multi-pattern hex panel editor:
+
+- Multiple pattern panels can be added/removed.
+- Center cell represents generated cell; surrounding cells toggle reference-present state.
+- present=black, absent=white; center darkness represents probability.
+- Saved state includes `component_sizes`, a sorted multiset of connected-component sizes.
+- Core now computes `component_sizes` and prioritizes multiset keys before the older `(count, components)` fallback.

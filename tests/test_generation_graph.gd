@@ -344,7 +344,7 @@ func _test_structured_adjacency_rules_and_custom_markov_distribution() -> void:
 		"item_name": "gem",
 		"probability_rules": {
 			"default": 1.0,
-			"rules": [{"count": 0, "components": 0, "probability": 1.0}],
+			"rules": [{"component_sizes": [2], "probability": 1.0}],
 		},
 		"neighbor_radius": 1,
 	})
@@ -352,19 +352,52 @@ func _test_structured_adjacency_rules_and_custom_markov_distribution() -> void:
 	HexGenerationGraph.add_edge(adjacency_graph, "filter", "items", "scope")
 	var adjacency_cache = HexGenerationGraphRunner.run(adjacency_graph)
 	var overlay = adjacency_cache["items"] as HexOverlayData
-	_assert_eq(overlay.item_cells("gem").size(), 6, "REPAIR-17 structured adjacency rules are accepted by the runner")
+	_assert_eq(overlay.item_cells("gem").size(), 6, "REPAIR-17 structured adjacency rules (default applied) are accepted by the runner")
+
+	var gated_graph = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(gated_graph, "shape", "shape", {"shape": "rectangle", "width": 3, "height": 2})
+	HexGenerationGraph.add_node(gated_graph, "filter", "terrain_filter", {"filter_target": "floor"})
+	HexGenerationGraph.add_node(gated_graph, "items", "item_generator", {
+		"placement_method": "adjacency_rules",
+		"item_name": "gem",
+		"probability_rules": {"default": 0.0, "rules": []},
+		"neighbor_radius": 1,
+	})
+	HexGenerationGraph.add_edge(gated_graph, "shape", "filter", "in")
+	HexGenerationGraph.add_edge(gated_graph, "filter", "items", "scope")
+	var gated_overlay = HexGenerationGraphRunner.run(gated_graph)["items"] as HexOverlayData
+	_assert_eq(gated_overlay.item_cells("gem").size(), 0, "REPAIR-17 structured default gates placement (multiset/default path is evaluated)")
 
 	var wall_graph = HexGenerationGraph.new_graph()
 	HexGenerationGraph.add_node(wall_graph, "shape", "shape", {"shape": "rectangle", "width": 4, "height": 4})
 	HexGenerationGraph.add_node(wall_graph, "walls", "wall_field", {
 		"wall_method": "markov_mesh",
-		"custom_distribution": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+		"distribution_mode": "custom",
+		"custom_distribution": {
+			"0": [0.0],
+			"1": [0.0, 0.0],
+			"2": [0.0, 0.0, 0.0, 0.0],
+			"3": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+		},
 		"seed": 1,
 	})
 	HexGenerationGraph.add_edge(wall_graph, "shape", "walls", "in")
 	var wall_cache = HexGenerationGraphRunner.run(wall_graph)
 	var terrain = wall_cache["walls"] as HexMapData
-	_assert_eq(terrain.walls.size(), 0, "REPAIR-18 custom Markov distribution is passed to wall generator")
+	_assert_eq(terrain.walls.size(), 0, "REPAIR-18 custom Markov distribution (mode=custom) is passed to wall generator")
+
+	var preset_graph = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(preset_graph, "shape", "shape", {"shape": "rectangle", "width": 4, "height": 4})
+	HexGenerationGraph.add_node(preset_graph, "walls", "wall_field", {
+		"wall_method": "markov_mesh",
+		"distribution_mode": "preset",
+		"custom_distribution": {"3": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]},
+		"distribution_id": 20,
+		"seed": 1,
+	})
+	HexGenerationGraph.add_edge(preset_graph, "shape", "walls", "in")
+	var preset_terrain = HexGenerationGraphRunner.run(preset_graph)["walls"] as HexMapData
+	_assert_true(preset_terrain.walls.size() > 0, "REPAIR-18 preset mode ignores custom distribution and uses preset")
 
 
 func _cell(q: int, r: int):

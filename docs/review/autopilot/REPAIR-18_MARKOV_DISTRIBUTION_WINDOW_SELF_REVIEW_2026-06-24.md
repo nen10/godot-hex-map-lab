@@ -24,3 +24,13 @@ Restored Build graph Wall Field state/UI for custom Markov Mesh distributions.
 ## Notes
 
 Preset `distribution_id` remains available. Custom distribution is stored as an 8-value array in node params; the runtime wraps it in a Resource that implements the core `prob(ref_conditions)` contract.
+
+## Redesign completion update
+
+After user correction, the first-pass raw 8-spin editor was replaced with a state-managed Markov distribution editor:
+
+- Distribution source is explicit via `distribution_mode`: `preset` or `custom`.
+- Custom applies only in `custom` mode; presets remain intact and independent.
+- Custom weight scale is 0..8 to match HexRandomizer presets (`prob = weight/8`).
+- Window includes 0, 1, 2, and 3 reference-cell cases.
+- Reference cells are visualized as wall=black / floor=white; generated center darkness follows wall probability.

@@ -632,18 +632,38 @@ static func _points_param(params: Dictionary, key: String) -> Array:
 
 
 static func _custom_wall_distribution(params: Dictionary):
+	if String(params.get("distribution_mode", "preset")) != "custom":
+		return null
 	var values = params.get("custom_distribution", [])
+	if values is Dictionary and not (values as Dictionary).is_empty():
+		var resource = HexWallDistributionResourceScript.new()
+		resource.weights_by_count = _normalize_custom_distribution_dict(values as Dictionary)
+		return resource
 	if values is Array and not (values as Array).is_empty():
 		var resource = HexWallDistributionResourceScript.new()
-		var normalized: Array = []
-		for value in (values as Array):
-			normalized.append(clampf(float(value), 0.0, 1.0))
-		resource.weights = normalized
+		resource.weights_by_count = {"3": _normalize_distribution_weights(values as Array, 8)}
 		return resource
 	var resource = params.get("custom_distribution_resource", null)
 	if resource != null and resource.has_method("prob"):
 		return resource
 	return null
+
+
+static func _normalize_custom_distribution_dict(values: Dictionary) -> Dictionary:
+	var result := {}
+	for count in [0, 1, 2, 3]:
+		var key := str(count)
+		var raw = values.get(key, values.get(count, []))
+		result[key] = _normalize_distribution_weights(raw if raw is Array else [], HexWallDistributionResourceScript.reference_state_count(count))
+	return result
+
+
+static func _normalize_distribution_weights(values: Array, expected_size: int) -> Array:
+	var result: Array = []
+	for index in range(expected_size):
+		var value = values[index] if index < values.size() else 0.0
+		result.append(clampf(float(value), 0.0, 8.0))
+	return result
 
 
 static func _probability_rules_param(value) -> Dictionary:
@@ -656,11 +676,24 @@ static func _probability_rules_param(value) -> Dictionary:
 			if not raw_rule is Dictionary:
 				continue
 			var rule := raw_rule as Dictionary
-			var key = Vector2i(int(rule.get("count", 0)), int(rule.get("components", 0)))
+			var key = _rule_key(rule)
 			result[key] = clampf(float(rule.get("probability", 0.0)), 0.0, 1.0)
 		return result
 	var parse_result := HexAdjacencyRuleSetScript.parse_rules_text_report(String(value))
 	return parse_result.get("rules", {}) as Dictionary
+
+
+static func _rule_key(rule: Dictionary):
+	if rule.has("component_sizes") and rule["component_sizes"] is Array:
+		var sizes: Array = []
+		for value in (rule["component_sizes"] as Array):
+			sizes.append(int(value))
+		sizes.sort()
+		var parts: Array[String] = []
+		for size in sizes:
+			parts.append(str(size))
+		return "components:%s" % ",".join(parts)
+	return Vector2i(int(rule.get("count", 0)), int(rule.get("components", 0)))
 
 
 static func _interrupt_options(context: Dictionary) -> Dictionary:

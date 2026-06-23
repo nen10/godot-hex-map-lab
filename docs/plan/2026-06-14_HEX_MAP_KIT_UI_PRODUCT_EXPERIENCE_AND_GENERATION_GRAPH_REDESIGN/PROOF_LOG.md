@@ -651,3 +651,22 @@ proof:
   decision:
     - REPAIR-17/18 first-pass implementation is insufficient and tasks are reopened as `BACKLOG-REDESIGN`.
     - REPAIR-18 preset arrays are verified intact in `addons/hex_map_kit/core/hex_randomizer.gd`; custom path is independent.
+
+
+### REPAIR-17-18_REDESIGN_COMPLETION_2026-06-24
+
+proof:
+  corrected_spec:
+    - `docs/development_log/2026-06-24_REPAIR-17-18_REDESIGN_SPEC.md`
+  visual_capture:
+    - `.godot_user/visual-verification/REPAIR-17-18/markov_distribution_window.png`
+    - `.godot_user/visual-verification/REPAIR-17-18/adjacency_rules_window.png`
+  capture_tool:
+    - `tools/probe_rule_windows.gd`
+  tests:
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/probe-logs/redesign_graph2.log --path . --script res://tests/test_generation_graph.gd` (exit 0)
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/probe-logs/redesign_test_build_graph_canvas.log --path . --script res://tests/test_build_graph_canvas.gd` (exit 0; see latest focused run)
+    - `TEST_JOBS=4 ./tools/test.sh` (run id `20260624-082448-42976`, exit 0)
+  result:
+    - REPAIR-18 uses distribution_mode (`preset` vs `custom`), custom weights 0..8, 0/1/2/3 reference cases, and independent preset preservation.
+    - REPAIR-17 uses multi-pattern hex panels with present=black/absent=white and component-size multiset core keys.

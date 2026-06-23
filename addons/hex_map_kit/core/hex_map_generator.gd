@@ -429,7 +429,8 @@ static func generate_toric_adjacency_items_interruptible(
 		var probability = _adjacency_rule_probability(
 			probability_rules,
 			int(stats["count"]),
-			int(stats["components"])
+			int(stats["components"]),
+			stats.get("component_sizes", [])
 		)
 		if rng.randf() < probability:
 			data.add_item_cell(item_name, cell)
@@ -638,6 +639,7 @@ static func _adjacency_reference_stats(
 	return {
 		"count": reference_neighbors.size(),
 		"components": _adjacency_component_count(reference_neighbors, cyclic_size),
+		"component_sizes": _adjacency_component_sizes(reference_neighbors, cyclic_size),
 	}
 
 
@@ -674,13 +676,34 @@ static func _adjacency_component_count(points: Array, cyclic_size: int) -> int:
 	return count
 
 
+static func _adjacency_component_sizes(points: Array, cyclic_size: int) -> Array:
+	var remaining = HexMapDataScript.make_set(points)
+	var sizes: Array = []
+	for point in points:
+		if not remaining.has(point.key()):
+			continue
+		var component = HexGridScript.connected_area(point, points, cyclic_size)
+		var size := 0
+		for component_point in component:
+			if remaining.has(component_point.key()):
+				remaining.erase(component_point.key())
+				size += 1
+		sizes.append(size)
+	sizes.sort()
+	return sizes
+
+
 static func _adjacency_rule_probability(
 	probability_rules: Dictionary,
 	neighbor_count: int,
-	component_count: int
+	component_count: int,
+	component_sizes: Array = []
 ) -> float:
 	var value = 0.0
-	if probability_rules.has(Vector2i(neighbor_count, component_count)):
+	var multiset_key := _adjacency_component_sizes_key(component_sizes)
+	if multiset_key != "" and probability_rules.has(multiset_key):
+		value = float(probability_rules[multiset_key])
+	elif probability_rules.has(Vector2i(neighbor_count, component_count)):
 		value = float(probability_rules[Vector2i(neighbor_count, component_count)])
 	elif probability_rules.has("%d,%d" % [neighbor_count, component_count]):
 		value = float(probability_rules["%d,%d" % [neighbor_count, component_count]])
@@ -691,6 +714,17 @@ static func _adjacency_rule_probability(
 	elif probability_rules.has("default"):
 		value = float(probability_rules["default"])
 	return clampf(value, 0.0, 1.0)
+
+
+static func _adjacency_component_sizes_key(component_sizes: Array) -> String:
+	var sizes: Array = []
+	for size in component_sizes:
+		sizes.append(int(size))
+	sizes.sort()
+	var parts: Array[String] = []
+	for size in sizes:
+		parts.append(str(size))
+	return "components:%s" % ",".join(parts)
 
 
 static func _item_generation_result(

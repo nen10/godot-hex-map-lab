@@ -219,6 +219,9 @@ func _entry_fill(entry: Dictionary) -> Color:
 		return Color(0.28, 0.44, 0.72, 0.95)
 	if entry_id == _hovered_id:
 		return Color(0.32, 0.42, 0.58, 0.85)
+	var metadata = entry.get("metadata", {})
+	if metadata is Dictionary and (metadata as Dictionary).has("fill_color"):
+		return (metadata as Dictionary)["fill_color"]
 	if _entry_is_center(entry):
 		return Color(0.24, 0.24, 0.28, 0.75)
 	if not bool(entry.get("pressable", true)):

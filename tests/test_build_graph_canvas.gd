@@ -327,11 +327,12 @@ func _test_palette_and_inspector_reflect_graph_contract() -> void:
 	_assert_true(String((canvas._graph_node(typed_source_id) as GraphNode).title).contains("Source Overlay"), "REPAIR-13A Source node title exposes output type")
 
 	var wall = canvas.add_graph_node(HexGenerationNodeTypes.NODE_WALL_FIELD, Vector2(400, 0), "wall_for_distribution")
-	canvas.set_node_params(wall, {"wall_method": "markov_mesh", "distribution_id": "20"})
+	canvas.set_node_params(wall, {"wall_method": "markov_mesh", "distribution_mode": "custom"})
 	canvas.select_graph_node(wall)
 	await process_frame
 	inspector = screen.node_inspector().inspector_snapshot()
 	_assert_true((inspector["param_fields"] as PackedStringArray).has("custom_distribution"), "REPAIR-18 Wall Field exposes custom distribution state")
+	_assert_true((inspector["param_fields"] as PackedStringArray).has("distribution_mode"), "REPAIR-18 Wall Field exposes preset/custom distribution mode")
 	_assert_true(screen.node_inspector().find_child("OpenMarkovDistributionEditor", true, false) is Button, "REPAIR-18 Wall Field shows Markov distribution editor button")
 
 	var items = canvas.add_graph_node(HexGenerationNodeTypes.NODE_ITEM_GENERATOR, Vector2(600, 0), "items_for_rules")
