@@ -252,8 +252,12 @@ func _test_palette_and_inspector_reflect_graph_contract() -> void:
 	await process_frame
 
 	var palette_snapshot = screen.node_palette().palette_snapshot()
-	_assert_eq(int(palette_snapshot["button_count"]), 9, "GRAPH-11 palette exposes nine MVP node types")
-	_assert_true((palette_snapshot["node_types"] as PackedStringArray).has(HexGenerationNodeTypes.NODE_REGION_FILTER), "GRAPH-11 palette includes Region Filter")
+	_assert_eq(String(palette_snapshot["layout"]), "bottom_grouped_row", "REPAIR-13A Add Node row is grouped below the graph")
+	_assert_eq(int(palette_snapshot["button_count"]), 10, "REPAIR-13A Add Node row exposes typed Source and role buttons")
+	_assert_true((palette_snapshot["group_ids"] as PackedStringArray).has("anchor"), "REPAIR-13A Add Node row has Anchor group")
+	_assert_true((palette_snapshot["group_ids"] as PackedStringArray).has("build"), "REPAIR-13A Add Node row has Build group")
+	_assert_true((palette_snapshot["group_ids"] as PackedStringArray).has("select"), "REPAIR-13A Add Node row has Select group")
+	_assert_true(not bool(palette_snapshot["compose_primary"]), "REPAIR-13A Compose is not in the primary Add Node row")
 
 	var canvas = screen.graph_canvas()
 	var shape = canvas.add_graph_node(HexGenerationNodeTypes.NODE_SHAPE, Vector2.ZERO, "shape")
@@ -271,6 +275,17 @@ func _test_palette_and_inspector_reflect_graph_contract() -> void:
 	inspector = screen.node_inspector().inspector_snapshot()
 	_assert_true(bool(inspector["resource_ref_binding_present"]), "GRAPH-11 inspector exposes Resource ref binding for Source")
 	_assert_true((inspector["resource_ref_fields"] as PackedStringArray).has("document"), "GRAPH-11 Source inspector exposes document Resource ref")
+
+	screen._on_palette_node_template_requested(HexGenerationNodeTypes.NODE_SOURCE, {
+		"kind": "context",
+		"source_key": "document_overlay",
+		"output_type": "overlay",
+	})
+	var typed_source_id := canvas.selected_node_id()
+	var typed_params := canvas.node_params(typed_source_id)
+	_assert_eq(String(typed_params.get("output_type", "")), "overlay", "REPAIR-13A Source Overlay button creates typed Source params")
+	_assert_eq(canvas.selected_output_type(), "overlay", "REPAIR-13A Source Overlay output type matches connection validation")
+	_assert_true(String((canvas._graph_node(typed_source_id) as GraphNode).title).contains("Source Overlay"), "REPAIR-13A Source node title exposes output type")
 
 	screen.queue_free()
 	await process_frame

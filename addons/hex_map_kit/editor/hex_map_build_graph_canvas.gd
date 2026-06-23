@@ -189,7 +189,7 @@ func _remove_graph_node(node_id: String) -> bool:
 	return true
 
 
-func add_graph_node(node_type: String, position: Vector2 = Vector2.ZERO, node_id: String = "") -> String:
+func add_graph_node(node_type: String, position: Vector2 = Vector2.ZERO, node_id: String = "", initial_params: Dictionary = {}) -> String:
 	if not HexGenerationNodeTypesScript.has_type(node_type):
 		_last_status = "Unknown graph node type: %s" % node_type
 		return ""
@@ -201,15 +201,18 @@ func add_graph_node(node_type: String, position: Vector2 = Vector2.ZERO, node_id
 		_last_status = "Graph node already exists: %s" % actual_id
 		return ""
 
+	var params := default_params_for_type(node_type)
+	for key in initial_params.keys():
+		params[key] = initial_params[key]
 	var graph_node := GraphNode.new()
 	graph_node.name = actual_id
-	graph_node.title = title_for_node_type(node_type)
+	graph_node.title = _title_for_node(node_type, params)
 	graph_node.position_offset = position
 	graph_node.custom_minimum_size = Vector2(240, 120)
 	graph_node.set("resizable", true)
 	graph_node.set_meta("hex_generation_node_id", actual_id)
 	graph_node.set_meta("hex_generation_node_type", node_type)
-	graph_node.set_meta("hex_generation_params", default_params_for_type(node_type))
+	graph_node.set_meta("hex_generation_params", params)
 	graph_node.set_meta("hex_generation_resource_refs", {})
 
 	var input_names := _input_names_for_type(node_type)
@@ -436,6 +439,7 @@ func set_node_params(node_id: String, params: Dictionary) -> void:
 	if graph_node == null:
 		return
 	graph_node.set_meta("hex_generation_params", params.duplicate(true))
+	graph_node.title = _title_for_node(String(graph_node.get_meta("hex_generation_node_type", "")), params)
 	_last_status = "Updated %s parameters." % node_id
 	_mark_dirty_from_node(node_id)
 	graph_changed.emit()
@@ -496,7 +500,7 @@ func restore_graph_model(graph: Dictionary, preferred_selected_node_id: String =
 		var node_id := String(raw_node_id)
 		var node = nodes.get(node_id, {}) as Dictionary
 		var node_type := String(node.get("type", ""))
-		var restored_id := add_graph_node(node_type, Vector2(40 + index * 210, 120), node_id)
+		var restored_id := add_graph_node(node_type, Vector2(40 + index * 210, 120), node_id, node.get("params", {}) as Dictionary)
 		if restored_id == "":
 			continue
 		set_node_params(restored_id, node.get("params", {}) as Dictionary)
@@ -640,6 +644,16 @@ func build_default_three_node_chain() -> PackedStringArray:
 
 static func title_for_node_type(node_type: String) -> String:
 	return String(NODE_TITLES.get(node_type, node_type.capitalize()))
+
+
+static func _title_for_node(node_type: String, params: Dictionary) -> String:
+	if node_type == HexGenerationNodeTypesScript.NODE_SOURCE:
+		var output_type := String(params.get("output_type", HexGenerationPortsScript.TERRAIN))
+		if output_type == HexGenerationPortsScript.OVERLAY:
+			return "Source Overlay"
+		if output_type == HexGenerationPortsScript.TERRAIN:
+			return "Source Terrain"
+	return title_for_node_type(node_type)
 
 
 static func default_params_for_type(node_type: String) -> Dictionary:

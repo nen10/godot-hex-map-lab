@@ -529,3 +529,19 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_build_graph_canvas.gd`
     - `addons/hex_map_kit/editor/hex_map_build_screen.gd`
     - `tests/test_build_graph_canvas.gd`
+
+### REPAIR-13A_BUILD_NODE_ADD_ROW_AND_SOURCE_TYPING
+
+proof:
+  plan: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/REPAIR-13A_BUILD_NODE_ADD_ROW_AND_SOURCE_TYPING/`
+  execution:
+    - `docs/review/autopilot/REPAIR-13A_BUILD_NODE_ADD_ROW_AND_SOURCE_TYPING_SELF_REVIEW_2026-06-24.md`
+    - `docs/review/autopilot/REPAIR-13A_BUILD_NODE_ADD_ROW_AND_SOURCE_TYPING_TEST_RESULT_2026-06-24.md`
+  tests:
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/probe-logs/repair13a_canvas.log --path . --script res://tests/test_build_graph_canvas.gd` (exit 0)
+    - `TEST_JOBS=4 ./tools/test.sh` (run id `20260624-025040-8356`, exit 0)
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_build_node_palette.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_graph_canvas.gd`
+    - `tests/test_build_graph_canvas.gd`

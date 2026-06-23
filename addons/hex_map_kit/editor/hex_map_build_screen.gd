@@ -507,14 +507,14 @@ func _build_ui() -> void:
 	split.custom_minimum_size = Vector2(0, 420)
 	add_child(split)
 
-	var canvas_area := HBoxContainer.new()
+	var canvas_area := VBoxContainer.new()
 	canvas_area.name = "Build Canvas Area"
 	canvas_area.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	canvas_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_palette = HexMapBuildNodePaletteScript.new()
-	canvas_area.add_child(_palette)
 	_canvas = HexMapBuildGraphCanvasScript.new()
 	canvas_area.add_child(_canvas)
+	_palette = HexMapBuildNodePaletteScript.new()
+	canvas_area.add_child(_palette)
 	split.add_child(canvas_area)
 
 	var action_row := HBoxContainer.new()
@@ -589,6 +589,7 @@ func _build_ui() -> void:
 	add_child(_status_label)
 
 	_palette.node_type_requested.connect(_on_palette_node_type_requested)
+	_palette.node_template_requested.connect(_on_palette_node_template_requested)
 	_canvas.selected_graph_node_changed.connect(_on_canvas_selected_node_changed)
 	_canvas.graph_changed.connect(_on_canvas_graph_changed)
 	_canvas.graph_run_completed.connect(_on_canvas_graph_run_completed)
@@ -980,6 +981,15 @@ func _on_palette_node_type_requested(node_type: String) -> void:
 	var node_id := _canvas.add_graph_node(node_type, Vector2(80 + int(index) * 160, 110))
 	if node_id != "":
 		_canvas.select_graph_node(node_id)
+	_refresh_selected_node()
+
+
+func _on_palette_node_template_requested(node_type: String, params: Dictionary) -> void:
+	var index := _canvas.canvas_snapshot().get("node_count", 0)
+	var node_id := _canvas.add_graph_node(node_type, Vector2(80 + int(index) * 160, 110), "", params)
+	if node_id != "":
+		_canvas.select_graph_node(node_id)
+		_flush_canvas_graph_to_context_resource("build_screen.node_template_added")
 	_refresh_selected_node()
 
 
