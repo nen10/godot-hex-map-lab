@@ -7,7 +7,7 @@
 ## 検証方法
 
 - コード読取り: `addons/hex_map_kit/editor/hex_map_build_graph_canvas.gd`, `hex_map_build_node_inspector.gd`, `addons/hex_map_kit/generation/hex_generation_node_types.gd`, `addons/hex_map_kit/core/hex_map_generator.gd`。
-- Godot 実挙動: `tools/probe_region_filter_connection_typing.gd`（headless 実行で slot type id と `is_valid_connection_type` を確認）。
+- Godot 実挙動: `tools/probe_region_filter_connection_typing.gd`（headless 実行で slot type id を確認）。GraphEdit は drag 接続を「port type id が一致するときのみ」許可する（`add_valid_connection_type` で追加した pair も許可）。`is_valid_connection_type` は追加 pair しか true を返さない query なので、editor の実挙動の判定には port type id 一致を使う。
 
 ---
 
@@ -19,7 +19,7 @@
 | 2 | Adjacency Rules の走査が非対称で include_generated_reference 時に偏る | **state / correctness** | graph は線形走査版を呼んでおり、対称走査版に繋がっていない。test も無い。 |
 | 3 | probability_rules は text 入力で設計が破綻、Adjacency Rules Window が欲しい | **design 再設計** | text 廃止。hex方向トグル + 壁数 / 連結成分数の preset dropdown。 |
 | 4 | Wall=Markov Mesh で custom distribution 編集 window が出ない | **state 管理 + 機能欠落** | graph 経路は `custom_distribution=null` 固定。state に応じた「編集を開く」導線が無い。 |
-| 5 | Region Filter ボタンは分割したが node 共通で、overlay edge を結べない | **design 欠陥（editor typing）** | 論理層は両型OKだが GraphEdit drag 層が false。editor で結べない。 |
+| 5 | Region Filter ボタンは分割したが node 共通で、overlay edge を結べない | **design 欠陥（editor typing）** | 論理層は両型OKだが、input slot type が terrain(1) 固定で overlay(3) と不一致 → editor の equal-type drag 規則で結べない。 |
 
 ---
 
@@ -101,7 +101,8 @@
   "SLOT_OVERLAY": 3,
   "region_filter_accepts": ["terrain", "overlay"],
   "logical_validate_ok": true,
-  "graphedit_drag_allows_overlay_to_filter": false
+  "port_type_ids_match_editor_connectable": false,
+  "is_valid_connection_type_added_pair_only": false
 }
 ```
 
@@ -109,15 +110,16 @@
 
 - Region Filter の input port は `accepts=[terrain, overlay]` だが、canvas の `_input_slot_type_id` は `accepts[0]`=terrain の slot type(1) しか設定しない。
 - Item Generator の output slot type は overlay(3)。
-- `is_valid_connection_type(3, 1) == false`。GraphEdit は drag を弾き、`connection_request` を発火しない。
+- GraphEdit は default で「port type id が一致する drag だけ」許可する（equal-type 規則）。3 ≠ 1 なので drag は弾かれ、`connection_request` を発火しない。
 - そのため `validate_connection`（logical ok=true）に**到達しない**。
+- 補足: `is_valid_connection_type(a,b)` は `add_valid_connection_type` で追加した pair しか true を返さない（equal でも未追加なら false）。よって editor 実挙動の指標には type id 一致を使う。
 - 結論: 「内部では両型を受け取れる」は logical 層では真だが、**editor 上では overlay→Region Filter の edge を結べない**。REPAIR-13A のボタン分割（Terrain Filter / Overlay Filter）は同一 node を生成するだけで、port 型は分かれていない。
 
 「edge を結べない事実」をどう伝えるか:
 
-- この findings doc に slot type id と `is_valid_connection_type` の実測値を残す。
+- この findings doc に slot type id 実測値（overlay=3 / terrain=1）と equal-type drag 規則を残す。
 - `tools/probe_region_filter_connection_typing.gd` を再実行可能な証拠として残す。
-- 今後の実装では editor 上で結べることを test で固定する（slot type 一致 or `add_valid_connection_type` 登録 or node 分割）。
+- 今後の実装では editor 上で結べることを test で固定する（port type id 一致を検証）。案A（node 分割）で input port 型を単一化すれば equal-type 規則で自然に結べる。
 
 設計方針（node 設計の再検討）:
 

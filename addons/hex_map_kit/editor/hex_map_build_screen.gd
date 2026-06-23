@@ -856,7 +856,8 @@ func _refresh_selected_node() -> void:
 		return
 	var warnings := _compute_connection_warnings(node)
 	_inspector.inspect_node(node, _canvas.selected_output_type(), _canvas.selected_preview_snapshot(), warnings)
-	if String(node.get("type", "")) == HexGenerationNodeTypesScript.NODE_REGION_FILTER:
+	if String(node.get("type", "")) == HexGenerationNodeTypesScript.NODE_REGION_FILTER \
+			or String(node.get("type", "")) == HexGenerationNodeTypesScript.NODE_TERRAIN_FILTER:
 		_inspector.set_effective_flat_top(_find_effective_flat_top(node))
 	_inspector.set_promote_enabled(_workspace_asset_context != null and _workspace_asset_context.level_document != null)
 

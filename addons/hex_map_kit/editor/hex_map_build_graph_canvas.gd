@@ -20,7 +20,8 @@ const NODE_TYPE_ORDER := [
 	HexGenerationNodeTypesScript.NODE_SHAPE,
 	HexGenerationNodeTypesScript.NODE_WALL_FIELD,
 	HexGenerationNodeTypesScript.NODE_CONNECTIVITY,
-	HexGenerationNodeTypesScript.NODE_REGION_FILTER,
+	HexGenerationNodeTypesScript.NODE_TERRAIN_FILTER,
+	HexGenerationNodeTypesScript.NODE_OVERLAY_FILTER,
 	HexGenerationNodeTypesScript.NODE_SET_OPERATION,
 	HexGenerationNodeTypesScript.NODE_ITEM_GENERATOR,
 	HexGenerationNodeTypesScript.NODE_COMPOSE,
@@ -47,6 +48,8 @@ const NODE_TITLES := {
 	HexGenerationNodeTypesScript.NODE_WALL_FIELD: "Wall Field",
 	HexGenerationNodeTypesScript.NODE_CONNECTIVITY: "Connectivity",
 	HexGenerationNodeTypesScript.NODE_REGION_FILTER: "Region Filter",
+	HexGenerationNodeTypesScript.NODE_TERRAIN_FILTER: "Terrain Filter",
+	HexGenerationNodeTypesScript.NODE_OVERLAY_FILTER: "Overlay Filter",
 	HexGenerationNodeTypesScript.NODE_ITEM_GENERATOR: "Item Generator",
 	HexGenerationNodeTypesScript.NODE_COMPOSE: "Compose",
 	HexGenerationNodeTypesScript.NODE_SET_OPERATION: "Set Operation",
@@ -681,9 +684,19 @@ static func default_params_for_type(node_type: String) -> Dictionary:
 				"method": "dense",
 				"seed": 41,
 			}
-		HexGenerationNodeTypesScript.NODE_REGION_FILTER:
+		HexGenerationNodeTypesScript.NODE_REGION_FILTER, HexGenerationNodeTypesScript.NODE_TERRAIN_FILTER:
 			return {
 				"filter_target": "floor",
+				"shift_q": 0,
+				"shift_r": 0,
+				"shift_s": 0,
+				"within_distance_of": [HexVectorScript.zero()],
+				"max_distance": 3,
+			}
+		HexGenerationNodeTypesScript.NODE_OVERLAY_FILTER:
+			return {
+				"filter_target": "item_key",
+				"item_key": "spawn",
 				"shift_q": 0,
 				"shift_r": 0,
 				"shift_s": 0,
@@ -971,7 +984,7 @@ func build_default_vertical_slice_chain() -> PackedStringArray:
 	var shape := add_graph_node(HexGenerationNodeTypesScript.NODE_SHAPE, Vector2(30, 120), "shape")
 	var walls := add_graph_node(HexGenerationNodeTypesScript.NODE_WALL_FIELD, Vector2(230, 120), "walls")
 	var connect := add_graph_node(HexGenerationNodeTypesScript.NODE_CONNECTIVITY, Vector2(430, 120), "connectivity")
-	var filter := add_graph_node(HexGenerationNodeTypesScript.NODE_REGION_FILTER, Vector2(650, 120), "spawn_floor_filter")
+	var filter := add_graph_node(HexGenerationNodeTypesScript.NODE_TERRAIN_FILTER, Vector2(650, 120), "spawn_floor_filter")
 	var items := add_graph_node(HexGenerationNodeTypesScript.NODE_ITEM_GENERATOR, Vector2(890, 120), "weighted_items")
 	var result := add_graph_node(HexGenerationNodeTypesScript.NODE_RESULT, Vector2(1150, 120), "result")
 	request_connection(shape, 0, walls, 0)

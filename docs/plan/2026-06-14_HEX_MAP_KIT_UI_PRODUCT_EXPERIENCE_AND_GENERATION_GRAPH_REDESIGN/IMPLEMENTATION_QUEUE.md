@@ -127,7 +127,7 @@ Design index: `REPAIR_TRACK_DESIGN_INDEX.md`
 | `REPAIR-13A_BUILD_NODE_ADD_ROW_AND_SOURCE_TYPING` | `COMPLETE` | `REPAIR-13` | Move `Add Node` + node buttons below the graph and group them by layer-generation role; make `Source` output type explicit so it fits Terrain Filter / Overlay Filter split | `hex_map_build_screen.gd`, `hex_map_build_graph_canvas.gd`, inspector/docs/tests | S: grouped Add Node row + typed Source proof + `./tools/test.sh`. E: user can add Source Terrain / Source Overlay from the grouped row under the graph; Source output type is visible in node title and matches connection validation. |
 | `REPAIR-14_GRAPH_CANVAS_EDGE_DELETE` | `COMPLETE` | `REPAIR-10` | Edge deletion interaction works and is visibly discoverable | `hex_map_build_graph_canvas.gd`, screen tests | S: edge selection/delete proof + `./tools/test.sh`. E: user can select and delete an edge via visible Delete Edge action without deleting nodes or relying on context-menu behavior. |
 | `REPAIR-15_MARKOV_ADJACENCY_MAPPING` | `BACKLOG` | `REPAIR-13` | Markov Mesh and adjacency/item generation mapping against old Generate intent, including limited item count wiring and symmetric adjacency scan proof | generation state docs/code/tests | S: parity matrix, limited item row count semantics, adjacency include-generated-reference symmetric scan tests. E: weighted/limited stay simple random generation extensions; adjacency rules do not bias from linear traversal. |
-| `REPAIR-16_REGION_FILTER_NODE_TYPING_REDESIGN` | `BACKLOG` | `REPAIR-13A` | Split Terrain Filter / Overlay Filter into editor-real typed ports, not only button labels | graph node schema + canvas port tests | S: overlay output can be connected to Overlay Filter in GraphEdit drag layer; terrain output cannot. E: editor connection behavior matches UI labels and no longer relies on hidden multi-accept claims. |
+| `REPAIR-16_REGION_FILTER_NODE_TYPING_REDESIGN` | `COMPLETE` | `REPAIR-13A` | Split Terrain Filter / Overlay Filter into editor-real typed ports, not only button labels | graph node schema + canvas port tests | S: overlay output can be connected to Overlay Filter in GraphEdit drag layer; terrain output cannot. E: editor connection behavior matches UI labels and no longer relies on hidden multi-accept claims. |
 | `REPAIR-17_ADJACENCY_RULES_WINDOW` | `BACKLOG` | `REPAIR-15` | Replace probability_rules text field with structured Adjacency Rules window/presets | inspector/modal + rules resource/tests | S: hex-direction toggles, wall count/component count controls, preset dropdown, structured rules passed to generator. E: user configures adjacency rules visually without raw text. |
 | `REPAIR-18_MARKOV_DISTRIBUTION_WINDOW` | `BACKLOG` | `REPAIR-15` | Restore Markov Mesh custom distribution editor for Wall node and wire custom_distribution state | inspector/modal + wall generator params/tests | S: markov_mesh shows edit-distribution action and passes custom_distribution to core. E: graph Wall Field can use preset or custom Markov distribution like old Generate intent. |
 
@@ -135,7 +135,7 @@ Design index: `REPAIR_TRACK_DESIGN_INDEX.md`
 
 ## 10. Current pointer
 
-Current recommended next task: `REPAIR-16_REGION_FILTER_NODE_TYPING_REDESIGN`.
+Current recommended next task: `REPAIR-15_MARKOV_ADJACENCY_MAPPING`.
 
 理由:
 - `REPAIR-10` は `COMPLETE`：Build `Generate` / `Generate (Simple)` が selected/new `HexTileMapLayer` へviewport projectionし、Apply/Revert契約とprojection reportを持つ。`HexMapPreviewThumbnail` は secondary proof扱い。proof は `PROOF_LOG.md`。

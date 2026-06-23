@@ -72,7 +72,7 @@ func set_promote_enabled(enabled: bool) -> void:
 
 func set_effective_flat_top(flat_top: bool) -> void:
 	_effective_flat_top = flat_top
-	if _node_type == HexGenerationNodeTypesScript.NODE_REGION_FILTER:
+	if _node_type == HexGenerationNodeTypesScript.NODE_REGION_FILTER or _node_type == HexGenerationNodeTypesScript.NODE_TERRAIN_FILTER:
 		_refresh_ui()
 
 
@@ -532,6 +532,16 @@ func _param_options(node_type: String, key: String) -> Array[Dictionary]:
 				{"label": "Markov Mesh", "value": "markov_mesh"},
 			]
 		"filter_target":
+			if node_type == HexGenerationNodeTypesScript.NODE_OVERLAY_FILTER:
+				return [
+					{"label": "Item Key", "value": "item_key"},
+				]
+			if node_type == HexGenerationNodeTypesScript.NODE_TERRAIN_FILTER:
+				return [
+					{"label": "Floor", "value": "floor"},
+					{"label": "Wall", "value": "wall"},
+					{"label": "Any", "value": "any"},
+				]
 			return [
 				{"label": "Floor", "value": "floor"},
 				{"label": "Wall", "value": "wall"},
@@ -692,7 +702,7 @@ func _param_visibility_for_type(node_type: String, params: Dictionary) -> Dictio
 			result["size"] = shape == "square"
 			result["radius"] = shape == "hexagon"
 			result["toric"] = shape != "hexagon"
-		HexGenerationNodeTypesScript.NODE_REGION_FILTER:
+		HexGenerationNodeTypesScript.NODE_REGION_FILTER, HexGenerationNodeTypesScript.NODE_TERRAIN_FILTER, HexGenerationNodeTypesScript.NODE_OVERLAY_FILTER:
 			var ft := String(params.get("filter_target", params.get("mode", "floor")))
 			result["item_key"] = ft == "item_key"
 		HexGenerationNodeTypesScript.NODE_ITEM_GENERATOR:
@@ -721,7 +731,7 @@ func _param_keys_for_type(node_type: String) -> Array:
 			return ["wall_method", "wall_probability", "distribution_id", "seed"]
 		HexGenerationNodeTypesScript.NODE_CONNECTIVITY:
 			return ["method", "seed"]
-		HexGenerationNodeTypesScript.NODE_REGION_FILTER:
+		HexGenerationNodeTypesScript.NODE_REGION_FILTER, HexGenerationNodeTypesScript.NODE_TERRAIN_FILTER, HexGenerationNodeTypesScript.NODE_OVERLAY_FILTER:
 			return ["filter_target", "item_key", "shift_offset"]
 		HexGenerationNodeTypesScript.NODE_ITEM_GENERATOR:
 			return ["placement_method", "placement_probability", "item_pool", "probability_rules", "neighbor_radius", "include_generated_reference", "seed"]
@@ -759,7 +769,7 @@ func _migrate_params() -> void:
 			if not _params.has("wall_method"):
 				_params["wall_method"] = _params["mode"]
 			_params.erase("mode")
-		HexGenerationNodeTypesScript.NODE_REGION_FILTER:
+		HexGenerationNodeTypesScript.NODE_REGION_FILTER, HexGenerationNodeTypesScript.NODE_TERRAIN_FILTER, HexGenerationNodeTypesScript.NODE_OVERLAY_FILTER:
 			if not _params.has("filter_target"):
 				_params["filter_target"] = _params["mode"]
 			_params.erase("mode")

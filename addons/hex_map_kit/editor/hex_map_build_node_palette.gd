@@ -116,8 +116,8 @@ func _palette_groups() -> Array[Dictionary]:
 			"id": "select",
 			"label": "Select",
 			"entries": [
-				{"label": "Terrain Filter", "node_type": HexGenerationNodeTypesScript.NODE_REGION_FILTER, "params": {"filter_target": "floor"}},
-				{"label": "Overlay Filter", "node_type": HexGenerationNodeTypesScript.NODE_REGION_FILTER, "params": {"filter_target": "item_key"}},
+				{"label": "Terrain Filter", "node_type": HexGenerationNodeTypesScript.NODE_TERRAIN_FILTER},
+				{"label": "Overlay Filter", "node_type": HexGenerationNodeTypesScript.NODE_OVERLAY_FILTER},
 				{"label": "Selection Operator", "node_type": HexGenerationNodeTypesScript.NODE_SET_OPERATION},
 			],
 		},

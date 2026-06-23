@@ -20,6 +20,8 @@ const NODE_SHAPE := "shape"
 const NODE_WALL_FIELD := "wall_field"
 const NODE_CONNECTIVITY := "connectivity"
 const NODE_REGION_FILTER := "region_filter"
+const NODE_TERRAIN_FILTER := "terrain_filter"
+const NODE_OVERLAY_FILTER := "overlay_filter"
 const NODE_ITEM_GENERATOR := "item_generator"
 const NODE_COMPOSE := "compose"
 const NODE_SET_OPERATION := "set_operation"
@@ -93,6 +95,26 @@ static func registry() -> Dictionary:
 			"inputs": {
 				"in": {
 					"accepts": [HexGenerationPortsScript.TERRAIN, HexGenerationPortsScript.OVERLAY],
+					"required": true,
+				},
+			},
+			"output": HexGenerationPortsScript.SELECTION,
+			"run_method": "_run_region_filter",
+		},
+		NODE_TERRAIN_FILTER: {
+			"inputs": {
+				"in": {
+					"accepts": [HexGenerationPortsScript.TERRAIN],
+					"required": true,
+				},
+			},
+			"output": HexGenerationPortsScript.SELECTION,
+			"run_method": "_run_region_filter",
+		},
+		NODE_OVERLAY_FILTER: {
+			"inputs": {
+				"in": {
+					"accepts": [HexGenerationPortsScript.OVERLAY],
 					"required": true,
 				},
 			},
@@ -178,6 +200,10 @@ static func run_node(node: Dictionary, inputs: Dictionary, context: Dictionary):
 		NODE_CONNECTIVITY:
 			return _run_connectivity(inputs, params, context, resource_refs)
 		NODE_REGION_FILTER:
+			return _run_region_filter(inputs, params, context, resource_refs)
+		NODE_TERRAIN_FILTER:
+			return _run_region_filter(inputs, params, context, resource_refs)
+		NODE_OVERLAY_FILTER:
 			return _run_region_filter(inputs, params, context, resource_refs)
 		NODE_ITEM_GENERATOR:
 			return _run_item_generator(inputs, params, context, resource_refs)

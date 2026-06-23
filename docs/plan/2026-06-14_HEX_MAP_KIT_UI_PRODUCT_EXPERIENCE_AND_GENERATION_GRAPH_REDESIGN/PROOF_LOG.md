@@ -575,3 +575,22 @@ proof:
     - `logical_validate_ok = true`
     - `graphedit_drag_allows_overlay_to_filter = false`
     - `item_generator_output_type_id = 3`, `region_filter_input_type_id = 1`
+
+
+### REPAIR-16_REGION_FILTER_NODE_TYPING_REDESIGN
+
+proof:
+  findings: `docs/development_log/2026-06-24_BUILD_NODE_DESIGN_GAPS_FINDINGS.md`
+  execution:
+    - `docs/review/autopilot/REPAIR-16_REGION_FILTER_NODE_TYPING_REDESIGN_SELF_REVIEW_2026-06-24.md`
+    - `docs/review/autopilot/REPAIR-16_REGION_FILTER_NODE_TYPING_REDESIGN_TEST_RESULT_2026-06-24.md`
+  tests:
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/probe-logs/repair16_canvas.log --path . --script res://tests/test_build_graph_canvas.gd` (exit 0)
+    - `TEST_JOBS=4 ./tools/test.sh` (run id `20260624-041801-44801`, exit 0)
+  major files:
+    - `addons/hex_map_kit/generation/hex_generation_node_types.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_graph_canvas.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_node_palette.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_node_inspector.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_screen.gd`
+    - `tests/test_build_graph_canvas.gd`

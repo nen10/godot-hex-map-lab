@@ -14,6 +14,7 @@ func _run() -> void:
 	await _test_canvas_builds_model_and_runs_three_node_preview()
 	await _test_run_state_caches_and_marks_dirty_downstream()
 	await _test_edge_selection_and_delete_updates_graph_state()
+	await _test_typed_filter_nodes_match_editor_connection_types()
 	await _test_run_state_reports_failure_node()
 	await _test_build_screen_generate_is_primary_and_batch_secondary()
 	await _test_build_screen_cancel_passes_interrupt_options()
@@ -182,6 +183,44 @@ func _test_edge_selection_and_delete_updates_graph_state() -> void:
 
 
 func _test_run_state_reports_failure_node() -> void:
+	await _test_run_state_reports_failure_node_impl()
+
+
+func _test_typed_filter_nodes_match_editor_connection_types() -> void:
+	var canvas = HexMapBuildGraphCanvas.new()
+	root.add_child(canvas)
+	await process_frame
+
+	var shape = canvas.add_graph_node(HexGenerationNodeTypes.NODE_SHAPE, Vector2.ZERO, "shape")
+	var terrain_filter = canvas.add_graph_node(HexGenerationNodeTypes.NODE_TERRAIN_FILTER, Vector2(220, 0), "terrain_filter")
+	var item_generator = canvas.add_graph_node(HexGenerationNodeTypes.NODE_ITEM_GENERATOR, Vector2(440, 0), "items")
+	var overlay_filter = canvas.add_graph_node(HexGenerationNodeTypes.NODE_OVERLAY_FILTER, Vector2(660, 0), "overlay_filter")
+
+	_assert_true(bool(canvas.request_connection(shape, 0, terrain_filter, 0)["ok"]), "REPAIR-16 terrain output connects to Terrain Filter")
+	_assert_true(bool(canvas.request_connection(terrain_filter, 0, item_generator, 0)["ok"]), "REPAIR-16 selection output connects to Item Generator")
+	_assert_true(bool(canvas.request_connection(item_generator, 0, overlay_filter, 0)["ok"]), "REPAIR-16 overlay output connects to Overlay Filter")
+	_assert_true(not bool(canvas.validate_connection(item_generator, 0, terrain_filter, 0)["ok"]), "REPAIR-16 overlay output is not valid for Terrain Filter")
+	_assert_true(not bool(canvas.validate_connection(shape, 0, overlay_filter, 0)["ok"]), "REPAIR-16 terrain output is not valid for Overlay Filter")
+
+	var item_node = canvas.get_node(NodePath(item_generator)) as GraphNode
+	var overlay_filter_node = canvas.get_node(NodePath(overlay_filter)) as GraphNode
+	var shape_node = canvas.get_node(NodePath(shape)) as GraphNode
+	var terrain_filter_node = canvas.get_node(NodePath(terrain_filter)) as GraphNode
+	# GraphEdit allows a drag connection only when port type ids match (default implicit equal-type rule).
+	var overlay_out := item_node.get_output_port_type(0)
+	var terrain_out := shape_node.get_output_port_type(0)
+	var overlay_filter_in := overlay_filter_node.get_input_port_type(0)
+	var terrain_filter_in := terrain_filter_node.get_input_port_type(0)
+	_assert_eq(overlay_out, overlay_filter_in, "REPAIR-16 overlay output port type matches Overlay Filter input port type (editor-connectable)")
+	_assert_eq(terrain_out, terrain_filter_in, "REPAIR-16 terrain output port type matches Terrain Filter input port type (editor-connectable)")
+	_assert_true(overlay_out != terrain_filter_in, "REPAIR-16 overlay output port type does not match Terrain Filter input (editor blocks the drag)")
+	_assert_true(terrain_out != overlay_filter_in, "REPAIR-16 terrain output port type does not match Overlay Filter input (editor blocks the drag)")
+
+	canvas.queue_free()
+	await process_frame
+
+
+func _test_run_state_reports_failure_node_impl() -> void:
 	var screen = HexMapBuildScreen.new()
 	root.add_child(screen)
 	await process_frame
