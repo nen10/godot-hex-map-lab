@@ -69,3 +69,21 @@ Required artifacts:
 - adjacency rule の変更が生成結果に差を出す。
 - sample-only success ではなく、任意 graph params で proof する。
 
+
+## 再定義 (2026-06-24)
+
+このtaskは「Markov/adjacency mapping」単体ではなく、**旧Generateタブからの状態管理移行の全体監査 + 最適UI設計**として整理し直す。
+
+理由:
+- 個別の不足（limited の個数フィールド配線、adjacency の対称走査、distribution custom 等）は、旧Generateタブが持っていた state がBuild graphのnode/state/UIへ移行しきれていない、という同一の根に由来する。
+- 個別 hotfix を積むと、再び「移行漏れ」が散発する。
+
+成果物（このtaskで作る）:
+- 移行カバレッジ matrix: `旧Generate behavior/state -> Build graph node / derived state / UI` の対応表。各項目を `migrated / partial / dropped` で分類。
+- 各 migrated 項目の最適UI設計方針（design-system 観点を含む）。
+- 優先度付き gap リスト（REPAIR-17/18 等の個別実装へ分岐）。
+
+内包する既知 gap:
+- Item Generator `limited` の item row が個数(`remaining`)を書かない（`docs/development_log/2026-06-24_BUILD_NODE_DESIGN_GAPS_FINDINGS.md` #1）。
+- adjacency_rules の include_generated_reference 時の非対称走査バイアス（同 #2）。
+- Markov/adjacency の旧Generate意図との parity。

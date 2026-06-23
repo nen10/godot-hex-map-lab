@@ -192,6 +192,10 @@ func _build_param_controls() -> void:
 			control = _build_item_pool_editor()
 		elif key == "shift_offset":
 			control = _build_shift_hex_pad()
+		elif key == "custom_distribution":
+			control = _build_markov_distribution_editor()
+		elif key == "probability_rules":
+			control = _build_adjacency_rules_editor()
 		else:
 			control = _create_param_control(key, _params.get(key, _param_default(key, _node_type)))
 		_params_container.add_child(row)
@@ -479,6 +483,196 @@ func _commit_shift_params() -> void:
 	node_params_changed.emit(_node_id, _params.duplicate(true))
 
 
+func _build_markov_distribution_editor() -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.name = "MarkovDistributionEditor"
+	var summary := Label.new()
+	summary.name = "MarkovDistributionSummary"
+	var values: Array = _params.get("custom_distribution", [])
+	summary.text = "custom distribution: %s" % ("configured" if values is Array and not values.is_empty() else "preset")
+	row.add_child(summary)
+	var button := Button.new()
+	button.name = "OpenMarkovDistributionEditor"
+	button.text = "Edit Distribution"
+	button.pressed.connect(func():
+		_open_markov_distribution_dialog(summary)
+	)
+	row.add_child(button)
+	return row
+
+
+func _open_markov_distribution_dialog(summary_label: Label = null) -> void:
+	var dialog := AcceptDialog.new()
+	dialog.name = "Markov Distribution Window"
+	dialog.title = "Markov Mesh Distribution"
+	var body := VBoxContainer.new()
+	var help := Label.new()
+	help.text = "Set wall probability for each 3-bit reference state."
+	body.add_child(help)
+	var current := _markov_distribution_values()
+	var spins: Array[SpinBox] = []
+	for index in range(8):
+		var row := HBoxContainer.new()
+		var label := Label.new()
+		label.text = "state %d" % index
+		row.add_child(label)
+		var spin := SpinBox.new()
+		spin.min_value = 0.0
+		spin.max_value = 1.0
+		spin.step = 0.05
+		spin.value = float(current[index])
+		row.add_child(spin)
+		spins.append(spin)
+		body.add_child(row)
+	dialog.add_child(body)
+	dialog.confirmed.connect(func():
+		var values: Array = []
+		for spin in spins:
+			values.append(clampf(float(spin.value), 0.0, 1.0))
+		_params["custom_distribution"] = values
+		if summary_label != null:
+			summary_label.text = "custom distribution: configured"
+		if _node_id != "":
+			node_params_changed.emit(_node_id, _params.duplicate(true))
+		dialog.queue_free()
+	)
+	dialog.canceled.connect(func():
+		dialog.queue_free()
+	)
+	add_child(dialog)
+	dialog.popup_centered(Vector2i(420, 420))
+
+
+func _markov_distribution_values() -> Array:
+	var values = _params.get("custom_distribution", [])
+	if values is Array and (values as Array).size() >= 8:
+		return (values as Array).slice(0, 8)
+	return [0.625, 0.375, 0.375, 0.625, 0.375, 0.875, 0.625, 0.125]
+
+
+func _build_adjacency_rules_editor() -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.name = "AdjacencyRulesEditor"
+	var summary := Label.new()
+	summary.name = "AdjacencyRulesSummary"
+	summary.text = _adjacency_rules_summary()
+	row.add_child(summary)
+	var button := Button.new()
+	button.name = "OpenAdjacencyRulesEditor"
+	button.text = "Edit Rules"
+	button.pressed.connect(func():
+		_open_adjacency_rules_dialog(summary)
+	)
+	row.add_child(button)
+	return row
+
+
+func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
+	var dialog := AcceptDialog.new()
+	dialog.name = "Adjacency Rules Window"
+	dialog.title = "Adjacency Rules"
+	var body := VBoxContainer.new()
+	var panel := HexCellButtonPanel.new()
+	panel.name = "AdjacencyRulesDirectionPanel"
+	panel.custom_minimum_size = Vector2(180, 140)
+	var direction_labels := {}
+	var direction_metadata := {}
+	var pressable := {}
+	for direction in HexVector.directions():
+		var key: String = direction.key()
+		direction_labels[key] = _hex_direction_short_label(direction)
+		direction_metadata[key] = {"direction": key}
+		pressable[key] = true
+	panel.configure({
+		"shape_kind": "directions",
+		"flat_top": _effective_flat_top,
+		"cell_radius": 14.0,
+		"cell_gap": 1.0,
+		"padding": Vector2(6, 6),
+		"center_cell": HexVector.zero(),
+		"pressable_cells": pressable,
+		"label_by_cell": direction_labels,
+		"metadata_by_cell": direction_metadata,
+	})
+	body.add_child(panel)
+	var count_spin := SpinBox.new()
+	count_spin.name = "AdjacencyRuleWallCount"
+	count_spin.min_value = 0
+	count_spin.max_value = 18
+	count_spin.step = 1
+	count_spin.value = int(_adjacency_first_rule().get("count", 1))
+	body.add_child(_labeled_control("Wall count", count_spin))
+	var components_spin := SpinBox.new()
+	components_spin.name = "AdjacencyRuleComponentCount"
+	components_spin.min_value = 0
+	components_spin.max_value = 18
+	components_spin.step = 1
+	components_spin.value = int(_adjacency_first_rule().get("components", 1))
+	body.add_child(_labeled_control("Connected components", components_spin))
+	var probability_spin := SpinBox.new()
+	probability_spin.name = "AdjacencyRuleProbability"
+	probability_spin.min_value = 0.0
+	probability_spin.max_value = 1.0
+	probability_spin.step = 0.05
+	probability_spin.value = float(_adjacency_first_rule().get("probability", 0.5))
+	body.add_child(_labeled_control("Probability", probability_spin))
+	dialog.add_child(body)
+	dialog.confirmed.connect(func():
+		_params["probability_rules"] = {
+			"default": 0.0,
+			"rules": [{
+				"count": int(count_spin.value),
+				"components": int(components_spin.value),
+				"probability": float(probability_spin.value),
+				"directions": _adjacency_rule_directions(),
+			}],
+		}
+		if summary_label != null:
+			summary_label.text = _adjacency_rules_summary()
+		if _node_id != "":
+			node_params_changed.emit(_node_id, _params.duplicate(true))
+		dialog.queue_free()
+	)
+	dialog.canceled.connect(func():
+		dialog.queue_free()
+	)
+	add_child(dialog)
+	dialog.popup_centered(Vector2i(460, 520))
+
+
+func _labeled_control(label_text: String, control: Control) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	var label := Label.new()
+	label.text = label_text
+	label.custom_minimum_size = Vector2(160, 0)
+	row.add_child(label)
+	row.add_child(control)
+	return row
+
+
+func _adjacency_rules_summary() -> String:
+	var value = _params.get("probability_rules", {})
+	if value is Dictionary:
+		var rules = (value as Dictionary).get("rules", []) as Array
+		return "structured rules: %d" % rules.size()
+	return "preset/text rule"
+
+
+func _adjacency_first_rule() -> Dictionary:
+	var value = _params.get("probability_rules", {})
+	if value is Dictionary:
+		var rules = (value as Dictionary).get("rules", []) as Array
+		if not rules.is_empty() and rules[0] is Dictionary:
+			return rules[0] as Dictionary
+	return {"count": 1, "components": 1, "probability": 0.5}
+
+
+func _adjacency_rule_directions() -> Array:
+	var first := _adjacency_first_rule()
+	var dirs = first.get("directions", [])
+	return dirs if dirs is Array else []
+
+
 func _hex_direction_short_label(direction: HexVector) -> String:
 	if direction.q == 1 and direction.r == 0:
 		return "+Q"
@@ -718,6 +912,7 @@ func _param_visibility_for_type(node_type: String, params: Dictionary) -> Dictio
 			var wm := String(params.get("wall_method", params.get("mode", "random_probability")))
 			result["wall_probability"] = wm != "markov_mesh"
 			result["distribution_id"] = wm == "markov_mesh"
+			result["custom_distribution"] = wm == "markov_mesh"
 	return result
 
 
@@ -728,7 +923,7 @@ func _param_keys_for_type(node_type: String) -> Array:
 		HexGenerationNodeTypesScript.NODE_SHAPE:
 			return ["shape", "width", "height", "size", "radius", "toric"]
 		HexGenerationNodeTypesScript.NODE_WALL_FIELD:
-			return ["wall_method", "wall_probability", "distribution_id", "seed"]
+			return ["wall_method", "wall_probability", "distribution_id", "custom_distribution", "seed"]
 		HexGenerationNodeTypesScript.NODE_CONNECTIVITY:
 			return ["method", "seed"]
 		HexGenerationNodeTypesScript.NODE_REGION_FILTER, HexGenerationNodeTypesScript.NODE_TERRAIN_FILTER, HexGenerationNodeTypesScript.NODE_OVERLAY_FILTER:

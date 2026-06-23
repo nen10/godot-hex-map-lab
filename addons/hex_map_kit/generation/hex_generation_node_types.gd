@@ -14,6 +14,7 @@ const HexMapDocumentTerrainLayerResourceScript = preload("res://addons/hex_map_k
 const HexMapDocumentOverlayLayerResourceScript = preload("res://addons/hex_map_kit/adapter/hex_map_document_overlay_layer_resource.gd")
 const HexGenerationResultResourceScript = preload("res://addons/hex_map_kit/adapter/hex_generation_result_resource.gd")
 const HexAdjacencyRuleSetScript = preload("res://addons/hex_map_kit/adapter/hex_adjacency_rule_set.gd")
+const HexWallDistributionResourceScript = preload("res://addons/hex_map_kit/adapter/hex_wall_distribution_resource.gd")
 
 const NODE_SOURCE := "source"
 const NODE_SHAPE := "shape"
@@ -269,13 +270,14 @@ static func _run_wall_field(inputs: Dictionary, params: Dictionary, context: Dic
 			for cell in data.cells:
 				max_extent = max(max_extent, abs(int(cell.q)), abs(int(cell.r)))
 			var radius := max(1, max_extent)
+			var custom_distribution = _custom_wall_distribution(params)
 			var symmetric_result = HexMapGeneratorScript.generate_symmetric_toric_walls_interruptible(
 				radius,
 				clampf(float(params.get("wall_probability", 0.3)), 0.0, 1.0),
 				_seed(params, context),
 				int(params.get("distribution_id", 20)),
 				_points_param(params, "protected_floor"),
-				null,
+				custom_distribution,
 				_interrupt_options(context)
 			)
 			var wall_set := {}
@@ -355,9 +357,7 @@ static func _run_item_generator(inputs: Dictionary, params: Dictionary, context:
 				_interrupt_options(context)
 			)["data"]
 		"adjacency_rules":
-			var rules_text = String(params.get("probability_rules", "default=0.5"))
-			var parse_result := HexAdjacencyRuleSetScript.parse_rules_text_report(rules_text)
-			var rules = parse_result.get("rules", {}) as Dictionary
+			var rules = _probability_rules_param(params.get("probability_rules", "default=0.5"))
 			var neighbor_radius := clampi(int(params.get("neighbor_radius", 1)), 1, 16)
 			var include_ref := bool(params.get("include_generated_reference", false))
 			var cyclic_size := _compute_cyclic_size(cells)
@@ -629,6 +629,38 @@ static func _seed(params: Dictionary, context: Dictionary, salt: int = 0) -> int
 static func _points_param(params: Dictionary, key: String) -> Array:
 	var value = params.get(key, [])
 	return value.duplicate() if value is Array else []
+
+
+static func _custom_wall_distribution(params: Dictionary):
+	var values = params.get("custom_distribution", [])
+	if values is Array and not (values as Array).is_empty():
+		var resource = HexWallDistributionResourceScript.new()
+		var normalized: Array = []
+		for value in (values as Array):
+			normalized.append(clampf(float(value), 0.0, 1.0))
+		resource.weights = normalized
+		return resource
+	var resource = params.get("custom_distribution_resource", null)
+	if resource != null and resource.has_method("prob"):
+		return resource
+	return null
+
+
+static func _probability_rules_param(value) -> Dictionary:
+	if value is Dictionary:
+		var result := {}
+		var data := value as Dictionary
+		if data.has("default"):
+			result["default"] = clampf(float(data.get("default", 0.0)), 0.0, 1.0)
+		for raw_rule in data.get("rules", []) as Array:
+			if not raw_rule is Dictionary:
+				continue
+			var rule := raw_rule as Dictionary
+			var key = Vector2i(int(rule.get("count", 0)), int(rule.get("components", 0)))
+			result[key] = clampf(float(rule.get("probability", 0.0)), 0.0, 1.0)
+		return result
+	var parse_result := HexAdjacencyRuleSetScript.parse_rules_text_report(String(value))
+	return parse_result.get("rules", {}) as Dictionary
 
 
 static func _interrupt_options(context: Dictionary) -> Dictionary:

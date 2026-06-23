@@ -594,3 +594,39 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_build_node_inspector.gd`
     - `addons/hex_map_kit/editor/hex_map_build_screen.gd`
     - `tests/test_build_graph_canvas.gd`
+
+
+### REPAIR-17_ADJACENCY_RULES_WINDOW
+
+proof:
+  findings: `docs/development_log/2026-06-24_BUILD_NODE_DESIGN_GAPS_FINDINGS.md`
+  execution:
+    - `docs/review/autopilot/REPAIR-17_ADJACENCY_RULES_WINDOW_SELF_REVIEW_2026-06-24.md`
+    - `docs/review/autopilot/REPAIR-17_ADJACENCY_RULES_WINDOW_TEST_RESULT_2026-06-24.md`
+  tests:
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/probe-logs/repair17_18_test_generation_graph.log --path . --script res://tests/test_generation_graph.gd` (exit 0)
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/probe-logs/repair17_18_test_build_graph_canvas.log --path . --script res://tests/test_build_graph_canvas.gd` (exit 0)
+    - `TEST_JOBS=4 ./tools/test.sh` (run id `20260624-044658-56029`, exit 0)
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_build_node_inspector.gd`
+    - `addons/hex_map_kit/generation/hex_generation_node_types.gd`
+    - `tests/test_generation_graph.gd`
+    - `tests/test_build_graph_canvas.gd`
+
+### REPAIR-18_MARKOV_DISTRIBUTION_WINDOW
+
+proof:
+  findings: `docs/development_log/2026-06-24_BUILD_NODE_DESIGN_GAPS_FINDINGS.md`
+  execution:
+    - `docs/review/autopilot/REPAIR-18_MARKOV_DISTRIBUTION_WINDOW_SELF_REVIEW_2026-06-24.md`
+    - `docs/review/autopilot/REPAIR-18_MARKOV_DISTRIBUTION_WINDOW_TEST_RESULT_2026-06-24.md`
+  tests:
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/probe-logs/repair17_18_test_generation_graph.log --path . --script res://tests/test_generation_graph.gd` (exit 0)
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/probe-logs/repair17_18_test_build_graph_canvas.log --path . --script res://tests/test_build_graph_canvas.gd` (exit 0)
+    - `TEST_JOBS=4 ./tools/test.sh` (run id `20260624-044658-56029`, exit 0)
+  major files:
+    - `addons/hex_map_kit/adapter/hex_wall_distribution_resource.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_node_inspector.gd`
+    - `addons/hex_map_kit/generation/hex_generation_node_types.gd`
+    - `tests/test_generation_graph.gd`
+    - `tests/test_build_graph_canvas.gd`
