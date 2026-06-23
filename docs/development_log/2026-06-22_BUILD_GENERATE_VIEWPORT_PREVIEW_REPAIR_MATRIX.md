@@ -1,30 +1,33 @@
-# Build Generate Viewport Preview Repair Matrix
+# Build Generate viewport表示 修復matrix
 
-Date: 2026-06-22
-Source handoff: `docs/development_log/2026-06-21_BUILD_TAB_UX_IMPLEMENTATION_HANDOFF.md`
-Roadmap baseline: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/ROADMAP.md`
+日付: 2026-06-22
+参照handoff: `docs/development_log/2026-06-21_BUILD_TAB_UX_IMPLEMENTATION_HANDOFF.md`
+roadmap baseline: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/ROADMAP.md`
 
-## Decision
+## 決定
 
-`Generate` must project the generated result into the Godot 2D viewport through a real `HexTileMapLayer`.
-The selected `HexTileMapLayer` is the target when one exists; otherwise Build creates and selects `BuildHexMapLayer`.
-The result is a reversible preview until `Apply` is pressed. `Revert` restores the previous in-memory document and reapplies it to the target layer.
+`Generate`は、生成結果を実際の`HexTileMapLayer`経由でGodot 2D viewportへ投影する。
 
-The small square tile panel concern refers to `HexMapPreviewThumbnail` and related preview payload terminology.
-It must not be reintroduced as visible Build completion UI. If thumbnail data remains in snapshots for legacy Generate/QA flows, it is not completion evidence for Build viewport projection.
+選択中の`HexTileMapLayer`があればそこを対象にする。なければBuild側で`BuildHexMapLayer`を作成して選択する。
 
-## Matrix
+生成結果は`Apply`までpending preview。`Revert`は生成前のin-memory documentを復元し、対象layerへ再適用する。
 
-| item | decision | reason | proof path |
+四角tile panelに見えるものは`HexMapPreviewThumbnail`系の出力概要であり、Buildの主結果ではない。snapshot上にthumbnail情報が残っても、それはviewport projectionの完了証明ではない。
+
+## matrix
+
+| 項目 | 判断 | 理由 | 証明方法 |
 |---|---|---|---|
-| Generate viewport path | repair-now | Primary action must make the map visible in the viewport, not only in node output cache. | `tests/test_generation_promote.gd` top Generate viewport tests |
-| Context-provider race | repair-now | Build screen must synchronously know the active layer/document before run/apply. | `HexMapBuildScreen.set_build_context_provider()` |
-| Preview thumbnail labeling | repair-now | Thumbnail terminology was mistaken for a visible Build result panel. Build completion must name viewport projection, not thumbnail preview. | design clarification + viewport proof fields |
-| Top Generate tests | repair-now | Existing tests covered bootstrap/promote but not the top button viewport outcome. | `tests/test_generation_promote.gd` |
-| Graph-wide generation state model | follow-up | Handoff notes show node-to-node mode constraints are product-relevant but larger than viewport repair. | future Build graph state task |
-| Region Filter item-key UX | follow-up | Item-key selection should come from the incoming overlay's planned keys, not raw text. | future inspector/input-state task |
-| Graph canvas operability/layout | follow-up | Canvas height, node text clipping, and action placement need layout work beyond the hotfix. | future Build canvas UX task |
-| Edge deletion behavior | follow-up | Current Remove/Delete behavior does not fully cover edge deletion. | future graph canvas interaction task |
-| Thumbnail-only preview proof | reject | A thumbnail proves cache data exists, not that the map is visible/usable in Godot viewport. | require `viewport_preview_visible` and layer display cells |
-| Sample-only success | reject | Samples are learning assets, not production completion proof. | use selected/new project layer |
-| Cache-only graph tests | reject | Passing graph run/cache does not prove user-visible projection. | require `display_used_cell_count() > 0` |
+| Generate viewport経路 | repair-now | 主操作はnode cacheではなくviewportにmapを見せる必要がある。 | `tests/test_generation_promote.gd`のtop Generate viewport test |
+| context provider race | repair-now | Build画面が実行前に対象layer/documentを同期的に把握できる必要がある。 | `HexMapBuildScreen.set_build_context_provider()` |
+| preview thumbnailの扱い | repair-now | thumbnailがGenerate結果と誤認された。Build完了証明には使わない。 | 設計文書 + viewport proof fields |
+| top Generate test | repair-now | 既存testはbootstrap/promote中心で、top buttonのviewport結果を証明していなかった。 | `tests/test_generation_promote.gd` |
+| graph-wide generation state model | follow-up | node間のmode制約は重要だがviewport修復より大きい。 | 次のstate設計task |
+| Region Filter item-key UX | follow-up | item-keyはraw textではなく、入力overlayで計画されるkeyから選ぶべき。 | 次のinspector/input-state task |
+| graph canvas操作性/layout | follow-up | 高さ、node text clipping、edge deletionは独立したcanvas設計が必要。 | 次のBuild canvas UX task |
+| node追加rowの位置 | follow-up | graph下部へ置く対象はbatch / Apply / Revert / Removeではなく、`Add Node`とnode button群。 | 次のBuild node add row task |
+| Source typing | follow-up | `Source`が何でも入るnodeに見えると、Terrain Filter / Overlay Filter分離と衝突する。 | Source出力型を明示する設計task |
+| edge deletion behavior | follow-up | 現在のRemove/Deleteではedge削除の実態証明が不足している。 | 次のgraph canvas interaction task |
+| thumbnail-only preview proof | reject | thumbnailはcache/data概要であり、viewport表示を証明しない。 | `viewport_preview_visible`とprojection reportを必須化 |
+| sample-only success | reject | sampleは学習素材であり、任意project assetのfeature完了ではない。 | selected/new project layerで証明 |
+| cache-only graph test | reject | graph run/cache成功だけでは、user-visible projectionを証明しない。 | `viewport_apply_report.projection_ok`を必須化 |

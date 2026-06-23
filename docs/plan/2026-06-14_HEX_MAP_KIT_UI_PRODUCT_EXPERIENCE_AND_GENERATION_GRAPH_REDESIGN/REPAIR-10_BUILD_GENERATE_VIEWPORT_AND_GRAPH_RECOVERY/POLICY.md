@@ -1,51 +1,59 @@
 # REPAIR-10 Policy
 
-## Source Of Truth
+## source of truth
 
-- Product baseline: `docs/design/PRODUCT_DEFINITION.md`
-- Generation graph baseline: `docs/design/GENERATION_GRAPH_MODEL.md`
-- Handoff: `docs/development_log/2026-06-21_BUILD_TAB_UX_IMPLEMENTATION_HANDOFF.md`
-- Design system reference: `docs/policy/design-system.md`
+- product baseline: `docs/design/PRODUCT_DEFINITION.md`
+- generation graph baseline: `docs/design/GENERATION_GRAPH_MODEL.md`
+- handoff: `docs/development_log/2026-06-21_BUILD_TAB_UX_IMPLEMENTATION_HANDOFF.md`
+- design system reference: `docs/policy/design-system.md`
 
-## Non-Negotiable Rules
+## 守るべき規則
 
-- Build graph remains the backbone.
-- Samples are not production proof.
-- UI first impression is completion evidence.
-- `Generate` completion proof must be viewport projection, not thumbnail/cache existence.
-- No new generation engine.
-- No new Resource schema for this repair.
-- No new analog tests.
-- Do not reopen completed roadmap tasks; create this repair task and schedule follow-ups.
+- Build graphは製品のbackbone。
+- sample成功だけではproduction proofにならない。
+- UI first impressionはcompletion evidenceである。
+- `Generate`完了証明はviewport projectionであり、thumbnail/cacheの存在ではない。
+- 新しいgeneration engineは作らない。
+- この修復で新しいResource schemaは作らない。
+- 新しいanalog testは作らない。
+- 完了済みroadmap taskを再openせず、このrepair taskとfollow-up taskで管理する。
 
-## Apply/Revert Rule
+## Apply / Revert規則
 
-Generated results are preview-pending until the user presses `Apply`.
+生成結果は、ユーザーが`Apply`を押すまではpreview pending状態。
 
-- `Apply` clears the revert snapshot and marks the preview kept.
-- `Revert` restores terrain/overlay/object document state from before projection and reapplies the viewport display.
-- `Apply` is prohibited if viewport projection failed.
+- `Apply`はrevert snapshotを破棄し、previewを保持済みにする。
+- `Revert`はprojection前のterrain/overlay/object document stateを復元し、viewport表示も再適用する。
+- viewport projectionが失敗している場合、`Apply`は禁止する。
 
-## Projection Success Rule
+## projection成功規則
 
-`viewport_preview_visible` may be true only when all are true:
+`viewport_preview_visible`がtrueになってよいのは、以下をすべて満たす場合だけ。
 
-- preview state is `preview_pending` or `applied`,
-- active layer exists and is inside the scene tree,
-- `ensure_display_tiles()` succeeded,
-- layer display status has tile sources,
-- layer apply report is successful,
-- `display_used_cell_count() > 0`.
+- preview stateが`preview_pending`または`applied`。
+- active layerが存在し、scene tree内にある。
+- `ensure_display_tiles()`が成功している。
+- layer display statusにtile sourceがある。
+- layer apply reportが成功している。
+- `display_used_cell_count() > 0`。
 
-## Follow-Up Separation
+## follow-up分離
 
-The following are important but outside this repair:
+以下は重要だが、このrepairの範囲外。
 
-- multi-overlay Result resource contract,
-- intermediate output child node model,
-- graph-wide state evaluator,
-- Region Filter item-key/dropdown UX,
-- edge deletion interaction,
-- exact Markov Mesh / adjacency rules parity with old Generate.
+- multi-overlay Result resource contract。
+- intermediate output child node model。
+- graph-wide state evaluator。
+- Region Filter item-key / dropdown UX。
+- edge deletion interaction。
+- Markov Mesh / adjacency rulesと旧Generateの完全な対応。
 
-They must not be used as reasons to call REPAIR-10 complete, and they must not be silently assumed complete by REPAIR-10 tests.
+これらをREPAIR-10の完了条件に混ぜてはいけない。また、REPAIR-10のtestで暗黙に完了扱いしてはいけない。
+
+## 文字サイズ方針
+
+Build graphはdesktop/editor UIであり、モバイル向けの小型UIではない。小さくして収めることより、読めることを優先する。
+
+- 文字サイズの下限は既存Godot editor UIと同等の可読性を基準にする。
+- 12px級の縮小を設計要件として固定しない。
+- node幅、wrap、layoutの調整で文字切れを避ける。

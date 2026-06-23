@@ -1,63 +1,70 @@
-# Build Generate Viewport Preview Design Clarification
+# Build Generate viewport表示 修復設計の明確化
 
-Date: 2026-06-22
-Related handoff: `docs/development_log/2026-06-21_BUILD_TAB_UX_IMPLEMENTATION_HANDOFF.md`
-Related repair matrix: `docs/development_log/2026-06-22_BUILD_GENERATE_VIEWPORT_PREVIEW_REPAIR_MATRIX.md`
+日付: 2026-06-22
+関連handoff: `docs/development_log/2026-06-21_BUILD_TAB_UX_IMPLEMENTATION_HANDOFF.md`
+関連修復matrix: `docs/development_log/2026-06-22_BUILD_GENERATE_VIEWPORT_PREVIEW_REPAIR_MATRIX.md`
 
-## Purpose
+## 目的
 
-This document separates the product decision from implementation proof so Build Generate repair work does not confuse node preview data with the Godot viewport result.
+この文書は、Buildの`Generate`修復で混乱した点を切り分けるためのもの。
 
-The repair is not a Build tab redesign. It is a hotfix for the primary action: pressing `Generate` must make the generated map visible in the Godot 2D viewport through a real `HexTileMapLayer`.
+重要なのは、`Generate`の結果を「node preview / thumbnailに出た」と扱わないこと。完了証明は、Godot 2D viewport上の実際の`HexTileMapLayer`に生成結果が表示されること。
 
-## Corrected Clarification
+今回の修復はBuild tab全体の再設計ではない。主対象は、`Generate`を押したあとに生成結果がviewportへ投影される経路の修復。
 
-The square tile panel was not the requested visible result and should not be treated as the Build completion surface.
+## 訂正した判断
 
-`HexMapPreviewThumbnail` is a legacy/lightweight preview contract used by Generate/QA snapshot payloads and some older preview UI. It is not the Build viewport result. Build Generate completion proof must not be thumbnail-only, and the repair must not reintroduce a visible square thumbnail panel as the answer to Generate.
+四角いtile panelは、今回ユーザーが求めたviewport表示ではない。
 
-## Decided Behavior
+`HexMapPreviewThumbnail`は、graph nodeの出力概要やsnapshot用の軽量previewであり、Buildの主結果ではない。Build `Generate`の完了証明として、thumbnailだけを使ってはいけない。また、目に見える「四角tile panel」をGenerate結果として復活させてはいけない。
 
-| area | decision |
+## 決定事項
+
+| 項目 | 決定 |
 |---|---|
-| Primary Generate result | Show the generated result in the Godot 2D viewport. |
-| Target layer | Use selected `HexTileMapLayer`; if none exists, create and select `BuildHexMapLayer`. |
-| Context dependency | Build screen must synchronously receive the active layer/document before running. |
-| Preview commit model | Generated viewport result is pending until `Apply`; `Revert` restores the previous in-memory document and viewport display. |
-| Thumbnail / square panel | Do not use as Build completion UI or proof. |
-| Completion proof | Require viewport fields and layer display cells, not cache-only or thumbnail-only evidence. |
+| `Generate`の主結果 | Godot 2D viewportに生成結果を表示する。 |
+| 対象layer | 選択中の`HexTileMapLayer`を使う。なければ`BuildHexMapLayer`を作成して選択する。 |
+| context取得 | Build画面は実行前に同期的に対象layer/document/graphを取得する。 |
+| preview確定model | 生成結果は`Apply`までpending preview。`Revert`で生成前のin-memory documentとviewport表示へ戻す。 |
+| thumbnail / 四角panel | Build完了UIにも完了証明にも使わない。snapshot上で残る場合も二次的情報。 |
+| 完了証明 | viewport projection report、対象layer path、display cell数を必須にする。cacheやthumbnailのみは不可。 |
 
-## Required Snapshot Proof
+## 必須snapshot証明
 
-Build Generate proof must include:
+Build `Generate`の証明には以下を含める。
 
 - `viewport_preview_visible`
 - `viewport_preview_layer_path`
 - `viewport_preview_cell_count`
 - `preview_commit_state`
-- target layer `display_used_cell_count() > 0`
+- `viewport_apply_report.projection_ok`
+- 対象layerの`display_used_cell_count() > 0`
 
-Thumbnail payloads, graph cache, and candidate preview snapshots may exist for other flows, but they do not prove Build Generate success.
+thumbnail payload、graph cache、candidate preview snapshotは他用途では残ってよい。ただしBuild `Generate`成功の証明にはならない。
 
-## Rejected Proof
+## 完了証明として拒否するもの
 
-| rejected item | reason |
+| 拒否する証明 | 理由 |
 |---|---|
-| Thumbnail-only preview | It can prove output data exists, but not that the user sees a map in the Godot viewport. |
-| Sample-only success | Samples are onboarding assets, not production feature proof. |
-| Graph cache-only tests | Cache state does not prove visible layer projection. |
-| Visible square preview panel as Generate result | It competes with the required viewport-first first impression. |
+| thumbnailだけのpreview | 出力dataの存在は示せても、viewportに見えていることは示せない。 |
+| sampleだけの成功 | sampleは学習・onboarding用であり、production featureの証明ではない。 |
+| graph cacheだけのtest | cacheがあってもviewport投影が失敗する可能性がある。 |
+| 目に見える四角preview panel | 必須のviewport-firstな結果表示と競合する。 |
 
-## Remaining Follow-Ups
+## 残るfollow-up
 
-These are intentionally out of the hotfix patch:
+今回のhotfixでは解決しない。
 
-- Graph-wide generation state model.
-- Region Filter item-key UX.
-- Graph canvas operability/layout.
-- Edge deletion behavior.
-- Broader Generate/QA thumbnail policy cleanup if the product direction is to remove those visible controls globally.
+- graph-wide generation state model。
+- Region Filterのitem-key UX。
+- graph canvasの操作性とlayout。
+- edge deletion。
+- Resultのmulti-overlay契約。
+- intermediate outputのscene child node化。
+- Markov Mesh / adjacency rulesの旧Generate意図との対応確認。
 
-## Process Note
+## process note
 
-The implementation plan contained an ambiguity: "keep thumbnail as secondary" conflicted with the need to avoid reintroducing or legitimizing the square tile panel as Build completion UI. The correct design process is to resolve that ambiguity in this document before treating implementation proof as complete.
+前回計画の「thumbnailをsecondaryとして残す」という表現は、四角tile panelをGenerate結果として正当化するように読める曖昧さがあった。正しい扱いは、thumbnailをBuild完了証明から除外すること。
+
+また、UI文字サイズについて「小さくする」だけを設計条件にしてはいけない。Godot editor上で読む画面であり、モバイルUIではないため、視認性を落とすfont縮小は不可。文字は既存editor UIと同等以上に読めることを優先する。
