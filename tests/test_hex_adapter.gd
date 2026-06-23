@@ -71,6 +71,7 @@ func _run() -> void:
 	_test_map_resource_stores_map_data()
 	_test_map_resource_roundtrips_to_map_data()
 	_test_hex_map_document_roundtrips_map_and_payloads()
+	_test_hex_map_document_prefers_nonempty_terrain_layer()
 	_test_hex_object_database_definitions_roundtrip_resources()
 	_test_hex_label_database_definitions_roundtrip_resources()
 	_test_hex_map_document_schema_roundtrips_canonical_resources()
@@ -506,6 +507,27 @@ func _test_hex_map_document_roundtrips_map_and_payloads() -> void:
 	_assert_eq(loaded.label_placements[0].text, "North Gate", "hex map document preserves labels")
 	_assert_eq(object_db.definition_for_id("chest").display_name, "Chest", "object database stores typed definitions")
 	_assert_eq(label_db.definition_for_id("area").display_name, "Area", "label database stores typed definitions")
+
+
+func _test_hex_map_document_prefers_nonempty_terrain_layer() -> void:
+	var document = HexMapDocumentResource.new()
+	var empty_layer = HexMapDocumentTerrainLayerResource.new()
+	empty_layer.layer_id = "manual_empty_terrain"
+	empty_layer.map = HexMapResource.from_map_data(HexMapData.from_cells([]))
+	document.terrain_layers.append(empty_layer)
+
+	var generated_data = HexMapData.rectangle(3, 2)
+	var generated_layer = HexMapDocumentTerrainLayerResource.new()
+	generated_layer.layer_id = "generated_terrain"
+	generated_layer.map = HexMapResource.from_map_data(generated_data)
+	generated_layer.metadata = {
+		"writable_source": "generated",
+		"source": "generation_graph",
+	}
+	document.terrain_layers.append(generated_layer)
+
+	var roundtrip = HexMapDocumentAdapter.to_map_resource(document).to_map_data()
+	_assert_eq(roundtrip.cells.size(), generated_data.cells.size(), "document map resource prefers non-empty generated terrain over earlier empty layer")
 
 
 func _test_hex_object_database_definitions_roundtrip_resources() -> void:

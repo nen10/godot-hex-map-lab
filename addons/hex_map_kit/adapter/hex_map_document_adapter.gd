@@ -469,10 +469,28 @@ static func _document_map_data(document):
 static func _document_map_resource(document):
 	if document == null:
 		return null
+	var first_map = null
 	for layer in document.terrain_layers:
-		if layer != null and layer.get("map") != null:
-			return layer.get("map")
-	return null
+		if layer == null or layer.get("map") == null:
+			continue
+		var map_resource = layer.get("map")
+		if first_map == null:
+			first_map = map_resource
+		if _map_resource_has_cells(map_resource):
+			return map_resource
+	return first_map
+
+
+static func _map_resource_has_cells(map_resource) -> bool:
+	if map_resource == null:
+		return false
+	var cells = map_resource.get("cells")
+	if cells is Array:
+		return not (cells as Array).is_empty()
+	if map_resource.has_method("to_map_data"):
+		var data = map_resource.to_map_data()
+		return data != null and not data.cells.is_empty()
+	return false
 
 
 static func _document_orientation(document) -> int:
