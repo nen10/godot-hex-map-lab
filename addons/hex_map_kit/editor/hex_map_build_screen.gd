@@ -523,7 +523,7 @@ func _build_ui() -> void:
 	var batch_label := Label.new()
 	batch_label.name = "Build Batch Label"
 	batch_label.text = "Batch"
-	batch_label.add_theme_font_size_override("font_size", 24)
+	batch_label.add_theme_font_size_override("font_size", 18)
 	action_row.add_child(batch_label)
 	_run_count_spin = SpinBox.new()
 	_run_count_spin.name = "Build Batch Count"
@@ -601,7 +601,7 @@ func _build_ui() -> void:
 func _style_compact_control(control: Control) -> void:
 	if control == null:
 		return
-	control.add_theme_font_size_override("font_size", 24)
+	control.add_theme_font_size_override("font_size", 18)
 
 
 func _run_context() -> Dictionary:

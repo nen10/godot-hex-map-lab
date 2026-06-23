@@ -26,6 +26,7 @@ func build_palette() -> void:
 	_buttons.clear()
 	var title := Label.new()
 	title.text = "Add Node"
+	title.add_theme_font_size_override("font_size", 18)
 	add_child(title)
 	for group in _palette_groups():
 		_add_group(group)
@@ -70,6 +71,7 @@ func _add_group(group: Dictionary) -> void:
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var label := Label.new()
 	label.text = "%s:" % String(group.get("label", "Group"))
+	label.add_theme_font_size_override("font_size", 18)
 	row.add_child(label)
 	for entry in group.get("entries", []) as Array:
 		var entry_dict := entry as Dictionary
@@ -79,6 +81,7 @@ func _add_group(group: Dictionary) -> void:
 		button.text = String(entry_dict.get("label", HexMapBuildGraphCanvasScript.title_for_node_type(node_type)))
 		button.tooltip_text = String(entry_dict.get("tooltip", "Add %s node" % button.text))
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.add_theme_font_size_override("font_size", 18)
 		if params.is_empty():
 			button.pressed.connect(_on_node_button_pressed.bind(node_type))
 		else:
