@@ -545,3 +545,20 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_build_screen.gd`
     - `addons/hex_map_kit/editor/hex_map_build_graph_canvas.gd`
     - `tests/test_build_graph_canvas.gd`
+
+
+### REPAIR-11_GRAPH_RESULT_MULTI_OVERLAY_CONTRACT
+
+proof:
+  plan: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/REPAIR-11_GRAPH_RESULT_MULTI_OVERLAY_CONTRACT/`
+  implementation_commit:
+    - `0814740 Implement REPAIR-11, REPAIR-13 result multi-overlay projection`
+  tests:
+    - `TEST_JOBS=4 ./tools/test.sh` (run id `20260624-025040-8356`, exit 0)
+  major files:
+    - `addons/hex_map_kit/generation/hex_generation_node_types.gd`
+    - `addons/hex_map_kit/adapter/hex_generation_result_resource.gd`
+    - `addons/hex_map_kit/generation/hex_generation_promote.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_screen.gd`
+    - `tests/test_generation_graph.gd`
+    - `tests/test_generation_promote.gd`

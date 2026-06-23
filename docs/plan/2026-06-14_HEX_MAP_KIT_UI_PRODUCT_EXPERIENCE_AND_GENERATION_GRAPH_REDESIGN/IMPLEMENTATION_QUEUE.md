@@ -121,7 +121,7 @@ Design index: `REPAIR_TRACK_DESIGN_INDEX.md`
 | id | status | deps | deliverable | target files | acceptance |
 |---|---|---|---|---|---|
 | `REPAIR-10_BUILD_GENERATE_VIEWPORT_AND_GRAPH_RECOVERY` | `COMPLETE` | completed roadmap main route | Build `Generate` / `Generate (Simple)` projects to a real `HexTileMapLayer` viewport preview with Apply/Revert; handoff uncertainty matrix and diagnostic proof | `addons/hex_map_kit/editor/hex_map_build_screen.gd`, `addons/hex_map_kit/editor/hex_map_workspace.gd`, `addons/hex_map_kit/editor/hex_map_build_graph_canvas.gd`, `addons/hex_map_kit/generation/hex_generation_preset.gd`, tests, `tools/build_generate_viewport_probe.gd`, `<plan_dir>/REPAIR-10.../` | S: synchronous context provider / Result-priority projection / projection report / targeted tests + `./tools/test.sh`. E: pressing top Generate shows generated result in the Godot viewport on selected/new `HexTileMapLayer`; Apply keeps it, Revert restores previous display. |
-| `REPAIR-11_GRAPH_RESULT_MULTI_OVERLAY_CONTRACT` | `READY` | `REPAIR-10` | Result owns `1 required terrain + overlay_0..2`, each overlay preserved as separate generated overlay layer | generation + adapter + tests | S: multi-overlay graph output and promote semantics. E: multiple overlay outputs remain inspectable and separately applied. |
+| `REPAIR-11_GRAPH_RESULT_MULTI_OVERLAY_CONTRACT` | `COMPLETE` | `REPAIR-10` | Result owns `1 required terrain + overlay_0..2`, each overlay preserved as separate generated overlay layer | generation + adapter + tests | S: multi-overlay graph output/promote semantics + `./tools/test.sh`. E: multiple overlay outputs remain inspectable and separately applied as generated overlay layers. |
 | `REPAIR-12_INTERMEDIATE_OUTPUT_CHILD_NODES` | `BACKLOG` | `REPAIR-10` | Intermediate generated terrain/overlay outputs are run-replaced child nodes, not mixed into main scene node data | editor scene ownership + tests | S: one child node per intermediate output. E: user can inspect intermediate output without corrupting main target layer. |
 | `REPAIR-13_GRAPH_WIDE_STATE_AND_FILTER_SPLIT` | `BACKLOG` | `REPAIR-10` | Graph-wide generation state model, old Generate mapping, Terrain Filter / Overlay Filter split | generation/editor inspector + tests | S: state constraints are explicit and testable. E: Region/Filter controls match incoming data and planned item keys. |
 | `REPAIR-13A_BUILD_NODE_ADD_ROW_AND_SOURCE_TYPING` | `COMPLETE` | `REPAIR-13` | Move `Add Node` + node buttons below the graph and group them by layer-generation role; make `Source` output type explicit so it fits Terrain Filter / Overlay Filter split | `hex_map_build_screen.gd`, `hex_map_build_graph_canvas.gd`, inspector/docs/tests | S: grouped Add Node row + typed Source proof + `./tools/test.sh`. E: user can add Source Terrain / Source Overlay from the grouped row under the graph; Source output type is visible in node title and matches connection validation. |
@@ -132,11 +132,11 @@ Design index: `REPAIR_TRACK_DESIGN_INDEX.md`
 
 ## 10. Current pointer
 
-Current recommended next task: `REPAIR-11_GRAPH_RESULT_MULTI_OVERLAY_CONTRACT`.
+Current recommended next task: `REPAIR-12_INTERMEDIATE_OUTPUT_CHILD_NODES`.
 
 理由:
 - `REPAIR-10` は `COMPLETE`：Build `Generate` / `Generate (Simple)` が selected/new `HexTileMapLayer` へviewport projectionし、Apply/Revert契約とprojection reportを持つ。`HexMapPreviewThumbnail` は secondary proof扱い。proof は `PROOF_LOG.md`。
-- 次の未解決設計は Result multi-overlay contract。これは viewport hotfix 外として `REPAIR-11` に分離済み。
+- `REPAIR-11` は `COMPLETE`：Result multi-overlay contract は実装済み。次の未解決 repair は `REPAIR-12` intermediate output child nodes。
 - `ADOPT-00` は `COMPLETE`：二層 DoD gate を self-review template / queue rules / planning policy へ実装し、QA park を規則化（proof は `PROOF_LOG.md`）。
 - `GRAPH-10` は `COMPLETE`：headless graph backbone の proof 済み（proof は `PROOF_LOG.md`）。
 - `GRAPH-11` は `COMPLETE`：Build graph canvas / palette / inspector / preview / run の proof 済み（proof は `PROOF_LOG.md`）。
