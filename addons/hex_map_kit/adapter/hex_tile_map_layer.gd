@@ -136,6 +136,7 @@ var _level_document_setter_suppressed := false
 var _pending_document_payloads = null
 var _last_tile_map_apply_report: Dictionary = {}
 var _last_graph_build_result: Dictionary = {}
+var _visual_redraw_deferred := false
 var _tile_overrides_by_key: Dictionary = {}
 var _overlay_tiles_by_key: Dictionary = {}
 var _object_markers_by_key: Dictionary = {}
@@ -1777,8 +1778,34 @@ func _sync_hex_size_for_current_display() -> void:
 
 func _queue_visual_redraw() -> void:
 	queue_redraw()
+	_queue_tile_map_visual_refresh(_tile_map)
+	_queue_tile_map_visual_refresh(_loop_tile_map)
+	_queue_tile_map_visual_refresh(_overlay_tile_map)
 	if _overlay != null and is_instance_valid(_overlay):
 		_overlay.queue_redraw()
+	if not _visual_redraw_deferred:
+		_visual_redraw_deferred = true
+		call_deferred("_deferred_visual_redraw")
+
+
+func _deferred_visual_redraw() -> void:
+	_visual_redraw_deferred = false
+	if not is_instance_valid(self):
+		return
+	queue_redraw()
+	_queue_tile_map_visual_refresh(_tile_map)
+	_queue_tile_map_visual_refresh(_loop_tile_map)
+	_queue_tile_map_visual_refresh(_overlay_tile_map)
+	if _overlay != null and is_instance_valid(_overlay):
+		_overlay.queue_redraw()
+
+
+func _queue_tile_map_visual_refresh(tile_map: TileMapLayer) -> void:
+	if tile_map == null or not is_instance_valid(tile_map):
+		return
+	tile_map.queue_redraw()
+	tile_map.notify_runtime_tile_data_update()
+	tile_map.update_internals()
 
 
 func _ensure_tile_map_layers() -> void:
