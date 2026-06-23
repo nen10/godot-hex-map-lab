@@ -641,3 +641,13 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_gen_dock.gd`
     - `addons/hex_map_kit/editor/hex_adjacency_rule_editor.gd`
     - `addons/hex_map_kit/core/hex_map_generator.gd`
+
+
+### REPAIR-17-18_REDESIGN_SPEC_2026-06-24
+
+proof:
+  user_feedback_correction:
+    - `docs/development_log/2026-06-24_REPAIR-17-18_REDESIGN_SPEC.md`
+  decision:
+    - REPAIR-17/18 first-pass implementation is insufficient and tasks are reopened as `BACKLOG-REDESIGN`.
+    - REPAIR-18 preset arrays are verified intact in `addons/hex_map_kit/core/hex_randomizer.gd`; custom path is independent.
