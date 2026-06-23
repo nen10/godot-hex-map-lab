@@ -57,6 +57,7 @@ var _node_counter := 0
 var _node_order: PackedStringArray = PackedStringArray()
 var _connections: Array[Dictionary] = []
 var _selected_node_id := ""
+var _selected_edge: Dictionary = {}
 var _last_run_report: Dictionary = {}
 var _last_preview_snapshot: Dictionary = HexMapPreviewThumbnailScript.unavailable_preview("not_run")
 var _last_status := "Graph canvas ready."
@@ -119,12 +120,30 @@ func _on_delete_nodes_request(nodes: Array) -> void:
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_DELETE or event.keycode == KEY_BACKSPACE:
+			if not _selected_edge.is_empty():
+				delete_selected_edge()
+				accept_event()
+				return
 			if _selected_node_id != "":
 				if _remove_graph_node(_selected_node_id):
 					select_graph_node("")
 					graph_changed.emit()
 			accept_event()
 			return
+	if event is InputEventMouseButton:
+		var mouse_event := event as InputEventMouseButton
+		if not mouse_event.pressed or mouse_event.button_index != MOUSE_BUTTON_LEFT:
+			return
+		var edge := _edge_at_screen_point(mouse_event.position)
+		if not edge.is_empty():
+			select_edge(
+				String(edge.get("from_node", "")),
+				int(edge.get("from_port", -1)),
+				String(edge.get("to_node", "")),
+				int(edge.get("to_port", -1))
+			)
+		elif not _selected_edge.is_empty():
+			clear_selected_edge()
 
 
 func remove_graph_node(node_id: String) -> bool:
@@ -154,6 +173,10 @@ func _remove_graph_node(node_id: String) -> bool:
 				int(conn.get("to_port", -1))
 			)
 			_connections.remove_at(i)
+	if not _selected_edge.is_empty() \
+			and (String(_selected_edge.get("from_node", "")) == node_id or String(_selected_edge.get("to_node", "")) == node_id):
+		_selected_edge.clear()
+		_update_selected_connection_highlight()
 	remove_child(graph_node)
 	graph_node.queue_free()
 	var new_order: PackedStringArray = PackedStringArray()
@@ -237,6 +260,7 @@ func clear_graph() -> void:
 	_connections.clear()
 	_node_order = PackedStringArray()
 	_selected_node_id = ""
+	_selected_edge.clear()
 	_last_run_report = {}
 	_last_preview_snapshot = HexMapPreviewThumbnailScript.unavailable_preview("empty_graph")
 	_last_status = "Graph cleared."
@@ -309,6 +333,8 @@ func validate_connection(from_node: String, from_port: int, to_node: String, to_
 func select_graph_node(node_id: String) -> void:
 	if node_id != "" and _graph_node(node_id) == null:
 		return
+	if node_id != "":
+		clear_selected_edge()
 	_selected_node_id = node_id
 	_update_last_preview_for_selected_node()
 	selected_graph_node_changed.emit(_selected_node_id)
@@ -316,6 +342,68 @@ func select_graph_node(node_id: String) -> void:
 
 func selected_node_id() -> String:
 	return _selected_node_id
+
+
+func select_edge(from_node: String, from_port: int, to_node: String, to_port: int) -> Dictionary:
+	var edge := _connection_for_slots(from_node, from_port, to_node, to_port)
+	if edge.is_empty():
+		return {}
+	_selected_edge = edge.duplicate(true)
+	_selected_node_id = ""
+	_update_selected_connection_highlight()
+	_last_status = "Selected edge %s -> %s.%s." % [
+		from_node,
+		to_node,
+		String(edge.get("to_port_name", _input_name_for_slot(to_node, to_port))),
+	]
+	selected_graph_node_changed.emit("")
+	graph_changed.emit()
+	return _selected_edge.duplicate(true)
+
+
+func clear_selected_edge() -> void:
+	if _selected_edge.is_empty():
+		return
+	_selected_edge.clear()
+	_update_selected_connection_highlight()
+	graph_changed.emit()
+
+
+func selected_edge() -> Dictionary:
+	return _selected_edge.duplicate(true)
+
+
+func delete_selected_edge() -> bool:
+	if _selected_edge.is_empty():
+		return false
+	var edge := _selected_edge.duplicate(true)
+	var deleted := delete_edge(
+		String(edge.get("from_node", "")),
+		int(edge.get("from_port", -1)),
+		String(edge.get("to_node", "")),
+		int(edge.get("to_port", -1))
+	)
+	return deleted
+
+
+func delete_edge(from_node: String, from_port: int, to_node: String, to_port: int) -> bool:
+	var deleted := false
+	var to_node_id := to_node
+	for index in range(_connections.size() - 1, -1, -1):
+		var connection := _connections[index] as Dictionary
+		if _same_connection_slots(connection, from_node, from_port, to_node, to_port):
+			_connections.remove_at(index)
+			deleted = true
+			break
+	if not deleted:
+		return false
+	disconnect_node(StringName(from_node), from_port, StringName(to_node), to_port)
+	_selected_edge.clear()
+	_update_selected_connection_highlight()
+	_last_status = "Deleted edge %s -> %s." % [from_node, to_node]
+	_mark_dirty_from_node(to_node_id)
+	graph_changed.emit()
+	return true
 
 
 func selected_node_dictionary() -> Dictionary:
@@ -503,6 +591,8 @@ func canvas_snapshot() -> Dictionary:
 		"connection_count": _connections.size(),
 		"connections": _connections.duplicate(true),
 		"selected_node_id": _selected_node_id,
+		"selected_edge": _selected_edge.duplicate(true),
+		"selected_edge_present": not _selected_edge.is_empty(),
 		"selected_output_type": selected_output_type(),
 		"preview": selected_preview_snapshot(),
 		"preview_available": bool(_last_preview_snapshot.get("available", false)),
@@ -623,6 +713,9 @@ func _on_disconnection_request(from_node: StringName, from_port: int, to_node: S
 			_connections.remove_at(index)
 			break
 	disconnect_node(from_node, from_port, to_node, to_port)
+	if not _selected_edge.is_empty() and _same_connection_slots(_selected_edge, String(from_node), from_port, String(to_node), to_port):
+		_selected_edge.clear()
+		_update_selected_connection_highlight()
 	_last_status = "Disconnected graph ports."
 	_mark_dirty_from_node(String(to_node))
 	graph_changed.emit()
@@ -721,12 +814,61 @@ func _slot_row_text(input_name: String, output_type: String) -> String:
 
 func _has_connection(from_node: String, from_port: int, to_node: String, to_port: int) -> bool:
 	for connection in _connections:
-		if String(connection.get("from_node", "")) == from_node \
-				and int(connection.get("from_port", -1)) == from_port \
-				and String(connection.get("to_node", "")) == to_node \
-				and int(connection.get("to_port", -1)) == to_port:
+		if _same_connection_slots(connection as Dictionary, from_node, from_port, to_node, to_port):
 			return true
 	return false
+
+
+func _connection_for_slots(from_node: String, from_port: int, to_node: String, to_port: int) -> Dictionary:
+	for connection in _connections:
+		var connection_dict := connection as Dictionary
+		if _same_connection_slots(connection_dict, from_node, from_port, to_node, to_port):
+			return connection_dict
+	return {}
+
+
+func _same_connection_slots(connection: Dictionary, from_node: String, from_port: int, to_node: String, to_port: int) -> bool:
+	return String(connection.get("from_node", "")) == from_node \
+		and int(connection.get("from_port", -1)) == from_port \
+		and String(connection.get("to_node", "")) == to_node \
+		and int(connection.get("to_port", -1)) == to_port
+
+
+func _edge_at_screen_point(point: Vector2) -> Dictionary:
+	if not has_method("get_closest_connection_at_point"):
+		return {}
+	var raw = get_closest_connection_at_point(point)
+	if not raw is Dictionary:
+		return {}
+	var data := raw as Dictionary
+	var from_node := String(data.get("from_node", data.get("from", data.get("from_node_name", ""))))
+	var to_node := String(data.get("to_node", data.get("to", data.get("to_node_name", ""))))
+	var from_port := int(data.get("from_port", -1))
+	var to_port := int(data.get("to_port", -1))
+	if from_node == "" or to_node == "" or from_port < 0 or to_port < 0:
+		return {}
+	return _connection_for_slots(from_node, from_port, to_node, to_port)
+
+
+func _update_selected_connection_highlight() -> void:
+	for connection in _connections:
+		var conn := connection as Dictionary
+		var selected := not _selected_edge.is_empty() and _same_connection_slots(
+			conn,
+			String(_selected_edge.get("from_node", "")),
+			int(_selected_edge.get("from_port", -1)),
+			String(_selected_edge.get("to_node", "")),
+			int(_selected_edge.get("to_port", -1))
+		)
+		_set_connection_selected(conn, selected)
+
+
+func _set_connection_selected(connection: Dictionary, selected: bool) -> void:
+	var from_node := String(connection.get("from_node", ""))
+	var to_node := String(connection.get("to_node", ""))
+	if from_node == "" or to_node == "":
+		return
+	set_connection_activity(from_node, int(connection.get("from_port", -1)), to_node, int(connection.get("to_port", -1)), 1.0 if selected else 0.0)
 
 
 func _connection_result(ok: bool, reason: String, port_type: String = "") -> Dictionary:

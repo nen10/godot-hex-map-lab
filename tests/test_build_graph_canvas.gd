@@ -13,6 +13,7 @@ func _run() -> void:
 	await _test_result_canvas_exposes_numbered_overlay_ports()
 	await _test_canvas_builds_model_and_runs_three_node_preview()
 	await _test_run_state_caches_and_marks_dirty_downstream()
+	await _test_edge_selection_and_delete_updates_graph_state()
 	await _test_run_state_reports_failure_node()
 	await _test_build_screen_generate_is_primary_and_batch_secondary()
 	await _test_build_screen_cancel_passes_interrupt_options()
@@ -136,6 +137,45 @@ func _test_run_state_caches_and_marks_dirty_downstream() -> void:
 	_assert_true((run_state["reused_node_ids"] as PackedStringArray).has("shape"), "GRAPH-13 rerun reuses clean upstream cache")
 	_assert_true((run_state["recomputed_node_ids"] as PackedStringArray).has("walls"), "GRAPH-13 rerun recomputes dirty node")
 	_assert_eq((run_state["dirty_node_ids"] as PackedStringArray).size(), 0, "GRAPH-13 rerun clears dirty state")
+
+	screen.queue_free()
+	await process_frame
+
+
+func _test_edge_selection_and_delete_updates_graph_state() -> void:
+	var screen = HexMapBuildScreen.new()
+	root.add_child(screen)
+	await process_frame
+
+	var report = screen.build_default_three_node_chain_and_preview()
+	_assert_true(bool(report["ok"]), "REPAIR-14 three-node chain runs before edge delete")
+	var canvas = screen.graph_canvas()
+	_assert_eq(int(canvas.canvas_snapshot()["connection_count"]), 2, "REPAIR-14 chain has two edges before delete")
+
+	var selected := canvas.select_edge("shape", 0, "walls", 0)
+	_assert_true(not selected.is_empty(), "REPAIR-14 edge between shape and walls can be selected")
+	var selected_snapshot = canvas.canvas_snapshot()
+	_assert_true(bool(selected_snapshot["selected_edge_present"]), "REPAIR-14 snapshot records the selected edge")
+	_assert_eq(String(selected_snapshot["selected_node_id"]), "", "REPAIR-14 edge selection clears node selection")
+
+	var delete_edge_button = screen.find_child("Build Delete Edge Button", true, false) as Button
+	_assert_true(delete_edge_button is Button, "REPAIR-14 Build screen mounts a Delete Edge button")
+	_assert_true(not delete_edge_button.disabled, "REPAIR-14 Delete Edge button enables while an edge is selected")
+
+	var deleted := canvas.delete_selected_edge()
+	_assert_true(deleted, "REPAIR-14 selected edge can be deleted")
+	var after_snapshot = canvas.canvas_snapshot()
+	_assert_eq(int(after_snapshot["connection_count"]), 1, "REPAIR-14 edge delete removes only the selected edge")
+	_assert_eq(int(after_snapshot["node_count"]), 3, "REPAIR-14 edge delete keeps all nodes")
+	_assert_true(not bool(after_snapshot["selected_edge_present"]), "REPAIR-14 edge selection clears after delete")
+
+	var run_state = after_snapshot["run_state"] as Dictionary
+	var dirty_ids = run_state["dirty_node_ids"] as PackedStringArray
+	_assert_true(dirty_ids.has("walls"), "REPAIR-14 edge delete marks the edge target dirty")
+	_assert_true(dirty_ids.has("connectivity"), "REPAIR-14 edge delete marks downstream nodes dirty")
+
+	screen._on_canvas_graph_changed()
+	_assert_true(delete_edge_button.disabled, "REPAIR-14 Delete Edge button disables when no edge is selected")
 
 	screen.queue_free()
 	await process_frame

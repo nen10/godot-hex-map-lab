@@ -43,6 +43,7 @@ var _palette: HexMapBuildNodePaletteScript
 var _inspector: HexMapBuildNodeInspectorScript
 var _apply_button: Button
 var _revert_button: Button
+var _delete_edge_button: Button
 var _preview_applied := false
 var _revert_terrain_layers: Array = []
 var _revert_overlay_layers: Array = []
@@ -567,6 +568,14 @@ func _build_ui() -> void:
 	_style_compact_control(_remove_button)
 	_remove_button.pressed.connect(_on_remove_pressed)
 	action_row.add_child(_remove_button)
+	_delete_edge_button = Button.new()
+	_delete_edge_button.name = "Build Delete Edge Button"
+	_delete_edge_button.text = "Delete Edge"
+	_delete_edge_button.tooltip_text = "Delete the selected graph connection"
+	_delete_edge_button.disabled = true
+	_style_compact_control(_delete_edge_button)
+	_delete_edge_button.pressed.connect(_on_delete_edge_pressed)
+	action_row.add_child(_delete_edge_button)
 	add_child(action_row)
 
 	_inspector = HexMapBuildNodeInspectorScript.new()
@@ -981,6 +990,23 @@ func _on_canvas_selected_node_changed(_node_id: String) -> void:
 func _on_canvas_graph_changed() -> void:
 	if _status_label != null:
 		_status_label.text = String((_canvas.canvas_snapshot() as Dictionary).get("status_text", ""))
+	_refresh_edge_action()
+
+
+func _refresh_edge_action() -> void:
+	if _delete_edge_button == null or _canvas == null:
+		return
+	_delete_edge_button.disabled = _canvas.selected_edge().is_empty()
+
+
+func _on_delete_edge_pressed() -> void:
+	if _canvas == null:
+		return
+	if _canvas.delete_selected_edge():
+		if _status_label != null:
+			_status_label.text = "Deleted selected edge."
+	_refresh_edge_action()
+	_refresh_selected_node()
 
 
 func _on_canvas_graph_run_completed(_report: Dictionary) -> void:

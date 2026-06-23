@@ -514,3 +514,18 @@ proof:
   major files:
     - `dist/hex_map_kit-0.3.0.manifest.txt`
     - `dist/hex_map_kit-0.3.0.zip`
+
+### REPAIR-14_GRAPH_CANVAS_EDGE_DELETE
+
+proof:
+  plan: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/REPAIR-14_GRAPH_CANVAS_EDGE_DELETE/`
+  execution:
+    - `docs/review/autopilot/REPAIR-14_GRAPH_CANVAS_EDGE_DELETE_SELF_REVIEW_2026-06-24.md`
+    - `docs/review/autopilot/REPAIR-14_GRAPH_CANVAS_EDGE_DELETE_TEST_RESULT_2026-06-24.md`
+  tests:
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/probe-logs/repair14_canvas.log --path . --script res://tests/test_build_graph_canvas.gd` (exit 0)
+    - `TEST_JOBS=4 ./tools/test.sh` (run id `20260624-024316-3036`, exit 0)
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_build_graph_canvas.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_screen.gd`
+    - `tests/test_build_graph_canvas.gd`
