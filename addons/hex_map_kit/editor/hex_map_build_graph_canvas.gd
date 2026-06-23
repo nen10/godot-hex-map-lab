@@ -80,7 +80,7 @@ func _ready() -> void:
 	name = "Build Graph Canvas"
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
-	custom_minimum_size = Vector2(640, 420)
+	custom_minimum_size = Vector2(640, 900)
 	if not connection_request.is_connected(_on_connection_request):
 		connection_request.connect(_on_connection_request)
 	if not disconnection_request.is_connected(_on_disconnection_request):
