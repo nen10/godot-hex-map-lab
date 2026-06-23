@@ -562,3 +562,16 @@ proof:
     - `addons/hex_map_kit/editor/hex_map_build_screen.gd`
     - `tests/test_generation_graph.gd`
     - `tests/test_generation_promote.gd`
+
+### BUILD_NODE_DESIGN_GAPS_FINDINGS_2026-06-24
+
+proof:
+  findings: `docs/development_log/2026-06-24_BUILD_NODE_DESIGN_GAPS_FINDINGS.md`
+  probe:
+    - `tools/probe_region_filter_connection_typing.gd`
+  command:
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --log-file .godot_user/probe-logs/probe_region_filter_typing3.log --path . --script /tmp/probe_region_filter_typing.gd` (exit 0)
+  result:
+    - `logical_validate_ok = true`
+    - `graphedit_drag_allows_overlay_to_filter = false`
+    - `item_generator_output_type_id = 3`, `region_filter_input_type_id = 1`

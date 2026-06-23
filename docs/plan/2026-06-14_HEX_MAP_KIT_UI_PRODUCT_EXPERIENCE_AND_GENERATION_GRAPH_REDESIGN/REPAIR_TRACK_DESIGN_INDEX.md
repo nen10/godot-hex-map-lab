@@ -19,7 +19,10 @@ Build graph repair track の各 queue を、今後の相談開始点として使
 | `REPAIR-13_GRAPH_WIDE_STATE_AND_FILTER_SPLIT` | `BACKLOG` | [REPAIR-13](./REPAIR-13_GRAPH_WIDE_STATE_AND_FILTER_SPLIT/SUB_TASKS.md) | graph-wide state、設定伝達監査、Terrain/Overlay Filter 分離 |
 | `REPAIR-13A_BUILD_NODE_ADD_ROW_AND_SOURCE_TYPING` | `COMPLETE` | [REPAIR-13A](./REPAIR-13A_BUILD_NODE_ADD_ROW_AND_SOURCE_TYPING/SUB_TASKS.md) | node add row 下部配置、Source typing |
 | `REPAIR-14_GRAPH_CANVAS_EDGE_DELETE` | `COMPLETE` | [REPAIR-14](./REPAIR-14_GRAPH_CANVAS_EDGE_DELETE/SUB_TASKS.md) | edge deletion interaction |
-| `REPAIR-15_MARKOV_ADJACENCY_MAPPING` | `BACKLOG` | [REPAIR-15](./REPAIR-15_MARKOV_ADJACENCY_MAPPING/SUB_TASKS.md) | Markov Mesh / adjacency と旧 Generate 意図の対応 |
+| `REPAIR-15_MARKOV_ADJACENCY_MAPPING` | `BACKLOG` | [REPAIR-15](./REPAIR-15_MARKOV_ADJACENCY_MAPPING/SUB_TASKS.md) | Markov Mesh / adjacency と旧 Generate 意図の対応（limited count / symmetric scan含む） |
+| `REPAIR-16_REGION_FILTER_NODE_TYPING_REDESIGN` | `BACKLOG` | [findings](../../development_log/2026-06-24_BUILD_NODE_DESIGN_GAPS_FINDINGS.md) | Terrain Filter / Overlay Filter を editor-real typed node として再設計 |
+| `REPAIR-17_ADJACENCY_RULES_WINDOW` | `BACKLOG` | [findings](../../development_log/2026-06-24_BUILD_NODE_DESIGN_GAPS_FINDINGS.md) | probability_rules text を廃止し structured Adjacency Rules window へ |
+| `REPAIR-18_MARKOV_DISTRIBUTION_WINDOW` | `BACKLOG` | [findings](../../development_log/2026-06-24_BUILD_NODE_DESIGN_GAPS_FINDINGS.md) | Markov Mesh custom distribution editor と custom_distribution 配線 |
 
 ## 相談時の読み順
 
