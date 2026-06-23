@@ -321,12 +321,19 @@ func promote_selected_output(role: String = "overlay") -> Dictionary:
 		}
 		_refresh_selected_node()
 		return _last_promote_result.duplicate(true)
-	_last_promote_result = HexGenerationPromoteScript.promote(
-		_canvas.selected_output(),
-		_workspace_asset_context.level_document,
-		role,
-		{"graph_node_id": _canvas.selected_node_id()}
-	)
+	if role == HexGenerationPortsScript.RESULT or _canvas.selected_output_type() == HexGenerationPortsScript.RESULT:
+		_last_promote_result = _promote_result_report(
+			_canvas.selected_output(),
+			_canvas.selected_node_id(),
+			_canvas.selected_node_dictionary()
+		)
+	else:
+		_last_promote_result = HexGenerationPromoteScript.promote(
+			_canvas.selected_output(),
+			_workspace_asset_context.level_document,
+			role,
+			{"graph_node_id": _canvas.selected_node_id()}
+		)
 	if bool(_last_promote_result.get("ok", false)):
 		_last_viewport_apply_report = _apply_document_to_context_layer()
 	if _status_label != null:
@@ -594,6 +601,9 @@ func _run_context() -> Dictionary:
 	if _workspace_asset_context.level_document != null:
 		result["document"] = _workspace_asset_context.level_document
 		result["document_terrain"] = _workspace_asset_context.level_document
+	var settings := _current_graph_settings()
+	result["seed"] = int(settings.get("seed", 0))
+	result["orientation"] = int(settings.get("orientation", 0))
 	return result
 
 
@@ -748,7 +758,7 @@ func _store_current_canvas_graph_on_context_layer(promote_role: String):
 		graph_resource.resource_name = "%s Simple Build Graph" % _resource_prefix_from_node(_context_hex_tile_map_layer.name)
 	graph_resource.ownership_semantics = "embed"
 	graph_resource.semantics_reference_path = ""
-	graph_resource.set_from_dict(_canvas.build_graph_model())
+	graph_resource.set_from_dict(_canvas_graph_model_with_current_settings())
 	graph_resource.promote_targets = HexGenerationPresetScript.promote_targets_for_profile(_active_generation_profile())
 	if not (graph_resource.semantics_snapshot is Dictionary):
 		graph_resource.semantics_snapshot = {}
@@ -758,6 +768,45 @@ func _store_current_canvas_graph_on_context_layer(promote_role: String):
 	}
 	_context_hex_tile_map_layer.generation_graph_resource = graph_resource
 	return graph_resource
+
+
+func _flush_canvas_graph_to_context_resource(reason: String = "build_screen.graph_edit"):
+	if _context_hex_tile_map_layer == null or not is_instance_valid(_context_hex_tile_map_layer) or _canvas == null:
+		return null
+	var graph_resource = _context_hex_tile_map_layer.generation_graph_resource
+	if graph_resource == null:
+		graph_resource = HexGenerationGraphResourceScript.new()
+		graph_resource.graph_id = "%s_build_graph" % _resource_prefix_from_node(_context_hex_tile_map_layer.name).to_snake_case()
+		graph_resource.resource_name = "%s Build Graph" % _resource_prefix_from_node(_context_hex_tile_map_layer.name)
+	graph_resource.ownership_semantics = "embed"
+	graph_resource.semantics_reference_path = ""
+	graph_resource.set_from_dict(_canvas_graph_model_with_current_settings())
+	if not (graph_resource.semantics_snapshot is Dictionary):
+		graph_resource.semantics_snapshot = {}
+	var semantics: Dictionary = graph_resource.semantics_snapshot.duplicate(true)
+	semantics["embed"] = true
+	semantics["last_edit_reason"] = reason
+	graph_resource.semantics_snapshot = semantics
+	_context_hex_tile_map_layer.generation_graph_resource = graph_resource
+	return graph_resource
+
+
+func _canvas_graph_model_with_current_settings() -> Dictionary:
+	var graph := _canvas.build_graph_model() if _canvas != null else HexGenerationGraphResourceScript.new().to_dict()
+	graph["settings"] = _current_graph_settings()
+	return graph
+
+
+func _current_graph_settings() -> Dictionary:
+	var settings := {}
+	if _context_hex_tile_map_layer != null \
+			and is_instance_valid(_context_hex_tile_map_layer) \
+			and _context_hex_tile_map_layer.generation_graph_resource != null:
+		settings = _context_hex_tile_map_layer.generation_graph_resource.graph_settings.duplicate(true)
+	return {
+		"seed": int(settings.get("seed", 0)),
+		"orientation": int(settings.get("orientation", 0)),
+	}
 
 
 func _graph_load_result(ok: bool, reason: String) -> Dictionary:
@@ -859,6 +908,9 @@ func _compute_connection_warnings(node: Dictionary) -> Array[Dictionary]:
 
 
 func _find_effective_flat_top(node: Dictionary) -> bool:
+	var settings := _current_graph_settings()
+	if settings.has("orientation"):
+		return int(settings.get("orientation", 0)) == 0
 	var node_id := String(node.get("id", ""))
 	if node_id == "":
 		return true
@@ -937,6 +989,7 @@ func _on_canvas_graph_run_completed(_report: Dictionary) -> void:
 
 func _on_inspector_params_changed(node_id: String, params: Dictionary) -> void:
 	_canvas.set_node_params(node_id, params)
+	_flush_canvas_graph_to_context_resource("build_screen.node_params_changed")
 
 
 func _on_inspector_promote_requested(node_id: String, role: String) -> void:
@@ -1057,7 +1110,8 @@ func _promote_result_report(output, node_id: String, node_entry: Dictionary) -> 
 	var promoted := false
 	var total_count := 0
 	var terrain_result := {}
-	var overlay_result := {}
+	var overlay_results: Array = []
+	var overlay_layer_ids: Array = []
 	if output.get("primary_map") != null:
 		var terrain_res = output.get("primary_map")
 		if terrain_res != null and terrain_res.has_method("to_map_data"):
@@ -1069,33 +1123,95 @@ func _promote_result_report(output, node_id: String, node_entry: Dictionary) -> 
 			)
 			promoted = promoted or bool(terrain_result.get("ok", false))
 			total_count += int(terrain_result.get("cell_count", 0))
-	if output.get("overlay_map") != null:
-		var overlay_res = output.get("overlay_map")
+	var overlay_resources := _result_overlay_resources(output)
+	HexGenerationPromoteScript.clear_generated(_workspace_asset_context.level_document, "overlay")
+	for overlay_index in range(overlay_resources.size()):
+		var overlay_res = overlay_resources[overlay_index]
 		if overlay_res != null and overlay_res.has_method("to_overlay_data"):
-			overlay_result = HexGenerationPromoteScript.promote(
+			var layer_id := "generated_overlay_%d" % overlay_index
+			var overlay_result = HexGenerationPromoteScript.promote(
 				overlay_res.to_overlay_data(),
 				_workspace_asset_context.level_document,
 				"overlay",
-				{"graph_node_id": node_id}
+				{
+					"graph_node_id": node_id,
+					"layer_id": layer_id,
+					"display_name": "Generated Overlay %d" % (overlay_index + 1),
+					"preserve_existing_generated": true,
+					"overlay_index": overlay_index,
+					"result_port": _result_overlay_port_for_resource_index(output, overlay_index),
+					"result_overlay_count": overlay_resources.size(),
+				}
 			)
+			overlay_results.append(overlay_result)
 			promoted = promoted or bool(overlay_result.get("ok", false))
 			total_count += int(overlay_result.get("cell_count", 0))
-	var result_params = node_entry.get("params", {}) as Dictionary
-	var orientation_val := int(result_params.get("orientation", 0))
-	_context_hex_tile_map_layer.flat_top = orientation_val == 0
+			if bool(overlay_result.get("ok", false)):
+				overlay_layer_ids.append(layer_id)
+	var orientation_val := int(_current_graph_settings().get("orientation", 0))
+	if _context_hex_tile_map_layer != null and is_instance_valid(_context_hex_tile_map_layer):
+		_context_hex_tile_map_layer.flat_top = orientation_val == 0
 	_last_promote_result = {
 		"ok": promoted,
 		"written_role": "result",
 		"cell_count": total_count,
 		"terrain_result": terrain_result,
-		"overlay_result": overlay_result,
+		"overlay_result": overlay_results[0] if not overlay_results.is_empty() else {},
+		"overlay_results": overlay_results,
+		"overlay_layer_ids": overlay_layer_ids,
+		"overlay_count": overlay_resources.size(),
+		"overlay_inputs": _result_metadata_array(output, "overlay_inputs"),
+		"overlay_conflicts": _result_metadata_array(output, "overlay_conflicts"),
 		"blocked_reason": "" if promoted else "Result output had no promotable terrain or overlay.",
+		"status_text": "result bundle promoted: %d cells" % total_count if promoted else "Result output had no promotable terrain or overlay.",
 	}
 	return _last_promote_result.duplicate(true)
 
 
+func _result_overlay_resources(output) -> Array:
+	var resources: Array = []
+	var overlay_maps = output.get("overlay_maps")
+	if overlay_maps is Array:
+		for overlay_res in overlay_maps:
+			if overlay_res != null:
+				resources.append(overlay_res)
+	if resources.is_empty() and output.get("overlay_map") != null:
+		resources.append(output.get("overlay_map"))
+	return resources
+
+
+func _result_overlay_port_for_resource_index(output, resource_index: int) -> String:
+	var present_ports := _result_present_overlay_ports(output)
+	if resource_index >= 0 and resource_index < present_ports.size():
+		return String(present_ports[resource_index])
+	return "%s%d" % [HexGenerationNodeTypesScript.RESULT_OVERLAY_PORT_PREFIX, resource_index]
+
+
+func _result_present_overlay_ports(output) -> Array:
+	var result: Array = []
+	for entry in _result_metadata_array(output, "overlay_inputs"):
+		var row = entry as Dictionary
+		if bool(row.get("present", false)):
+			result.append(String(row.get("port", "")))
+	return result
+
+
+func _result_metadata_array(output, key: String) -> Array:
+	if output == null:
+		return []
+	var metadata = output.get("metadata")
+	if not metadata is Dictionary:
+		return []
+	var value = (metadata as Dictionary).get(key, [])
+	return value.duplicate(true) if value is Array else []
+
+
 func _commit_viewport_preview(source: String) -> void:
 	_last_viewport_apply_report = _apply_document_to_context_layer()
+	_last_viewport_apply_report["result_overlay_count"] = int(_last_promote_result.get("overlay_count", 0))
+	_last_viewport_apply_report["result_overlay_layer_ids"] = (_last_promote_result.get("overlay_layer_ids", []) as Array).duplicate(true)
+	var overlay_conflicts = _last_promote_result.get("overlay_conflicts", [])
+	_last_viewport_apply_report["result_overlay_conflict_count"] = overlay_conflicts.size() if overlay_conflicts is Array else 0
 	_preview_applied = _viewport_projection_ok(_last_viewport_apply_report)
 	_preview_commit_state = "preview_pending" if _preview_applied else "none"
 	if _status_label != null:

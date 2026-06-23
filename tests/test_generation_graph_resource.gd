@@ -3,6 +3,7 @@ extends SceneTree
 const HexGenerationGraph = preload("res://addons/hex_map_kit/generation/hex_generation_graph.gd")
 const HexGenerationGraphRunner = preload("res://addons/hex_map_kit/generation/hex_generation_graph_runner.gd")
 const HexGenerationGraphResource = preload("res://addons/hex_map_kit/adapter/hex_generation_graph_resource.gd")
+const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
 
 var _failures: Array[String] = []
 
@@ -13,6 +14,8 @@ func _init() -> void:
 
 func _run() -> void:
 	_test_graph_resource_to_from_dict_roundtrip()
+	_test_graph_resource_graph_settings_roundtrip()
+	_test_graph_resource_result_overlay_ports_roundtrip()
 	_test_graph_resource_save_load_roundtrip()
 
 	if _failures.is_empty():
@@ -57,6 +60,41 @@ func _test_graph_resource_save_load_roundtrip() -> void:
 	_assert_true(bool((loaded as HexGenerationGraphResource).semantics_snapshot.get("embed", false)), "GRAPH-14 save/load preserves embed snapshot")
 
 
+func _test_graph_resource_graph_settings_roundtrip() -> void:
+	var graph := _sample_graph()
+	graph["settings"] = {
+		"seed": 314,
+		"orientation": HexMapResource.ORIENTATION_POINTY_TOP,
+	}
+	var resource = HexGenerationGraphResource.from_dict(graph)
+	var roundtrip = resource.to_dict()
+	_assert_eq(int((roundtrip["settings"] as Dictionary).get("seed", -1)), 314, "REPAIR-13 graph settings preserve base seed")
+	_assert_eq(int((roundtrip["settings"] as Dictionary).get("orientation", -1)), HexMapResource.ORIENTATION_POINTY_TOP, "REPAIR-13 graph settings preserve orientation")
+
+	var path := _test_resource_path("repair13_generation_graph_settings.tres")
+	_assert_eq(ResourceSaver.save(resource, path), OK, "REPAIR-13 graph settings resource saves")
+	var loaded = ResourceLoader.load(path)
+	_assert_true(loaded is HexGenerationGraphResource, "REPAIR-13 graph settings resource reloads")
+	_assert_eq(int((loaded as HexGenerationGraphResource).graph_settings.get("seed", -1)), 314, "REPAIR-13 save/load keeps base seed")
+	_assert_eq(int((loaded as HexGenerationGraphResource).graph_settings.get("orientation", -1)), HexMapResource.ORIENTATION_POINTY_TOP, "REPAIR-13 save/load keeps orientation")
+
+
+func _test_graph_resource_result_overlay_ports_roundtrip() -> void:
+	var graph := _sample_result_graph()
+	var resource = HexGenerationGraphResource.from_dict(graph)
+	resource.graph_id = "repair11_result_overlay_ports"
+	resource.promote_targets = [{"node_id": "result", "role": "result"}]
+
+	var roundtrip = resource.to_dict()
+	_assert_graph_eq(roundtrip, graph, "REPAIR-11 Result overlay ports convert through resource")
+	var path := _test_resource_path("repair11_result_overlay_ports.tres")
+	_assert_eq(ResourceSaver.save(resource, path), OK, "REPAIR-11 Result overlay port graph saves")
+	var loaded = ResourceLoader.load(path)
+	_assert_true(loaded is HexGenerationGraphResource, "REPAIR-11 Result overlay port graph reloads")
+	_assert_graph_eq((loaded as HexGenerationGraphResource).to_dict(), graph, "REPAIR-11 save/load preserves numbered Result overlay ports")
+	_assert_eq(String(((loaded as HexGenerationGraphResource).promote_targets[0] as Dictionary).get("role", "")), "result", "REPAIR-11 save/load keeps Result promote role")
+
+
 func _sample_graph() -> Dictionary:
 	var graph = HexGenerationGraph.new_graph()
 	HexGenerationGraph.add_node(graph, "shape", "shape", {
@@ -75,6 +113,34 @@ func _sample_graph() -> Dictionary:
 	})
 	HexGenerationGraph.add_edge(graph, "shape", "walls", "in")
 	HexGenerationGraph.add_edge(graph, "walls", "connect", "in")
+	return graph
+
+
+func _sample_result_graph() -> Dictionary:
+	var graph = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(graph, "shape", "shape", {
+		"shape": "rectangle",
+		"width": 4,
+		"height": 3,
+	})
+	HexGenerationGraph.add_node(graph, "filter", "region_filter", {"filter_target": "floor"})
+	HexGenerationGraph.add_node(graph, "items_a", "item_generator", {
+		"placement_method": "weighted",
+		"placement_probability": 1.0,
+		"item_pool": [{"name": "spawn", "weight": 1.0}],
+	})
+	HexGenerationGraph.add_node(graph, "items_b", "item_generator", {
+		"placement_method": "weighted",
+		"placement_probability": 1.0,
+		"item_pool": [{"name": "loot", "weight": 1.0}],
+	})
+	HexGenerationGraph.add_node(graph, "result", "result")
+	HexGenerationGraph.add_edge(graph, "shape", "filter", "in")
+	HexGenerationGraph.add_edge(graph, "filter", "items_a", "scope")
+	HexGenerationGraph.add_edge(graph, "filter", "items_b", "scope")
+	HexGenerationGraph.add_edge(graph, "shape", "result", "terrain")
+	HexGenerationGraph.add_edge(graph, "items_a", "result", "overlay_0")
+	HexGenerationGraph.add_edge(graph, "items_b", "result", "overlay_1")
 	return graph
 
 

@@ -119,7 +119,7 @@ func _build_ui() -> void:
 	var action_row := HBoxContainer.new()
 	action_row.name = "Selected Node Actions"
 	_role_option = OptionButton.new()
-	for role in ["terrain", "overlay", "object"]:
+	for role in ["terrain", "overlay", "object", "result"]:
 		_role_option.add_item(role.capitalize())
 		_role_option.set_item_metadata(_role_option.item_count - 1, role)
 	action_row.add_child(_role_option)

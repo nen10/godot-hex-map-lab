@@ -635,6 +635,10 @@ func _graph_node(node_id: String) -> GraphNode:
 
 
 func _input_names_for_type(node_type: String) -> Array:
+	if node_type == HexGenerationNodeTypesScript.NODE_RESULT:
+		var result: Array = [HexGenerationNodeTypesScript.RESULT_TERRAIN_PORT]
+		result.append_array(HexGenerationNodeTypesScript.result_overlay_port_names())
+		return result
 	var result: Array = []
 	for port_name in HexGenerationNodeTypesScript.input_definitions(node_type).keys():
 		result.append(String(port_name))
@@ -818,8 +822,8 @@ func build_default_vertical_slice_chain() -> PackedStringArray:
 	request_connection(walls, 0, connect, 0)
 	request_connection(connect, 0, filter, 0)
 	request_connection(filter, 0, items, 0)
-	request_connection(connect, 0, result, 1)
-	request_connection(items, 0, result, 0)
+	request_connection(connect, 0, result, 0)
+	request_connection(items, 0, result, 1)
 	select_graph_node(result)
 	return PackedStringArray([shape, walls, connect, filter, items, result])
 

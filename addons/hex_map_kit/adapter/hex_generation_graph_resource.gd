@@ -16,6 +16,9 @@ const HexGenerationGraph = preload("res://addons/hex_map_kit/generation/hex_gene
 @export var promote_targets: Array = []:
 	set(value):
 		promote_targets = _normalized_promote_targets(value)
+@export var graph_settings: Dictionary = {}:
+	set(value):
+		graph_settings = HexGenerationGraph.normalized_settings(value)
 @export var semantics_snapshot: Dictionary = {}:
 	set(value):
 		semantics_snapshot = value.duplicate(true)
@@ -33,6 +36,7 @@ func to_graph_model() -> Dictionary:
 
 func to_dict() -> Dictionary:
 	var result := HexGenerationGraph.new_graph()
+	result["settings"] = HexGenerationGraph.normalized_settings(graph_settings)
 	for node_entry in nodes:
 		var node = node_entry as Dictionary
 		HexGenerationGraph.add_node(
@@ -56,6 +60,7 @@ func to_dict() -> Dictionary:
 
 func set_from_dict(graph: Dictionary) -> void:
 	var normalized := _normalized_graph(graph)
+	graph_settings = HexGenerationGraph.normalized_settings(normalized.get("settings", {}))
 	nodes = _nodes_from_graph(normalized)
 	edges = _normalized_edges(normalized.get("edges", []) as Array)
 
@@ -77,6 +82,7 @@ func is_configured() -> bool:
 
 static func _normalized_graph(graph: Dictionary) -> Dictionary:
 	var result := HexGenerationGraph.new_graph()
+	result["settings"] = HexGenerationGraph.normalized_settings(graph.get("settings", {}))
 	if graph.has("nodes") and graph["nodes"] is Dictionary:
 		result["nodes"] = (graph["nodes"] as Dictionary).duplicate(true)
 	if graph.has("edges") and graph["edges"] is Array:

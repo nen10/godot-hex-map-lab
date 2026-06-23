@@ -15,11 +15,13 @@ func _run() -> void:
 	_test_terrain_promote_save_load_roundtrip()
 	await _test_build_screen_vertical_slice_promotes_overlay()
 	await _test_build_context_bootstrap_selected_graphless_layer()
+	await _test_build_graph_node_params_flush_to_embedded_resource()
 	await _test_build_context_bootstrap_creates_layer_when_none_selected()
 	await _test_build_context_bootstrap_preserves_existing_resources()
 	await _test_top_generate_creates_layer_and_projects_viewport_preview()
 	await _test_top_generate_uses_selected_graphless_layer_for_viewport_preview()
 	await _test_top_generate_apply_revert_preview_contract()
+	await _test_result_preview_promotes_multiple_overlays_as_separate_layers()
 	_finish("res://tests/test_generation_promote.gd")
 
 
@@ -172,6 +174,44 @@ func _test_build_context_bootstrap_selected_graphless_layer() -> void:
 	var promote = workspace.build_screen().promote_selected_output("overlay")
 	_assert_true(bool(promote["ok"]), "GRAPH-12A promoted output after bootstrap")
 	_assert_true(selected_layer.level_document_resource.overlay_layers.size() > 0, "GRAPH-12A promoted overlay writes to selected document")
+
+	scene_root.queue_free()
+	workspace.queue_free()
+	await process_frame
+
+
+func _test_build_graph_node_params_flush_to_embedded_resource() -> void:
+	var workspace = HexMapWorkspace.new()
+	root.add_child(workspace)
+	await process_frame
+	var scene_root = Node2D.new()
+	root.add_child(scene_root)
+	var selected_layer = HexTileMapLayer.new()
+	selected_layer.name = "ParamFlushBuildLayer"
+	scene_root.add_child(selected_layer)
+	await process_frame
+	workspace.set_selected_hex_tile_map_node(selected_layer, "test.repair13.param_flush")
+
+	var result = workspace.ensure_build_graph_context("test.repair13.param_flush")
+	_assert_true(bool(result["ok"]), "REPAIR-13 param flush creates build context")
+	var screen = workspace.build_screen()
+	var params := screen.graph_canvas().node_params("shape")
+	params["width"] = 9
+	params["height"] = 3
+	screen._on_inspector_params_changed("shape", params)
+
+	var resource = selected_layer.generation_graph_resource as HexGenerationGraphResource
+	_assert_true(resource is HexGenerationGraphResource, "REPAIR-13 param flush keeps embedded graph resource")
+	var model = resource.to_graph_model()
+	var shape_node = ((model["nodes"] as Dictionary)["shape"] as Dictionary)
+	var persisted_params = shape_node["params"] as Dictionary
+	_assert_eq(int(persisted_params.get("width", 0)), 9, "REPAIR-13 Shape width flushes to graph resource before Generate")
+	_assert_eq(int(persisted_params.get("height", 0)), 3, "REPAIR-13 Shape height flushes to graph resource before Generate")
+
+	screen.graph_canvas().restore_graph_model(resource.to_graph_model(), "shape")
+	var restored_params := screen.graph_canvas().node_params("shape")
+	_assert_eq(int(restored_params.get("width", 0)), 9, "REPAIR-13 restored canvas keeps flushed Shape width")
+	_assert_eq(int(restored_params.get("height", 0)), 3, "REPAIR-13 restored canvas keeps flushed Shape height")
 
 	scene_root.queue_free()
 	workspace.queue_free()
@@ -362,6 +402,89 @@ func _test_top_generate_apply_revert_preview_contract() -> void:
 	await process_frame
 
 
+func _test_result_preview_promotes_multiple_overlays_as_separate_layers() -> void:
+	var screen = HexMapBuildScreen.new()
+	root.add_child(screen)
+	await process_frame
+	var scene_root = Node2D.new()
+	root.add_child(scene_root)
+	var selected_layer = HexTileMapLayer.new()
+	selected_layer.name = "MultiOverlayResultPreviewLayer"
+	scene_root.add_child(selected_layer)
+	await process_frame
+	screen.ensure_graph_context_for_hex_tile_map_layer(selected_layer, {"run": false})
+	screen.graph_canvas().restore_graph_model(_two_overlay_result_graph(), "result")
+	var run_report = screen.run_graph()
+	_assert_true(bool(run_report["ok"]), "REPAIR-11 multi-overlay Result graph runs in Build screen")
+	screen._auto_preview_after_generate()
+	await process_frame
+
+	var snapshot = screen.build_screen_snapshot()
+	var promote_result = snapshot["promote_result"] as Dictionary
+	_assert_true(bool(promote_result["ok"]), "REPAIR-11 Result preview promote succeeds")
+	_assert_eq(int(promote_result["overlay_count"]), 2, "REPAIR-11 Result preview reports two overlays")
+	_assert_eq(promote_result["overlay_layer_ids"], ["generated_overlay_0", "generated_overlay_1"], "REPAIR-11 Result preview records generated overlay layer ids")
+	var generated_layers = _generated_overlay_layers(selected_layer.level_document_resource)
+	_assert_eq(generated_layers.size(), 2, "REPAIR-11 Result preview creates two generated overlay document layers")
+	_assert_eq(String(generated_layers[0].layer_id), "generated_overlay_0", "REPAIR-11 first generated overlay layer id is deterministic")
+	_assert_eq(String(generated_layers[1].layer_id), "generated_overlay_1", "REPAIR-11 second generated overlay layer id is deterministic")
+	_assert_eq(String((generated_layers[0].metadata as Dictionary).get("result_port", "")), "overlay_0", "REPAIR-11 first generated overlay records source port")
+	_assert_eq(String((generated_layers[1].metadata as Dictionary).get("result_port", "")), "overlay_1", "REPAIR-11 second generated overlay records source port")
+	_assert_viewport_projection_ok(snapshot, "REPAIR-11 multi-overlay Result preview projects to viewport")
+	var viewport_report = snapshot["viewport_apply_report"] as Dictionary
+	_assert_eq(int(viewport_report.get("result_overlay_count", 0)), 2, "REPAIR-11 viewport report includes Result overlay count")
+	_assert_eq(viewport_report.get("result_overlay_layer_ids", []), ["generated_overlay_0", "generated_overlay_1"], "REPAIR-11 viewport report includes Result overlay layer ids")
+
+	var apply_button = screen.find_child("Build Apply Button", true, false) as Button
+	var revert_button = screen.find_child("Build Revert Button", true, false) as Button
+	_assert_true(apply_button is Button and not apply_button.disabled, "REPAIR-11 Apply is enabled for multi-overlay preview")
+	_assert_true(revert_button is Button and not revert_button.disabled, "REPAIR-11 Revert is enabled for multi-overlay preview")
+	revert_button.emit_signal("pressed")
+	await process_frame
+	_assert_eq(String(screen.build_screen_snapshot()["preview_commit_state"]), "reverted", "REPAIR-11 Revert records reverted state for multi-overlay preview")
+	_assert_eq(_generated_overlay_layers(selected_layer.level_document_resource).size(), 0, "REPAIR-11 Revert removes generated overlay preview layers")
+
+	screen._auto_preview_after_generate()
+	await process_frame
+	apply_button.emit_signal("pressed")
+	await process_frame
+	snapshot = screen.build_screen_snapshot()
+	_assert_eq(String(snapshot["preview_commit_state"]), "applied", "REPAIR-11 Apply records applied state for multi-overlay preview")
+	_assert_eq(_generated_overlay_layers(selected_layer.level_document_resource).size(), 2, "REPAIR-11 Apply keeps both generated overlay layers")
+
+	scene_root.queue_free()
+	screen.queue_free()
+	await process_frame
+
+
+func _two_overlay_result_graph() -> Dictionary:
+	var graph = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(graph, "shape", "shape", {
+		"shape": "rectangle",
+		"width": 4,
+		"height": 3,
+	})
+	HexGenerationGraph.add_node(graph, "filter", "region_filter", {"filter_target": "floor"})
+	HexGenerationGraph.add_node(graph, "items_spawn", "item_generator", {
+		"placement_method": "weighted",
+		"placement_probability": 1.0,
+		"item_pool": [{"name": "spawn", "weight": 1.0}],
+	})
+	HexGenerationGraph.add_node(graph, "items_loot", "item_generator", {
+		"placement_method": "weighted",
+		"placement_probability": 1.0,
+		"item_pool": [{"name": "loot", "weight": 1.0}],
+	})
+	HexGenerationGraph.add_node(graph, "result", "result")
+	HexGenerationGraph.add_edge(graph, "shape", "filter", "in")
+	HexGenerationGraph.add_edge(graph, "filter", "items_spawn", "scope")
+	HexGenerationGraph.add_edge(graph, "filter", "items_loot", "scope")
+	HexGenerationGraph.add_edge(graph, "shape", "result", "terrain")
+	HexGenerationGraph.add_edge(graph, "items_spawn", "result", "overlay_0")
+	HexGenerationGraph.add_edge(graph, "items_loot", "result", "overlay_1")
+	return graph
+
+
 func _generated_terrain_cell_count(document: HexMapDocumentResource) -> int:
 	if document == null:
 		return 0
@@ -378,6 +501,19 @@ func _generated_terrain_cell_count(document: HexMapDocumentResource) -> int:
 			if data != null:
 				total += data.cells.size()
 	return total
+
+
+func _generated_overlay_layers(document: HexMapDocumentResource) -> Array:
+	var result: Array = []
+	if document == null:
+		return result
+	for layer in document.overlay_layers:
+		if layer == null:
+			continue
+		var metadata = layer.get("metadata")
+		if metadata is Dictionary and String((metadata as Dictionary).get("writable_source", "")) == "generated":
+			result.append(layer)
+	return result
 
 
 func _assert_viewport_projection_ok(snapshot: Dictionary, message: String) -> void:

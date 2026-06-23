@@ -14,6 +14,7 @@ const HexMapValidationResultScript = preload("res://addons/hex_map_kit/adapter/h
 @export var score: float = 0.0
 @export var primary_map: HexMapResourceScript
 @export var overlay_map: HexOverlayResourceScript
+@export var overlay_maps: Array = []
 @export var candidate_document: HexMapDocumentResourceScript
 @export var validation_result: HexMapValidationResultScript
 @export var validation_summary: Dictionary = {}
@@ -35,6 +36,7 @@ func replay_document():
 
 
 func scope_snapshot() -> Dictionary:
+	var overlay_count := _overlay_count()
 	return {
 		"result_id": result_id,
 		"seed": seed,
@@ -43,6 +45,10 @@ func scope_snapshot() -> Dictionary:
 		"score": score,
 		"primary_map_present": primary_map != null,
 		"overlay_map_present": overlay_map != null,
+		"overlay_maps_present": overlay_count > 0,
+		"overlay_count": overlay_count,
+		"overlay_input_summary": _metadata_array("overlay_inputs"),
+		"overlay_conflicts": _metadata_array("overlay_conflicts"),
 		"candidate_document_present": candidate_document != null,
 		"validation_result_present": validation_result != null,
 		"validation_summary": validation_summary.duplicate(true),
@@ -59,3 +65,16 @@ func to_score_row() -> Dictionary:
 	row["result_scope"] = scope_snapshot()
 	row["replay_available"] = can_replay()
 	return row
+
+
+func _overlay_count() -> int:
+	var count := 0
+	for overlay in overlay_maps:
+		if overlay != null:
+			count += 1
+	return count
+
+
+func _metadata_array(key: String) -> Array:
+	var value = metadata.get(key, [])
+	return value.duplicate(true) if value is Array else []

@@ -10,6 +10,7 @@ func _init() -> void:
 func _run() -> void:
 	await _test_build_screen_opens_on_graph_canvas()
 	await _test_canvas_rejects_type_mismatched_connection()
+	await _test_result_canvas_exposes_numbered_overlay_ports()
 	await _test_canvas_builds_model_and_runs_three_node_preview()
 	await _test_run_state_caches_and_marks_dirty_downstream()
 	await _test_run_state_reports_failure_node()
@@ -48,6 +49,38 @@ func _test_canvas_rejects_type_mismatched_connection() -> void:
 	_assert_true(not bool(result["ok"]), "GRAPH-11 canvas rejects terrain->selection mismatch")
 	_assert_eq(int(canvas.canvas_snapshot()["connection_count"]), 0, "GRAPH-11 rejected connection is not kept")
 	_assert_true(String(result["reason"]).contains("Cannot connect"), "GRAPH-11 rejected connection explains type")
+
+	canvas.queue_free()
+	await process_frame
+
+
+func _test_result_canvas_exposes_numbered_overlay_ports() -> void:
+	var canvas = HexMapBuildGraphCanvas.new()
+	root.add_child(canvas)
+	await process_frame
+
+	var shape = canvas.add_graph_node(HexGenerationNodeTypes.NODE_SHAPE, Vector2.ZERO, "shape")
+	var filter = canvas.add_graph_node(HexGenerationNodeTypes.NODE_REGION_FILTER, Vector2(220, 0), "filter")
+	var items_a = canvas.add_graph_node(HexGenerationNodeTypes.NODE_ITEM_GENERATOR, Vector2(440, 0), "items_a")
+	var items_b = canvas.add_graph_node(HexGenerationNodeTypes.NODE_ITEM_GENERATOR, Vector2(660, 0), "items_b")
+	var result = canvas.add_graph_node(HexGenerationNodeTypes.NODE_RESULT, Vector2(880, 0), "result")
+	_assert_true(bool(canvas.request_connection(shape, 0, filter, 0)["ok"]), "REPAIR-11 canvas connects terrain into filter")
+	_assert_true(bool(canvas.request_connection(filter, 0, items_a, 0)["ok"]), "REPAIR-11 canvas connects filter into first item generator")
+	_assert_true(bool(canvas.request_connection(filter, 0, items_b, 0)["ok"]), "REPAIR-11 canvas connects filter into second item generator")
+	_assert_true(bool(canvas.request_connection(shape, 0, result, 0)["ok"]), "REPAIR-11 canvas connects terrain into Result.terrain")
+	_assert_true(bool(canvas.request_connection(items_a, 0, result, 1)["ok"]), "REPAIR-11 canvas connects overlay into Result.overlay_0")
+	_assert_true(bool(canvas.request_connection(items_b, 0, result, 2)["ok"]), "REPAIR-11 canvas connects overlay into Result.overlay_1")
+
+	var graph = canvas.build_graph_model()
+	var ports: Array = []
+	for edge in graph.get("edges", []) as Array:
+		var edge_dict = edge as Dictionary
+		if String(edge_dict.get("to_node", "")) == "result":
+			ports.append(String(edge_dict.get("to_port", "")))
+	ports.sort()
+	_assert_eq(ports, ["overlay_0", "overlay_1", "terrain"], "REPAIR-11 canvas stores numbered Result input port names")
+	var validation = canvas.validate_graph_model()
+	_assert_true(bool(validation.get("ok", false)), "REPAIR-11 canvas graph with numbered Result overlays validates")
 
 	canvas.queue_free()
 	await process_frame

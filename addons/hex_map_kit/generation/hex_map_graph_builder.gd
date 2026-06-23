@@ -29,6 +29,7 @@ static func build(graph_res, options: Dictionary = {}) -> Dictionary:
 	var graph_resource = graph_res as HexGenerationGraphResourceScript
 	var graph := graph_resource.to_dict()
 	var context := _base_context(options)
+	_apply_graph_settings_to_context(context, graph_resource.graph_settings, options)
 	var semantics_result := _resolve_semantics(graph_resource, options)
 	if not bool(semantics_result.get("ok", false)):
 		return _failure(semantics_result.get("errors", []) as Array, graph, {}, String(semantics_result.get("source", "")), {})
@@ -77,6 +78,13 @@ static func _base_context(options: Dictionary) -> Dictionary:
 	if options.has("interrupt_options") and options["interrupt_options"] is Dictionary:
 		context["interrupt_options"] = options["interrupt_options"]
 	return context
+
+
+static func _apply_graph_settings_to_context(context: Dictionary, settings: Dictionary, options: Dictionary) -> void:
+	if not options.has("seed"):
+		context["seed"] = int(settings.get("seed", context.get("seed", 0)))
+	if not context.has("orientation"):
+		context["orientation"] = int(settings.get("orientation", 0))
 
 
 static func _resolve_semantics(graph_resource: HexGenerationGraphResourceScript, options: Dictionary) -> Dictionary:

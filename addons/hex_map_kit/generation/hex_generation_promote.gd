@@ -55,6 +55,19 @@ static func generated_layer_count(document, role: String) -> int:
 	return count
 
 
+static func clear_generated(document, role: String) -> void:
+	if not (document is HexMapDocumentResourceScript):
+		return
+	var target_role := _normalize_role(role)
+	match target_role:
+		ROLE_TERRAIN:
+			_remove_generated_resources(document.terrain_layers, ROLE_TERRAIN)
+		ROLE_OVERLAY:
+			_remove_generated_resources(document.overlay_layers, ROLE_OVERLAY)
+		ROLE_OBJECT:
+			_remove_generated_resources(document.object_placements, ROLE_OBJECT)
+
+
 static func _promote_terrain(data: HexMapDataScript, document: HexMapDocumentResourceScript, options: Dictionary) -> Dictionary:
 	_remove_generated_resources(document.terrain_layers, ROLE_TERRAIN)
 	var layer := HexMapDocumentTerrainLayerResourceScript.new()
@@ -68,14 +81,15 @@ static func _promote_terrain(data: HexMapDataScript, document: HexMapDocumentRes
 
 
 static func _promote_overlay(data: HexOverlayDataScript, document: HexMapDocumentResourceScript, options: Dictionary) -> Dictionary:
-	_remove_generated_resources(document.overlay_layers, ROLE_OVERLAY)
+	if not bool(options.get("preserve_existing_generated", false)):
+		_remove_generated_resources(document.overlay_layers, ROLE_OVERLAY)
 	var layer := HexMapDocumentOverlayLayerResourceScript.new()
 	layer.layer_id = String(options.get("layer_id", "generated_overlay"))
 	layer.display_name = String(options.get("display_name", "Generated Overlay"))
 	layer.role = ROLE_OVERLAY
 	layer.item_key = ""
 	layer.overlay = HexOverlayResourceScript.from_overlay_data(data, int(options.get("orientation", HexMapResourceScript.ORIENTATION_FLAT_TOP)))
-	layer.tile_assignments = _overlay_tile_assignments(data)
+	layer.tile_assignments = _overlay_tile_assignments(data, options)
 	layer.metadata = _metadata(ROLE_OVERLAY, options)
 	document.overlay_layers.append(layer)
 	return _result(true, ROLE_OVERLAY, _overlay_item_count(data), "")
@@ -97,7 +111,7 @@ static func _promote_objects(data: HexOverlayDataScript, document: HexMapDocumen
 	return _result(true, ROLE_OBJECT, count, "")
 
 
-static func _overlay_tile_assignments(data: HexOverlayDataScript) -> Array[Dictionary]:
+static func _overlay_tile_assignments(data: HexOverlayDataScript, options: Dictionary = {}) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for item_key in data.item_keys():
 		for cell in data.item_cells(String(item_key)):
@@ -109,7 +123,7 @@ static func _overlay_tile_assignments(data: HexOverlayDataScript) -> Array[Dicti
 				"source_id": -1,
 				"atlas_coords": Vector2i.ZERO,
 				"alternative_tile": 0,
-				"metadata": _metadata(ROLE_OVERLAY, {}),
+				"metadata": _metadata(ROLE_OVERLAY, options),
 			})
 	return result
 
@@ -132,12 +146,16 @@ static func _is_generated_resource(resource, role: String) -> bool:
 
 
 static func _metadata(role: String, options: Dictionary) -> Dictionary:
-	return {
+	var result := {
 		"source": METADATA_SOURCE,
 		"target_role": _normalize_role(role),
 		"writable_source": WRITABLE_SOURCE_GENERATED,
 		"graph_node_id": String(options.get("graph_node_id", "")),
 	}
+	for key in ["overlay_index", "result_port", "result_overlay_count"]:
+		if options.has(key):
+			result[key] = options[key]
+	return result
 
 
 static func _component_from_hex(hex) -> Vector3i:

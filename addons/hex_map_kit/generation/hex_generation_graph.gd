@@ -10,6 +10,7 @@ static func new_graph() -> Dictionary:
 	return {
 		"nodes": {},
 		"edges": [],
+		"settings": _default_settings(),
 	}
 
 
@@ -99,6 +100,14 @@ static func validate(graph: Dictionary) -> Dictionary:
 					to_port,
 					str(HexGenerationPortsScript.normalize_accepts(input_def.get("accepts", []))),
 				]
+			))
+			continue
+		if incoming_by_node[to_node].has(to_port):
+			errors.append(_error(
+				"duplicate_input_edge",
+				to_node,
+				edge,
+				"Input port '%s' on node '%s' already has a connection." % [to_port, to_node]
 			))
 			continue
 		incoming_by_node[to_node][to_port] = edge
@@ -195,6 +204,25 @@ static func _ensure_graph_shape(graph: Dictionary) -> void:
 		graph["nodes"] = {}
 	if not graph.has("edges") or not (graph["edges"] is Array):
 		graph["edges"] = []
+	if not graph.has("settings") or not (graph["settings"] is Dictionary):
+		graph["settings"] = _default_settings()
+
+
+static func _default_settings() -> Dictionary:
+	return {
+		"seed": 0,
+		"orientation": 0,
+	}
+
+
+static func normalized_settings(settings) -> Dictionary:
+	var result := _default_settings()
+	if settings is Dictionary:
+		if (settings as Dictionary).has("seed"):
+			result["seed"] = int((settings as Dictionary)["seed"])
+		if (settings as Dictionary).has("orientation"):
+			result["orientation"] = int((settings as Dictionary)["orientation"])
+	return result
 
 
 static func _error(code: String, node: String, edge: Dictionary, message: String) -> Dictionary:

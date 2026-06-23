@@ -26,9 +26,34 @@ const NODE_SET_OPERATION := "set_operation"
 const NODE_RESULT := "result"
 
 const PORT_OUT := "out"
+const RESULT_TERRAIN_PORT := "terrain"
+const RESULT_OVERLAY_PORT_PREFIX := "overlay_"
+const RESULT_OVERLAY_PORT_COUNT := 3
+
+
+static func result_overlay_port_names() -> Array:
+	var result: Array = []
+	for index in range(RESULT_OVERLAY_PORT_COUNT):
+		result.append("%s%d" % [RESULT_OVERLAY_PORT_PREFIX, index])
+	return result
+
+
+static func is_result_overlay_port(port_name: String) -> bool:
+	return result_overlay_port_names().has(port_name)
 
 
 static func registry() -> Dictionary:
+	var result_inputs := {
+		RESULT_TERRAIN_PORT: {
+			"accepts": [HexGenerationPortsScript.TERRAIN],
+			"required": true,
+		},
+	}
+	for port_name in result_overlay_port_names():
+		result_inputs[port_name] = {
+			"accepts": [HexGenerationPortsScript.OVERLAY],
+			"required": false,
+		}
 	return {
 		NODE_SOURCE: {
 			"inputs": {},
@@ -113,16 +138,7 @@ static func registry() -> Dictionary:
 			"run_method": "_run_set_operation",
 		},
 		NODE_RESULT: {
-			"inputs": {
-				"terrain": {
-					"accepts": [HexGenerationPortsScript.TERRAIN],
-					"required": false,
-				},
-				"overlay": {
-					"accepts": [HexGenerationPortsScript.OVERLAY],
-					"required": false,
-				},
-			},
+			"inputs": result_inputs,
 			"output": HexGenerationPortsScript.RESULT,
 			"run_method": "_run_result",
 		},
@@ -385,16 +401,89 @@ static func _difference_selections(a: Array, b: Array) -> Array:
 	return HexMapDataScript.points_except(a, b)
 
 
-static func _run_result(inputs: Dictionary, params: Dictionary, _context: Dictionary, _resource_refs: Dictionary):
+static func _run_result(inputs: Dictionary, params: Dictionary, context: Dictionary, _resource_refs: Dictionary):
 	var result = HexGenerationResultResourceScript.new()
 	result.status = "generated"
-	var orientation_val := int(params.get("orientation", 0))
-	var terrain_input = inputs.get("terrain", null)
+	var orientation_val := int(context.get("orientation", params.get("orientation", 0)))
+	var terrain_input = inputs.get(RESULT_TERRAIN_PORT, null)
 	if terrain_input is HexMapDataScript:
 		result.primary_map = HexMapResourceScript.from_map_data(terrain_input as HexMapDataScript, orientation_val)
-	var overlay_input = inputs.get("overlay", null)
-	if overlay_input is HexOverlayDataScript:
-		result.overlay_map = HexOverlayResourceScript.from_overlay_data(overlay_input as HexOverlayDataScript, orientation_val)
+	result.overlay_maps.clear()
+	var overlay_inputs: Array = []
+	var overlay_sources: Array = []
+	for index in range(result_overlay_port_names().size()):
+		var port_name := String(result_overlay_port_names()[index])
+		var overlay_input = inputs.get(port_name, null)
+		var present := overlay_input is HexOverlayDataScript
+		var item_count := 0
+		if present:
+			var overlay_data := overlay_input as HexOverlayDataScript
+			result.overlay_maps.append(HexOverlayResourceScript.from_overlay_data(overlay_data, orientation_val))
+			item_count = _overlay_data_item_count(overlay_data)
+			overlay_sources.append({
+				"port": port_name,
+				"data": overlay_data,
+			})
+		overlay_inputs.append({
+			"port": port_name,
+			"overlay_index": index,
+			"present": present,
+			"item_count": item_count,
+		})
+	result.overlay_map = result.overlay_maps[0] if result.overlay_maps.size() > 0 else null
+	result.metadata = {
+		"terrain_present": result.primary_map != null,
+		"overlay_inputs": overlay_inputs,
+		"overlay_count": result.overlay_maps.size(),
+		"overlay_conflicts": _overlay_conflicts(overlay_sources),
+	}
+	return result
+
+
+static func _overlay_data_item_count(data: HexOverlayDataScript) -> int:
+	var count := 0
+	for item_key in data.item_keys():
+		count += data.item_cells(String(item_key)).size()
+	return count
+
+
+static func _overlay_conflicts(overlay_sources: Array) -> Array:
+	var by_item_cell := {}
+	for source in overlay_sources:
+		var entry = source as Dictionary
+		var port := String(entry.get("port", ""))
+		var data = entry.get("data", null)
+		if not data is HexOverlayDataScript:
+			continue
+		for item_key in data.item_keys():
+			var item_text := String(item_key)
+			for cell in data.item_cells(item_text):
+				var key := "%s|%s" % [item_text, cell.key()]
+				if not by_item_cell.has(key):
+					by_item_cell[key] = {
+						"item_key": item_text,
+						"cell_key": cell.key(),
+						"ports": [],
+					}
+				var conflict = by_item_cell[key] as Dictionary
+				var ports = conflict.get("ports", []) as Array
+				if not ports.has(port):
+					ports.append(port)
+				conflict["ports"] = ports
+	var result: Array = []
+	var keys := by_item_cell.keys()
+	keys.sort()
+	for key in keys:
+		var conflict = by_item_cell[key] as Dictionary
+		var ports = conflict.get("ports", []) as Array
+		if ports.size() <= 1:
+			continue
+		ports.sort()
+		result.append({
+			"item_key": String(conflict.get("item_key", "")),
+			"cell_key": String(conflict.get("cell_key", "")),
+			"ports": ports.duplicate(),
+		})
 	return result
 
 

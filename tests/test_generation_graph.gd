@@ -9,6 +9,7 @@ const HexOverlayResource = preload("res://addons/hex_map_kit/adapter/hex_overlay
 const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
 const HexMapDocumentTerrainLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_terrain_layer_resource.gd")
 const HexMapDocumentOverlayLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_overlay_layer_resource.gd")
+const HexGenerationResultResource = preload("res://addons/hex_map_kit/adapter/hex_generation_result_resource.gd")
 const HexGenerationPorts = preload("res://addons/hex_map_kit/generation/hex_generation_ports.gd")
 const HexGenerationGraph = preload("res://addons/hex_map_kit/generation/hex_generation_graph.gd")
 const HexGenerationGraphRunner = preload("res://addons/hex_map_kit/generation/hex_generation_graph_runner.gd")
@@ -32,6 +33,9 @@ func _run() -> void:
 	_test_same_graph_and_seed_are_deterministic()
 	_test_empty_graph_runs_to_empty_cache()
 	_test_overlay_to_region_filter_returns_occupied_cells()
+	_test_result_requires_terrain_and_rejects_result_input()
+	_test_duplicate_input_edge_is_rejected()
+	_test_result_keeps_multiple_overlays_in_port_order()
 
 	if _failures.is_empty():
 		print("test_generation_graph.gd: all tests passed")
@@ -226,6 +230,110 @@ func _test_overlay_to_region_filter_returns_occupied_cells() -> void:
 	_assert_eq(overlay_selection.size(), overlay.occupied_cells().size(), "overlay filter_target=floor falls back to occupied_cells()")
 
 
+func _test_result_requires_terrain_and_rejects_result_input() -> void:
+	var missing = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(missing, "overlay_source", "source", {
+		"kind": "provided",
+		"data": HexOverlayData.from_item_cells([_cell(0, 0)], "spawn", [_cell(0, 0)]),
+		"output_type": HexGenerationPorts.OVERLAY,
+	})
+	HexGenerationGraph.add_node(missing, "result", "result")
+	HexGenerationGraph.add_edge(missing, "overlay_source", "result", "overlay_0")
+	var validation = HexGenerationGraph.validate(missing)
+	_assert_false(validation["ok"], "REPAIR-11 Result without terrain is invalid")
+	_assert_true(_has_error(validation, "missing_required_input"), "REPAIR-11 missing Result terrain reports missing_required_input")
+
+	var result_to_result = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(result_to_result, "shape", "shape", {"shape": "rectangle", "width": 2, "height": 2})
+	HexGenerationGraph.add_node(result_to_result, "result_a", "result")
+	HexGenerationGraph.add_node(result_to_result, "result_b", "result")
+	HexGenerationGraph.add_edge(result_to_result, "shape", "result_a", "terrain")
+	HexGenerationGraph.add_edge(result_to_result, "result_a", "result_b", "terrain")
+	validation = HexGenerationGraph.validate(result_to_result)
+	_assert_false(validation["ok"], "REPAIR-11 Result output cannot feed Result terrain")
+	_assert_true(_has_error(validation, "type_mismatch"), "REPAIR-11 Result->Result terrain reports type_mismatch")
+
+	var result_to_overlay = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(result_to_overlay, "shape", "shape", {"shape": "rectangle", "width": 2, "height": 2})
+	HexGenerationGraph.add_node(result_to_overlay, "result_a", "result")
+	HexGenerationGraph.add_node(result_to_overlay, "result_b", "result")
+	HexGenerationGraph.add_edge(result_to_overlay, "shape", "result_a", "terrain")
+	HexGenerationGraph.add_edge(result_to_overlay, "shape", "result_b", "terrain")
+	HexGenerationGraph.add_edge(result_to_overlay, "result_a", "result_b", "overlay_0")
+	validation = HexGenerationGraph.validate(result_to_overlay)
+	_assert_false(validation["ok"], "REPAIR-11 Result output cannot feed Result overlay slot")
+	_assert_true(_has_error(validation, "type_mismatch"), "REPAIR-11 Result->Result overlay reports type_mismatch")
+
+
+func _test_duplicate_input_edge_is_rejected() -> void:
+	var graph = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(graph, "shape", "shape", {"shape": "rectangle", "width": 2, "height": 2})
+	HexGenerationGraph.add_node(graph, "floor_filter", "region_filter", {"filter_target": "floor"})
+	HexGenerationGraph.add_node(graph, "items_a", "item_generator", {
+		"placement_method": "weighted",
+		"placement_probability": 1.0,
+		"item_pool": [{"name": "spawn", "weight": 1.0}],
+	})
+	HexGenerationGraph.add_node(graph, "items_b", "item_generator", {
+		"placement_method": "weighted",
+		"placement_probability": 1.0,
+		"item_pool": [{"name": "loot", "weight": 1.0}],
+	})
+	HexGenerationGraph.add_node(graph, "result", "result")
+	HexGenerationGraph.add_edge(graph, "shape", "floor_filter", "in")
+	HexGenerationGraph.add_edge(graph, "floor_filter", "items_a", "scope")
+	HexGenerationGraph.add_edge(graph, "floor_filter", "items_b", "scope")
+	HexGenerationGraph.add_edge(graph, "shape", "result", "terrain")
+	HexGenerationGraph.add_edge(graph, "items_a", "result", "overlay_0")
+	HexGenerationGraph.add_edge(graph, "items_b", "result", "overlay_0")
+	var validation = HexGenerationGraph.validate(graph)
+	_assert_false(validation["ok"], "REPAIR-11 duplicate input port graph is invalid")
+	_assert_true(_has_error(validation, "duplicate_input_edge"), "REPAIR-11 duplicate input port reports duplicate_input_edge")
+
+
+func _test_result_keeps_multiple_overlays_in_port_order() -> void:
+	var graph = HexGenerationGraph.new_graph()
+	var terrain = HexMapData.rectangle(2, 2)
+	var overlay_0 = HexOverlayData.from_item_cells([_cell(0, 0), _cell(1, 0)], "spawn", [_cell(0, 0)])
+	var overlay_1 = HexOverlayData.from_item_cells([_cell(0, 0), _cell(1, 0)], "spawn", [_cell(0, 0)])
+	overlay_1.add_item_cell("loot", _cell(1, 0))
+	HexGenerationGraph.add_node(graph, "terrain_source", "source", {
+		"kind": "provided",
+		"data": terrain,
+		"output_type": HexGenerationPorts.TERRAIN,
+	})
+	HexGenerationGraph.add_node(graph, "overlay_zero_source", "source", {
+		"kind": "provided",
+		"data": overlay_0,
+		"output_type": HexGenerationPorts.OVERLAY,
+	})
+	HexGenerationGraph.add_node(graph, "overlay_one_source", "source", {
+		"kind": "provided",
+		"data": overlay_1,
+		"output_type": HexGenerationPorts.OVERLAY,
+	})
+	HexGenerationGraph.add_node(graph, "result", "result")
+	HexGenerationGraph.add_edge(graph, "terrain_source", "result", "terrain")
+	HexGenerationGraph.add_edge(graph, "overlay_one_source", "result", "overlay_1")
+	HexGenerationGraph.add_edge(graph, "overlay_zero_source", "result", "overlay_0")
+
+	var report = HexGenerationGraphRunner.run_with_report(graph)
+	_assert_true(bool(report["ok"]), "REPAIR-11 multi-overlay Result graph runs")
+	var result = (report["cache"] as Dictionary)["result"] as HexGenerationResultResource
+	_assert_true(result is HexGenerationResultResource, "REPAIR-11 Result node outputs HexGenerationResultResource")
+	_assert_eq(result.overlay_maps.size(), 2, "REPAIR-11 Result stores both overlay maps")
+	_assert_eq(result.overlay_map, result.overlay_maps[0], "REPAIR-11 legacy overlay_map mirrors first overlay")
+	_assert_eq(result.overlay_maps[0].to_overlay_data().item_keys(), ["spawn"], "REPAIR-11 overlay_0 remains first despite reversed edge insertion")
+	_assert_eq(result.overlay_maps[1].to_overlay_data().item_keys(), ["loot", "spawn"], "REPAIR-11 overlay_1 remains second")
+	var overlay_inputs = result.metadata.get("overlay_inputs", []) as Array
+	_assert_eq(String((overlay_inputs[0] as Dictionary)["port"]), "overlay_0", "REPAIR-11 overlay metadata starts at overlay_0")
+	_assert_true(bool((overlay_inputs[0] as Dictionary)["present"]), "REPAIR-11 overlay_0 metadata is present")
+	_assert_true(bool((overlay_inputs[1] as Dictionary)["present"]), "REPAIR-11 overlay_1 metadata is present")
+	var conflicts = result.metadata.get("overlay_conflicts", []) as Array
+	_assert_eq(conflicts.size(), 1, "REPAIR-11 same item/cell across overlays records one conflict")
+	_assert_eq((conflicts[0] as Dictionary).get("ports", []), ["overlay_0", "overlay_1"], "REPAIR-11 conflict records both overlay ports")
+
+
 func _cell(q: int, r: int):
 	return HexVector.apply_basis(q, 0, r)
 
@@ -265,4 +373,3 @@ func _assert_keys_eq(actual: Array, expected: Array, message: String) -> void:
 	var expected_keys = _keys(expected)
 	if actual_keys != expected_keys:
 		_failures.append("%s: expected %s, got %s" % [message, str(expected_keys), str(actual_keys)])
-
