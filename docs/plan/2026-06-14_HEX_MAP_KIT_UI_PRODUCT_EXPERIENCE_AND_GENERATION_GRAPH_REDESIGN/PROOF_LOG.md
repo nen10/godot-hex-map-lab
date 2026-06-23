@@ -630,3 +630,14 @@ proof:
     - `addons/hex_map_kit/generation/hex_generation_node_types.gd`
     - `tests/test_generation_graph.gd`
     - `tests/test_build_graph_canvas.gd`
+
+### REPAIR-15_OLD_GENERATE_STATE_MIGRATION_AUDIT
+
+proof:
+  plan: `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/REPAIR-15_MARKOV_ADJACENCY_MAPPING/`
+  audit:
+    - `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/REPAIR-15_MARKOV_ADJACENCY_MAPPING/OLD_GENERATE_MIGRATION_AUDIT_MATRIX.md`
+  major sources inspected:
+    - `addons/hex_map_kit/editor/hex_map_gen_dock.gd`
+    - `addons/hex_map_kit/editor/hex_adjacency_rule_editor.gd`
+    - `addons/hex_map_kit/core/hex_map_generator.gd`
