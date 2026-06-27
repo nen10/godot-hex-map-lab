@@ -1,0 +1,7 @@
+[gd_resource type="Resource" script_class="HexLabelDatabaseResource" format=3 uid="uid://betdn4a0g1et1"]
+
+[ext_resource type="Script" uid="uid://cxy27d3ejis3j" path="res://addons/hex_map_kit/adapter/hex_label_database_resource.gd" id="1_dghpm"]
+
+[resource]
+resource_name = "Project Label Database"
+script = ExtResource("1_dghpm")

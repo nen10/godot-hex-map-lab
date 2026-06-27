@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="HexMovementProfileResource" format=3 uid="uid://bwqosxwhxr1wb"]
+
+[ext_resource type="Script" uid="uid://bb5uwlpoj5kdk" path="res://addons/hex_map_kit/adapter/hex_movement_profile_resource.gd" id="1_punph"]
+
+[resource]
+script = ExtResource("1_punph")
+profile_id = "project_movement"
+display_name = "Project Movement"
+blocker_keys = PackedStringArray()
+blocker_tags = PackedStringArray("blocking")

@@ -1,0 +1,7 @@
+[gd_resource type="Resource" script_class="HexObjectDatabaseResource" format=3 uid="uid://cwu25lwhx2yly"]
+
+[ext_resource type="Script" uid="uid://ck4hy7r8o2ys5" path="res://addons/hex_map_kit/adapter/hex_object_database_resource.gd" id="1_2sj83"]
+
+[resource]
+resource_name = "Project Object Database"
+script = ExtResource("1_2sj83")

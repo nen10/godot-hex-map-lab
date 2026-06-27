@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="HexTileCatalogResource" format=3 uid="uid://djvvdtqnidp3b"]
+
+[ext_resource type="Script" uid="uid://bcp3u3gmcy0b1" path="res://addons/hex_map_kit/adapter/hex_tile_catalog_resource.gd" id="1_hm202"]
+
+[resource]
+script = ExtResource("1_hm202")
+catalog_id = "project_tile_catalog"
+display_name = "Project Tile Catalog"

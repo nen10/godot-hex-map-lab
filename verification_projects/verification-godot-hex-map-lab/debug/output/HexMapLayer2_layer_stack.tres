@@ -1,0 +1,74 @@
+[gd_resource type="Resource" script_class="HexLayerStackResource" format=3 uid="uid://gk1q7222wigv"]
+
+[ext_resource type="Script" uid="uid://cijvnfsbk47oe" path="res://addons/hex_map_kit/adapter/hex_layer_stack_entry_resource.gd" id="1_naq1k"]
+[ext_resource type="Script" uid="uid://cp2fbe3dpbgbu" path="res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd" id="2_hh4xp"]
+
+[sub_resource type="Resource" id="Resource_3prkq"]
+script = ExtResource("1_naq1k")
+layer_id = "terrain"
+display_name = "Terrain"
+role = "terrain"
+node_name = "TerrainTileMapLayer"
+
+[sub_resource type="Resource" id="Resource_b20tt"]
+script = ExtResource("1_naq1k")
+layer_id = "decoration"
+display_name = "Decoration"
+role = "decoration"
+node_name = "DecorationTileMapLayer"
+order = 10
+z_index = 10
+
+[sub_resource type="Resource" id="Resource_hh85y"]
+script = ExtResource("1_naq1k")
+layer_id = "object"
+display_name = "Objects"
+role = "object"
+node_name = "ObjectTileMapLayer"
+order = 20
+z_index = 20
+
+[sub_resource type="Resource" id="Resource_rt1sa"]
+script = ExtResource("1_naq1k")
+layer_id = "collision"
+display_name = "Collision"
+role = "collision"
+node_name = "CollisionTileMapLayer"
+order = 30
+z_index = 30
+visible = false
+
+[sub_resource type="Resource" id="Resource_lod21"]
+script = ExtResource("1_naq1k")
+layer_id = "navigation"
+display_name = "Navigation"
+role = "navigation"
+node_name = "NavigationTileMapLayer"
+order = 40
+z_index = 40
+visible = false
+
+[sub_resource type="Resource" id="Resource_xfsr7"]
+script = ExtResource("1_naq1k")
+layer_id = "overlay"
+display_name = "Overlay"
+role = "overlay"
+node_name = "OverlayTileMapLayer"
+order = 50
+z_index = 50
+
+[sub_resource type="Resource" id="Resource_5vd1y"]
+script = ExtResource("1_naq1k")
+layer_id = "debug"
+display_name = "Debug"
+role = "debug"
+node_name = "DebugOverlayLayer"
+order = 100
+z_index = 100
+
+[resource]
+resource_name = "HexMapLayer2 Layer Stack"
+script = ExtResource("2_hh4xp")
+stack_id = "standard_authoring"
+display_name = "Standard Authoring Layer Stack"
+layers = Array[Resource]([SubResource("Resource_3prkq"), SubResource("Resource_b20tt"), SubResource("Resource_hh85y"), SubResource("Resource_rt1sa"), SubResource("Resource_lod21"), SubResource("Resource_xfsr7"), SubResource("Resource_5vd1y")])
