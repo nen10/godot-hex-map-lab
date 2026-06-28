@@ -262,6 +262,14 @@ class GameplayQueryDelegatingLayer extends HexTileMapLayer:
 			return probe_service
 		return super._gameplay_query_service(movement_profile, tile_catalog)
 
+
+class RedrawCountingLayer extends HexTileMapLayer:
+	var redraw_calls := 0
+
+	func _redraw() -> void:
+		redraw_calls += 1
+		super._redraw()
+
 var _failures: Array[String] = []
 var _test_output_root := ""
 
@@ -286,6 +294,7 @@ func _run() -> void:
 	await _test_display_tile_size_syncs_hex_size_and_overlay()
 	await _test_display_tile_set_resource_persists_through_packed_scene()
 	await _test_apply_map_uses_resource_orientation()
+	await _test_same_flat_top_assignment_does_not_redraw()
 	await _test_coordinate_roundtrips()
 	await _test_path_highlight_and_connectivity_helpers()
 	await _test_focus_validation_cells_drives_overlay()
@@ -967,6 +976,22 @@ func _test_apply_map_uses_resource_orientation() -> void:
 	_assert_eq(layer.hex_size, float(HexMapTileAdapter.SAMPLE_TILE_SIZE.x) * 0.5, "flat-top resource syncs sample tile width")
 	_assert_eq(layer._tile_map.tile_set.tile_offset_axis, TileSet.TILE_OFFSET_AXIS_VERTICAL, "layer configures flat-top TileSet axis")
 	_assert_true(layer._tile_map.get_used_cells().has(Vector2i(1, -1)), "layer uses flat-top map cell")
+
+	layer.queue_free()
+	await process_frame
+
+
+func _test_same_flat_top_assignment_does_not_redraw() -> void:
+	var data = HexMapData.rectangle(3, 2)
+	var layer = RedrawCountingLayer.new()
+	root.add_child(layer)
+	await process_frame
+
+	layer.apply_map(HexMapResource.from_map_data(data))
+	layer.redraw_calls = 0
+	layer.flat_top = layer.flat_top
+	_assert_eq(layer.redraw_calls, 0, "same flat_top assignment does not redraw the existing map")
+	_assert_eq(layer.display_used_cell_count(), 6, "same flat_top assignment keeps display cells intact")
 
 	layer.queue_free()
 	await process_frame

@@ -93,11 +93,24 @@ Size 130 second Generate before the cached-preview repair:
 | after tile/direct-map repair, before cached skip | 1311.922 | 4.582 | 2.755 | 3.709 | 545.318 | 0.003 | 0.013 | 698.506 |
 | after cached skip | 36.373 | 4.847 | 2.853 | 3.759 | 0.000 | 0.000 | 0.000 | 0.000 |
 
+Size 130 second Generate with forced recompute after the viewport redraw repair:
+
+```sh
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . --script tools/profile_build_generate_phases.gd -- --run-id=manual-size130-essential-flat-top-guard-20260628 --side=130 --force-second-recompute
+```
+
+| run | total ms | popup present | context | graph run | promote | viewport document prepare | viewport apply |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| first | 2646.181 | 0.838 | 10.506 | 1842.291 | 270.532 | 0.041 | 451.245 |
+| second forced recompute | 2327.817 | 5.004 | 1.837 | 1597.592 | 247.528 | 0.013 | 430.124 |
+
 Implications:
 
 - `context_prepare` and `graph_prepare` are not heavy in the measured cases, but the popup must appear before them so the user gets immediate feedback.
 - second Generate after the previous popup is hidden presents the popup in single-digit milliseconds in headless timing.
-- For size 130, the UX problem was not popup presentation; it was redundant post-graph preview work after a fully cached graph run.
+- For size 130, popup presentation is not the measured bottleneck; the popup appears in single-digit milliseconds.
+- The repeated-run viewport slowdown was caused by redundant `flat_top` setter redraws. Assigning the same orientation redrew the previous large viewport during promote/apply before the new result was applied.
+- Guarding same-value `flat_top` assignments brings forced-recompute second Generate promote/apply back to the first-run range.
 - If the graph run recomputes no nodes and the previous generated preview is still pending and visible, Build skips result promotion and viewport apply because the cached output is already shown.
 - Build preview apply avoids redundant display tile redraw/reconfiguration and uses the selected viewport terrain map directly instead of duplicating the full Level Document twice.
 - cold `graph_run` is roughly half of the end-to-end button path.

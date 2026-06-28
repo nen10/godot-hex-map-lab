@@ -67,6 +67,8 @@ func _measure_case(profile_case: Dictionary) -> Dictionary:
 
 	var first_pass := await _measure_generate_pass(screen, "first")
 	await _wait_for_popup_hidden(screen)
+	if bool(profile_case.get("force_second_recompute", false)):
+		_force_second_recompute(screen)
 	var second_pass := await _measure_generate_pass(screen, "second_after_popup_hide")
 
 	scene_root.queue_free()
@@ -137,6 +139,25 @@ func _wait_for_popup_hidden(screen: HexMapBuildScreen) -> void:
 		guard += 1
 
 
+func _force_second_recompute(screen: HexMapBuildScreen) -> void:
+	var canvas = screen.find_child("Build Graph Canvas", true, false)
+	if canvas == null or not canvas.has_method("node_params") or not canvas.has_method("set_node_params"):
+		return
+	var params: Dictionary = canvas.node_params("moss")
+	if params.is_empty():
+		return
+	var rules := params.get("probability_rules", {}) as Dictionary
+	var entries := rules.get("rules", []) as Array
+	if entries.is_empty() or not entries[0] is Dictionary:
+		return
+	var first_rule := (entries[0] as Dictionary).duplicate(true)
+	first_rule["probability"] = 0.36
+	entries[0] = first_rule
+	rules["rules"] = entries
+	params["probability_rules"] = rules
+	canvas.set_node_params("moss", params)
+
+
 func _graph_for_case(profile_case: Dictionary) -> Dictionary:
 	var side := int(profile_case.get("side", 40))
 	var neighbor_radius := int(profile_case.get("neighbor_radius", 2))
@@ -181,6 +202,7 @@ func _run_id() -> String:
 func _profile_cases() -> Array:
 	var requested_sides := PackedInt32Array()
 	var neighbor_radius := 2
+	var force_second_recompute := false
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--side="):
 			var parts := arg.substr("--side=".length()).split(",", false)
@@ -190,6 +212,8 @@ func _profile_cases() -> Array:
 					requested_sides.append(side)
 		elif arg.begins_with("--neighbor-radius="):
 			neighbor_radius = max(0, int(arg.substr("--neighbor-radius=".length())))
+		elif arg == "--force-second-recompute":
+			force_second_recompute = true
 	if requested_sides.is_empty():
 		requested_sides.append_array(PackedInt32Array([40, 81]))
 	var cases := []
@@ -198,6 +222,7 @@ func _profile_cases() -> Array:
 			"id": "build_generate_side%d_adjacency_result" % side,
 			"side": side,
 			"neighbor_radius": neighbor_radius,
+			"force_second_recompute": force_second_recompute,
 		})
 	return cases
 

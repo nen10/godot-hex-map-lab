@@ -51,6 +51,12 @@ GODOT_BIN="${GODOT_BIN:-/Applications/Godot.app/Contents/MacOS/Godot}"
 "$GODOT_BIN" --headless --path . --script tools/profile_build_generate_phases.gd -- --run-id=manual-size130 --side=130
 ```
 
+2回目の Generate で cached preview skip ではなく再計算経路を測る場合:
+
+```sh
+"$GODOT_BIN" --headless --path . --script tools/profile_build_generate_phases.gd -- --run-id=manual-size130-recompute --side=130 --force-second-recompute
+```
+
 結果は次に出力されます。
 
 ```text

@@ -74,6 +74,8 @@ class OverlayCanvas:
 
 @export var flat_top: bool = true:
 	set(v):
+		if flat_top == v:
+			return
 		flat_top = v
 		if is_node_ready():
 			_redraw()
