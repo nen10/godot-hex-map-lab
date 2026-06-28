@@ -1851,13 +1851,20 @@ static func _draw_symmetric_area_from_center(
 	for _wave_index in range(int(rule.map_unit_radius / 3)):
 		arc_size += 3
 		for side in range(3):
+			var previous_node = draw_node[side]
 			draw_node[side] = draw_node[side].add(wave_directions[side])
 			var pen = draw_node[side]
 			var density = (float(draw_counts[side]) + 1.0 + wall_probability) / float(arc_size)
-			draw_counts[side] = _draw_from_prob(state, pen, 1.0 - density)
-			_draw_from_prob(
+			draw_counts[side] = _draw_edge_from_distribution_or_prob(
+				state,
+				pen,
+				[previous_node],
+				1.0 - density
+			)
+			_draw_edge_from_distribution_or_prob(
 				state,
 				pen.add(reference_directions[side][2]),
+				[pen, previous_node],
 				wall_probability * (1.0 - ((float(draw_counts[side]) + density) / 2.0))
 			)
 
@@ -2010,31 +2017,45 @@ static func _over_draw_arc_point(state: Dictionary, pen, reference_orders: Array
 
 
 static func _draw_from_distribution(state: Dictionary, pen, reference_points: Array) -> int:
-	var wall_set: Dictionary = state["walls"]
-	var ref_conditions: Array = []
-	for point in reference_points:
-		var reference = _reference_position(state, point)
-		ref_conditions.append(wall_set.has(reference.key()))
-	var prob: float
-	if state.has("custom_dist"):
-		prob = state["custom_dist"].prob(ref_conditions)
-	else:
-		prob = HexRandomizerScript.prob_from_distribution(ref_conditions, state["distribution_id"])
+	var ref_conditions := _generated_reference_conditions(state, reference_points)
+	var prob := _markov_distribution_probability(state, ref_conditions)
 	return _draw_from_prob(state, pen, prob)
 
 
 static func _over_draw_from_distribution(state: Dictionary, pen, reference_points: Array) -> int:
+	var ref_conditions := _generated_reference_conditions(state, reference_points)
+	var prob := _markov_distribution_probability(state, ref_conditions)
+	return _over_draw_from_prob(state, pen, prob)
+
+
+static func _draw_edge_from_distribution_or_prob(state: Dictionary, pen, reference_points: Array, fallback_probability: float) -> int:
+	if state.has("custom_dist"):
+		return _draw_from_distribution(state, pen, reference_points)
+	var ref_conditions := _generated_reference_conditions(state, reference_points)
+	if ref_conditions.is_empty():
+		return _draw_from_prob(state, pen, fallback_probability)
+	return _draw_from_prob(state, pen, _markov_distribution_probability(state, ref_conditions))
+
+
+static func _generated_reference_conditions(state: Dictionary, reference_points: Array) -> Array:
 	var wall_set: Dictionary = state["walls"]
 	var ref_conditions: Array = []
+	var visited = state.get("visited", null)
+	var limit_to_visited := visited is Dictionary
 	for point in reference_points:
 		var reference = _reference_position(state, point)
+		if limit_to_visited and not (visited as Dictionary).has(reference.key()):
+			continue
 		ref_conditions.append(wall_set.has(reference.key()))
-	var prob: float
+	return ref_conditions
+
+
+static func _markov_distribution_probability(state: Dictionary, ref_conditions: Array) -> float:
 	if state.has("custom_dist"):
-		prob = state["custom_dist"].prob(ref_conditions)
-	else:
-		prob = HexRandomizerScript.prob_from_distribution(ref_conditions, state["distribution_id"])
-	return _over_draw_from_prob(state, pen, prob)
+		return state["custom_dist"].prob(ref_conditions)
+	if ref_conditions.is_empty():
+		return 0.0
+	return HexRandomizerScript.prob_from_distribution(ref_conditions, state["distribution_id"])
 
 
 static func _draw_from_prob(state: Dictionary, point, draw_probability: float) -> int:
@@ -2147,6 +2168,17 @@ static func _remove_walls_at_points(data, points: Array, removed_walls: Array) -
 	if changed:
 		data.set_walls(_points_without_keys(data.walls, remove_keys))
 	return changed
+
+
+static func markov_distribution_reference_frame(direction_id: int = 0, reference_count: int = 3) -> Dictionary:
+	var step_directions = _symmetry_step_directions_for_arcs()
+	var reference_directions = _symmetry_reference_directions_for_arcs()
+	var safe_direction_id := clampi(direction_id, 0, step_directions.size() - 1)
+	var safe_reference_count := clampi(reference_count, 0, 3)
+	return {
+		"generation_direction": null if safe_reference_count == 0 else step_directions[safe_direction_id],
+		"reference_directions": reference_directions[safe_direction_id].slice(0, safe_reference_count),
+	}
 
 
 static func _symmetry_edge_step_directions(flat_left: bool) -> Array:

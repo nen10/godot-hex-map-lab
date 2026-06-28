@@ -27,7 +27,7 @@
 - `tests/test_hex_core.gd`
   - Hex 基本構造、タイル座標、近傍・経路・到達性、対称系タグ生成の検証
 - `tests/test_hex_map_generation.gd`
-  - 形状/overlay/アイテム生成、連結性回復、interrupt/cancel、seed 決定、対称性
+  - 形状/overlay/アイテム生成、連結性回復、interrupt/cancel、seed 決定、対称性、Markov distribution 参照フレーム/edge参照数
 - `tests/test_generation_graph.gd`
   - Generation Graph の Dictionary model、port 型検証、headless node pass 連鎖、Source ノード、topo 実行
 - `tests/test_generation_graph_resource.gd`

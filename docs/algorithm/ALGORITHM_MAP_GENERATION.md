@@ -79,6 +79,7 @@ phase 2 の `outer_mod` は split 0 / split 7 にそれぞれ 6 個、合計 12 
 
 - `size` は `2 * map_unit_radius + 1` の odd N のみ
 - `distribution_id` は `HexRandomizer.prob_from_distribution()` の 2x2x2 テーブルを使う
+- 外周側の波の先頭では、生成済み参照が 1 個 / 2 個だけの edge case として 2 / 2x2 テーブルを使う。参照がない preset fallback は従来の raw probability を使い、custom distribution では 0-reference entry も評価対象になる。
 - `protected_floor` と `terminal_floor` は生成中も floor として扱い、壁にしない
 - 生成された壁は toric 座標で `size x size` の正方形 canvas に畳み、9 分割された split のいずれかに対応する
 

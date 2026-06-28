@@ -7,6 +7,7 @@ signal promote_requested(node_id: String, role: String)
 
 const HexGenerationNodeTypesScript = preload("res://addons/hex_map_kit/generation/hex_generation_node_types.gd")
 const HexGenerationPortsScript = preload("res://addons/hex_map_kit/generation/hex_generation_ports.gd")
+const HexMapGeneratorScript = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
 
 var _node_id := ""
 var _node_type := ""
@@ -500,6 +501,23 @@ func _build_markov_distribution_editor() -> HBoxContainer:
 	row.add_child(button)
 	return row
 
+func _build_row_by_refcount(refcount: int, weights: Array) -> Dictionary:
+	var row_box := HBoxContainer.new()
+	var spin_list: Array[SpinBox] = []
+	var states: int = 1 << refcount
+	for index in range(states):
+		var state_box := VBoxContainer.new()
+		var panel := _markov_state_panel(refcount, index, float(weights[index]))
+		state_box.add_child(panel)
+		var spin := SpinBox.new()
+		spin.min_value = 0.0
+		spin.max_value = 8.0
+		spin.step = 0.5
+		spin.value = float(weights[index])
+		state_box.add_child(spin)
+		row_box.add_child(state_box)
+		spin_list.append(spin)
+	return {"row": row_box, "spins": spin_list}
 
 func _open_markov_distribution_dialog(summary_label: Label = null) -> void:
 	var dialog := AcceptDialog.new()
@@ -507,32 +525,33 @@ func _open_markov_distribution_dialog(summary_label: Label = null) -> void:
 	dialog.title = "Markov Mesh Distribution"
 	var body := VBoxContainer.new()
 	var help := Label.new()
-	help.text = "Set wall probability weight (0..8) for 0, 1, 2, and 3 visible reference-neighbor cases. Darker center means higher wall probability."
+	help.text = "Set wall probability weight (0..8). Blue > marks the fixed generation step; 0/1/2 are the reference bit order."
 	body.add_child(help)
 	var current := _markov_distribution_values_by_count()
 	var spins_by_count := {}
-	for count in [0, 1, 2, 3]:
-		var count_label := Label.new()
-		count_label.text = "%d reference cells" % count
-		body.add_child(count_label)
-		var states: int = 1 << count
-		var weights = current[str(count)] as Array
-		var row_box := HBoxContainer.new()
-		var spin_list: Array[SpinBox] = []
-		for index in range(states):
-			var state_box := VBoxContainer.new()
-			var panel := _markov_state_panel(count, index, float(weights[index]))
-			state_box.add_child(panel)
-			var spin := SpinBox.new()
-			spin.min_value = 0.0
-			spin.max_value = 8.0
-			spin.step = 0.5
-			spin.value = float(weights[index])
-			state_box.add_child(spin)
-			row_box.add_child(state_box)
-			spin_list.append(spin)
-		body.add_child(row_box)
-		spins_by_count[str(count)] = spin_list
+
+	var row_0 := _build_row_by_refcount(0, current["0"] as Array)
+	var row_1 := _build_row_by_refcount(1, current["1"] as Array)
+	var row_2 := _build_row_by_refcount(2, current["2"] as Array)
+	var row_3 := _build_row_by_refcount(3, current["3"] as Array)
+
+	var count_label := Label.new()
+	count_label.text = "main cases"
+	body.add_child(count_label)
+	body.add_child(row_3["row"])
+
+	var count_label_2 := Label.new()
+	count_label_2.text = "edge cases (0, 1, 2 references)"
+	body.add_child(count_label_2)
+	body.add_child(row_0["row"])
+	body.add_child(row_1["row"])
+	body.add_child(row_2["row"])
+
+	spins_by_count["0"] = row_0["spins"]
+	spins_by_count["1"] = row_1["spins"]
+	spins_by_count["2"] = row_2["spins"]
+	spins_by_count["3"] = row_3["spins"]
+
 	dialog.add_child(body)
 	dialog.confirmed.connect(func():
 		var values := {}
@@ -581,6 +600,28 @@ func _markov_default_weights(reference_count: int) -> Array:
 		0, _:
 			return [0.0]
 
+func _markov_reference_visual_slots(reference_count: int) -> Array:
+	var frame := HexMapGeneratorScript.markov_distribution_reference_frame(_markov_reference_frame_direction_id(reference_count), reference_count)
+	var cells: Array = frame.get("reference_directions", [])
+	var result := []
+	for bit in range(min(reference_count, 3)):
+		if bit >= cells.size():
+			break
+		result.append({"bit": bit, "cell": cells[bit]})
+	return result
+
+
+func _markov_reference_frame_direction_id(reference_count: int) -> int:
+	match reference_count:
+		3:
+			return 0
+		2:
+			return 1
+		1:
+			return 2
+		0, _:
+			return 0
+
 
 func _markov_state_panel(reference_count: int, state_index: int, weight: float) -> HexCellButtonPanel:
 	var panel := HexCellButtonPanel.new()
@@ -588,21 +629,44 @@ func _markov_state_panel(reference_count: int, state_index: int, weight: float) 
 	var labels := {}
 	var metadata := {}
 	var pressable := {}
-	var dirs := HexVector.directions()
-	var refs: int = min(reference_count, 3)
-	for i in range(refs):
-		var direction = dirs[i]
+	var frame := HexMapGeneratorScript.markov_distribution_reference_frame(_markov_reference_frame_direction_id(reference_count), reference_count)
+	var generation_direction = frame.get("generation_direction", null)
+	var shape_cells := [HexVector.zero()]
+	if generation_direction != null:
+		var generation_key: String = generation_direction.key()
+		shape_cells.append(generation_direction)
+		labels[generation_key] = ">"
+		metadata[generation_key] = {
+			"fill_color": Color(0.14, 0.32, 0.62),
+			"label_color": Color(0.92, 0.96, 1.0),
+		}
+		pressable[generation_key] = false
+	for slot in _markov_reference_visual_slots(reference_count):
+		var i := int((slot as Dictionary).get("bit", 0))
+		var direction = (slot as Dictionary).get("cell", null)
+		if direction == null:
+			continue
 		var key: String = direction.key()
 		var is_wall := (state_index & (1 << i)) != 0
-		labels[key] = ""
-		metadata[key] = {"fill_color": Color.BLACK if is_wall else Color.WHITE}
+		var fill := Color.BLACK if is_wall else Color.WHITE
+		shape_cells.append(direction)
+		labels[key] = str(i)
+		metadata[key] = {
+			"fill_color": fill,
+			"label_color": _contrasting_label_color(fill),
+		}
 		pressable[key] = false
 	var center_key: String = HexVector.zero().key()
 	var shade := 1.0 - clampf(weight / 8.0, 0.0, 1.0)
+	var center_fill := Color(shade, shade, shade)
 	labels[center_key] = "%.1f" % weight
-	metadata[center_key] = {"fill_color": Color(shade, shade, shade)}
+	metadata[center_key] = {
+		"fill_color": center_fill,
+		"label_color": _contrasting_label_color(center_fill),
+	}
 	panel.configure({
-		"shape_kind": "directions",
+		"shape_kind": "custom",
+		"shape_cells": shape_cells,
 		"flat_top": _effective_flat_top,
 		"cell_radius": 10.0,
 		"cell_gap": 1.0,
@@ -614,6 +678,11 @@ func _markov_state_panel(reference_count: int, state_index: int, weight: float) 
 		"show_labels": true,
 	})
 	return panel
+
+
+func _contrasting_label_color(fill: Color) -> Color:
+	var luminance := fill.r * 0.299 + fill.g * 0.587 + fill.b * 0.114
+	return Color(0.08, 0.08, 0.09) if luminance > 0.55 else Color(0.92, 0.94, 0.98)
 
 
 func _build_adjacency_rules_editor() -> HBoxContainer:

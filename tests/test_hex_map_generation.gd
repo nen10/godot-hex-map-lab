@@ -13,9 +13,12 @@ const QA04_GOLDEN_SEED_FIXTURE_PATH := "res://docs/test/fixtures/qa04_golden_see
 
 class ZeroDistribution:
 	var calls := 0
+	var counts_by_ref_count := {}
 
-	func prob(_ref_conditions: Array) -> float:
+	func prob(ref_conditions: Array) -> float:
 		calls += 1
+		var ref_count := ref_conditions.size()
+		counts_by_ref_count[ref_count] = int(counts_by_ref_count.get(ref_count, 0)) + 1
 		return 0.0
 
 class InterruptRecorder:
@@ -40,6 +43,8 @@ func _init() -> void:
 
 func _run() -> void:
 	_test_distribution_probabilities_match_unity_tables()
+	_test_markov_distribution_reference_frame_matches_core_order()
+	_test_symmetric_markov_distribution_uses_edge_reference_counts()
 	_test_rectangle_map_data()
 	_test_hexagon_map_data()
 	_test_primary_map_data_exposes_item_keys()
@@ -364,6 +369,43 @@ func _test_distribution_probabilities_match_unity_tables() -> void:
 		0.25,
 		"distribution id 50 uses Unity 2 table"
 	)
+
+
+func _test_markov_distribution_reference_frame_matches_core_order() -> void:
+	var frame := HexMapGenerator.markov_distribution_reference_frame()
+	var generation_direction = frame.get("generation_direction", null)
+	var reference_directions: Array = frame.get("reference_directions", [])
+	_assert_true(generation_direction != null, "Markov distribution frame exposes generation direction")
+	_assert_eq(generation_direction.key(), HexVector.r_axis().negated().key(), "Markov distribution frame uses core side-0 generation step")
+	_assert_eq(reference_directions.size(), 3, "Markov distribution frame exposes three reference directions")
+	_assert_eq(reference_directions[0].key(), HexVector.r_axis().key(), "Markov distribution bit 0 follows core reference order")
+	_assert_eq(reference_directions[1].key(), HexVector.q_axis().negated().key(), "Markov distribution bit 1 follows core reference order")
+	_assert_eq(reference_directions[2].key(), HexVector.s_axis().key(), "Markov distribution bit 2 follows core reference order")
+
+	var two_ref_frame := HexMapGenerator.markov_distribution_reference_frame(1, 2)
+	var one_ref_frame := HexMapGenerator.markov_distribution_reference_frame(2, 1)
+	var zero_ref_frame := HexMapGenerator.markov_distribution_reference_frame(0, 0)
+	_assert_eq((two_ref_frame.get("reference_directions", []) as Array).size(), 2, "Markov 2-reference frame exposes two reference cells")
+	_assert_eq((one_ref_frame.get("reference_directions", []) as Array).size(), 1, "Markov 1-reference frame exposes one reference cell")
+	_assert_true(two_ref_frame.get("generation_direction", null) != null, "Markov 2-reference frame exposes generation direction")
+	_assert_true(one_ref_frame.get("generation_direction", null) != null, "Markov 1-reference frame exposes generation direction")
+	_assert_eq(zero_ref_frame.get("generation_direction", null), null, "Markov 0-reference frame hides generation direction")
+	_assert_eq((zero_ref_frame.get("reference_directions", []) as Array).size(), 0, "Markov 0-reference frame has no reference cells")
+
+
+func _test_symmetric_markov_distribution_uses_edge_reference_counts() -> void:
+	var custom_distribution = ZeroDistribution.new()
+	HexMapGenerator.generate_symmetric_toric_walls(
+		4,
+		1.0,
+		1901,
+		20,
+		[],
+		custom_distribution
+	)
+	_assert_true(int(custom_distribution.counts_by_ref_count.get(3, 0)) > 0, "symmetric Markov generation uses 3-reference distribution states")
+	_assert_true(int(custom_distribution.counts_by_ref_count.get(2, 0)) > 0, "symmetric Markov generation uses 2-reference edge states")
+	_assert_true(int(custom_distribution.counts_by_ref_count.get(1, 0)) > 0, "symmetric Markov generation uses 1-reference edge states")
 
 
 func _test_rectangle_map_data() -> void:

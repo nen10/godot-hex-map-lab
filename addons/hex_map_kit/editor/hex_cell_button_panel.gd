@@ -267,6 +267,9 @@ func _draw_entry_label(entry: Dictionary) -> void:
 func _entry_label_color(entry: Dictionary) -> Color:
 	if bool(entry.get("disabled", false)):
 		return Color(0.55, 0.55, 0.55, 0.9)
+	var metadata = entry.get("metadata", {})
+	if metadata is Dictionary and (metadata as Dictionary).has("label_color"):
+		return (metadata as Dictionary)["label_color"]
 	return Color(0.92, 0.94, 0.98, 1.0)
 
 
