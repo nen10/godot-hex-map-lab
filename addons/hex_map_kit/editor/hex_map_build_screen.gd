@@ -26,6 +26,11 @@ const TAB_NAME := "Build"
 const WORKFLOW_OWNER := "Build"
 const USER_TASK := "Build a generation graph and inspect node outputs."
 const SCREEN_SCRIPT := "hex_map_build_screen.gd"
+const RUN_PROGRESS_GRAPH_SCALE := 0.94
+const RUN_PROGRESS_PREVIEW_START := 0.95
+const RUN_PROGRESS_APPLY_START := 0.96
+const RUN_PROGRESS_APPLY_END := 0.99
+const RUN_PROGRESS_APPLY_CHUNK_SIZE := 256
 
 var _workspace_asset_context: HexMapWorkspaceAssetContextScript = null
 var _context_label: Label
@@ -208,11 +213,16 @@ func _complete_async_graph_run(run_id: int) -> void:
 		return
 
 	var completed_report := _canvas.complete_graph_run(report, run_context)
-	_run_busy = false
-	_update_run_controls()
 	_finalize_graph_run(completed_report, options)
 	if auto_preview and bool(completed_report.get("ok", false)):
+		_set_run_progress_popup(
+			RUN_PROGRESS_PREVIEW_START,
+			"Applying preview",
+			"Promoting generated result to the preview document"
+		)
 		_auto_preview_after_generate()
+	_run_busy = false
+	_update_run_controls()
 	if bool(completed_report.get("cancelled", false)):
 		_finish_run_progress_popup("Cancelled")
 	elif bool(completed_report.get("ok", false)):
@@ -873,6 +883,7 @@ func _display_progress_from_status(status: Dictionary) -> Dictionary:
 	if phase.begins_with("graph_node_"):
 		_run_progress_node_context = status.duplicate(true)
 		var node_title := String(status.get("node_title", _node_display_name(String(status.get("node_type", "")), String(status.get("node_id", "")))))
+		node_title = _node_title_with_mode(node_title, String(status.get("node_mode", "")))
 		var node_index := int(status.get("node_index", status.get("steps", 0)))
 		var node_total := max(1, int(status.get("node_total", status.get("total_steps", 1))))
 		var action := "Generating"
@@ -880,8 +891,9 @@ func _display_progress_from_status(status: Dictionary) -> Dictionary:
 			action = "Completed"
 		elif phase == "graph_node_reused":
 			action = "Reused"
+		var graph_progress := float(status.get("graph_progress", status.get("progress", 0.0)))
 		return {
-			"progress": float(status.get("progress", 0.0)),
+			"progress": _display_graph_progress(graph_progress),
 			"status": "%s %s" % [action, node_title],
 			"detail": "Node %d of %d" % [clampi(node_index, 0, node_total), node_total],
 			"node_id": String(status.get("node_id", "")),
@@ -890,13 +902,15 @@ func _display_progress_from_status(status: Dictionary) -> Dictionary:
 	var context := _run_progress_node_context.duplicate(true)
 	var node_id := String(context.get("node_id", status.get("node_id", "")))
 	var node_title := String(context.get("node_title", _node_display_name(String(context.get("node_type", "")), node_id)))
+	node_title = _node_title_with_mode(node_title, String(context.get("node_mode", status.get("node_mode", ""))))
 	var node_step := int(context.get("steps", 0))
 	var node_total := max(1, int(context.get("total_steps", context.get("node_total", 1))))
-	var core_progress := clampf(float(status.get("progress", 0.0)), 0.0, 1.0)
-	var overall := clampf((float(node_step) + core_progress) / float(node_total), 0.0, 1.0)
+	var core_progress := clampf(float(status.get("core_progress", status.get("progress", 0.0))), 0.0, 1.0)
+	var graph_progress := float(status.get("graph_progress", -1.0))
+	var overall := graph_progress if graph_progress >= 0.0 else clampf((float(node_step) + core_progress) / float(node_total), 0.0, 1.0)
 	var core_phase := _humanize_progress_phase(phase)
 	return {
-		"progress": overall,
+		"progress": _display_graph_progress(overall),
 		"status": "Generating %s" % node_title if node_title != "" else "Generating",
 		"detail": "%s - Node %d of %d - %d%%" % [
 			core_phase,
@@ -906,6 +920,18 @@ func _display_progress_from_status(status: Dictionary) -> Dictionary:
 		],
 		"node_id": node_id,
 	}
+
+
+func _display_graph_progress(progress: float) -> float:
+	return clampf(progress, 0.0, 1.0) * RUN_PROGRESS_GRAPH_SCALE
+
+
+func _node_title_with_mode(title: String, mode: String) -> String:
+	if mode == "":
+		return title
+	if title == "":
+		return mode
+	return "%s / %s" % [title, mode]
 
 
 func _node_display_name(node_type: String, node_id: String) -> String:
@@ -930,6 +956,31 @@ func _humanize_progress_phase(phase: String) -> String:
 			return "Connectivity"
 		_:
 			return phase.capitalize() if phase != "" else "Working"
+
+
+func _viewport_apply_options() -> Dictionary:
+	return {
+		"chunk_size": RUN_PROGRESS_APPLY_CHUNK_SIZE,
+		"apply_reason": "build_viewport_preview",
+		"progress_callback": Callable(self, "_on_viewport_apply_progress"),
+		"cancel_callback": Callable(self, "_on_viewport_apply_cancel_requested"),
+	}
+
+
+func _on_viewport_apply_progress(status: Dictionary) -> void:
+	_last_viewport_apply_report = status.duplicate(true)
+	if _run_progress_popup == null or not _run_progress_popup.visible:
+		return
+	var progress := clampf(float(status.get("progress", 0.0)), 0.0, 1.0)
+	var mapped := RUN_PROGRESS_APPLY_START + progress * (RUN_PROGRESS_APPLY_END - RUN_PROGRESS_APPLY_START)
+	var total := int(status.get("total_cells", 0))
+	var processed := int(status.get("processed_cells", 0))
+	var detail := "Viewport cells %d of %d" % [processed, total] if total > 0 else "Viewport apply"
+	_set_run_progress_popup(mapped, "Applying preview", detail)
+
+
+func _on_viewport_apply_cancel_requested(_status: Dictionary) -> bool:
+	return _cancel_requested_thread_safe()
 
 
 func _show_run_progress_popup() -> void:
@@ -1686,7 +1737,7 @@ func _apply_document_to_context_layer() -> Dictionary:
 	if bool(apply_state.get("ok", false)):
 		var resource = apply_state.get("map_resource", null)
 		if resource != null:
-			_last_viewport_apply_report = _context_hex_tile_map_layer.apply_map(resource)
+			_last_viewport_apply_report = _context_hex_tile_map_layer.apply_map(resource, _viewport_apply_options())
 			_last_viewport_apply_report["ok"] = not bool(_last_viewport_apply_report.get("cancelled", false))
 			_finalize_viewport_apply_report(tiles_ok)
 			return _last_viewport_apply_report.duplicate(true)

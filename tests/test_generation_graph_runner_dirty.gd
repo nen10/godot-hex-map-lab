@@ -24,6 +24,7 @@ func _init() -> void:
 func _run() -> void:
 	_test_dirty_run_reuses_upstream_cache()
 	_test_cancelled_run_keeps_partial_cache_uncommitted()
+	_test_weighted_progress_estimator_and_events()
 
 	if _failures.is_empty():
 		print("test_generation_graph_runner_dirty.gd: all tests passed")
@@ -77,6 +78,62 @@ func _test_cancelled_run_keeps_partial_cache_uncommitted() -> void:
 	_assert_true((report["partial_cache"] as Dictionary).has("walls"), "GRAPH-13 partial cache records in-flight node separately")
 
 
+func _test_weighted_progress_estimator_and_events() -> void:
+	var large_input := {"in": {"cells": 6561}}
+	var sparse_work := HexGenerationGraphRunner.estimated_work_for_node({
+		"type": "connectivity",
+		"params": {"method": "sparse"},
+	}, large_input)
+	var dense_work := HexGenerationGraphRunner.estimated_work_for_node({
+		"type": "connectivity",
+		"params": {"method": "dense"},
+	}, large_input)
+	var random_wall_work := HexGenerationGraphRunner.estimated_work_for_node({
+		"type": "wall_field",
+		"params": {"wall_method": "random_probability"},
+	}, large_input)
+	var markov_work := HexGenerationGraphRunner.estimated_work_for_node({
+		"type": "wall_field",
+		"params": {"wall_method": "markov_mesh"},
+	}, large_input)
+	var random_item_work := HexGenerationGraphRunner.estimated_work_for_node({
+		"type": "item_generator",
+		"params": {"placement_method": "weighted"},
+	}, {"scope": {"cells": 1600}})
+	var adjacency_item_work := HexGenerationGraphRunner.estimated_work_for_node({
+		"type": "item_generator",
+		"params": {"placement_method": "adjacency_rules", "neighbor_radius": 3},
+	}, {"scope": {"cells": 1600}})
+
+	_assert_true(sparse_work > dense_work, "GRAPH-PROGRESS sparse connectivity is weighted above dense connectivity")
+	_assert_true(dense_work > markov_work, "GRAPH-PROGRESS dense connectivity remains above Markov mesh for equal cell count")
+	_assert_true(markov_work > random_wall_work, "GRAPH-PROGRESS Markov mesh is weighted above random walls")
+	_assert_true(adjacency_item_work > random_item_work, "GRAPH-PROGRESS adjacency item generation is weighted above random items")
+
+	var graph := _three_node_graph()
+	var recorder := InterruptRecorder.new()
+	var report = HexGenerationGraphRunner.run_with_report(graph, {
+		"interrupt_options": {
+			"chunk_size": 1,
+			"progress_callback": Callable(recorder, "progress"),
+		},
+	})
+	_assert_true(bool(report["ok"]), "GRAPH-PROGRESS weighted progress graph run succeeds")
+	_assert_true(recorder.progress_events.size() > 0, "GRAPH-PROGRESS weighted progress emits events")
+	var previous := -0.001
+	var saw_core_event := false
+	for event in recorder.progress_events:
+		var progress := float((event as Dictionary).get("progress", 0.0))
+		_assert_true(progress + 0.0001 >= previous, "GRAPH-PROGRESS emitted progress is monotonic")
+		previous = progress
+		_assert_eq(String((event as Dictionary).get("progress_model", "")), "estimated_work", "GRAPH-PROGRESS event declares estimated-work model")
+		if not String((event as Dictionary).get("phase", "")).begins_with("graph_node_"):
+			saw_core_event = true
+			_assert_true((event as Dictionary).has("graph_progress"), "GRAPH-PROGRESS core event exposes graph progress")
+			_assert_true((event as Dictionary).has("core_progress"), "GRAPH-PROGRESS core event preserves node-local progress")
+	_assert_true(saw_core_event, "GRAPH-PROGRESS runner maps core progress events")
+
+
 func _three_node_graph() -> Dictionary:
 	var graph = HexGenerationGraph.new_graph()
 	HexGenerationGraph.add_node(graph, "shape", "shape", {
@@ -100,6 +157,11 @@ func _three_node_graph() -> Dictionary:
 func _assert_true(value: bool, message: String) -> void:
 	if not value:
 		_failures.append(message)
+
+
+func _assert_eq(actual, expected, message: String) -> void:
+	if actual != expected:
+		_failures.append("%s: expected %s, got %s" % [message, str(expected), str(actual)])
 
 
 func _assert_packed_eq(actual, expected: Array, message: String) -> void:
