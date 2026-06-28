@@ -37,6 +37,7 @@ func _run() -> void:
 	_test_duplicate_input_edge_is_rejected()
 	_test_result_keeps_multiple_overlays_in_port_order()
 	_test_structured_adjacency_rules_and_custom_markov_distribution()
+	_test_square_markov_mesh_missing_size_uses_visible_default()
 
 	if _failures.is_empty():
 		print("test_generation_graph.gd: all tests passed")
@@ -398,6 +399,23 @@ func _test_structured_adjacency_rules_and_custom_markov_distribution() -> void:
 	HexGenerationGraph.add_edge(preset_graph, "shape", "walls", "in")
 	var preset_terrain = HexGenerationGraphRunner.run(preset_graph)["walls"] as HexMapData
 	_assert_true(preset_terrain.walls.size() > 0, "REPAIR-18 preset mode ignores custom distribution and uses preset")
+
+
+func _test_square_markov_mesh_missing_size_uses_visible_default() -> void:
+	var graph = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(graph, "shape", "shape", {"shape": "square"})
+	HexGenerationGraph.add_node(graph, "walls", "wall_field", {
+		"wall_method": "markov_mesh",
+		"distribution_mode": "preset",
+		"distribution_id": 20,
+		"seed": 1,
+	})
+	HexGenerationGraph.add_edge(graph, "shape", "walls", "in")
+	var cache = HexGenerationGraphRunner.run(graph)
+	var shape = cache["shape"] as HexMapData
+	var terrain = cache["walls"] as HexMapData
+	_assert_eq(shape.cells.size(), 9, "Square shape missing size uses inspector-visible default instead of one cell")
+	_assert_eq(terrain.cells.size(), 9, "Square Markov Mesh missing size preserves the default square cell set")
 
 
 func _cell(q: int, r: int):

@@ -337,6 +337,10 @@ func _test_palette_and_inspector_reflect_graph_contract() -> void:
 	_assert_true((inspector["param_fields"] as PackedStringArray).has("height"), "GRAPH-11 inspector reflects shape height param")
 	_assert_true(bool(inspector["promote_button_present"]), "GRAPH-11 inspector reserves Promote action for GRAPH-12")
 	_assert_true(not bool(inspector["promote_enabled"]), "GRAPH-11 Promote action stays disabled before GRAPH-12")
+	screen.node_inspector().set_param("shape", "square")
+	await process_frame
+	var square_params = canvas.node_params(shape)
+	_assert_eq(int(square_params.get("size", 0)), 3, "Shape inspector persists default square size when switching to Square")
 
 	var source = canvas.add_graph_node(HexGenerationNodeTypes.NODE_SOURCE, Vector2(200, 0), "source")
 	canvas.select_graph_node(source)

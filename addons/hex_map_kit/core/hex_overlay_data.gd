@@ -118,6 +118,7 @@ func apply_overlay(
 ) -> void:
 	if overlay == null:
 		return
+	var normalized_existing_policy := _normalize_existing_policy(existing_policy)
 	if write_policy == APPLY_CLEAR_AND_WRITE:
 		cells = overlay.cells.duplicate()
 		items.clear()
@@ -125,10 +126,14 @@ func apply_overlay(
 		cells = HexMapDataScript.unique_points(cells + overlay.cells)
 
 	for item_key in overlay.item_keys():
-		for point in overlay.item_cells(item_key):
-			if existing_policy == EXISTING_SKIP and not items_at(point).is_empty():
+		var points = overlay.item_cells(item_key)
+		if normalized_existing_policy == EXISTING_MERGE:
+			add_item_cells(item_key, points)
+			continue
+		for point in points:
+			if normalized_existing_policy == EXISTING_SKIP and not items_at(point).is_empty():
 				continue
-			if existing_policy == EXISTING_REPLACE:
+			if normalized_existing_policy == EXISTING_REPLACE:
 				remove_items_at(point)
 			add_item_cell(item_key, point)
 
@@ -175,6 +180,18 @@ func occupied_cells() -> Array:
 			seen[key] = true
 			result.append(point)
 	return result
+
+
+static func _normalize_existing_policy(policy: String) -> String:
+	match policy:
+		EXISTING_REPLACE, "replace":
+			return EXISTING_REPLACE
+		EXISTING_SKIP, "skip":
+			return EXISTING_SKIP
+		EXISTING_MERGE, "merge":
+			return EXISTING_MERGE
+		_:
+			return EXISTING_MERGE
 
 
 static func _selector_item_set(selector) -> Dictionary:

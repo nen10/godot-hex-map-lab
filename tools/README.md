@@ -22,6 +22,22 @@ GODOT_BIN=/path/to/Godot ./tools/test.sh
 
 Godot が出す終了コード 0の macOS 証明書関連の非致命的な ERROR は既知であり無視します。
 
+## Graph progress profiling
+
+Build Graph の progress weight を設計するための生成 / visual apply timing を測る場合:
+
+```sh
+GODOT_BIN="${GODOT_BIN:-/Applications/Godot.app/Contents/MacOS/Godot}"
+"$GODOT_BIN" --headless --path . --script tools/profile_graph_progress_weights.gd -- --run-id=manual-graph-progress
+```
+
+結果は次に出力されます。
+
+```text
+.godot_user/perf/graph-progress/<run-id>/graph_progress_profile.json
+.godot_user/perf/graph-progress/<run-id>/graph_progress_profile.md
+```
+
 ## Addon package
 
 addon-only zip と manifest を生成する場合:

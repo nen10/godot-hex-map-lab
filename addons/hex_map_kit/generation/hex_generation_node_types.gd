@@ -32,6 +32,10 @@ const PORT_OUT := "out"
 const RESULT_TERRAIN_PORT := "terrain"
 const RESULT_OVERLAY_PORT_PREFIX := "overlay_"
 const RESULT_OVERLAY_PORT_COUNT := 3
+const DEFAULT_RECTANGLE_WIDTH := 6
+const DEFAULT_RECTANGLE_HEIGHT := 4
+const DEFAULT_SQUARE_SIZE := 3
+const DEFAULT_HEXAGON_RADIUS := 2
 
 
 static func result_overlay_port_names() -> Array:
@@ -250,13 +254,13 @@ static func _run_shape(_inputs: Dictionary, params: Dictionary, _context: Dictio
 	var shape = String(params.get("shape", "rectangle"))
 	match shape:
 		"square":
-			return HexMapDataScript.square(max(1, int(params.get("size", 1))), bool(params.get("toric", false)))
+			return HexMapDataScript.square(max(1, int(params.get("size", DEFAULT_SQUARE_SIZE))), bool(params.get("toric", false)))
 		"hexagon":
-			return HexMapDataScript.hexagon(max(0, int(params.get("radius", 1))))
+			return HexMapDataScript.hexagon(max(0, int(params.get("radius", DEFAULT_HEXAGON_RADIUS))))
 		"rectangle", _:
 			return HexMapDataScript.rectangle(
-				max(1, int(params.get("width", 1))),
-				max(1, int(params.get("height", 1))),
+				max(1, int(params.get("width", DEFAULT_RECTANGLE_WIDTH))),
+				max(1, int(params.get("height", DEFAULT_RECTANGLE_HEIGHT))),
 				bool(params.get("toric", false))
 			)
 

@@ -61,6 +61,7 @@ func set_param(key: String, value: Variant) -> void:
 	if _node_id == "":
 		return
 	_params[key] = value
+	_ensure_params_for_changed_value(key, value)
 	_refresh_param_controls()
 	node_params_changed.emit(_node_id, _params.duplicate(true))
 
@@ -1076,13 +1077,13 @@ func _param_default(key: String, node_type: String) -> Variant:
 		"shape":
 			return "rectangle"
 		"width":
-			return 6
+			return HexGenerationNodeTypesScript.DEFAULT_RECTANGLE_WIDTH
 		"height":
-			return 4
+			return HexGenerationNodeTypesScript.DEFAULT_RECTANGLE_HEIGHT
 		"size":
-			return 3
+			return HexGenerationNodeTypesScript.DEFAULT_SQUARE_SIZE
 		"radius":
-			return 2
+			return HexGenerationNodeTypesScript.DEFAULT_HEXAGON_RADIUS
 		"toric":
 			return false
 		"wall_probability":
@@ -1174,6 +1175,23 @@ func _param_keys_for_type(node_type: String) -> Array:
 		HexGenerationNodeTypesScript.NODE_RESULT:
 			return ["orientation"]
 	return []
+
+
+func _ensure_params_for_changed_value(key: String, value: Variant) -> void:
+	if _node_type != HexGenerationNodeTypesScript.NODE_SHAPE or key != "shape":
+		return
+	match String(value):
+		"square":
+			if not _params.has("size"):
+				_params["size"] = HexGenerationNodeTypesScript.DEFAULT_SQUARE_SIZE
+		"hexagon":
+			if not _params.has("radius"):
+				_params["radius"] = HexGenerationNodeTypesScript.DEFAULT_HEXAGON_RADIUS
+		"rectangle":
+			if not _params.has("width"):
+				_params["width"] = HexGenerationNodeTypesScript.DEFAULT_RECTANGLE_WIDTH
+			if not _params.has("height"):
+				_params["height"] = HexGenerationNodeTypesScript.DEFAULT_RECTANGLE_HEIGHT
 
 
 func _resource_ref_fields_for_type(node_type: String) -> Array:

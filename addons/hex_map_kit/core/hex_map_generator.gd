@@ -302,17 +302,20 @@ static func generate_random_items_interruptible(
 	var rng = RandomNumberGenerator.new()
 	rng.seed = seed
 	var weight_total = _item_pool_weight_total(normalized_pool, "weight")
+	var placements := {}
 
 	for index in range(candidates.size()):
 		var cell = candidates[index]
 		if rng.randf() < placement_probability:
 			var item_key = _choose_weighted_item(normalized_pool, weight_total, rng, "weight")
 			if item_key != "":
-				data.add_item_cell(item_key, cell)
+				_record_item_placement(placements, item_key, cell)
 		var steps = index + 1
 		if steps % chunk_size == 0 or steps == total:
 			if _interrupt_update(interrupt_options, "random_items", steps, total):
+				_apply_item_placements(data, placements)
 				return _item_generation_result(data, true, steps, total)
+	_apply_item_placements(data, placements)
 	_interrupt_update(interrupt_options, "random_items", total, total)
 	return _item_generation_result(data, false, total, total)
 
@@ -352,6 +355,7 @@ static func generate_limited_items_interruptible(
 	var rng = RandomNumberGenerator.new()
 	rng.seed = seed
 	var remaining_total = _item_pool_weight_total(normalized_pool, "remaining")
+	var placements := {}
 
 	for index in range(candidates.size()):
 		var cell = candidates[index]
@@ -360,7 +364,7 @@ static func generate_limited_items_interruptible(
 		if remaining_total > 0 and rng.randf() < clampf(placement_probability, 0.0, 1.0):
 			var item_key = _choose_weighted_item(normalized_pool, float(remaining_total), rng, "remaining")
 			if item_key != "":
-				data.add_item_cell(item_key, cell)
+				_record_item_placement(placements, item_key, cell)
 				for entry in normalized_pool:
 					if String(entry["name"]) == item_key:
 						entry["remaining"] = max(0, int(entry["remaining"]) - 1)
@@ -369,7 +373,9 @@ static func generate_limited_items_interruptible(
 		var steps = index + 1
 		if steps % chunk_size == 0 or steps == total:
 			if _interrupt_update(interrupt_options, "limited_items", steps, total):
+				_apply_item_placements(data, placements)
 				return _item_generation_result(data, true, steps, total)
+	_apply_item_placements(data, placements)
 	_interrupt_update(interrupt_options, "limited_items", total, total)
 	return _item_generation_result(data, false, total, total)
 
@@ -423,6 +429,7 @@ static func generate_toric_adjacency_items_interruptible(
 
 	var rng = RandomNumberGenerator.new()
 	rng.seed = seed
+	var placements := {}
 	for index in range(candidates.size()):
 		var cell = candidates[index]
 		var stats = _adjacency_reference_stats(cell, reference_set, cyclic_size, neighbor_radius)
@@ -433,13 +440,15 @@ static func generate_toric_adjacency_items_interruptible(
 			stats.get("component_sizes", [])
 		)
 		if rng.randf() < probability:
-			data.add_item_cell(item_name, cell)
+			_record_item_placement(placements, item_name, cell)
 			if include_generated_reference:
 				reference_set[cell.key()] = cell
 		var steps = index + 1
 		if steps % chunk_size == 0 or steps == total:
 			if _interrupt_update(interrupt_options, "toric_adjacency_items", steps, total):
+				_apply_item_placements(data, placements)
 				return _item_generation_result(data, true, steps, total)
+	_apply_item_placements(data, placements)
 	_interrupt_update(interrupt_options, "toric_adjacency_items", total, total)
 	return _item_generation_result(data, false, total, total)
 
@@ -636,10 +645,11 @@ static func _adjacency_reference_stats(
 	for neighbor in _adjacency_scope_cells(cell, neighbor_radius, cyclic_size):
 		if reference_set.has(neighbor.key()):
 			reference_neighbors.append(reference_set[neighbor.key()])
+	var component_sizes := _adjacency_component_sizes(reference_neighbors, cyclic_size)
 	return {
 		"count": reference_neighbors.size(),
-		"components": _adjacency_component_count(reference_neighbors, cyclic_size),
-		"component_sizes": _adjacency_component_sizes(reference_neighbors, cyclic_size),
+		"components": component_sizes.size(),
+		"component_sizes": component_sizes,
 	}
 
 
@@ -875,6 +885,19 @@ static func _interrupt_chunk_size(interrupt_options: Dictionary) -> int:
 	if interrupt_options.has("chunk_size"):
 		return max(1, int(interrupt_options["chunk_size"]))
 	return 1
+
+
+static func _record_item_placement(placements: Dictionary, item_key: String, cell) -> void:
+	if item_key == "":
+		return
+	if not placements.has(item_key):
+		placements[item_key] = []
+	(placements[item_key] as Array).append(cell)
+
+
+static func _apply_item_placements(data, placements: Dictionary) -> void:
+	for item_key in placements.keys():
+		data.add_item_cells(String(item_key), placements[item_key] as Array)
 
 
 static func _interrupt_update(
