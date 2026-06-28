@@ -713,7 +713,8 @@ func ensure_display_tiles(
 	floor_source: int = 0,
 	floor_atlas: Vector2i = Vector2i.ZERO,
 	wall_source: int = 0,
-	wall_atlas: Vector2i = Vector2i(1, 0)
+	wall_atlas: Vector2i = Vector2i(1, 0),
+	redraw_existing_map: bool = true
 ) -> bool:
 	_sync_hex_size_from_tile_size(tile_size)
 	floor_source_id = floor_source
@@ -729,7 +730,7 @@ func ensure_display_tiles(
 	var ok = _ensure_display_tiles_available(tile_size)
 	_sync_loop_tile_map()
 	_sync_overlay_tile_map()
-	if ok and _data != null:
+	if ok and redraw_existing_map and _data != null:
 		_redraw()
 	return ok
 

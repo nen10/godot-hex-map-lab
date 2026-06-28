@@ -38,6 +38,26 @@ GODOT_BIN="${GODOT_BIN:-/Applications/Godot.app/Contents/MacOS/Godot}"
 .godot_user/perf/graph-progress/<run-id>/graph_progress_profile.md
 ```
 
+Build Generate ボタン経路の context / graph / preview phase timing を測る場合:
+
+```sh
+GODOT_BIN="${GODOT_BIN:-/Applications/Godot.app/Contents/MacOS/Godot}"
+"$GODOT_BIN" --headless --path . --script tools/profile_build_generate_phases.gd -- --run-id=manual-build-generate-phases
+```
+
+特定サイズだけ測る場合:
+
+```sh
+"$GODOT_BIN" --headless --path . --script tools/profile_build_generate_phases.gd -- --run-id=manual-size130 --side=130
+```
+
+結果は次に出力されます。
+
+```text
+.godot_user/perf/build-generate/<run-id>/build_generate_phase_profile.json
+.godot_user/perf/build-generate/<run-id>/build_generate_phase_profile.md
+```
+
 ## Addon package
 
 addon-only zip と manifest を生成する場合:

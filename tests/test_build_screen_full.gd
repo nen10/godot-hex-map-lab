@@ -138,6 +138,9 @@ func _test_workspace_simple_generate_bootstraps_graphless_selected_layer() -> vo
 	_assert_true(button is Button, "SCREEN-30 Workspace mounts Simple Generate button")
 	button.emit_signal("pressed")
 	await process_frame
+	var progress_snapshot = workspace.generation_screen_snapshot()
+	_assert_true(bool(progress_snapshot["run_progress_popup_visible"]), "SCREEN-30 Simple button shows progress before profile graph preparation")
+	await _wait_for_workspace_preview_pending(workspace, "SCREEN-30 Simple button path")
 
 	var snapshot = workspace.generation_screen_snapshot()
 	_assert_true(selected_layer.level_document_resource is HexMapDocumentResource, "SCREEN-30 graphless selected layer receives document context")
@@ -177,6 +180,16 @@ func _test_simple_profile_without_project_profile_uses_default_graph() -> void:
 
 	screen.queue_free()
 	await process_frame
+
+
+func _wait_for_workspace_preview_pending(workspace: HexMapWorkspace, message: String) -> void:
+	var guard := 0
+	var snapshot = workspace.generation_screen_snapshot()
+	while String(snapshot["preview_commit_state"]) != "preview_pending" and guard < 240:
+		await process_frame
+		snapshot = workspace.generation_screen_snapshot()
+		guard += 1
+	_assert_eq(String(snapshot["preview_commit_state"]), "preview_pending", "%s reaches preview pending state" % message)
 
 
 func _assert_viewport_projection_ok(snapshot: Dictionary, message: String) -> void:

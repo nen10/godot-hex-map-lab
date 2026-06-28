@@ -89,7 +89,8 @@ static func _promote_overlay(data: HexOverlayDataScript, document: HexMapDocumen
 	layer.role = ROLE_OVERLAY
 	layer.item_key = ""
 	layer.overlay = HexOverlayResourceScript.from_overlay_data(data, int(options.get("orientation", HexMapResourceScript.ORIENTATION_FLAT_TOP)))
-	layer.tile_assignments = _overlay_tile_assignments(data, options)
+	if bool(options.get("write_tile_assignments", true)):
+		layer.tile_assignments = _overlay_tile_assignments(data, options)
 	layer.metadata = _metadata(ROLE_OVERLAY, options)
 	document.overlay_layers.append(layer)
 	return _result(true, ROLE_OVERLAY, _overlay_item_count(data), "")

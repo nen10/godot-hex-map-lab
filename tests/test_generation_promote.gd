@@ -284,7 +284,10 @@ func _test_top_generate_creates_layer_and_projects_viewport_preview() -> void:
 	var button = workspace.build_screen().find_child("Build Generate Button", true, false) as Button
 	_assert_true(button is Button, "Build top Generate button is mounted")
 	button.emit_signal("pressed")
+	_assert_top_generate_progress_visible(workspace, "Generate shows progress immediately on press")
 	await process_frame
+	_assert_top_generate_progress_visible(workspace, "Generate shows progress before context/graph preparation blocks the UI")
+	await _wait_for_top_generate_preview(workspace, "Generate creates/selects a layer")
 
 	var selected_layer = workspace.editor_session_state().current_selected_hex_tile_map_layer() as HexTileMapLayer
 	_assert_true(selected_layer is HexTileMapLayer, "Generate creates/selects a Build HexTileMapLayer when none is selected")
@@ -295,12 +298,27 @@ func _test_top_generate_creates_layer_and_projects_viewport_preview() -> void:
 	_assert_true(selected_layer.display_used_cell_count() > 0, "Generate projects the result to the selected viewport layer")
 
 	var snapshot = workspace.generation_screen_snapshot()
+	_assert_top_generate_timing_phases(snapshot, "Generate records measured phase timings")
 	_assert_true(bool(snapshot["viewport_preview_visible"]), "Generate snapshot records visible viewport preview")
 	_assert_true(int(snapshot["viewport_preview_cell_count"]) > 0, "Generate snapshot records viewport display cell count")
 	_assert_viewport_projection_ok(snapshot, "Generate creates a successful viewport projection report")
 	_assert_eq(String(snapshot["preview_commit_state"]), "preview_pending", "Generate leaves preview pending Apply/Revert")
 	_assert_true(String(snapshot["viewport_preview_layer_path"]).contains("BuildHexMapLayer"), "Generate snapshot records viewport layer path")
 	_assert_true(bool(snapshot["node_thumbnail_secondary"]), "Generate marks node thumbnail as secondary proof only")
+
+	button.emit_signal("pressed")
+	_assert_top_generate_progress_visible(workspace, "Second Generate shows progress immediately on press")
+	await process_frame
+	_assert_top_generate_progress_visible(workspace, "Second Generate shows progress before context/graph preparation")
+	await _wait_for_top_generate_preview(workspace, "Second Generate reuses current canvas")
+	var second_snapshot = workspace.generation_screen_snapshot()
+	var second_context = second_snapshot["build_context"] as Dictionary
+	var second_restore = second_context.get("restore_report", {}) as Dictionary
+	_assert_true(bool(second_restore.get("preserved_canvas", false)), "Second Generate preserves current canvas instead of restoring graph resource")
+	_assert_true(bool(second_context.get("deferred_snapshots", false)), "Second Generate defers context snapshots until after popup is visible")
+	var second_timings = second_snapshot.get("run_phase_timings", {}) as Dictionary
+	_assert_true(second_timings.has("preview_cached_skip"), "Second Generate skips redundant preview apply when cached output is already pending")
+	_assert_true(float(second_timings.get("preview_cached_skip", -1.0)) >= 0.0, "Second Generate cached preview skip timing is recorded")
 
 	workspace.queue_free()
 	await process_frame
@@ -322,6 +340,8 @@ func _test_top_generate_uses_selected_graphless_layer_for_viewport_preview() -> 
 	_assert_true(button is Button, "Build top Generate button is mounted for selected layer")
 	button.emit_signal("pressed")
 	await process_frame
+	_assert_top_generate_progress_visible(workspace, "Selected layer Generate shows progress before graph preparation")
+	await _wait_for_top_generate_preview(workspace, "Selected layer Generate creates preview")
 
 	_assert_eq(workspace.editor_session_state().current_selected_hex_tile_map_layer(), selected_layer, "Generate keeps the selected HexTileMapLayer as target")
 	_assert_true(selected_layer.level_document_resource is HexMapDocumentResource, "Generate attaches a document to selected graphless layer")
@@ -329,6 +349,7 @@ func _test_top_generate_uses_selected_graphless_layer_for_viewport_preview() -> 
 	_assert_true(selected_layer.level_document_resource.overlay_layers.size() > 0, "Selected layer Generate Result writes generated overlay to the document")
 	_assert_true(selected_layer.display_used_cell_count() > 0, "Generate projects to the selected graphless layer viewport display")
 	var snapshot = workspace.generation_screen_snapshot()
+	_assert_top_generate_timing_phases(snapshot, "Selected layer Generate records measured phase timings")
 	_assert_eq(String(snapshot["preview_commit_state"]), "preview_pending", "Selected layer Generate creates a pending preview")
 	_assert_true(bool(snapshot["viewport_preview_visible"]), "Selected layer Generate records viewport preview visibility")
 	_assert_viewport_projection_ok(snapshot, "Selected layer Generate creates a successful viewport projection report")
@@ -368,7 +389,10 @@ func _test_top_generate_apply_revert_preview_contract() -> void:
 
 	generate_button.emit_signal("pressed")
 	await process_frame
+	_assert_top_generate_progress_visible(workspace, "Apply/Revert Generate shows progress before graph preparation")
+	await _wait_for_top_generate_preview(workspace, "Apply/Revert Generate creates pending preview")
 	var pending_snapshot = workspace.generation_screen_snapshot()
+	_assert_top_generate_timing_phases(pending_snapshot, "Apply/Revert Generate records measured phase timings")
 	_assert_eq(String(pending_snapshot["preview_commit_state"]), "preview_pending", "Generate enters preview pending state")
 	_assert_true(bool(pending_snapshot["viewport_preview_visible"]), "Generate applies pending preview to viewport")
 	_assert_viewport_projection_ok(pending_snapshot, "Apply/Revert Generate creates a successful viewport projection report")
@@ -387,6 +411,7 @@ func _test_top_generate_apply_revert_preview_contract() -> void:
 
 	generate_button.emit_signal("pressed")
 	await process_frame
+	await _wait_for_top_generate_preview(workspace, "Apply path Generate recreates pending preview")
 	apply_button.emit_signal("pressed")
 	await process_frame
 	var applied_snapshot = workspace.generation_screen_snapshot()
@@ -483,6 +508,41 @@ func _two_overlay_result_graph() -> Dictionary:
 	HexGenerationGraph.add_edge(graph, "items_spawn", "result", "overlay_0")
 	HexGenerationGraph.add_edge(graph, "items_loot", "result", "overlay_1")
 	return graph
+
+
+func _assert_top_generate_progress_visible(workspace: HexMapWorkspace, message: String) -> void:
+	var snapshot = workspace.generation_screen_snapshot()
+	_assert_true(bool(snapshot["run_progress_popup_visible"]), message)
+	_assert_true(
+		String(snapshot["run_progress_popup_status"]) in ["Preparing context", "Preparing graph", "Generating"],
+		"%s: progress popup reports pre-run or running status" % message
+	)
+
+
+func _wait_for_top_generate_preview(workspace: HexMapWorkspace, message: String) -> void:
+	var guard := 0
+	var snapshot = workspace.generation_screen_snapshot()
+	while (String(snapshot["preview_commit_state"]) != "preview_pending" or bool(snapshot.get("run_busy", false))) and guard < 240:
+		await process_frame
+		snapshot = workspace.generation_screen_snapshot()
+		guard += 1
+	_assert_eq(String(snapshot["preview_commit_state"]), "preview_pending", "%s reaches preview pending state" % message)
+	_assert_true(not bool(snapshot.get("run_busy", false)), "%s completes the active Generate run" % message)
+
+
+func _assert_top_generate_timing_phases(snapshot: Dictionary, message: String) -> void:
+	var timings = snapshot.get("run_phase_timings", {}) as Dictionary
+	for phase in [
+		"context_prepare",
+		"popup_present",
+		"graph_prepare",
+		"graph_run",
+		"preview_promote",
+		"viewport_prepare_document",
+		"viewport_apply_map",
+	]:
+		_assert_true(timings.has(phase), "%s: timing includes %s" % [message, phase])
+		_assert_true(float(timings.get(phase, -1.0)) >= 0.0, "%s: timing %s is non-negative" % [message, phase])
 
 
 func _generated_terrain_cell_count(document: HexMapDocumentResource) -> int:

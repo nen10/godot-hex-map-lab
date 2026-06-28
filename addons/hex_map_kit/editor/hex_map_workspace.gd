@@ -692,6 +692,8 @@ func ensure_build_graph_context(reason: String = "workspace.build_graph_context"
 	var session := _ensure_session_state()
 	var hex_layer := session.current_selected_hex_tile_map_layer() as HexTileMapLayer
 	var created_layer := false
+	var defer_snapshots := bool(options.get("defer_snapshots", false))
+	var defer_context_ui_refresh := bool(options.get("defer_context_ui_refresh", false))
 	if hex_layer == null:
 		hex_layer = _create_build_context_hex_tile_map_layer()
 		created_layer = true
@@ -715,12 +717,16 @@ func ensure_build_graph_context(reason: String = "workspace.build_graph_context"
 			hex_layer.level_document_resource.resource_path,
 			reason
 		)
-	_refresh_selected_hex_tile_map_context()
-	_refresh_missing_unique_resources_panel()
+	if not defer_context_ui_refresh:
+		_refresh_selected_hex_tile_map_context()
+		_refresh_missing_unique_resources_panel()
 	build_result["created_layer"] = created_layer
 	build_result["selected_layer"] = hex_layer
-	build_result["selected_snapshot"] = selected_hex_tile_map_snapshot()
-	build_result["generation_snapshot"] = generation_screen_snapshot()
+	if defer_snapshots:
+		build_result["deferred_snapshots"] = true
+	else:
+		build_result["selected_snapshot"] = selected_hex_tile_map_snapshot()
+		build_result["generation_snapshot"] = generation_screen_snapshot()
 	return build_result
 
 

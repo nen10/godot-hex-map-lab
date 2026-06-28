@@ -63,6 +63,48 @@ Compared with the 2026-06-08 PERF-60 carried-forward measurements, current `HexT
 
 This validates the recent O(n²) to O(n) visual apply work for the measured cases.
 
+## Build Generate Button Phases
+
+Build Generate button timing was measured separately because the button path includes UI context preparation, graph snapshot creation, graph execution, result promotion, document preparation, and viewport apply.
+
+Measurement command:
+
+```sh
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . --script tools/profile_build_generate_phases.gd -- --run-id=manual-size130-second-final-20260628 --side=130
+```
+
+Artifacts:
+
+```text
+.godot_user/perf/build-generate/manual-size130-second-final-20260628/build_generate_phase_profile.json
+.godot_user/perf/build-generate/manual-size130-second-final-20260628/build_generate_phase_profile.md
+```
+
+| case | pass | total ms | popup present | context | graph prepare | graph run | promote | cached skip | viewport document prepare | viewport apply |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `build_generate_side130_adjacency_result` | `first` | 2557.512 | 0.452 | 5.568 | 0.057 | 1834.447 | 246.255 | 0.000 | 0.013 | 421.877 |
+| `build_generate_side130_adjacency_result` | `second_after_popup_hide` | 36.373 | 4.847 | 2.853 | 4.300 | 3.759 | 0.000 | 0.022 | 0.000 | 0.000 |
+
+Size 130 second Generate before the cached-preview repair:
+
+| run | total ms | popup present | context | graph run | promote | viewport tiles | viewport document prepare | viewport apply |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| before preview repair | 2522.307 | 5.848 | 2.041 | 3.800 | 562.913 | 537.895 | 662.329 | 693.432 |
+| after tile/direct-map repair, before cached skip | 1311.922 | 4.582 | 2.755 | 3.709 | 545.318 | 0.003 | 0.013 | 698.506 |
+| after cached skip | 36.373 | 4.847 | 2.853 | 3.759 | 0.000 | 0.000 | 0.000 | 0.000 |
+
+Implications:
+
+- `context_prepare` and `graph_prepare` are not heavy in the measured cases, but the popup must appear before them so the user gets immediate feedback.
+- second Generate after the previous popup is hidden presents the popup in single-digit milliseconds in headless timing.
+- For size 130, the UX problem was not popup presentation; it was redundant post-graph preview work after a fully cached graph run.
+- If the graph run recomputes no nodes and the previous generated preview is still pending and visible, Build skips result promotion and viewport apply because the cached output is already shown.
+- Build preview apply avoids redundant display tile redraw/reconfiguration and uses the selected viewport terrain map directly instead of duplicating the full Level Document twice.
+- cold `graph_run` is roughly half of the end-to-end button path.
+- preview work is also material: result promotion, document apply preparation, and viewport apply together are close to the cold graph runtime for the side 81 adjacency result case, and dominate the second cached run.
+- Build progress should therefore allocate visible progress range to post-graph preview work, not compress it into the final few percent.
+- Workspace Generate defers non-required context snapshots and context-panel refresh during the pre-run path so repeated Generate does not spend time producing debug/UI snapshots before graph execution.
+
 ## Repairs Applied During Profiling
 
 The first profile showed two non-visual O(n²)-style hotspots:
@@ -132,6 +174,16 @@ Priority order for weighted progress:
 8. random wall/item modes
 
 The popup should show current node, node mode, core phase, and layer/apply phase. For adjacency item generation, node-local progress is still important because neighbor radius can make one node comparable to the largest connectivity pass.
+
+Build Generate popup phase ranges after button-path measurement:
+
+| phase | popup range |
+|---|---:|
+| context / graph preparation | `0.00` to `0.01` |
+| graph execution | `0.01` to `0.54` |
+| result promotion | `0.56` to `0.64` |
+| viewport document preparation | `0.64` to `0.84` |
+| viewport tile apply | `0.84` to `0.99` |
 
 ## Follow-Up Tasks
 

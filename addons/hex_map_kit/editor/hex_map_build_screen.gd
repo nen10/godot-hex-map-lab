@@ -18,19 +18,21 @@ const HexGenerationGraphRunnerScript = preload("res://addons/hex_map_kit/generat
 const HexGenerationPortsScript = preload("res://addons/hex_map_kit/generation/hex_generation_ports.gd")
 const HexGenerationGraphResourceScript = preload("res://addons/hex_map_kit/adapter/hex_generation_graph_resource.gd")
 const HexTileMapLayerScript = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
+const HexMapTileAdapterScript = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexLayerStackResourceScript = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
-const HexMapDocumentApplierScript = preload("res://addons/hex_map_kit/adapter/hex_map_document_applier.gd")
 const HexMapDocumentAdapterScript = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
 
 const TAB_NAME := "Build"
 const WORKFLOW_OWNER := "Build"
 const USER_TASK := "Build a generation graph and inspect node outputs."
 const SCREEN_SCRIPT := "hex_map_build_screen.gd"
-const RUN_PROGRESS_GRAPH_SCALE := 0.94
-const RUN_PROGRESS_PREVIEW_START := 0.95
-const RUN_PROGRESS_APPLY_START := 0.96
+const RUN_PROGRESS_GRAPH_SCALE := 0.54
+const RUN_PROGRESS_PREVIEW_START := 0.56
+const RUN_PROGRESS_VIEWPORT_PREPARE := 0.64
+const RUN_PROGRESS_APPLY_START := 0.84
 const RUN_PROGRESS_APPLY_END := 0.99
 const RUN_PROGRESS_APPLY_CHUNK_SIZE := 256
+const RUN_PROGRESS_INITIAL_VISIBLE_SEC := 0.12
 
 var _workspace_asset_context: HexMapWorkspaceAssetContextScript = null
 var _context_label: Label
@@ -72,6 +74,8 @@ var _cancel_requested := false
 var _run_progress_snapshot: Dictionary = {}
 var _run_progress_node_context: Dictionary = {}
 var _run_progress_popup_hide_token := 0
+var _run_progress_popup_request_usec := 0
+var _run_phase_timings: Dictionary = {}
 var _async_graph_thread: Thread = null
 var _async_graph_mutex := Mutex.new()
 var _async_graph_run_id := 0
@@ -139,9 +143,17 @@ func run_graph(options: Dictionary = {}) -> Dictionary:
 
 
 func _begin_async_graph_run(options: Dictionary = {}, auto_preview: bool = false) -> bool:
+	if not _begin_async_graph_run_ui("Preparing", ""):
+		return false
+	await _wait_for_run_progress_popup_presented()
+	return _start_async_graph_run(options, auto_preview)
+
+
+func _begin_async_graph_run_ui(status: String = "Preparing", detail: String = "") -> bool:
 	if _canvas == null or _run_busy:
 		return false
 	_run_busy = true
+	_reset_run_phase_timings()
 	_set_cancel_requested_thread_safe(false)
 	_set_run_progress_snapshot_thread_safe({
 		"phase": "preparing",
@@ -155,12 +167,31 @@ func _begin_async_graph_run(options: Dictionary = {}, auto_preview: bool = false
 	})
 	_run_progress_node_context = {}
 	_update_run_controls()
-	_show_run_progress_popup()
+	_show_run_progress_popup(status, detail)
 	_apply_graph_run_progress(_run_progress_snapshot_copy())
+	if status != "Preparing" or detail != "":
+		_set_run_progress_popup(0.0, status, detail)
+	return true
+
+
+func _start_async_graph_run(options: Dictionary = {}, auto_preview: bool = false) -> bool:
+	if _canvas == null:
+		_run_busy = false
+		_update_run_controls()
+		_finish_run_progress_popup("Failed")
+		return false
+	if _cancel_requested_thread_safe():
+		_run_busy = false
+		_update_run_controls()
+		_finish_run_progress_popup("Cancelled")
+		return false
 
 	var context := _run_context()
 	context["interrupt_options"] = _build_interrupt_options(options)
+	_set_run_progress_popup(0.01, "Preparing graph", "Building graph snapshot")
+	var prepare_start := Time.get_ticks_usec()
 	var prepared := _canvas.prepare_graph_run(context)
+	_record_run_phase_timing("graph_prepare", prepare_start)
 	var graph := prepared.get("graph", {}) as Dictionary
 	var run_context := prepared.get("context", {}) as Dictionary
 
@@ -187,7 +218,9 @@ func _begin_async_graph_run(options: Dictionary = {}, auto_preview: bool = false
 
 
 func _async_graph_run_thread(run_id: int, graph: Dictionary, run_context: Dictionary) -> void:
+	var graph_run_start := Time.get_ticks_usec()
 	var report := HexGenerationGraphRunnerScript.run_with_report(graph, run_context)
+	report["build_graph_run_msec"] = _elapsed_msec(graph_run_start)
 	_async_graph_mutex.lock()
 	if run_id == _async_graph_run_id:
 		_async_graph_report = report.duplicate(true)
@@ -211,16 +244,32 @@ func _complete_async_graph_run(run_id: int) -> void:
 	_async_graph_mutex.unlock()
 	if not is_current:
 		return
+	if report.has("build_graph_run_msec"):
+		_run_phase_timings["graph_run"] = float(report.get("build_graph_run_msec", 0.0))
 
+	var complete_start := Time.get_ticks_usec()
 	var completed_report := _canvas.complete_graph_run(report, run_context)
+	_record_run_phase_timing("graph_complete", complete_start)
+	var finalize_start := Time.get_ticks_usec()
 	_finalize_graph_run(completed_report, options)
+	_record_run_phase_timing("graph_finalize", finalize_start)
 	if auto_preview and bool(completed_report.get("ok", false)):
-		_set_run_progress_popup(
-			RUN_PROGRESS_PREVIEW_START,
-			"Applying preview",
-			"Promoting generated result to the preview document"
-		)
-		_auto_preview_after_generate()
+		var preview_start := Time.get_ticks_usec()
+		if _can_skip_cached_auto_preview(completed_report):
+			_set_run_progress_popup(
+				RUN_PROGRESS_APPLY_END,
+				"Preview current",
+				"Cached graph output is already shown in the viewport"
+			)
+			_record_run_phase_timing("preview_cached_skip", preview_start)
+		else:
+			_set_run_progress_popup(
+				RUN_PROGRESS_PREVIEW_START,
+				"Promoting result",
+				"Promoting generated result to the preview document"
+			)
+			_auto_preview_after_generate()
+		_record_run_phase_timing("preview_total", preview_start)
 	_run_busy = false
 	_update_run_controls()
 	if bool(completed_report.get("cancelled", false)):
@@ -328,6 +377,7 @@ func ensure_graph_context_for_hex_tile_map_layer(
 		_context_hex_tile_map_layer = null
 		_last_build_context_result = _build_context_result(false, "Choose or create a HexTileMapLayer before building a graph.")
 		return _last_build_context_result.duplicate(true)
+	var same_context_layer := _context_hex_tile_map_layer == layer
 	_context_hex_tile_map_layer = layer
 	if _workspace_asset_context == null:
 		_workspace_asset_context = HexMapWorkspaceAssetContextScript.new()
@@ -370,6 +420,14 @@ func ensure_graph_context_for_hex_tile_map_layer(
 		created_graph = true
 		restore_report = {
 			"ok": true,
+			"node_count": int(_canvas.canvas_snapshot().get("node_count", 0)),
+			"connection_count": int(_canvas.canvas_snapshot().get("connection_count", 0)),
+			"selected_node_id": _canvas.selected_node_id(),
+		}
+	elif bool(options.get("preserve_current_canvas", false)) and same_context_layer and int(_canvas.canvas_snapshot().get("node_count", 0)) > 0:
+		restore_report = {
+			"ok": true,
+			"preserved_canvas": true,
 			"node_count": int(_canvas.canvas_snapshot().get("node_count", 0)),
 			"connection_count": int(_canvas.canvas_snapshot().get("connection_count", 0)),
 			"selected_node_id": _canvas.selected_node_id(),
@@ -513,6 +571,7 @@ func build_screen_snapshot() -> Dictionary:
 		"run_progress_popup_visible": _run_progress_popup != null and _run_progress_popup.visible,
 		"run_progress_popup_status": _run_progress_status_label.text if _run_progress_status_label != null else "",
 		"run_progress_popup_detail": _run_progress_detail_label.text if _run_progress_detail_label != null else "",
+		"run_phase_timings": _run_phase_timings.duplicate(true),
 		"last_cancelled": bool(run_state.get("cancelled", false)),
 		"primary_generate_count": 1,
 		"generate_default_count": 1,
@@ -853,6 +912,21 @@ func _run_progress_snapshot_copy() -> Dictionary:
 	return result
 
 
+func _reset_run_phase_timings() -> void:
+	_run_phase_timings = {}
+	_run_progress_popup_request_usec = 0
+
+
+func _record_run_phase_timing(phase: String, start_usec: int) -> void:
+	if phase == "":
+		return
+	_run_phase_timings[phase] = _elapsed_msec(start_usec)
+
+
+static func _elapsed_msec(start_usec: int) -> float:
+	return float(Time.get_ticks_usec() - start_usec) / 1000.0
+
+
 func _set_cancel_requested_thread_safe(requested: bool) -> void:
 	_async_graph_mutex.lock()
 	_cancel_requested = requested
@@ -983,11 +1057,12 @@ func _on_viewport_apply_cancel_requested(_status: Dictionary) -> bool:
 	return _cancel_requested_thread_safe()
 
 
-func _show_run_progress_popup() -> void:
+func _show_run_progress_popup(status: String = "Preparing", detail: String = "") -> void:
 	if _run_progress_popup == null:
 		return
 	_run_progress_popup_hide_token += 1
-	_set_run_progress_popup(0.0, "Preparing", "")
+	_run_progress_popup_request_usec = Time.get_ticks_usec()
+	_set_run_progress_popup(0.0, status, detail)
 	_run_progress_popup.popup_centered(Vector2i(480, 160))
 	if _cancel_button != null:
 		_cancel_button.disabled = false
@@ -1000,6 +1075,20 @@ func _set_run_progress_popup(progress: float, status: String, detail: String = "
 		_run_progress_status_label.text = status
 	if _run_progress_detail_label != null:
 		_run_progress_detail_label.text = detail
+
+
+func _wait_for_run_progress_popup_presented() -> void:
+	if not is_inside_tree():
+		return
+	await get_tree().process_frame
+	if DisplayServer.get_name() != "headless":
+		await RenderingServer.frame_post_draw
+	if _run_progress_popup_request_usec > 0 and not _run_phase_timings.has("popup_present"):
+		_record_run_phase_timing("popup_present", _run_progress_popup_request_usec)
+	if DisplayServer.get_name() != "headless" and _run_progress_popup != null and _run_progress_popup.visible:
+		var dwell_start := Time.get_ticks_usec()
+		await get_tree().create_timer(RUN_PROGRESS_INITIAL_VISIBLE_SEC).timeout
+		_record_run_phase_timing("popup_initial_visible", dwell_start)
 
 
 func _finish_run_progress_popup(status: String) -> void:
@@ -1319,21 +1408,82 @@ func _find_effective_flat_top(node: Dictionary) -> bool:
 
 
 func _on_generate_pressed() -> void:
-	var context_result := _ensure_build_context_for_generate("build_screen.generate")
+	_begin_generate_button_run()
+
+
+func _begin_generate_button_run() -> void:
+	if not _begin_async_graph_run_ui("Preparing context", "Opening Build generation progress"):
+		return
+	await _wait_for_run_progress_popup_presented()
+	var context_start := Time.get_ticks_usec()
+	var context_result := _ensure_build_context_for_generate(
+		"build_screen.generate",
+		{
+			"preserve_current_canvas": true,
+			"defer_snapshots": true,
+			"defer_context_ui_refresh": true,
+		}
+	)
+	_record_run_phase_timing("context_prepare", context_start)
 	if _build_context_provider.is_valid() and not bool(context_result.get("ok", false)):
+		_run_busy = false
+		_update_run_controls()
 		if _status_label != null:
 			_status_label.text = String(context_result.get("blocked_reason", "Build context is unavailable."))
+		_set_run_progress_popup(0.0, "Failed", String(context_result.get("blocked_reason", "Build context is unavailable.")))
+		_finish_run_progress_popup("Failed")
 		return
-	_begin_async_graph_run({"count": 1}, true)
+	_set_run_progress_popup(0.01, "Preparing graph", "Building graph snapshot")
+	if is_inside_tree():
+		await get_tree().process_frame
+	_start_async_graph_run({"count": 1}, true)
 
 
 func _on_simple_generate_pressed() -> void:
-	var context_result := _ensure_build_context_for_generate("build_screen.simple_generate")
+	_begin_simple_generate_button_run()
+
+
+func _begin_simple_generate_button_run() -> void:
+	if not _begin_async_graph_run_ui("Preparing profile", "Opening Build generation progress"):
+		return
+	await _wait_for_run_progress_popup_presented()
+	var context_start := Time.get_ticks_usec()
+	var context_result := _ensure_build_context_for_generate(
+		"build_screen.simple_generate",
+		{
+			"preserve_current_canvas": true,
+			"defer_snapshots": true,
+			"defer_context_ui_refresh": true,
+		}
+	)
+	_record_run_phase_timing("context_prepare", context_start)
 	if _build_context_provider.is_valid() and not bool(context_result.get("ok", false)):
+		_run_busy = false
+		_update_run_controls()
 		if _status_label != null:
 			_status_label.text = String(context_result.get("blocked_reason", "Build context is unavailable."))
+		_set_run_progress_popup(0.0, "Failed", String(context_result.get("blocked_reason", "Build context is unavailable.")))
+		_finish_run_progress_popup("Failed")
 		return
-	run_simple_profile_graph({"count": 1})
+	_set_run_progress_popup(0.01, "Preparing graph", "Building simple profile graph")
+	if is_inside_tree():
+		await get_tree().process_frame
+	if _cancel_requested_thread_safe():
+		_run_busy = false
+		_update_run_controls()
+		_finish_run_progress_popup("Cancelled")
+		return
+	var simple_start := Time.get_ticks_usec()
+	var result := run_simple_profile_graph({"count": 1})
+	_record_run_phase_timing("simple_profile_total", simple_start)
+	if _cancel_requested_thread_safe():
+		_run_busy = false
+		_update_run_controls()
+		_finish_run_progress_popup("Cancelled")
+		return
+	_run_busy = false
+	_update_run_controls()
+	_finish_run_progress_popup("Ready" if bool(result.get("ok", false)) else "Failed")
 
 
 func _on_load_graph_pressed() -> void:
@@ -1406,9 +1556,12 @@ func _on_inspector_promote_requested(node_id: String, role: String) -> void:
 	promote_requested.emit(node_id, role)
 
 
-func _ensure_build_context_for_generate(reason: String) -> Dictionary:
+func _ensure_build_context_for_generate(reason: String, options: Dictionary = {}) -> Dictionary:
 	if _build_context_provider.is_valid():
-		var provided = _build_context_provider.call({"reason": reason, "run": false})
+		var request_options := options.duplicate(true)
+		request_options["reason"] = reason
+		request_options["run"] = false
+		var provided = _build_context_provider.call(request_options)
 		if provided is Dictionary:
 			var result := (provided as Dictionary).duplicate(true)
 			_apply_build_context_result(result)
@@ -1477,6 +1630,21 @@ func _auto_preview_after_generate() -> void:
 			_refresh_preview_buttons()
 
 
+func _can_skip_cached_auto_preview(report: Dictionary) -> bool:
+	if String(_preview_commit_state) != "preview_pending":
+		return false
+	if not _last_viewport_projection_ok():
+		return false
+	if not bool(_last_promote_result.get("ok", false)):
+		return false
+	var recomputed = report.get("recomputed_node_ids", PackedStringArray())
+	if recomputed is PackedStringArray:
+		return (recomputed as PackedStringArray).is_empty()
+	if recomputed is Array:
+		return (recomputed as Array).is_empty()
+	return false
+
+
 func _promote_terminal_result_outputs() -> bool:
 	var graph_model := _canvas.build_graph_model()
 	var nodes: Dictionary = graph_model.get("nodes", {})
@@ -1507,12 +1675,20 @@ func _promote_result_output(output, node_id: String, node_entry: Dictionary) -> 
 
 
 func _promote_result_report(output, node_id: String, node_entry: Dictionary) -> Dictionary:
+	var promote_start := Time.get_ticks_usec()
+	if _run_progress_popup != null and _run_progress_popup.visible:
+		_set_run_progress_popup(
+			RUN_PROGRESS_PREVIEW_START,
+			"Promoting result",
+			"Writing generated result layers to the preview document"
+		)
 	if output == null:
 		_last_promote_result = {
 			"ok": false,
 			"written_role": "result",
 			"blocked_reason": "Result output is empty.",
 		}
+		_record_run_phase_timing("preview_promote", promote_start)
 		return _last_promote_result.duplicate(true)
 	var promoted := false
 	var total_count := 0
@@ -1545,6 +1721,7 @@ func _promote_result_report(output, node_id: String, node_entry: Dictionary) -> 
 					"layer_id": layer_id,
 					"display_name": "Generated Overlay %d" % (overlay_index + 1),
 					"preserve_existing_generated": true,
+					"write_tile_assignments": false,
 					"overlay_index": overlay_index,
 					"result_port": _result_overlay_port_for_resource_index(output, overlay_index),
 					"result_overlay_count": overlay_resources.size(),
@@ -1572,6 +1749,7 @@ func _promote_result_report(output, node_id: String, node_entry: Dictionary) -> 
 		"blocked_reason": "" if promoted else "Result output had no promotable terrain or overlay.",
 		"status_text": "result bundle promoted: %d cells" % total_count if promoted else "Result output had no promotable terrain or overlay.",
 	}
+	_record_run_phase_timing("preview_promote", promote_start)
 	return _last_promote_result.duplicate(true)
 
 
@@ -1614,7 +1792,15 @@ func _result_metadata_array(output, key: String) -> Array:
 
 
 func _commit_viewport_preview(source: String) -> void:
+	if _run_progress_popup != null and _run_progress_popup.visible:
+		_set_run_progress_popup(
+			RUN_PROGRESS_VIEWPORT_PREPARE,
+			"Preparing viewport",
+			"Preparing generated document for viewport preview"
+		)
+	var viewport_start := Time.get_ticks_usec()
 	_last_viewport_apply_report = _apply_document_to_context_layer()
+	_record_run_phase_timing("viewport_preview", viewport_start)
 	_last_viewport_apply_report["result_overlay_count"] = int(_last_promote_result.get("overlay_count", 0))
 	_last_viewport_apply_report["result_overlay_layer_ids"] = (_last_promote_result.get("overlay_layer_ids", []) as Array).duplicate(true)
 	var overlay_conflicts = _last_promote_result.get("overlay_conflicts", [])
@@ -1731,19 +1917,43 @@ func _apply_document_to_context_layer() -> Dictionary:
 		return _last_viewport_apply_report.duplicate(true)
 	if _context_hex_tile_map_layer.level_document_resource != _workspace_asset_context.level_document:
 		_context_hex_tile_map_layer.level_document_resource = _workspace_asset_context.level_document
-	var tiles_ok := _context_hex_tile_map_layer.ensure_display_tiles()
-	var viewport_document = _viewport_document_snapshot(_workspace_asset_context.level_document)
-	var apply_state := HexMapDocumentApplierScript.prepare_document_apply(viewport_document)
-	if bool(apply_state.get("ok", false)):
-		var resource = apply_state.get("map_resource", null)
-		if resource != null:
-			_last_viewport_apply_report = _context_hex_tile_map_layer.apply_map(resource, _viewport_apply_options())
-			_last_viewport_apply_report["ok"] = not bool(_last_viewport_apply_report.get("cancelled", false))
-			_finalize_viewport_apply_report(tiles_ok)
-			return _last_viewport_apply_report.duplicate(true)
+	if _run_progress_popup != null and _run_progress_popup.visible:
+		_set_run_progress_popup(
+			RUN_PROGRESS_VIEWPORT_PREPARE,
+			"Preparing viewport",
+			"Preparing viewport tiles"
+		)
+	var tiles_start := Time.get_ticks_usec()
+	var tiles_ok := true
+	if not _context_hex_tile_map_layer.display_tile_set_present():
+		tiles_ok = _context_hex_tile_map_layer.ensure_display_tiles(
+			HexMapTileAdapterScript.SAMPLE_TILE_SIZE,
+			0,
+			Vector2i.ZERO,
+			0,
+			Vector2i(1, 0),
+			false
+		)
+	_record_run_phase_timing("viewport_tiles", tiles_start)
+	if _run_progress_popup != null and _run_progress_popup.visible:
+		_set_run_progress_popup(
+			RUN_PROGRESS_VIEWPORT_PREPARE,
+			"Preparing viewport",
+			"Building viewport map from Level Document"
+	)
+	var prepare_start := Time.get_ticks_usec()
+	var resource = _viewport_map_resource(_workspace_asset_context.level_document)
+	_record_run_phase_timing("viewport_prepare_document", prepare_start)
+	if resource != null:
+		var apply_start := Time.get_ticks_usec()
+		_last_viewport_apply_report = _context_hex_tile_map_layer.apply_map(resource, _viewport_apply_options())
+		_record_run_phase_timing("viewport_apply_map", apply_start)
+		_last_viewport_apply_report["ok"] = not bool(_last_viewport_apply_report.get("cancelled", false))
+		_finalize_viewport_apply_report(tiles_ok)
+		return _last_viewport_apply_report.duplicate(true)
 	_last_viewport_apply_report = {
 		"ok": false,
-		"blocked_reason": String(apply_state.get("blocked_reason", "Cannot prepare generated document preview.")),
+		"blocked_reason": "Cannot prepare generated document preview.",
 		"display_tiles_ready": tiles_ok,
 	}
 	_finalize_viewport_apply_report(tiles_ok)
@@ -1805,6 +2015,19 @@ func _viewport_document_snapshot(document):
 	return copy
 
 
+func _viewport_map_resource(document):
+	if document == null:
+		return null
+	var ordered := _viewport_ordered_terrain_layers(document.terrain_layers)
+	for layer in ordered:
+		if _terrain_layer_cell_count(layer) <= 0:
+			continue
+		var map = layer.get("map")
+		if map != null and map.has_method("to_map_data"):
+			return map
+	return null
+
+
 func _viewport_ordered_terrain_layers(layers: Array) -> Array:
 	if layers.size() <= 1:
 		return layers.duplicate(false)
@@ -1832,6 +2055,9 @@ func _terrain_layer_cell_count(layer) -> int:
 	var map = layer.get("map")
 	if map == null or not map.has_method("to_map_data"):
 		return 0
+	var cells = map.get("cells")
+	if cells is Array:
+		return (cells as Array).size()
 	var data = map.to_map_data()
 	return data.cells.size() if data != null else 0
 
