@@ -39,7 +39,7 @@
 - `tests/test_graph_load_context.gd`
   - Generation Graph Resource の editor load context ownership、新規 node embed 復元、overwrite generated 層置換、手動層保持
 - `tests/test_build_graph_canvas.gd`
-  - Build tab graph canvas、typed connection rejection、GraphEdit→Dictionary model同期、3-node chain preview、run cache/dirty/failure state、failure node highlight、palette/inspector contract
+  - Build tab graph canvas、typed connection rejection、GraphEdit→Dictionary model同期、3-node chain preview、run cache/dirty/failure state、failure/progress node highlight、Generate popup progress、palette/inspector contract
 - `tests/test_build_screen_full.gd`
   - Build tab Simple/Profile entry、Profile→preset graph、canvas 一体化、terrain promote、graph-less selected layer の UI button bootstrap、Simple Generate の viewport projection / Apply-Revert pending state
 - `tests/test_generation_promote.gd`

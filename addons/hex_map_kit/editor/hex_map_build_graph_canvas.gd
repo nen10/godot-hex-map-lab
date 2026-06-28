@@ -74,6 +74,7 @@ var _last_failure_node_id := ""
 var _last_failure_message := ""
 var _last_cancelled_node_id := ""
 var _last_progress_snapshot: Dictionary = {}
+var _active_progress_node_id := ""
 
 
 func _ready() -> void:
@@ -276,6 +277,7 @@ func clear_graph() -> void:
 	_clear_failure_highlight()
 	_last_cancelled_node_id = ""
 	_last_progress_snapshot = {}
+	_clear_progress_highlight()
 	_mark_dirty_all()
 	graph_changed.emit()
 	selected_graph_node_changed.emit("")
@@ -542,10 +544,24 @@ func validate_graph_model() -> Dictionary:
 
 
 func run_graph(context: Dictionary = {}) -> Dictionary:
+	var prepared := prepare_graph_run(context)
+	var run_context := prepared.get("context", {}) as Dictionary
+	var report = HexGenerationGraphRunnerScript.run_with_report(prepared.get("graph", {}) as Dictionary, run_context)
+	complete_graph_run(report, run_context)
+	return _last_run_report.duplicate(true)
+
+
+func prepare_graph_run(context: Dictionary = {}) -> Dictionary:
 	var run_context := context.duplicate(true)
 	run_context["previous_cache"] = _last_run_cache.duplicate(true)
 	run_context["dirty_node_ids"] = _dirty_node_ids.duplicate()
-	var report = HexGenerationGraphRunnerScript.run_with_report(build_graph_model(), run_context)
+	return {
+		"graph": build_graph_model(),
+		"context": run_context,
+	}
+
+
+func complete_graph_run(report: Dictionary, run_context: Dictionary = {}) -> Dictionary:
 	_last_progress_snapshot = _progress_snapshot_from_context(run_context)
 	if bool(report.get("ok", false)):
 		_last_run_report = report.duplicate(true)
@@ -566,6 +582,7 @@ func run_graph(context: Dictionary = {}) -> Dictionary:
 		_last_cancelled_node_id = ""
 		_set_failure_highlight(_first_error_node_id(report), _first_error_message(report))
 		_last_status = _first_error_message(report)
+	_clear_progress_highlight()
 	_update_last_preview_for_selected_node()
 	graph_run_completed.emit(_last_run_report.duplicate(true))
 	graph_changed.emit()
@@ -631,7 +648,28 @@ func run_state_snapshot() -> Dictionary:
 		"progress": float(_last_progress_snapshot.get("progress", 0.0)),
 		"progress_phase": String(_last_progress_snapshot.get("phase", "")),
 		"progress_node_id": String(_last_progress_snapshot.get("node_id", "")),
+		"progress_node_highlighted": _progress_node_highlighted(),
 	}
+
+
+func set_progress_node(node_id: String) -> void:
+	if node_id == _active_progress_node_id:
+		return
+	_clear_progress_highlight()
+	_active_progress_node_id = node_id
+	if _active_progress_node_id == "":
+		return
+	var graph_node := _graph_node(_active_progress_node_id)
+	if graph_node == null:
+		return
+	if bool(graph_node.get_meta("hex_generation_failure_highlighted", false)):
+		return
+	graph_node.modulate = Color(0.78, 0.9, 1.0, 1.0)
+	graph_node.set_meta("hex_generation_progress_highlighted", true)
+
+
+func clear_progress_node() -> void:
+	_clear_progress_highlight()
 
 
 func build_default_three_node_chain() -> PackedStringArray:
@@ -950,6 +988,22 @@ func _failure_node_highlighted() -> bool:
 	if graph_node == null:
 		return false
 	return bool(graph_node.get_meta("hex_generation_failure_highlighted", false))
+
+
+func _clear_progress_highlight() -> void:
+	if _active_progress_node_id != "":
+		var graph_node := _graph_node(_active_progress_node_id)
+		if graph_node != null and bool(graph_node.get_meta("hex_generation_progress_highlighted", false)):
+			graph_node.modulate = Color.WHITE
+			graph_node.set_meta("hex_generation_progress_highlighted", false)
+	_active_progress_node_id = ""
+
+
+func _progress_node_highlighted() -> bool:
+	var graph_node := _graph_node(_active_progress_node_id)
+	if graph_node == null:
+		return false
+	return bool(graph_node.get_meta("hex_generation_progress_highlighted", false))
 
 
 func _progress_snapshot_from_context(context: Dictionary) -> Dictionary:

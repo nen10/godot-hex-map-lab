@@ -14,6 +14,7 @@ const HexMapBuildNodeInspectorScript = preload("res://addons/hex_map_kit/editor/
 const HexGenerationPresetScript = preload("res://addons/hex_map_kit/generation/hex_generation_preset.gd")
 const HexGenerationPromoteScript = preload("res://addons/hex_map_kit/generation/hex_generation_promote.gd")
 const HexGenerationNodeTypesScript = preload("res://addons/hex_map_kit/generation/hex_generation_node_types.gd")
+const HexGenerationGraphRunnerScript = preload("res://addons/hex_map_kit/generation/hex_generation_graph_runner.gd")
 const HexGenerationPortsScript = preload("res://addons/hex_map_kit/generation/hex_generation_ports.gd")
 const HexGenerationGraphResourceScript = preload("res://addons/hex_map_kit/adapter/hex_generation_graph_resource.gd")
 const HexTileMapLayerScript = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
@@ -38,6 +39,10 @@ var _run_count_spin: SpinBox
 var _seed_randomize_check: CheckBox
 var _shape_randomize_check: CheckBox
 var _status_label: Label
+var _run_progress_popup: PopupPanel
+var _run_progress_status_label: Label
+var _run_progress_detail_label: Label
+var _run_progress_bar: ProgressBar
 var _canvas: HexMapBuildGraphCanvasScript
 var _palette: HexMapBuildNodePaletteScript
 var _inspector: HexMapBuildNodeInspectorScript
@@ -60,6 +65,15 @@ var _preview_commit_state := "none"
 var _run_busy := false
 var _cancel_requested := false
 var _run_progress_snapshot: Dictionary = {}
+var _run_progress_node_context: Dictionary = {}
+var _run_progress_popup_hide_token := 0
+var _async_graph_thread: Thread = null
+var _async_graph_mutex := Mutex.new()
+var _async_graph_run_id := 0
+var _async_graph_report: Dictionary = {}
+var _async_graph_context: Dictionary = {}
+var _async_graph_options: Dictionary = {}
+var _async_graph_auto_preview := false
 var _external_progress_callback: Callable
 var _external_cancel_callback: Callable
 
@@ -69,6 +83,13 @@ func _ready() -> void:
 		_build_ui()
 	_refresh_context()
 	_refresh_selected_node()
+
+
+func _exit_tree() -> void:
+	if _async_graph_thread != null:
+		_set_cancel_requested_thread_safe(true)
+		_async_graph_thread.wait_to_finish()
+		_async_graph_thread = null
 
 
 func set_workspace_asset_context(context: HexMapWorkspaceAssetContextScript) -> void:
@@ -100,14 +121,108 @@ func run_graph(options: Dictionary = {}) -> Dictionary:
 	if _canvas == null:
 		return {}
 	_run_busy = true
-	_cancel_requested = false
+	_set_cancel_requested_thread_safe(false)
 	_run_progress_snapshot = {}
+	_run_progress_node_context = {}
 	_update_run_controls()
 	var context := _run_context()
 	context["interrupt_options"] = _build_interrupt_options(options)
-	_last_report = _canvas.run_graph(context)
+	var report := _canvas.run_graph(context)
 	_run_busy = false
 	_update_run_controls()
+	return _finalize_graph_run(report, options)
+
+
+func _begin_async_graph_run(options: Dictionary = {}, auto_preview: bool = false) -> bool:
+	if _canvas == null or _run_busy:
+		return false
+	_run_busy = true
+	_set_cancel_requested_thread_safe(false)
+	_set_run_progress_snapshot_thread_safe({
+		"phase": "preparing",
+		"node_id": "",
+		"node_title": "",
+		"node_type": "",
+		"steps": 0,
+		"total_steps": 1,
+		"progress": 0.0,
+		"cancelled": false,
+	})
+	_run_progress_node_context = {}
+	_update_run_controls()
+	_show_run_progress_popup()
+	_apply_graph_run_progress(_run_progress_snapshot_copy())
+
+	var context := _run_context()
+	context["interrupt_options"] = _build_interrupt_options(options)
+	var prepared := _canvas.prepare_graph_run(context)
+	var graph := prepared.get("graph", {}) as Dictionary
+	var run_context := prepared.get("context", {}) as Dictionary
+
+	_async_graph_mutex.lock()
+	_async_graph_run_id += 1
+	var run_id := _async_graph_run_id
+	_async_graph_report = {}
+	_async_graph_context = {}
+	_async_graph_options = options.duplicate(true)
+	_async_graph_auto_preview = auto_preview
+	_async_graph_mutex.unlock()
+
+	_async_graph_thread = Thread.new()
+	var err := _async_graph_thread.start(Callable(self, "_async_graph_run_thread").bind(run_id, graph, run_context))
+	if err != OK:
+		_async_graph_thread = null
+		_run_busy = false
+		_update_run_controls()
+		_finish_run_progress_popup("Failed")
+		if _status_label != null:
+			_status_label.text = "Graph run could not start."
+		return false
+	return true
+
+
+func _async_graph_run_thread(run_id: int, graph: Dictionary, run_context: Dictionary) -> void:
+	var report := HexGenerationGraphRunnerScript.run_with_report(graph, run_context)
+	_async_graph_mutex.lock()
+	if run_id == _async_graph_run_id:
+		_async_graph_report = report.duplicate(true)
+		_async_graph_context = run_context.duplicate(true)
+	_async_graph_mutex.unlock()
+	call_deferred("_complete_async_graph_run", run_id)
+
+
+func _complete_async_graph_run(run_id: int) -> void:
+	if _async_graph_thread == null:
+		return
+	_async_graph_thread.wait_to_finish()
+	_async_graph_thread = null
+
+	_async_graph_mutex.lock()
+	var is_current := run_id == _async_graph_run_id
+	var report := _async_graph_report.duplicate(true)
+	var run_context := _async_graph_context.duplicate(true)
+	var options := _async_graph_options.duplicate(true)
+	var auto_preview := _async_graph_auto_preview
+	_async_graph_mutex.unlock()
+	if not is_current:
+		return
+
+	var completed_report := _canvas.complete_graph_run(report, run_context)
+	_run_busy = false
+	_update_run_controls()
+	_finalize_graph_run(completed_report, options)
+	if auto_preview and bool(completed_report.get("ok", false)):
+		_auto_preview_after_generate()
+	if bool(completed_report.get("cancelled", false)):
+		_finish_run_progress_popup("Cancelled")
+	elif bool(completed_report.get("ok", false)):
+		_finish_run_progress_popup("Ready")
+	else:
+		_finish_run_progress_popup("Failed")
+
+
+func _finalize_graph_run(report: Dictionary, options: Dictionary = {}) -> Dictionary:
+	_last_report = report.duplicate(true)
 	_refresh_selected_node()
 	if _status_label != null:
 		var run_state := _canvas.run_state_snapshot()
@@ -347,6 +462,7 @@ func build_screen_snapshot() -> Dictionary:
 	var canvas_snapshot := _canvas.canvas_snapshot() if _canvas != null else {}
 	var run_state := _canvas.run_state_snapshot() if _canvas != null else {}
 	var inspector_snapshot := _inspector.inspector_snapshot() if _inspector != null else {}
+	var progress_snapshot := _run_progress_snapshot_copy()
 	return {
 		"component": "HexMapBuildScreen",
 		"screen_role_source": "HexMapBuildScreen",
@@ -377,11 +493,16 @@ func build_screen_snapshot() -> Dictionary:
 		"last_run_visible": true,
 		"generate_button_present": _generate_button != null,
 		"cancel_button_present": _cancel_button != null,
+		"cancel_button_location": "popup",
 		"cancel_available": _cancel_button != null and not _cancel_button.disabled,
 		"run_busy": _run_busy,
-		"run_progress": float(_run_progress_snapshot.get("progress", run_state.get("progress", 0.0))),
-		"run_progress_phase": String(_run_progress_snapshot.get("phase", run_state.get("progress_phase", ""))),
-		"run_progress_node_id": String(_run_progress_snapshot.get("node_id", run_state.get("progress_node_id", ""))),
+		"run_progress": float(progress_snapshot.get("progress", run_state.get("progress", 0.0))),
+		"run_progress_phase": String(progress_snapshot.get("phase", run_state.get("progress_phase", ""))),
+		"run_progress_node_id": String(progress_snapshot.get("node_id", run_state.get("progress_node_id", ""))),
+		"run_progress_popup_present": _run_progress_popup != null,
+		"run_progress_popup_visible": _run_progress_popup != null and _run_progress_popup.visible,
+		"run_progress_popup_status": _run_progress_status_label.text if _run_progress_status_label != null else "",
+		"run_progress_popup_detail": _run_progress_detail_label.text if _run_progress_detail_label != null else "",
 		"last_cancelled": bool(run_state.get("cancelled", false)),
 		"primary_generate_count": 1,
 		"generate_default_count": 1,
@@ -471,13 +592,6 @@ func _build_ui() -> void:
 	_style_compact_control(_generate_button)
 	_generate_button.pressed.connect(_on_generate_pressed)
 	top_row.add_child(_generate_button)
-	_cancel_button = Button.new()
-	_cancel_button.name = "Build Cancel Button"
-	_cancel_button.text = "Cancel"
-	_cancel_button.disabled = true
-	_style_compact_control(_cancel_button)
-	_cancel_button.pressed.connect(_on_cancel_pressed)
-	top_row.add_child(_cancel_button)
 	add_child(top_row)
 
 	var simple_row := HBoxContainer.new()
@@ -587,6 +701,7 @@ func _build_ui() -> void:
 	_status_label.name = "Build Graph Status"
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	add_child(_status_label)
+	_build_run_progress_popup()
 
 	_palette.node_type_requested.connect(_on_palette_node_type_requested)
 	_palette.node_template_requested.connect(_on_palette_node_template_requested)
@@ -602,6 +717,56 @@ func _style_compact_control(control: Control) -> void:
 	if control == null:
 		return
 	control.add_theme_font_size_override("font_size", 18)
+
+
+func _build_run_progress_popup() -> void:
+	_run_progress_popup = PopupPanel.new()
+	_run_progress_popup.name = "Build Run Progress Popup"
+	_run_progress_popup.exclusive = true
+	_run_progress_popup.visible = false
+	add_child(_run_progress_popup)
+
+	var root_box := VBoxContainer.new()
+	root_box.name = "Build Run Progress Popup Content"
+	root_box.custom_minimum_size = Vector2(460, 128)
+	root_box.add_theme_constant_override("separation", 8)
+	_run_progress_popup.add_child(root_box)
+
+	_run_progress_status_label = Label.new()
+	_run_progress_status_label.name = "Build Run Progress Status"
+	_run_progress_status_label.text = "Preparing"
+	_run_progress_status_label.add_theme_font_size_override("font_size", 18)
+	root_box.add_child(_run_progress_status_label)
+
+	_run_progress_detail_label = Label.new()
+	_run_progress_detail_label.name = "Build Run Progress Detail"
+	_run_progress_detail_label.text = ""
+	_run_progress_detail_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	root_box.add_child(_run_progress_detail_label)
+
+	_run_progress_bar = ProgressBar.new()
+	_run_progress_bar.name = "Build Run Progress Bar"
+	_run_progress_bar.min_value = 0.0
+	_run_progress_bar.max_value = 1.0
+	_run_progress_bar.step = 0.001
+	_run_progress_bar.value = 0.0
+	_run_progress_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root_box.add_child(_run_progress_bar)
+
+	var action_row := HBoxContainer.new()
+	action_row.name = "Build Run Progress Actions"
+	action_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	action_row.add_child(spacer)
+	_cancel_button = Button.new()
+	_cancel_button.name = "Build Cancel Button"
+	_cancel_button.text = "Cancel"
+	_cancel_button.disabled = true
+	_style_compact_control(_cancel_button)
+	_cancel_button.pressed.connect(_on_cancel_pressed)
+	action_row.add_child(_cancel_button)
+	root_box.add_child(action_row)
 
 
 func _run_context() -> Dictionary:
@@ -639,17 +804,172 @@ func _update_run_controls() -> void:
 
 
 func _on_graph_run_progress(status: Dictionary) -> void:
-	_run_progress_snapshot = status.duplicate(true)
+	var snapshot := status.duplicate(true)
+	_set_run_progress_snapshot_thread_safe(snapshot)
+	if _async_graph_thread != null:
+		call_deferred("_apply_graph_run_progress", snapshot)
+	else:
+		_apply_graph_run_progress(snapshot)
 	if _external_progress_callback.is_valid():
-		_external_progress_callback.call(status)
+		if _async_graph_thread != null:
+			call_deferred("_call_external_progress_callback", snapshot)
+		else:
+			_external_progress_callback.call(snapshot)
 
 
 func _on_graph_run_cancel_check(status: Dictionary) -> bool:
-	if _cancel_requested:
+	if _cancel_requested_thread_safe():
 		return true
 	if _external_cancel_callback.is_valid():
 		return bool(_external_cancel_callback.call(status))
 	return false
+
+
+func _call_external_progress_callback(status: Dictionary) -> void:
+	if _external_progress_callback.is_valid():
+		_external_progress_callback.call(status)
+
+
+func _set_run_progress_snapshot_thread_safe(status: Dictionary) -> void:
+	_async_graph_mutex.lock()
+	_run_progress_snapshot = status.duplicate(true)
+	_async_graph_mutex.unlock()
+
+
+func _run_progress_snapshot_copy() -> Dictionary:
+	_async_graph_mutex.lock()
+	var result := _run_progress_snapshot.duplicate(true)
+	_async_graph_mutex.unlock()
+	return result
+
+
+func _set_cancel_requested_thread_safe(requested: bool) -> void:
+	_async_graph_mutex.lock()
+	_cancel_requested = requested
+	_async_graph_mutex.unlock()
+
+
+func _cancel_requested_thread_safe() -> bool:
+	_async_graph_mutex.lock()
+	var requested := _cancel_requested
+	_async_graph_mutex.unlock()
+	return requested
+
+
+func _apply_graph_run_progress(status: Dictionary) -> void:
+	var display := _display_progress_from_status(status)
+	_set_run_progress_popup(
+		float(display.get("progress", 0.0)),
+		String(display.get("status", "Generating")),
+		String(display.get("detail", ""))
+	)
+	var node_id := String(display.get("node_id", ""))
+	if _canvas != null:
+		_canvas.set_progress_node(node_id)
+
+
+func _display_progress_from_status(status: Dictionary) -> Dictionary:
+	var phase := String(status.get("phase", ""))
+	if phase.begins_with("graph_node_"):
+		_run_progress_node_context = status.duplicate(true)
+		var node_title := String(status.get("node_title", _node_display_name(String(status.get("node_type", "")), String(status.get("node_id", "")))))
+		var node_index := int(status.get("node_index", status.get("steps", 0)))
+		var node_total := max(1, int(status.get("node_total", status.get("total_steps", 1))))
+		var action := "Generating"
+		if phase == "graph_node_complete":
+			action = "Completed"
+		elif phase == "graph_node_reused":
+			action = "Reused"
+		return {
+			"progress": float(status.get("progress", 0.0)),
+			"status": "%s %s" % [action, node_title],
+			"detail": "Node %d of %d" % [clampi(node_index, 0, node_total), node_total],
+			"node_id": String(status.get("node_id", "")),
+		}
+
+	var context := _run_progress_node_context.duplicate(true)
+	var node_id := String(context.get("node_id", status.get("node_id", "")))
+	var node_title := String(context.get("node_title", _node_display_name(String(context.get("node_type", "")), node_id)))
+	var node_step := int(context.get("steps", 0))
+	var node_total := max(1, int(context.get("total_steps", context.get("node_total", 1))))
+	var core_progress := clampf(float(status.get("progress", 0.0)), 0.0, 1.0)
+	var overall := clampf((float(node_step) + core_progress) / float(node_total), 0.0, 1.0)
+	var core_phase := _humanize_progress_phase(phase)
+	return {
+		"progress": overall,
+		"status": "Generating %s" % node_title if node_title != "" else "Generating",
+		"detail": "%s - Node %d of %d - %d%%" % [
+			core_phase,
+			clampi(node_step + 1, 1, node_total),
+			node_total,
+			int(round(core_progress * 100.0)),
+		],
+		"node_id": node_id,
+	}
+
+
+func _node_display_name(node_type: String, node_id: String) -> String:
+	if node_type != "":
+		return HexMapBuildGraphCanvasScript.title_for_node_type(node_type)
+	return node_id
+
+
+func _humanize_progress_phase(phase: String) -> String:
+	match phase:
+		"random_walls":
+			return "Random walls"
+		"symmetric_toric_start", "symmetric_toric_outer", "symmetric_toric_border", "symmetric_toric_inner":
+			return "Markov mesh"
+		"random_items":
+			return "Random items"
+		"limited_items":
+			return "Limited items"
+		"toric_adjacency_items":
+			return "Adjacency items"
+		"restore_dense_components", "restore_dense_search", "restore_dense_bridges", "restore_dense_carve":
+			return "Connectivity"
+		_:
+			return phase.capitalize() if phase != "" else "Working"
+
+
+func _show_run_progress_popup() -> void:
+	if _run_progress_popup == null:
+		return
+	_run_progress_popup_hide_token += 1
+	_set_run_progress_popup(0.0, "Preparing", "")
+	_run_progress_popup.popup_centered(Vector2i(480, 160))
+	if _cancel_button != null:
+		_cancel_button.disabled = false
+
+
+func _set_run_progress_popup(progress: float, status: String, detail: String = "") -> void:
+	if _run_progress_bar != null:
+		_run_progress_bar.value = clampf(progress, 0.0, 1.0)
+	if _run_progress_status_label != null:
+		_run_progress_status_label.text = status
+	if _run_progress_detail_label != null:
+		_run_progress_detail_label.text = detail
+
+
+func _finish_run_progress_popup(status: String) -> void:
+	_run_progress_popup_hide_token += 1
+	var hide_token := _run_progress_popup_hide_token
+	_set_run_progress_popup(1.0 if status == "Ready" else float(_run_progress_snapshot_copy().get("progress", 0.0)), status, "")
+	if _cancel_button != null:
+		_cancel_button.disabled = true
+	if _canvas != null:
+		_canvas.clear_progress_node()
+	if is_inside_tree():
+		get_tree().create_timer(0.45).timeout.connect(Callable(self, "_hide_run_progress_popup_if_current").bind(hide_token))
+
+
+func _hide_run_progress_popup_if_current(hide_token: int) -> void:
+	if hide_token != _run_progress_popup_hide_token:
+		return
+	if _run_busy:
+		return
+	if _run_progress_popup != null:
+		_run_progress_popup.hide()
 
 
 func _refresh_context() -> void:
@@ -953,9 +1273,7 @@ func _on_generate_pressed() -> void:
 		if _status_label != null:
 			_status_label.text = String(context_result.get("blocked_reason", "Build context is unavailable."))
 		return
-	var report := run_graph({"count": 1})
-	if bool(report.get("ok", false)):
-		_auto_preview_after_generate()
+	_begin_async_graph_run({"count": 1}, true)
 
 
 func _on_simple_generate_pressed() -> void:
@@ -972,7 +1290,8 @@ func _on_load_graph_pressed() -> void:
 
 
 func _on_cancel_pressed() -> void:
-	_cancel_requested = true
+	_set_cancel_requested_thread_safe(true)
+	_set_run_progress_popup(float(_run_progress_snapshot_copy().get("progress", 0.0)), "Cancel requested", "")
 	if _status_label != null:
 		_status_label.text = "Cancel requested."
 

@@ -17,6 +17,7 @@ func _run() -> void:
 	await _test_typed_filter_nodes_match_editor_connection_types()
 	await _test_run_state_reports_failure_node()
 	await _test_build_screen_generate_is_primary_and_batch_secondary()
+	await _test_build_screen_generate_opens_popup_progress()
 	await _test_build_screen_cancel_passes_interrupt_options()
 	await _test_palette_and_inspector_reflect_graph_contract()
 	await _test_workspace_mounts_build_screen_with_generate_alias()
@@ -259,6 +260,27 @@ func _test_build_screen_generate_is_primary_and_batch_secondary() -> void:
 	await process_frame
 
 
+func _test_build_screen_generate_opens_popup_progress() -> void:
+	var screen = HexMapBuildScreen.new()
+	root.add_child(screen)
+	await process_frame
+	screen.graph_canvas().build_default_three_node_chain()
+
+	var button = screen.find_child("Build Generate Button", true, false) as Button
+	_assert_true(button is Button, "GRAPH-13 Build screen mounts primary Generate button")
+	button.emit_signal("pressed")
+	var snapshot = screen.build_screen_snapshot()
+	_assert_true(bool(snapshot["run_busy"]), "GRAPH-13 Generate button starts an async graph run")
+	_assert_true(bool(snapshot["run_progress_popup_present"]), "GRAPH-13 Generate progress is hosted in a popup")
+	_assert_true(bool(snapshot["run_progress_popup_visible"]), "GRAPH-13 progress popup is visible immediately after Generate")
+	_assert_eq(String(snapshot["cancel_button_location"]), "popup", "GRAPH-13 Cancel action is located in the progress popup")
+	_assert_true(bool(snapshot["cancel_available"]), "GRAPH-13 popup Cancel is available while the run is busy")
+
+	await _wait_for_build_screen_idle(screen)
+	screen.queue_free()
+	await process_frame
+
+
 func _test_build_screen_cancel_passes_interrupt_options() -> void:
 	var screen = HexMapBuildScreen.new()
 	root.add_child(screen)
@@ -283,6 +305,14 @@ func _test_build_screen_cancel_passes_interrupt_options() -> void:
 
 	screen.queue_free()
 	await process_frame
+
+
+func _wait_for_build_screen_idle(screen: HexMapBuildScreen) -> void:
+	for _i in range(180):
+		if not bool(screen.build_screen_snapshot()["run_busy"]):
+			return
+		await process_frame
+	_assert_true(false, "Build screen async graph run finished within the test budget")
 
 
 func _test_palette_and_inspector_reflect_graph_contract() -> void:

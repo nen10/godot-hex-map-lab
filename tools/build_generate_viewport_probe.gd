@@ -37,6 +37,8 @@ func _run() -> void:
 	var button = workspace.build_screen().find_child("Build Generate Button", true, false) as Button
 	if button != null:
 		button.emit_signal("pressed")
+	var progress_snapshot := workspace.generation_screen_snapshot()
+	await _wait_for_build_screen_idle(workspace.build_screen())
 	await process_frame
 
 	var snapshot := workspace.generation_screen_snapshot()
@@ -48,6 +50,9 @@ func _run() -> void:
 		"viewport_size": _vector2i_dict(VIEWPORT_SIZE),
 		"artifact_dir": ProjectSettings.globalize_path(_artifact_dir),
 		"button_found": button != null,
+		"progress_popup_visible_after_press": bool(progress_snapshot.get("run_progress_popup_visible", false)),
+		"progress_cancel_location": String(progress_snapshot.get("cancel_button_location", "")),
+		"run_busy_after_press": bool(progress_snapshot.get("run_busy", false)),
 		"selected_layer_name": target_layer.name,
 		"selected_layer_path": str(target_layer.get_path()) if target_layer.is_inside_tree() else "",
 		"selected_layer_inside_tree": target_layer.is_inside_tree(),
@@ -74,6 +79,10 @@ func _run() -> void:
 func _validate_report(report: Dictionary) -> void:
 	if not bool(report.get("button_found", false)):
 		_failures.append("Build Generate button was not found.")
+	if not bool(report.get("progress_popup_visible_after_press", false)):
+		_failures.append("Build Generate did not show the progress popup immediately.")
+	if String(report.get("progress_cancel_location", "")) != "popup":
+		_failures.append("Build Generate cancel action was not hosted by the progress popup.")
 	if not bool(report.get("selected_layer_inside_tree", false)):
 		_failures.append("Selected target layer is not inside the scene tree.")
 	if int(report.get("selected_layer_display_used_cell_count", 0)) <= 0:
@@ -86,6 +95,15 @@ func _validate_report(report: Dictionary) -> void:
 		_failures.append("Generate did not leave a pending Apply/Revert preview.")
 	if not bool(report.get("node_thumbnail_secondary", false)):
 		_failures.append("Build snapshot does not mark node thumbnail as secondary.")
+
+
+func _wait_for_build_screen_idle(screen) -> void:
+	for _i in range(240):
+		var snapshot: Dictionary = screen.build_screen_snapshot()
+		if not bool(snapshot.get("run_busy", false)):
+			return
+		await process_frame
+	_failures.append("Build Generate did not finish within the visual probe budget.")
 
 
 func _capture_viewport_png() -> Dictionary:

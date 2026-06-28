@@ -46,9 +46,9 @@ static func run_with_report(graph: Dictionary, context: Dictionary = {}) -> Dict
 	var interrupt_options = context.get("interrupt_options", {}) as Dictionary
 	for order_index in range(order.size()):
 		var node_id = String(order[order_index])
-		if _cancel_requested(interrupt_options, node_id, order_index, order.size()):
-			return _cancelled_report(node_id, cache, previous_cache, recomputed_node_ids, reused_node_ids)
 		var node: Dictionary = graph["nodes"][node_id]
+		if _cancel_requested(interrupt_options, node, node_id, order_index, order.size()):
+			return _cancelled_report(node_id, cache, previous_cache, recomputed_node_ids, reused_node_ids)
 		var inputs := {}
 		var upstream_changed := false
 		for port_name in incoming[node_id].keys():
@@ -61,17 +61,17 @@ static func run_with_report(graph: Dictionary, context: Dictionary = {}) -> Dict
 				or dirty_set.has(node_id) \
 				or upstream_changed
 		if should_recompute:
-			_emit_progress(interrupt_options, "graph_node_start", node_id, order_index, order.size())
+			_emit_progress(interrupt_options, "graph_node_start", node, node_id, order_index, order.size())
 			cache[node_id] = HexGenerationNodeTypesScript.run_node(node, inputs, context)
 			recomputed_node_ids.append(node_id)
 			recomputed_set[node_id] = true
 			if bool(interrupt_options.get("cancelled", false)):
 				return _cancelled_report(node_id, cache, previous_cache, recomputed_node_ids, reused_node_ids)
-			_emit_progress(interrupt_options, "graph_node_complete", node_id, order_index + 1, order.size())
+			_emit_progress(interrupt_options, "graph_node_complete", node, node_id, order_index + 1, order.size())
 		else:
 			cache[node_id] = previous_cache[node_id]
 			reused_node_ids.append(node_id)
-			_emit_progress(interrupt_options, "graph_node_reused", node_id, order_index + 1, order.size())
+			_emit_progress(interrupt_options, "graph_node_reused", node, node_id, order_index + 1, order.size())
 
 	return {
 		"ok": true,
@@ -95,12 +95,12 @@ static func _dirty_set(values) -> Dictionary:
 	return result
 
 
-static func _cancel_requested(interrupt_options: Dictionary, node_id: String, step: int, total: int) -> bool:
+static func _cancel_requested(interrupt_options: Dictionary, node: Dictionary, node_id: String, step: int, total: int) -> bool:
 	if interrupt_options.is_empty():
 		return false
 	if bool(interrupt_options.get("cancelled", false)):
 		return true
-	var status := _progress_status("graph_node_start", node_id, step, total)
+	var status := _progress_status("graph_node_start", node, node_id, step, total)
 	var cancel_callback = interrupt_options.get("cancel_callback", Callable())
 	if cancel_callback is Callable and (cancel_callback as Callable).is_valid() and bool((cancel_callback as Callable).call(status)):
 		interrupt_options["cancelled"] = true
@@ -108,10 +108,10 @@ static func _cancel_requested(interrupt_options: Dictionary, node_id: String, st
 	return false
 
 
-static func _emit_progress(interrupt_options: Dictionary, phase: String, node_id: String, step: int, total: int) -> void:
+static func _emit_progress(interrupt_options: Dictionary, phase: String, node: Dictionary, node_id: String, step: int, total: int) -> void:
 	if interrupt_options.is_empty():
 		return
-	var status := _progress_status(phase, node_id, step, total)
+	var status := _progress_status(phase, node, node_id, step, total)
 	for key in status.keys():
 		interrupt_options[key] = status[key]
 	var progress_callback = interrupt_options.get("progress_callback", Callable())
@@ -119,17 +119,50 @@ static func _emit_progress(interrupt_options: Dictionary, phase: String, node_id
 		(progress_callback as Callable).call(status)
 
 
-static func _progress_status(phase: String, node_id: String, step: int, total: int) -> Dictionary:
+static func _progress_status(phase: String, node: Dictionary, node_id: String, step: int, total: int) -> Dictionary:
 	var safe_total = max(1, total)
+	var node_type := String(node.get("type", ""))
 	return {
 		"phase": phase,
 		"node": node_id,
 		"node_id": node_id,
+		"node_type": node_type,
+		"node_title": HexGenerationNodeTypesScript.registry().get(node_type, {}).get("title", _node_title(node_type)),
 		"steps": step,
 		"total_steps": safe_total,
+		"node_index": clampi(step, 0, safe_total),
+		"node_total": safe_total,
 		"progress": clampf(float(step) / float(safe_total), 0.0, 1.0),
 		"cancelled": false,
 	}
+
+
+static func _node_title(node_type: String) -> String:
+	match node_type:
+		HexGenerationNodeTypesScript.NODE_SOURCE:
+			return "Source"
+		HexGenerationNodeTypesScript.NODE_SHAPE:
+			return "Shape"
+		HexGenerationNodeTypesScript.NODE_WALL_FIELD:
+			return "Wall Field"
+		HexGenerationNodeTypesScript.NODE_CONNECTIVITY:
+			return "Connectivity"
+		HexGenerationNodeTypesScript.NODE_REGION_FILTER:
+			return "Region Filter"
+		HexGenerationNodeTypesScript.NODE_TERRAIN_FILTER:
+			return "Terrain Filter"
+		HexGenerationNodeTypesScript.NODE_OVERLAY_FILTER:
+			return "Overlay Filter"
+		HexGenerationNodeTypesScript.NODE_ITEM_GENERATOR:
+			return "Item Generator"
+		HexGenerationNodeTypesScript.NODE_COMPOSE:
+			return "Compose"
+		HexGenerationNodeTypesScript.NODE_SET_OPERATION:
+			return "Set Operation"
+		HexGenerationNodeTypesScript.NODE_RESULT:
+			return "Result"
+		_:
+			return node_type.capitalize()
 
 
 static func _cancelled_report(
