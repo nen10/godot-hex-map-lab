@@ -21,6 +21,7 @@ func _run() -> void:
 	await _test_build_screen_cancel_passes_interrupt_options()
 	await _test_palette_and_inspector_reflect_graph_contract()
 	await _test_workspace_mounts_build_screen_with_generate_alias()
+	await _test_markov_reference_panels_align_to_plus_q_generation()
 	_finish("res://tests/test_build_graph_canvas.gd")
 
 
@@ -397,6 +398,28 @@ func _test_workspace_mounts_build_screen_with_generate_alias() -> void:
 	_assert_eq(String((snapshot["view_state"] as Dictionary)["state_source"]), "HexMapBuildScreen", "GRAPH-11 root view state comes from Build screen")
 
 	workspace.queue_free()
+	await process_frame
+
+
+func _test_markov_reference_panels_align_to_plus_q_generation() -> void:
+	var inspector := HexMapBuildNodeInspector.new()
+	root.add_child(inspector)
+	await process_frame
+
+	var plus_q: String = HexVector.q_axis().key()
+	var behind_q: String = HexVector.q_axis().negated().key()
+	for reference_count in [1, 2, 3]:
+		var dir_id: int = inspector._markov_reference_frame_direction_id(reference_count)
+		var frame := HexMapGenerator.markov_distribution_reference_frame(dir_id, reference_count)
+		var generation_direction = frame.get("generation_direction", null)
+		_assert_true(generation_direction != null, "Markov panel count %d exposes a generation direction" % reference_count)
+		_assert_eq(generation_direction.key(), plus_q, "Markov panel count %d generation arrow points at +q" % reference_count)
+		var slots := inspector._markov_reference_visual_slots(reference_count)
+		_assert_eq(slots.size(), reference_count, "Markov panel count %d shows exactly %d reference cells" % [reference_count, reference_count])
+		_assert_eq(int((slots[0] as Dictionary).get("bit", -1)), 0, "Markov panel count %d keeps reference bit 0 first" % reference_count)
+		_assert_eq(((slots[0] as Dictionary).get("cell", null)).key(), behind_q, "Markov panel count %d reference bit 0 sits directly behind +q" % reference_count)
+
+	inspector.queue_free()
 	await process_frame
 
 

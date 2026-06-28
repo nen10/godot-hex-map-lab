@@ -9,6 +9,11 @@ const HexGenerationNodeTypesScript = preload("res://addons/hex_map_kit/generatio
 const HexGenerationPortsScript = preload("res://addons/hex_map_kit/generation/hex_generation_ports.gd")
 const HexMapGeneratorScript = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
 
+# Markov reference-frame direction id whose generation step is +q. The Hex Panel
+# pins every reference-count preview to this direction so the ">" arrow always
+# points at +q regardless of reference count.
+const MARKOV_REFERENCE_FRAME_GENERATION_DIRECTION_ID := 4
+
 var _node_id := ""
 var _node_type := ""
 var _last_built_node_id := ""
@@ -613,15 +618,11 @@ func _markov_reference_visual_slots(reference_count: int) -> Array:
 
 
 func _markov_reference_frame_direction_id(reference_count: int) -> int:
-	match reference_count:
-		3:
-			return 0
-		2:
-			return 1
-		1:
-			return 2
-		0, _:
-			return 0
+	# Align every reference-count panel (1/2/3) to a single, fixed generation
+	# direction so the Hex Panel reads consistently. The generation arrow (">")
+	# points at +q, and the reference cells are the leading 1/2/3 entries of that
+	# frame (reference bit 0 is always the cell directly behind +q).
+	return MARKOV_REFERENCE_FRAME_GENERATION_DIRECTION_ID
 
 
 func _markov_state_panel(reference_count: int, state_index: int, weight: float) -> HexCellButtonPanel:
