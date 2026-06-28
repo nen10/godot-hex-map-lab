@@ -1031,10 +1031,12 @@ func refresh_loop_display() -> void:
 	_loop_tile_map.clear()
 	if not loop_display_enabled or not _uses_toric_visuals() or _data == null:
 		return
+	var wall_set = _data.wall_set()
 	for entry in visual_cell_entries_for_rect(_effective_loop_display_rect(), loop_display_margin):
 		if bool(entry["is_canonical"]):
 			continue
-		_set_tile_cell_for_hex(_loop_tile_map, entry["map_cell"], entry["hex"])
+		var hex = entry["hex"]
+		_set_tile_cell_for_hex(_loop_tile_map, entry["map_cell"], hex, wall_set.has(hex.key()))
 
 
 func visual_path_for_canonical_path(path: Array, anchor_local: Vector2 = Vector2.ZERO) -> Array:
@@ -1209,7 +1211,12 @@ func _redraw_with_options(options: Dictionary = {}) -> Dictionary:
 	if _report_tile_map_apply_progress(options, report, "clear"):
 		return _store_tile_map_apply_report(_cancel_tile_map_apply_report(report))
 	for entry in entries:
-		_set_tile_cell_for_hex(_tile_map, entry["map_cell"], entry["vector"])
+		_set_tile_cell_for_hex(
+			_tile_map,
+			entry["map_cell"],
+			entry["vector"],
+			String(entry.get("kind", "")) == HexMapTileAdapter.KIND_WALL
+		)
 		report["processed_cells"] = int(report["processed_cells"]) + 1
 		report["written_cells"] = int(report["written_cells"]) + 1
 		if _tile_map_apply_chunk_due(int(report["processed_cells"]), int(report["total_cells"]), chunk_size):
@@ -1303,17 +1310,22 @@ func _update_tile(hex: HexVector) -> void:
 	if _data == null or not _data.cell_set().has(normalized.key()):
 		_tile_map.erase_cell(map_cell)
 	else:
-		_set_tile_cell_for_hex(_tile_map, map_cell, normalized)
+		_set_tile_cell_for_hex(_tile_map, map_cell, normalized, _data.wall_set().has(normalized.key()))
 	refresh_loop_display()
 	_queue_visual_redraw()
 
 
-func _set_tile_cell_for_hex(tile_map: TileMapLayer, map_cell: Vector2i, hex: HexVector) -> void:
+func _set_tile_cell_for_hex(
+	tile_map: TileMapLayer,
+	map_cell: Vector2i,
+	hex: HexVector,
+	wall_state = null
+) -> void:
 	if tile_map == null or _data == null:
 		return
 	var normalized = HexVector.apply_basis(hex.q, hex.s, hex.r)
 	var key = normalized.key()
-	var is_wall_cell = _data.wall_set().has(key)
+	var is_wall_cell: bool = bool(wall_state) if wall_state is bool else _data.wall_set().has(key)
 	var override = _tile_override_for_hex(normalized, is_wall_cell)
 	if not override.is_empty():
 		tile_map.set_cell(
