@@ -6,19 +6,19 @@ Task context: Build Graph progress popup / weighted progress planning
 
 The latest `HexTileMapLayer` visual apply optimization is effective. `apply_map()` is no longer the dominant measured cost for the profiled graph generation path.
 
-The dominant cost is now adjacency-rule item generation, followed by sparse/dense connectivity, Markov mesh wall generation, and multi-layer document apply. Weighted graph progress should therefore not be node-count based and should not over-focus on visual apply alone.
+After the adjacency-rule optimization, adjacency item generation is no longer an order-of-magnitude outlier. The heavy tier is now sparse connectivity, adjacency-rule item generation, dense connectivity, multi-layer document apply, and Markov mesh wall generation. Weighted graph progress should therefore not be node-count based and should not over-focus on visual apply alone.
 
 Measurement command:
 
 ```sh
-/Applications/Godot.app/Contents/MacOS/Godot --headless --path . --script tools/profile_graph_progress_weights.gd -- --run-id=manual-graph-progress-final-20260628
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . --script tools/profile_graph_progress_weights.gd -- --run-id=manual-adjacency-final-20260628
 ```
 
 Artifacts:
 
 ```text
-.godot_user/perf/graph-progress/manual-graph-progress-final-20260628/graph_progress_profile.json
-.godot_user/perf/graph-progress/manual-graph-progress-final-20260628/graph_progress_profile.md
+.godot_user/perf/graph-progress/manual-adjacency-final-20260628/graph_progress_profile.json
+.godot_user/perf/graph-progress/manual-adjacency-final-20260628/graph_progress_profile.md
 ```
 
 Environment:
@@ -31,25 +31,25 @@ Environment:
 
 | case | median ms | interpretation |
 |---|---:|---|
-| `item_adjacency_side_81_r2` | 9876.933 | Dominant cost. Must drive progress weight and probably deserves a separate optimization task. |
-| `item_adjacency_side_40_r3_generated_ref` | 4487.623 | Neighbor radius dominates. Generated reference does not change the weight class as much as neighbor area. |
-| `item_adjacency_side_40_r1` | 876.013 | Even radius 1 is heavier than Markov radius 40. |
-| `connect_sparse_side_81_p45` | 764.342 | Second-tier heavy node. |
-| `connect_dense_side_81_p45` | 490.663 | Similar class to Markov radius 40 and document apply. |
-| `apply_document_terrain_3_overlays_side_81` | 474.695 | Still visible and must be reported as an apply phase. |
-| `wall_markov_radius_40_p35` | 418.539 | Important, but not the top cost after adjacency enters the graph. |
-| `apply_map_side_81` | 193.146 | Much improved, still above visible-progress threshold. |
-| `apply_map_side_75` | 155.050 | Much improved from the prior PERF-60 profile. |
-| `connect_terminal_side_81_p45` | 151.721 | Moderate. |
-| `wall_markov_radius_20_p35` | 105.838 | Moderate. |
-| `shape_hexagon_radius_40` | 86.121 | More expensive than rectangle shape, but not a primary blocker. |
-| `apply_map_side_50` | 67.625 | Visible but no longer severe. |
-| `compose_overlay_side_81` | 36.168 | Was a hotspot before this slice; now moderate after bulk merge. |
-| `filter_distance_side_81` | 38.160 | Light/moderate. |
-| `wall_random_side_81_p35` | 21.231 | Light. |
-| `result_terrain_3_overlays_side_81` | 17.339 | Light. |
-| `item_random_side_40` | 8.777 | Was a hotspot before this slice; now light after bulk placement. |
-| `item_limited_side_40` | 4.877 | Light. |
+| `connect_sparse_side_81_p45` | 738.632 | Heaviest remaining measured graph-core node. |
+| `item_adjacency_side_81_r2` | 570.308 | Now comparable to connectivity instead of dominating the whole run. |
+| `connect_dense_side_81_p45` | 487.008 | Similar class to document apply and Markov radius 40. |
+| `apply_document_terrain_3_overlays_side_81` | 474.233 | Still visible and must be reported as an apply phase. |
+| `wall_markov_radius_40_p35` | 425.726 | Important, but no longer above optimized adjacency. |
+| `item_adjacency_side_40_r3_generated_ref` | 236.264 | Neighbor radius remains the main adjacency multiplier. |
+| `apply_map_side_81` | 185.814 | Much improved, still above visible-progress threshold. |
+| `apply_map_side_75` | 158.158 | Much improved from the prior PERF-60 profile. |
+| `connect_terminal_side_81_p45` | 133.127 | Moderate. |
+| `wall_markov_radius_20_p35` | 103.395 | Moderate. |
+| `shape_hexagon_radius_40` | 86.418 | More expensive than rectangle shape, but not a primary blocker. |
+| `apply_map_side_50` | 68.512 | Visible but no longer severe. |
+| `item_adjacency_side_40_r1` | 64.466 | Optimized to the same class as medium visual apply. |
+| `compose_overlay_side_81` | 37.294 | Was a hotspot before this slice; now moderate after bulk merge. |
+| `filter_distance_side_81` | 24.495 | Light/moderate. |
+| `wall_random_side_81_p35` | 21.327 | Light. |
+| `result_terrain_3_overlays_side_81` | 17.403 | Light. |
+| `item_random_side_40` | 8.004 | Was a hotspot before this slice; now light after bulk placement. |
+| `item_limited_side_40` | 4.975 | Light. |
 
 ## Visual Apply Comparison
 
@@ -57,9 +57,9 @@ Compared with the 2026-06-08 PERF-60 carried-forward measurements, current `HexT
 
 | cells | previous `apply_map` | current `apply_map` | result |
 |---:|---:|---:|---|
-| 625 | 101.670 ms | 17.337 ms | ~5.9x faster |
-| 2,500 | 1,465.139 ms | 67.625 ms | ~21.7x faster |
-| 5,625 | 7,054.401 ms | 155.050 ms | ~45.5x faster |
+| 625 | 101.670 ms | 17.123 ms | ~5.9x faster |
+| 2,500 | 1,465.139 ms | 68.512 ms | ~21.4x faster |
+| 5,625 | 7,054.401 ms | 158.158 ms | ~44.6x faster |
 
 This validates the recent O(n²) to O(n) visual apply work for the measured cases.
 
@@ -75,7 +75,17 @@ This slice changes item generation to accumulate placements by item key and appl
 - `item_random_side_40`: ~1378 ms -> ~8.8 ms
 - `compose_overlay_side_81`: ~8787 ms -> ~36 ms
 
-Adjacency-rule item generation remains heavy because neighborhood/component statistics dominate, not item insertion.
+Adjacency-rule item generation was then optimized separately:
+
+- precompute reusable radius offsets and direction offsets.
+- compute only the statistics required by the active probability rules: neighbor count, component count, or component-size multiset.
+- represent local adjacency stats with `Vector2i` axial coordinates instead of repeated `HexVector.add()` / toric wrap / string `key()` allocation.
+
+After that:
+
+- `item_adjacency_side_40_r1`: ~876 ms -> ~64 ms
+- `item_adjacency_side_40_r3_generated_ref`: ~4488 ms -> ~236 ms
+- `item_adjacency_side_81_r2`: ~9877 ms -> ~570 ms
 
 ## Weight Policy
 
@@ -94,7 +104,7 @@ Suggested initial estimator:
 | connectivity terminal | `cells * 0.023` |
 | item weighted / random | `scope_cells * 0.006` |
 | item limited | `scope_cells * 0.004` |
-| item adjacency_rules | `scope_cells * neighbor_area * 0.085` |
+| item adjacency_rules | `scope_cells * neighbor_area * 0.006` |
 | filter simple | `input_cells * 0.002` |
 | filter distance | `input_cells * 0.006` |
 | compose overlay merge | `input_cells * 0.006` |
@@ -104,7 +114,7 @@ Suggested initial estimator:
 
 Notes:
 
-- `neighbor_area` should be the L1 disc area excluding center after toric wrapping, approximately `3r(r+1)` for radius `r`.
+- `neighbor_area` should be the L1 disc area excluding center after toric wrapping, approximately `3r(r+1)` for radius `r`. Add a conservative multiplier when rules use `components:*` multiset keys, because that path must keep component sizes rather than only component count.
 - These are relative work units derived from this machine's headless timings. They should drive progress proportions, not be displayed as time predictions.
 - Unknown modes should use conservative fallback work and still show a textual phase, without exposing raw fallback language in UI.
 
@@ -112,15 +122,16 @@ Notes:
 
 Priority order for weighted progress:
 
-1. `Item Generator / adjacency_rules`
-2. `Connectivity / sparse|dense`
-3. `Wall Field / markov_mesh`
-4. `Promote / viewport apply`
-5. `Shape / hexagon`
-6. `Filter / compose / result`
-7. random wall/item modes
+1. `Connectivity / sparse`
+2. `Item Generator / adjacency_rules`
+3. `Connectivity / dense`
+4. `Wall Field / markov_mesh`
+5. `Promote / viewport apply`
+6. `Shape / hexagon`
+7. `Filter / compose / result`
+8. random wall/item modes
 
-The popup should show current node, node mode, core phase, and layer/apply phase. For adjacency item generation, node-local progress is especially important because one node can dominate the whole run.
+The popup should show current node, node mode, core phase, and layer/apply phase. For adjacency item generation, node-local progress is still important because neighbor radius can make one node comparable to the largest connectivity pass.
 
 ## Follow-Up Tasks
 
@@ -129,4 +140,4 @@ Recommended scheduled slices:
 1. `GRAPH-PROGRESS-02B`: implement `estimated_work_for_node(node, inputs, context)` using the measured policy above.
 2. `GRAPH-PROGRESS-02C`: map core progress into weighted graph progress in `HexGenerationGraphRunner`.
 3. `GRAPH-PROGRESS-03`: expose promote / viewport apply phases in the progress popup.
-4. `GRAPH-PERF-ADJ-01`: optimize adjacency item stats. Start by replacing per-cell neighborhood allocation/component traversal with reusable radius offsets and single-pass local component calculation.
+4. `GRAPH-PERF-ADJ-02`: optional constant/reference-full fast path for adjacency rules, after weighted progress is wired.

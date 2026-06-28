@@ -14,6 +14,9 @@ const CONNECT_NONE := 0
 const CONNECT_DENSE := 1
 const CONNECT_SPARSE := 2
 const _CONNECTIVITY_PROGRESS_START := 0.35
+const _ADJACENCY_STATS_COUNT := 0
+const _ADJACENCY_STATS_COMPONENT_COUNT := 1
+const _ADJACENCY_STATS_COMPONENT_SIZES := 2
 const _INTERRUPT_PROGRESS_START_KEY := "_progress_range_start"
 const _INTERRUPT_PROGRESS_END_KEY := "_progress_range_end"
 
@@ -420,7 +423,7 @@ static func generate_toric_adjacency_items_interruptible(
 	assert(neighbor_radius >= 1)
 	var candidates = _item_generation_candidates(cells, blocked_cells, cyclic_size)
 	var normalized_reference_cells = _normalize_generation_points(reference_cells, cyclic_size)
-	var reference_set = HexMapDataScript.make_set(normalized_reference_cells)
+	var reference_set = _adjacency_axial_set(normalized_reference_cells, cyclic_size)
 	var data = HexOverlayDataScript.from_cells(candidates, {}, cyclic_size)
 	var total = candidates.size()
 	var chunk_size = _interrupt_chunk_size(interrupt_options)
@@ -430,9 +433,19 @@ static func generate_toric_adjacency_items_interruptible(
 	var rng = RandomNumberGenerator.new()
 	rng.seed = seed
 	var placements := {}
+	var neighbor_offsets := _adjacency_scope_offsets(neighbor_radius)
+	var direction_offsets := _adjacency_direction_offsets()
+	var stats_mode := _adjacency_rule_stats_mode(probability_rules)
 	for index in range(candidates.size()):
 		var cell = candidates[index]
-		var stats = _adjacency_reference_stats(cell, reference_set, cyclic_size, neighbor_radius)
+		var stats = _adjacency_reference_stats(
+			cell,
+			reference_set,
+			cyclic_size,
+			neighbor_offsets,
+			direction_offsets,
+			stats_mode
+		)
 		var probability = _adjacency_rule_probability(
 			probability_rules,
 			int(stats["count"]),
@@ -442,7 +455,7 @@ static func generate_toric_adjacency_items_interruptible(
 		if rng.randf() < probability:
 			_record_item_placement(placements, item_name, cell)
 			if include_generated_reference:
-				reference_set[cell.key()] = cell
+				reference_set[_adjacency_axial(cell, cyclic_size)] = true
 		var steps = index + 1
 		if steps % chunk_size == 0 or steps == total:
 			if _interrupt_update(interrupt_options, "toric_adjacency_items", steps, total):
@@ -639,68 +652,183 @@ static func _adjacency_reference_stats(
 	cell,
 	reference_set: Dictionary,
 	cyclic_size: int,
-	neighbor_radius: int
+	neighbor_offsets: Array,
+	direction_offsets: Array,
+	stats_mode: int = _ADJACENCY_STATS_COMPONENT_SIZES
 ) -> Dictionary:
-	var reference_neighbors: Array = []
-	for neighbor in _adjacency_scope_cells(cell, neighbor_radius, cyclic_size):
-		if reference_set.has(neighbor.key()):
-			reference_neighbors.append(reference_set[neighbor.key()])
-	var component_sizes := _adjacency_component_sizes(reference_neighbors, cyclic_size)
+	var reference_neighbors := _adjacency_reference_neighbors(
+		cell,
+		reference_set,
+		cyclic_size,
+		neighbor_offsets
+	)
+	if stats_mode <= _ADJACENCY_STATS_COUNT:
+		return {
+			"count": reference_neighbors.size(),
+			"components": 0,
+			"component_sizes": [],
+		}
+	if stats_mode == _ADJACENCY_STATS_COMPONENT_COUNT:
+		return {
+			"count": reference_neighbors.size(),
+			"components": _adjacency_component_count_from_set(reference_neighbors, cyclic_size, direction_offsets),
+			"component_sizes": [],
+		}
+	var component_sizes := _adjacency_component_sizes_from_set(
+		reference_neighbors,
+		cyclic_size,
+		direction_offsets
+	)
 	return {
 		"count": reference_neighbors.size(),
 		"components": component_sizes.size(),
 		"component_sizes": component_sizes,
-	}
+}
 
 
-static func _adjacency_scope_cells(cell, neighbor_radius: int, cyclic_size: int) -> Array:
-	var center = cell
-	if cyclic_size > 0:
-		center = HexToricCoordinateScript.wrap_vector(cell, cyclic_size)
-
-	var result: Array = []
-	var seen := {}
-	for point in HexGridScript.l1_disc(neighbor_radius, center):
-		var candidate = point
-		if cyclic_size > 0:
-			candidate = HexToricCoordinateScript.wrap_vector(candidate, cyclic_size)
-		if candidate.key() == center.key():
+static func _adjacency_rule_stats_mode(probability_rules: Dictionary) -> int:
+	var result := _ADJACENCY_STATS_COUNT
+	for key in probability_rules.keys():
+		if key is Vector2i:
+			result = max(result, _ADJACENCY_STATS_COMPONENT_COUNT)
 			continue
-		if seen.has(candidate.key()):
-			continue
-		seen[candidate.key()] = true
-		result.append(candidate)
+		if key is String:
+			var key_text := String(key)
+			if key_text.begins_with("components:"):
+				return _ADJACENCY_STATS_COMPONENT_SIZES
+			if key_text.find(",") >= 0:
+				result = max(result, _ADJACENCY_STATS_COMPONENT_COUNT)
 	return result
 
 
-static func _adjacency_component_count(points: Array, cyclic_size: int) -> int:
-	var remaining = HexMapDataScript.make_set(points)
-	var count := 0
-	for point in points:
-		if not remaining.has(point.key()):
+static func _adjacency_scope_offsets(neighbor_radius: int) -> Array:
+	var zero = HexVectorScript.zero()
+	var result: Array = []
+	for point in HexGridScript.l1_disc(neighbor_radius, zero):
+		if point.key() == zero.key():
 			continue
-		var component = HexGridScript.connected_area(point, points, cyclic_size)
+		result.append(point.axial())
+	return result
+
+
+static func _adjacency_axial_set(points: Array, cyclic_size: int) -> Dictionary:
+	var result := {}
+	for point in points:
+		result[_adjacency_axial(point, cyclic_size)] = true
+	return result
+
+
+static func _adjacency_axial(point, cyclic_size: int) -> Vector2i:
+	var axial: Vector2i = point.axial()
+	if cyclic_size <= 0:
+		return axial
+	return Vector2i(
+		_adjacency_positive_mod(axial.x, cyclic_size),
+		_adjacency_positive_mod(axial.y, cyclic_size)
+	)
+
+
+static func _adjacency_positive_mod(value: int, modulus: int) -> int:
+	var result := value % modulus
+	if result < 0:
+		result += modulus
+	return result
+
+
+static func _adjacency_reference_neighbors(
+	cell,
+	reference_set: Dictionary,
+	cyclic_size: int,
+	neighbor_offsets: Array
+) -> Dictionary:
+	var center := _adjacency_axial(cell, cyclic_size)
+	var reference_neighbors := {}
+	var seen := {}
+	for offset in neighbor_offsets:
+		var candidate := Vector2i(center.x + offset.x, center.y + offset.y)
+		if cyclic_size > 0:
+			candidate = Vector2i(
+				_adjacency_positive_mod(candidate.x, cyclic_size),
+				_adjacency_positive_mod(candidate.y, cyclic_size)
+			)
+		if candidate == center:
+			continue
+		if seen.has(candidate):
+			continue
+		seen[candidate] = true
+		if reference_set.has(candidate):
+			reference_neighbors[candidate] = true
+	return reference_neighbors
+
+
+static func _adjacency_component_count_from_set(
+	points_by_key: Dictionary,
+	cyclic_size: int,
+	directions: Array
+) -> int:
+	var remaining = points_by_key.duplicate()
+	var count := 0
+	for key in points_by_key.keys():
+		if not remaining.has(key):
+			continue
+		_adjacency_remove_component(key, remaining, cyclic_size, directions)
 		count += 1
-		for component_point in component:
-			remaining.erase(component_point.key())
 	return count
 
 
-static func _adjacency_component_sizes(points: Array, cyclic_size: int) -> Array:
-	var remaining = HexMapDataScript.make_set(points)
+static func _adjacency_component_sizes_from_set(
+	points_by_key: Dictionary,
+	cyclic_size: int,
+	directions: Array
+) -> Array:
+	var remaining = points_by_key.duplicate()
 	var sizes: Array = []
-	for point in points:
-		if not remaining.has(point.key()):
+	for key in points_by_key.keys():
+		if not remaining.has(key):
 			continue
-		var component = HexGridScript.connected_area(point, points, cyclic_size)
-		var size := 0
-		for component_point in component:
-			if remaining.has(component_point.key()):
-				remaining.erase(component_point.key())
-				size += 1
-		sizes.append(size)
+		sizes.append(_adjacency_remove_component(
+			key,
+			remaining,
+			cyclic_size,
+			directions
+		))
 	sizes.sort()
 	return sizes
+
+
+static func _adjacency_direction_offsets() -> Array:
+	var result: Array = []
+	for direction in HexGridScript.directions():
+		result.append(direction.axial())
+	return result
+
+
+static func _adjacency_remove_component(
+	start: Vector2i,
+	remaining: Dictionary,
+	cyclic_size: int,
+	directions: Array
+) -> int:
+	var open: Array = [start]
+	var index := 0
+	var size := 0
+	while index < open.size():
+		var current: Vector2i = open[index]
+		index += 1
+		if not remaining.has(current):
+			continue
+		remaining.erase(current)
+		size += 1
+		for direction in directions:
+			var neighbor := Vector2i(current.x + direction.x, current.y + direction.y)
+			if cyclic_size > 0:
+				neighbor = Vector2i(
+					_adjacency_positive_mod(neighbor.x, cyclic_size),
+					_adjacency_positive_mod(neighbor.y, cyclic_size)
+				)
+			if remaining.has(neighbor):
+				open.append(neighbor)
+	return size
 
 
 static func _adjacency_rule_probability(

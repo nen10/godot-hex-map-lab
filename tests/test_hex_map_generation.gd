@@ -6,6 +6,7 @@ const HexMapData = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
 const HexOverlayData = preload("res://addons/hex_map_kit/core/hex_overlay_data.gd")
 const HexMapGenerator = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
 const HexMapDebug = preload("res://addons/hex_map_kit/core/hex_map_debug.gd")
+const HexToricCoordinate = preload("res://addons/hex_map_kit/core/hex_toric_coordinate.gd")
 const HexToricMapSplitRule = preload("res://addons/hex_map_kit/core/hex_toric_map_split_rule.gd")
 const HexGrid = preload("res://addons/hex_map_kit/core/hex_grid.gd")
 
@@ -59,6 +60,7 @@ func _run() -> void:
 	_test_toric_adjacency_items_wrap_reference_neighbors()
 	_test_toric_adjacency_items_can_reference_generated_item()
 	_test_toric_adjacency_generated_reference_wraps()
+	_test_toric_adjacency_axial_stats_match_hexvector_reference()
 	_test_toric_adjacency_generated_reference_preserves_cancel()
 	_test_symmetric_toric_items_respect_target_and_blocked_cells()
 	_test_symmetric_toric_items_are_seeded_and_interruptible()
@@ -156,6 +158,148 @@ func _line_cells(length: int) -> Array:
 
 func _rect_cell(q: int, r: int):
 	return HexVector.apply_basis(q, 0, r)
+
+
+func _legacy_toric_adjacency_item_cells(
+	cells: Array,
+	reference_cells: Array,
+	probability_rules: Dictionary,
+	blocked_cells: Array,
+	cyclic_size: int,
+	neighbor_radius: int,
+	include_generated_reference: bool
+) -> Array:
+	var candidates = _legacy_item_generation_candidates(cells, blocked_cells, cyclic_size)
+	var reference_set = HexMapData.make_set(_legacy_normalize_generation_points(reference_cells, cyclic_size))
+	var result: Array = []
+	for cell in candidates:
+		var stats = _legacy_adjacency_reference_stats(cell, reference_set, cyclic_size, neighbor_radius)
+		var probability := _legacy_adjacency_rule_probability(
+			probability_rules,
+			int(stats["count"]),
+			int(stats["components"]),
+			stats.get("component_sizes", [])
+		)
+		if probability >= 1.0:
+			result.append(cell)
+			if include_generated_reference:
+				var reference_cell = _legacy_normalize_generation_point(cell, cyclic_size)
+				reference_set[reference_cell.key()] = reference_cell
+	return result
+
+
+func _legacy_item_generation_candidates(cells: Array, blocked_cells: Array, cyclic_size: int) -> Array:
+	var blocked_set = HexMapData.make_set(_legacy_normalize_generation_points(blocked_cells, cyclic_size))
+	var result: Array = []
+	for cell in _legacy_normalize_generation_points(cells, cyclic_size):
+		if blocked_set.has(cell.key()):
+			continue
+		result.append(cell)
+	return result
+
+
+func _legacy_normalize_generation_points(points: Array, cyclic_size: int) -> Array:
+	if cyclic_size <= 0:
+		return HexMapData.unique_points(points)
+	var result: Array = []
+	for point in points:
+		result.append(HexToricCoordinate.wrap_vector(point, cyclic_size))
+	return HexMapData.unique_points(result)
+
+
+func _legacy_normalize_generation_point(point, cyclic_size: int):
+	if cyclic_size <= 0:
+		return point
+	return HexToricCoordinate.wrap_vector(point, cyclic_size)
+
+
+func _legacy_adjacency_reference_stats(
+	cell,
+	reference_set: Dictionary,
+	cyclic_size: int,
+	neighbor_radius: int
+) -> Dictionary:
+	var reference_neighbors: Array = []
+	for neighbor in _legacy_adjacency_scope_cells(cell, neighbor_radius, cyclic_size):
+		if reference_set.has(neighbor.key()):
+			reference_neighbors.append(reference_set[neighbor.key()])
+	var component_sizes := _legacy_adjacency_component_sizes(reference_neighbors, cyclic_size)
+	return {
+		"count": reference_neighbors.size(),
+		"components": component_sizes.size(),
+		"component_sizes": component_sizes,
+	}
+
+
+func _legacy_adjacency_scope_cells(cell, neighbor_radius: int, cyclic_size: int) -> Array:
+	var center = cell
+	if cyclic_size > 0:
+		center = HexToricCoordinate.wrap_vector(cell, cyclic_size)
+
+	var result: Array = []
+	var seen := {}
+	for point in HexGrid.l1_disc(neighbor_radius, center):
+		var candidate = point
+		if cyclic_size > 0:
+			candidate = HexToricCoordinate.wrap_vector(candidate, cyclic_size)
+		if candidate.key() == center.key():
+			continue
+		if seen.has(candidate.key()):
+			continue
+		seen[candidate.key()] = true
+		result.append(candidate)
+	return result
+
+
+func _legacy_adjacency_component_sizes(points: Array, cyclic_size: int) -> Array:
+	var remaining = HexMapData.make_set(points)
+	var sizes: Array = []
+	for point in points:
+		if not remaining.has(point.key()):
+			continue
+		var component = HexGrid.connected_area(point, points, cyclic_size)
+		var size := 0
+		for component_point in component:
+			if remaining.has(component_point.key()):
+				remaining.erase(component_point.key())
+				size += 1
+		sizes.append(size)
+	sizes.sort()
+	return sizes
+
+
+func _legacy_adjacency_rule_probability(
+	probability_rules: Dictionary,
+	neighbor_count: int,
+	component_count: int,
+	component_sizes: Array
+) -> float:
+	var value := 0.0
+	var multiset_key := _legacy_adjacency_component_sizes_key(component_sizes)
+	if multiset_key != "" and probability_rules.has(multiset_key):
+		value = float(probability_rules[multiset_key])
+	elif probability_rules.has(Vector2i(neighbor_count, component_count)):
+		value = float(probability_rules[Vector2i(neighbor_count, component_count)])
+	elif probability_rules.has("%d,%d" % [neighbor_count, component_count]):
+		value = float(probability_rules["%d,%d" % [neighbor_count, component_count]])
+	elif probability_rules.has(neighbor_count):
+		value = float(probability_rules[neighbor_count])
+	elif probability_rules.has(str(neighbor_count)):
+		value = float(probability_rules[str(neighbor_count)])
+	elif probability_rules.has("default"):
+		value = float(probability_rules["default"])
+	return clampf(value, 0.0, 1.0)
+
+
+func _legacy_adjacency_component_sizes_key(component_sizes: Array) -> String:
+	var sizes: Array = []
+	for size in component_sizes:
+		sizes.append(int(size))
+	sizes.sort()
+	var parts: Array[String] = []
+	for size in sizes:
+		parts.append(str(size))
+	return "components:%s" % ",".join(parts)
 
 
 func _canonical_hexagon_cells(radius: int) -> Array:
@@ -703,6 +847,79 @@ func _test_toric_adjacency_generated_reference_wraps() -> void:
 
 	_assert_keys_eq(static_only.item_cells("Portal"), [edge_candidate], "toric generated reference starts from static reference cells only")
 	_assert_keys_eq(dynamic.item_cells("Portal"), [edge_candidate, wrapped_candidate], "toric generated reference uses wrapped generated item representatives")
+
+
+func _test_toric_adjacency_axial_stats_match_hexvector_reference() -> void:
+	var directions = HexGrid.directions()
+	var cells = HexMapData.square(4, true).cells
+	var anchor_a = HexVector.zero()
+	var anchor_b = _rect_cell(2, 2)
+	var reference_cells = [
+		anchor_a.add(directions[0]),
+		anchor_a.add(directions[1]),
+		anchor_a.add(directions[3]),
+		anchor_b.add(directions[0]),
+		anchor_b.add(directions[1]),
+		anchor_b.add(directions[3]),
+	]
+	var rules = {
+		"default": 0.0,
+		"components:1,2": 1.0,
+	}
+	var static_expected = _legacy_toric_adjacency_item_cells(
+		cells,
+		reference_cells,
+		rules,
+		[],
+		4,
+		1,
+		false
+	)
+	var static_actual = HexMapGenerator.generate_toric_adjacency_items(
+		cells,
+		"Cluster",
+		reference_cells,
+		rules,
+		21,
+		[],
+		4,
+		1,
+		false
+	).item_cells("Cluster")
+
+	_assert_true(static_expected.size() > 0, "legacy HexVector adjacency fixture produces component-size matches")
+	_assert_keys_eq(
+		static_actual,
+		static_expected,
+		"Vector2i axial adjacency stats match HexVector reference stats for toric component sizes"
+	)
+
+	var dynamic_expected = _legacy_toric_adjacency_item_cells(
+		cells,
+		reference_cells,
+		rules,
+		[],
+		4,
+		1,
+		true
+	)
+	var dynamic_actual = HexMapGenerator.generate_toric_adjacency_items(
+		cells,
+		"Cluster",
+		reference_cells,
+		rules,
+		21,
+		[],
+		4,
+		1,
+		true
+	).item_cells("Cluster")
+
+	_assert_keys_eq(
+		dynamic_actual,
+		dynamic_expected,
+		"Vector2i axial adjacency stats match HexVector reference stats when generated references are included"
+	)
 
 
 func _test_toric_adjacency_generated_reference_preserves_cancel() -> void:
