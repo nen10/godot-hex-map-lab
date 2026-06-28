@@ -390,14 +390,12 @@ func ensure_graph_context_for_hex_tile_map_layer(
 		created_document = true
 	_workspace_asset_context.set_level_document(
 		layer.level_document_resource,
-		HexMapWorkspaceAssetContextScript.SOURCE_PROJECT,
-		"Selected Node"
+		HexMapWorkspaceAssetContextScript.SOURCE_PROJECT
 	)
 	if layer.layer_stack_resource != null:
 		_workspace_asset_context.set_layer_stack(
 			layer.layer_stack_resource,
-			HexMapWorkspaceAssetContextScript.SOURCE_PROJECT,
-			"Selected Node"
+			HexMapWorkspaceAssetContextScript.SOURCE_PROJECT
 		)
 	else:
 		var stack = HexLayerStackResourceScript.standard_template() as HexLayerStackResourceScript
@@ -405,8 +403,7 @@ func ensure_graph_context_for_hex_tile_map_layer(
 			layer.layer_stack_resource = stack
 			_workspace_asset_context.set_layer_stack(
 				stack,
-				HexMapWorkspaceAssetContextScript.SOURCE_PROJECT,
-				"Selected Node"
+				HexMapWorkspaceAssetContextScript.SOURCE_PROJECT
 			)
 
 	var created_graph := false
@@ -1581,14 +1578,12 @@ func _apply_build_context_result(result: Dictionary) -> void:
 		if layer.level_document_resource != null:
 			_workspace_asset_context.set_level_document(
 				layer.level_document_resource,
-				HexMapWorkspaceAssetContextScript.SOURCE_PROJECT,
-				"Selected Node"
+				HexMapWorkspaceAssetContextScript.SOURCE_PROJECT
 			)
 		if layer.layer_stack_resource != null:
 			_workspace_asset_context.set_layer_stack(
 				layer.layer_stack_resource,
-				HexMapWorkspaceAssetContextScript.SOURCE_PROJECT,
-				"Selected Node"
+				HexMapWorkspaceAssetContextScript.SOURCE_PROJECT
 			)
 	if bool(result.get("ok", false)):
 		_last_build_context_result = result.duplicate(true)

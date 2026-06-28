@@ -757,8 +757,7 @@ func load_generation_graph_resource(
 	if loaded_layer.level_document_resource != null:
 		workspace_asset_context().set_level_document(
 			loaded_layer.level_document_resource,
-			HexMapWorkspaceAssetContext.SOURCE_PROJECT,
-			"Selected Node"
+			HexMapWorkspaceAssetContext.SOURCE_PROJECT
 		)
 		session.set_document(
 			loaded_layer.level_document_resource,
@@ -769,8 +768,7 @@ func load_generation_graph_resource(
 	if loaded_layer.layer_stack_resource != null:
 		workspace_asset_context().set_layer_stack(
 			loaded_layer.layer_stack_resource,
-			HexMapWorkspaceAssetContext.SOURCE_PROJECT,
-			"Selected Node"
+			HexMapWorkspaceAssetContext.SOURCE_PROJECT
 		)
 
 	var screen_load_result := {}

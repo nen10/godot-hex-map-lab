@@ -306,11 +306,14 @@ func _test_top_generate_creates_layer_and_projects_viewport_preview() -> void:
 	_assert_true(String(snapshot["viewport_preview_layer_path"]).contains("BuildHexMapLayer"), "Generate snapshot records viewport layer path")
 	_assert_true(bool(snapshot["node_thumbnail_secondary"]), "Generate marks node thumbnail as secondary proof only")
 
+	var asset_recorder := SessionChangeRecorder.new()
+	workspace.workspace_asset_context().asset_changed.connect(asset_recorder.record)
 	button.emit_signal("pressed")
 	_assert_top_generate_progress_visible(workspace, "Second Generate shows progress immediately on press")
 	await process_frame
 	_assert_top_generate_progress_visible(workspace, "Second Generate shows progress before context/graph preparation")
 	await _wait_for_top_generate_preview(workspace, "Second Generate reuses current canvas")
+	_assert_eq(asset_recorder.keys.size(), 0, "Second Generate does not reassign unchanged node-owned assets during context preparation")
 	var second_snapshot = workspace.generation_screen_snapshot()
 	var second_context = second_snapshot["build_context"] as Dictionary
 	var second_restore = second_context.get("restore_report", {}) as Dictionary
