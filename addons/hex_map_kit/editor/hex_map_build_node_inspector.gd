@@ -8,6 +8,9 @@ signal promote_requested(node_id: String, role: String)
 const HexGenerationNodeTypesScript = preload("res://addons/hex_map_kit/generation/hex_generation_node_types.gd")
 const HexGenerationPortsScript = preload("res://addons/hex_map_kit/generation/hex_generation_ports.gd")
 const HexMapGeneratorScript = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
+const HexAdjacencyRuleSetScript = preload("res://addons/hex_map_kit/adapter/hex_adjacency_rule_set.gd")
+const HexAdjacencyRulePresetsScript = preload("res://addons/hex_map_kit/editor/hex_adjacency_rule_presets.gd")
+const HexMapEditorPathSelectorScript = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
 
 # Markov reference-frame direction id whose generation step is +q. The Hex Panel
 # pins every reference-count preview to this direction so the ">" arrow always
@@ -806,7 +809,53 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 	help.text = "Toggle cells: { black: present, white: absent }.\nCenter darkness = generation probability.\nPattern equality: connected component size sets."
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	body.add_child(help)
+	var name_edit := LineEdit.new()
+	name_edit.name = "AdjacencyRuleSetName"
+	name_edit.text = _adjacency_rule_set_name()
+	name_edit.placeholder_text = "Rule set name"
+	body.add_child(_labeled_control("Rule set name", name_edit))
 	var patterns: Array = _adjacency_patterns()
+	var default_spin := SpinBox.new()
+	default_spin.name = "AdjacencyDefaultProbability"
+	default_spin.min_value = 0.0
+	default_spin.max_value = 1.0
+	default_spin.step = 0.05
+	default_spin.value = _adjacency_default_probability()
+	var status_label := Label.new()
+	status_label.name = "AdjacencyRulesStatus"
+	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	status_label.add_theme_color_override("font_color", Color(0.65, 0.65, 0.65))
+	var preset_box := VBoxContainer.new()
+	preset_box.name = "AdjacencyPresetRow"
+	preset_box.add_theme_constant_override("separation", 4)
+	var preset_select_row := HBoxContainer.new()
+	preset_select_row.name = "AdjacencyPresetSelectRow"
+	var preset_actions_row := HBoxContainer.new()
+	preset_actions_row.name = "AdjacencyPresetActionsRow"
+	var preset_label := Label.new()
+	preset_label.text = "Preset"
+	preset_label.custom_minimum_size = Vector2(160, 0)
+	preset_select_row.add_child(preset_label)
+	var preset_option := OptionButton.new()
+	preset_option.name = "AdjacencyPresetOption"
+	preset_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	preset_select_row.add_child(preset_option)
+	var preset_actions_spacer := Control.new()
+	preset_actions_spacer.custom_minimum_size = Vector2(160, 0)
+	preset_actions_row.add_child(preset_actions_spacer)
+	preset_box.add_child(preset_select_row)
+	preset_box.add_child(preset_actions_row)
+	var preset_paths: Array = []
+	var refresh_presets := func():
+		preset_paths.clear()
+		preset_option.clear()
+		for preset in HexAdjacencyRulePresetsScript.list_presets():
+			preset_option.add_item(String((preset as Dictionary).get("name", "")))
+			preset_paths.append(String((preset as Dictionary).get("path", "")))
+		if preset_paths.is_empty():
+			preset_option.add_item("(no saved presets)")
+			preset_option.set_item_disabled(0, true)
+	body.add_child(preset_box)
 	var patterns_scroll := ScrollContainer.new()
 	patterns_scroll.name = "AdjacencyRulesPatternScroll"
 	patterns_scroll.custom_minimum_size = _adjacency_rules_pattern_scroll_size(dialog_size)
@@ -827,6 +876,98 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 			child.queue_free()
 		for pattern_index in range(patterns.size()):
 			patterns_box.add_child(_adjacency_pattern_row(patterns, pattern_index, rebuild))
+	var current_rule_set := func():
+		return HexAdjacencyRuleSetScript.from_dialog_dict(
+			_adjacency_rules_dict_from_window_patterns(patterns, float(default_spin.value) if default_spin != null else _adjacency_default_probability()),
+			name_edit.text.strip_edges()
+		)
+	var apply_rule_set_to_window := func(rule_set, source_path: String = ""):
+		if rule_set == null:
+			status_label.text = "Could not load adjacency rule set."
+			push_error("Could not load adjacency rule set: %s" % source_path)
+			return
+		name_edit.text = HexAdjacencyRulePresetsScript.display_name_for(rule_set, source_path)
+		default_spin.value = clampf(float(rule_set.default_probability), 0.0, 1.0)
+		patterns.clear()
+		var next_patterns: Array = (rule_set.to_dialog_dict().get("rules", []) as Array).duplicate(true)
+		if next_patterns.is_empty():
+			next_patterns.append({"directions": [], "probability": 0.5})
+		patterns.append_array(next_patterns)
+		rebuild.call()
+		status_label.text = "Loaded: %s" % name_edit.text
+	var save_rule_set_to_path := func(path: String):
+		var rule_set = current_rule_set.call()
+		if rule_set.display_name.strip_edges() == "":
+			rule_set.display_name = path.get_file().get_basename().capitalize()
+			name_edit.text = rule_set.display_name
+		var error := HexAdjacencyRulePresetsScript.save(rule_set, path)
+		if error != OK:
+			status_label.text = "Save failed: %s (%d)" % [path, error]
+			push_error("Failed to save adjacency rule set: %d" % error)
+			return
+		_scan_editor_filesystem()
+		refresh_presets.call()
+		status_label.text = "Saved: %s" % path
+	var load_file_button := Button.new()
+	load_file_button.name = "LoadAdjacencyRuleSetFile"
+	load_file_button.text = "Load File..."
+	load_file_button.pressed.connect(func():
+		var file_dialog: EditorFileDialog = HexMapEditorPathSelectorScript.new_dialog(
+			EditorFileDialog.FILE_MODE_OPEN_FILE,
+			HexAdjacencyRulePresetsScript.FILE_FILTERS
+		)
+		if file_dialog == null:
+			status_label.text = "File dialogs are only available in the editor."
+			return
+		file_dialog.file_selected.connect(func(path: String):
+			apply_rule_set_to_window.call(HexAdjacencyRulePresetsScript.load(path), path)
+		)
+		HexMapEditorPathSelectorScript.popup_dialog(file_dialog)
+	)
+	var load_preset_button := Button.new()
+	load_preset_button.name = "LoadAdjacencyPreset"
+	load_preset_button.text = "Load"
+	load_preset_button.pressed.connect(func():
+		var selected := preset_option.selected
+		if selected < 0 or selected >= preset_paths.size():
+			status_label.text = "No preset selected."
+			return
+		var path := String(preset_paths[selected])
+		apply_rule_set_to_window.call(HexAdjacencyRulePresetsScript.load(path), path)
+	)
+	preset_select_row.add_child(load_preset_button)
+	preset_actions_row.add_child(load_file_button)
+	var save_file_button := Button.new()
+	save_file_button.name = "SaveAdjacencyRuleSetFile"
+	save_file_button.text = "Save File..."
+	save_file_button.pressed.connect(func():
+		var file_dialog: EditorFileDialog = HexMapEditorPathSelectorScript.new_dialog(
+			EditorFileDialog.FILE_MODE_SAVE_FILE,
+			HexAdjacencyRulePresetsScript.FILE_FILTERS
+		)
+		if file_dialog == null:
+			status_label.text = "File dialogs are only available in the editor."
+			return
+		var base_name := name_edit.text.strip_edges().to_snake_case()
+		file_dialog.current_file = ("%s.tres" % base_name) if base_name != "" else "adjacency_rules.tres"
+		file_dialog.file_selected.connect(save_rule_set_to_path)
+		HexMapEditorPathSelectorScript.popup_dialog(file_dialog)
+	)
+	preset_actions_row.add_child(save_file_button)
+	var save_preset_button := Button.new()
+	save_preset_button.name = "SaveAdjacencyPreset"
+	save_preset_button.text = "Save Preset"
+	save_preset_button.tooltip_text = "Save under the addon adjacency rule preset folder so it appears in this Preset list."
+	save_preset_button.pressed.connect(func():
+		var display_name := name_edit.text.strip_edges()
+		if display_name == "":
+			status_label.text = "Enter a rule set name before saving a preset."
+			name_edit.grab_focus()
+			return
+		save_rule_set_to_path.call(HexAdjacencyRulePresetsScript.preset_path_for_name(display_name))
+	)
+	preset_actions_row.add_child(save_preset_button)
+	refresh_presets.call()
 	rebuild.call()
 	var add_button := Button.new()
 	add_button.name = "AddAdjacencyPattern"
@@ -836,13 +977,8 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 		rebuild.call()
 	)
 	body.add_child(add_button)
-	var default_spin := SpinBox.new()
-	default_spin.name = "AdjacencyDefaultProbability"
-	default_spin.min_value = 0.0
-	default_spin.max_value = 1.0
-	default_spin.step = 0.05
-	default_spin.value = _adjacency_default_probability()
 	body.add_child(_labeled_control("Default probability", default_spin))
+	body.add_child(status_label)
 	dialog.add_child(body)
 	dialog.confirmed.connect(func():
 		var rules: Array = []
@@ -854,6 +990,7 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 				"probability": float((pattern as Dictionary).get("probability", 0.5)),
 			})
 		_params["probability_rules"] = {
+			"name": name_edit.text.strip_edges(),
 			"default": clampf(float(default_spin.value), 0.0, 1.0),
 			"rules": rules,
 		}
@@ -898,16 +1035,16 @@ func _available_display_size() -> Vector2i:
 func _adjacency_rules_pattern_scroll_size(dialog_size: Vector2i) -> Vector2:
 	return Vector2(
 		maxf(260.0, float(dialog_size.x - 72)),
-		maxf(180.0, float(dialog_size.y - 220))
+		maxf(180.0, float(dialog_size.y - 350))
 	)
 
 
 func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callable) -> VBoxContainer:
 	var row := VBoxContainer.new()
 	row.name = "AdjacencyPatternCard_%d" % pattern_index
-	row.custom_minimum_size = Vector2(132, 154)
+	row.custom_minimum_size = Vector2(132, 174)
 	row.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	row.add_theme_constant_override("separation", 4)
+	row.add_theme_constant_override("separation", 0)
 	var pattern := patterns[pattern_index] as Dictionary
 	var present := {}
 	for key in (pattern.get("directions", []) as Array):
@@ -948,7 +1085,7 @@ func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callab
 		"flat_top": _effective_flat_top,
 		"cell_radius": 16.0,
 		"cell_gap": 0.0,
-		"padding": Vector2(4, 4),
+		"padding": Vector2(0, 0),
 		"center_cell": HexVector.zero(),
 		"pressable_cells": pressable,
 		"toggle_cells": toggle_cells,
@@ -956,6 +1093,11 @@ func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callab
 		"metadata_by_cell": metadata,
 		"show_labels": true,
 	})
+	var components_label := Label.new()
+	components_label.name = "AdjacencyPatternComponentsLabel_%d" % pattern_index
+	components_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	components_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_refresh_adjacency_pattern_components_label(components_label, pattern)
 	panel.cell_toggled.connect(func(entry: Dictionary, pressed: bool):
 		var direction_key = String((entry.get("metadata", {}) as Dictionary).get("direction", ""))
 		if direction_key == "":
@@ -966,6 +1108,7 @@ func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callab
 		elif pressed and not dirs.has(direction_key):
 			dirs.append(direction_key)
 		(patterns[pattern_index] as Dictionary)["directions"] = dirs
+		_refresh_adjacency_pattern_components_label(components_label, patterns[pattern_index] as Dictionary)
 	)
 	var preview_area := Control.new()
 	preview_area.name = "AdjacencyPatternPreviewArea_%d" % pattern_index
@@ -983,6 +1126,7 @@ func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callab
 	var remove_button := _adjacency_pattern_remove_button(row, patterns, pattern_index, rebuild)
 	preview_area.add_child(remove_button)
 	row.add_child(preview_area)
+	row.add_child(components_label)
 	var prob_spin := SpinBox.new()
 	prob_spin.name = "AdjacencyPatternProbabilitySpin_%d" % pattern_index
 	prob_spin.min_value = 0.0
@@ -1001,6 +1145,27 @@ func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callab
 	)
 	row.add_child(_spinbox_value_centered_row(prob_spin))
 	return row
+
+
+func _refresh_adjacency_pattern_components_label(label: Label, pattern: Dictionary) -> void:
+	if label == null:
+		return
+	var directions = pattern.get("directions", [])
+	var direction_keys: Array = []
+	if directions is Array:
+		direction_keys = directions
+	label.text = "%s" % _adjacency_component_set_text(direction_keys)
+
+
+func _adjacency_component_set_text(direction_keys: Array) -> String:
+	var sizes := _component_sizes_from_directions(direction_keys)
+	if sizes.is_empty():
+		return "{}"
+	sizes.sort()
+	var parts: Array[String] = []
+	for index in range(sizes.size() - 1, -1, -1):
+		parts.append(str(int(sizes[index])))
+	return "{ %s }" % ",".join(parts)
 
 
 func _adjacency_pattern_remove_button(card: Control, patterns: Array, pattern_index: int, rebuild: Callable) -> Button:
@@ -1116,8 +1281,18 @@ func _adjacency_rules_summary() -> String:
 	var value = _params.get("probability_rules", {})
 	if value is Dictionary:
 		var rules = (value as Dictionary).get("rules", []) as Array
+		var name := String((value as Dictionary).get("name", "")).strip_edges()
+		if name != "":
+			return "%s · hex patterns: %d" % [name, rules.size()]
 		return "hex patterns: %d" % rules.size()
 	return "preset/text rule"
+
+
+func _adjacency_rule_set_name() -> String:
+	var value = _params.get("probability_rules", {})
+	if value is Dictionary:
+		return String((value as Dictionary).get("name", "")).strip_edges()
+	return ""
 
 
 func _adjacency_patterns() -> Array:
@@ -1134,6 +1309,28 @@ func _adjacency_default_probability() -> float:
 	if value is Dictionary:
 		return clampf(float((value as Dictionary).get("default", 0.0)), 0.0, 1.0)
 	return 0.0
+
+
+func _adjacency_rules_dict_from_window_patterns(patterns: Array, default_probability: float) -> Dictionary:
+	var rules: Array = []
+	for pattern in patterns:
+		if not pattern is Dictionary:
+			continue
+		var pattern_dict := pattern as Dictionary
+		var directions = pattern_dict.get("directions", [])
+		rules.append({
+			"directions": directions.duplicate() if directions is Array else [],
+			"probability": clampf(float(pattern_dict.get("probability", 0.5)), 0.0, 1.0),
+		})
+	return {
+		"default": clampf(default_probability, 0.0, 1.0),
+		"rules": rules,
+	}
+
+
+func _scan_editor_filesystem() -> void:
+	if Engine.is_editor_hint():
+		EditorInterface.get_resource_filesystem().scan()
 
 
 func _hex_direction_short_label(direction: HexVector) -> String:
