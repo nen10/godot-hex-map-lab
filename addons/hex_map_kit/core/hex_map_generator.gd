@@ -2084,7 +2084,12 @@ static func _draw_symmetric_border(
 
 	for side in range(3):
 		var pen = _reference_position(state, draw_node[side].add(step_directions[side]))
-		edge_count += _draw_from_prob(state, pen, 1.0 - density)
+		edge_count += _draw_edge_from_distribution_or_prob(
+			state,
+			pen,
+			_reference_points_for_orders(pen, reference_directions[side]),
+			1.0 - density
+		)
 
 	for side in range(6):
 		var index = 1 - int(side / 3)
@@ -2147,9 +2152,7 @@ static func _draw_symmetric_inner_area(
 
 
 static func _draw_arc_point(state: Dictionary, pen, reference_orders: Array) -> int:
-	var references: Array = []
-	for reference_order in reference_orders:
-		references.append(pen.add(reference_order))
+	var references := _reference_points_for_orders(pen, reference_orders)
 	return _draw_from_distribution(state, pen, references)
 
 
@@ -2161,10 +2164,15 @@ static func _safe_draw_arc_point(state: Dictionary, pen, reference_orders: Array
 
 
 static func _over_draw_arc_point(state: Dictionary, pen, reference_orders: Array) -> int:
+	var references := _reference_points_for_orders(pen, reference_orders)
+	return _over_draw_from_distribution(state, pen, references)
+
+
+static func _reference_points_for_orders(pen, reference_orders: Array) -> Array:
 	var references: Array = []
 	for reference_order in reference_orders:
 		references.append(pen.add(reference_order))
-	return _over_draw_from_distribution(state, pen, references)
+	return references
 
 
 static func _draw_from_distribution(state: Dictionary, pen, reference_points: Array) -> int:

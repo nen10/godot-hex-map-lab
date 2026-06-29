@@ -47,11 +47,11 @@
       "distribution_id": 20,
       "connect_toric": true,
       "expected": {
-        "summary": "cells=25 walls=9 floors=16 cyclic_size=5",
-        "score": 256,
+        "summary": "cells=25 walls=11 floors=14 cyclic_size=5",
+        "score": 234,
         "cells": 25,
-        "walls": 9,
-        "floors": 16,
+        "walls": 11,
+        "floors": 14,
         "connected": true,
         "cyclic_size": 5,
         "wall_keys": [
@@ -62,12 +62,14 @@
           "0,0,3",
           "0,0,4",
           "1,0,0",
+          "2,-1,0",
           "2,-2,0",
+          "2,0,0",
           "3,-1,0"
         ],
         "ascii_rows": [
-          ".#...",
-          "....#",
+          ".##..",
+          "...##",
           "....#",
           "####.",
           "#..#."

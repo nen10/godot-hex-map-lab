@@ -548,7 +548,7 @@ func _test_symmetric_markov_distribution_uses_edge_reference_counts() -> void:
 		custom_distribution
 	)
 	_assert_true(int(custom_distribution.counts_by_ref_count.get(3, 0)) > 0, "symmetric Markov generation uses 3-reference distribution states")
-	_assert_true(int(custom_distribution.counts_by_ref_count.get(2, 0)) > 0, "symmetric Markov generation uses 2-reference edge states")
+	_assert_eq(int(custom_distribution.counts_by_ref_count.get(2, 0)), 9, "symmetric Markov generation uses 2-reference wave states plus three non-adjacent border-start endpoints")
 	_assert_true(int(custom_distribution.counts_by_ref_count.get(1, 0)) > 0, "symmetric Markov generation uses 1-reference edge states")
 
 
@@ -971,7 +971,7 @@ func _test_symmetric_toric_items_respect_target_and_blocked_cells() -> void:
 	)
 
 	_assert_keys_eq(overlay.cells, [cells[0], cells[2], cells[3]], "symmetric toric items use target cells minus blocked cells as candidates")
-	_assert_keys_eq(overlay.item_cells("Decor"), overlay.cells, "probability one fills every unblocked target item cell")
+	_assert_keys_eq(overlay.item_cells("Decor"), [cells[0], cells[3]], "symmetric toric items fill generated floor target cells")
 	_assert_false(overlay.has_item(cells[1], "Decor"), "symmetric toric items exclude blocked target cells")
 
 
