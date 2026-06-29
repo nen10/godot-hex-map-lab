@@ -13,6 +13,9 @@ const HexMapGeneratorScript = preload("res://addons/hex_map_kit/core/hex_map_gen
 # pins every reference-count preview to this direction so the ">" arrow always
 # points at +q regardless of reference count.
 const MARKOV_REFERENCE_FRAME_GENERATION_DIRECTION_ID := 4
+const MARKOV_WEIGHT_SPIN_FONT_SIZE := 20
+const MARKOV_WEIGHT_SPIN_MINIMUM_SIZE := Vector2(76, 34)
+const ADJACENCY_PROBABILITY_SPIN_MINIMUM_SIZE := Vector2(78, 30)
 
 var _node_id := ""
 var _node_type := ""
@@ -516,11 +519,11 @@ func _build_row_by_refcount(refcount: int, weights: Array) -> Dictionary:
 
 	for index in range(states):
 		var state_box := VBoxContainer.new()
-		state_box.custom_minimum_size = Vector2(0, 0)
 		state_box.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		state_box.add_theme_constant_override("separation", 4)
 
 		var panel := _markov_state_panel(refcount, index, float(weights[index]))
+		panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		state_box.add_child(panel)
 
 		var spin := SpinBox.new()
@@ -528,20 +531,52 @@ func _build_row_by_refcount(refcount: int, weights: Array) -> Dictionary:
 		spin.max_value = 8.0
 		spin.step = 0.5
 		spin.value = float(weights[index])
+		_configure_numeric_spinbox(spin, MARKOV_WEIGHT_SPIN_FONT_SIZE, MARKOV_WEIGHT_SPIN_MINIMUM_SIZE)
+		spin.value_changed.connect(func(value: float):
+			_refresh_markov_panel_weight(panel, value)
+		)
 
-		spin.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-		spin.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		spin.add_theme_font_size_override("font_size", 24)
+		state_box.add_child(_spinbox_value_centered_row(spin))
 
-		var line_edit := spin.get_line_edit()
-		line_edit.add_theme_font_size_override("font_size", 24)
-		line_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
-
-		state_box.add_child(spin)
 		row_box.add_child(state_box)
 		spin_list.append(spin)
 
 	return {"row": row_box, "spins": spin_list}
+
+
+func _configure_numeric_spinbox(spin: SpinBox, font_size: int, minimum_size: Vector2) -> void:
+	spin.custom_minimum_size = minimum_size
+	spin.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	spin.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	spin.add_theme_font_size_override("font_size", font_size)
+	var line_edit := spin.get_line_edit()
+	line_edit.custom_minimum_size.x = maxf(0.0, minimum_size.x - 20.0)
+	line_edit.add_theme_font_size_override("font_size", font_size)
+	line_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+
+func _spinbox_value_centered_row(spin: SpinBox) -> HBoxContainer:
+	var spin_row := HBoxContainer.new()
+	spin_row.add_theme_constant_override("separation", 0)
+	spin_row.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var left_spacer := Control.new()
+	left_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	spin_row.add_child(left_spacer)
+	spin_row.add_child(spin)
+
+	# A SpinBox includes a right-side spinner area. The visual value box is the
+	# LineEdit, so mirror that spinner width on the left to make the row center
+	# equal the value-box center (and therefore align with the HexCellButton
+	# center above it).
+	var update_spacer := func():
+		var le := spin.get_line_edit()
+		var spinner_w := spin.size.x - le.size.x
+		left_spacer.custom_minimum_size.x = maxf(0.0, spinner_w)
+	spin.resized.connect(update_spacer)
+	spin.get_line_edit().resized.connect(update_spacer)
+	update_spacer.call_deferred()
+	return spin_row
+
 
 func _open_markov_distribution_dialog(summary_label: Label = null) -> void:
 	var dialog := AcceptDialog.new()
@@ -624,6 +659,26 @@ func _markov_default_weights(reference_count: int) -> Array:
 		0, _:
 			return [0.0]
 
+
+func _markov_weight_fill(weight: float) -> Color:
+	var shade := 1.0 - clampf(weight / 8.0, 0.0, 1.0)
+	return Color(shade, shade, shade)
+
+
+func _refresh_markov_panel_weight(panel: HexCellButtonPanel, weight: float) -> void:
+	var fill := _markov_weight_fill(weight)
+	panel.update_cell(HexVector.zero(), {
+		"label": "%.1f" % weight,
+		"fill_color": fill,
+		"label_color": _contrasting_label_color(fill),
+	})
+
+
+func _probability_fill(probability: float) -> Color:
+	var shade := 1.0 - clampf(probability, 0.0, 1.0)
+	return Color(shade, shade, shade)
+
+
 func _markov_reference_visual_slots(reference_count: int) -> Array:
 	if reference_count == 2:
 		return [
@@ -651,7 +706,6 @@ func _markov_reference_frame_direction_id(reference_count: int) -> int:
 
 func _markov_state_panel(reference_count: int, state_index: int, weight: float) -> HexCellButtonPanel:
 	var panel := HexCellButtonPanel.new()
-	panel.custom_minimum_size = Vector2(96, 88)
 	var labels := {}
 	var metadata := {}
 	var pressable := {}
@@ -663,8 +717,12 @@ func _markov_state_panel(reference_count: int, state_index: int, weight: float) 
 		shape_cells.append(generation_direction)
 		labels[generation_key] = ">"
 		metadata[generation_key] = {
-			"fill_color": Color(0.14, 0.32, 0.62),
-			"label_color": Color(0.92, 0.96, 1.0),
+			"icon_name": "ArrowRight",
+			"icon_theme_type": "EditorIcons",
+			"icon_only": true,
+			"icon_scale": 2.0,
+			"icon_orient_to_anchor": true,
+			"icon_modulate": Color.WHITE,
 		}
 		pressable[generation_key] = false
 	for slot in _markov_reference_visual_slots(reference_count):
@@ -683,25 +741,27 @@ func _markov_state_panel(reference_count: int, state_index: int, weight: float) 
 		}
 		pressable[key] = false
 	var center_key: String = HexVector.zero().key()
-	var shade := 1.0 - clampf(weight / 8.0, 0.0, 1.0)
-	var center_fill := Color(shade, shade, shade)
+	var center_fill := _markov_weight_fill(weight)
 	labels[center_key] = "%.1f" % weight
 	metadata[center_key] = {
 		"fill_color": center_fill,
 		"label_color": _contrasting_label_color(center_fill),
 	}
+	var padding_size := 0.0 if reference_count == 3 else 12.0
+
 	panel.configure({
 		"shape_kind": "custom",
 		"shape_cells": shape_cells,
 		"flat_top": _effective_flat_top,
 		"cell_radius": 16.0,
 		"cell_gap": 0.0,
-		"padding": Vector2(16, 16),
+		"padding": Vector2(padding_size, padding_size),
 		"center_cell": HexVector.zero(),
+        "symmetric_about_anchor": true,
 		"pressable_cells": pressable,
 		"label_by_cell": labels,
 		"metadata_by_cell": metadata,
-		"show_labels": true,
+		"show_labels": false,
 	})
 	return panel
 
@@ -804,15 +864,26 @@ func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callab
 	var labels := {}
 	var metadata := {}
 	var pressable := {}
+	var toggle_cells := {}
 	for direction in HexVector.directions():
 		var key: String = direction.key()
 		labels[key] = ""
-		metadata[key] = {"direction": key, "fill_color": Color.BLACK if present.has(key) else Color.WHITE}
+		metadata[key] = {
+			"direction": key,
+			"toggle_on_fill": Color.BLACK,
+			"toggle_off_fill": Color.WHITE,
+			"fill_color": Color.BLACK if present.has(key) else Color.WHITE,
+		}
 		pressable[key] = true
-	var shade := 1.0 - clampf(float(pattern.get("probability", 0.5)), 0.0, 1.0)
+		toggle_cells[key] = present.has(key)
 	var center_key: String = HexVector.zero().key()
-	labels[center_key] = "%.2f" % float(pattern.get("probability", 0.5))
-	metadata[center_key] = {"fill_color": Color(shade, shade, shade)}
+	var probability := float(pattern.get("probability", 0.5))
+	var probability_fill := _probability_fill(probability)
+	labels[center_key] = "%.2f" % probability
+	metadata[center_key] = {
+		"fill_color": probability_fill,
+		"label_color": _contrasting_label_color(probability_fill),
+	}
 	panel.configure({
 		"shape_kind": "directions",
 		"flat_top": _effective_flat_top,
@@ -821,21 +892,21 @@ func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callab
 		"padding": Vector2(4, 4),
 		"center_cell": HexVector.zero(),
 		"pressable_cells": pressable,
+		"toggle_cells": toggle_cells,
 		"label_by_cell": labels,
 		"metadata_by_cell": metadata,
 		"show_labels": true,
 	})
-	panel.cell_pressed.connect(func(entry: Dictionary):
+	panel.cell_toggled.connect(func(entry: Dictionary, pressed: bool):
 		var direction_key = String((entry.get("metadata", {}) as Dictionary).get("direction", ""))
 		if direction_key == "":
 			return
 		var dirs: Array = (patterns[pattern_index] as Dictionary).get("directions", [])
-		if dirs.has(direction_key):
+		if not pressed and dirs.has(direction_key):
 			dirs.erase(direction_key)
-		else:
+		elif pressed and not dirs.has(direction_key):
 			dirs.append(direction_key)
 		(patterns[pattern_index] as Dictionary)["directions"] = dirs
-		rebuild.call()
 	)
 	row.add_child(panel)
 	var prob_spin := SpinBox.new()
@@ -843,9 +914,15 @@ func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callab
 	prob_spin.max_value = 1.0
 	prob_spin.step = 0.05
 	prob_spin.value = float(pattern.get("probability", 0.5))
+	_configure_numeric_spinbox(prob_spin, 14, ADJACENCY_PROBABILITY_SPIN_MINIMUM_SIZE)
 	prob_spin.value_changed.connect(func(v: float):
 		(patterns[pattern_index] as Dictionary)["probability"] = v
-		rebuild.call()
+		var next_probability_fill := _probability_fill(v)
+		panel.update_cell(HexVector.zero(), {
+			"label": "%.2f" % v,
+			"fill_color": next_probability_fill,
+			"label_color": _contrasting_label_color(next_probability_fill),
+		})
 	)
 	row.add_child(_labeled_control("Probability", prob_spin))
 	var remove_button := Button.new()
