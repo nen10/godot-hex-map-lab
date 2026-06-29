@@ -938,7 +938,7 @@ func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callab
 	panel.offset_right = 60.0
 	panel.offset_bottom = 55.0
 	preview_area.add_child(panel)
-	var remove_button := _adjacency_pattern_remove_button(patterns, pattern_index, rebuild)
+	var remove_button := _adjacency_pattern_remove_button(row, patterns, pattern_index, rebuild)
 	preview_area.add_child(remove_button)
 	row.add_child(preview_area)
 	var prob_spin := SpinBox.new()
@@ -961,7 +961,7 @@ func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callab
 	return row
 
 
-func _adjacency_pattern_remove_button(patterns: Array, pattern_index: int, rebuild: Callable) -> Button:
+func _adjacency_pattern_remove_button(card: Control, patterns: Array, pattern_index: int, rebuild: Callable) -> Button:
 	var remove_button := Button.new()
 	remove_button.name = "AdjacencyPatternRemoveButton_%d" % pattern_index
 	remove_button.text = "×"
@@ -980,11 +980,47 @@ func _adjacency_pattern_remove_button(patterns: Array, pattern_index: int, rebui
 	if has_theme_icon("Close", "EditorIcons"):
 		remove_button.icon = get_theme_icon("Close", "EditorIcons")
 		remove_button.text = ""
+	remove_button.button_down.connect(func():
+		_animate_adjacency_remove_button_press(remove_button, true)
+	)
+	remove_button.button_up.connect(func():
+		_animate_adjacency_remove_button_press(remove_button, false)
+	)
 	remove_button.pressed.connect(func():
-		patterns.remove_at(pattern_index)
-		rebuild.call()
+		_animate_adjacency_pattern_remove(card, remove_button, func():
+			patterns.remove_at(pattern_index)
+			rebuild.call()
+		)
 	)
 	return remove_button
+
+
+func _animate_adjacency_remove_button_press(remove_button: Button, pressed: bool) -> void:
+	if remove_button == null or not remove_button.is_inside_tree() or remove_button.disabled:
+		return
+	remove_button.pivot_offset = remove_button.size * 0.5
+	var tween := remove_button.create_tween()
+	tween.set_trans(Tween.TRANS_QUAD)
+	tween.set_ease(Tween.EASE_OUT)
+	tween.tween_property(remove_button, "scale", Vector2(0.82, 0.82) if pressed else Vector2.ONE, 0.06)
+	tween.parallel().tween_property(remove_button, "modulate:a", 0.72 if pressed else 1.0, 0.06)
+
+
+func _animate_adjacency_pattern_remove(card: Control, remove_button: Button, on_finished: Callable) -> void:
+	remove_button.disabled = true
+	remove_button.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if card == null or not card.is_inside_tree():
+		on_finished.call()
+		return
+	card.pivot_offset = card.size * 0.5
+	var tween := card.create_tween()
+	tween.set_parallel(true)
+	tween.set_trans(Tween.TRANS_BACK)
+	tween.set_ease(Tween.EASE_IN)
+	tween.tween_property(card, "scale", Vector2(0.86, 0.86), 0.12)
+	tween.tween_property(card, "modulate:a", 0.0, 0.12)
+	tween.tween_property(remove_button, "rotation", deg_to_rad(90.0), 0.12)
+	tween.finished.connect(on_finished)
 
 
 func _component_sizes_from_directions(direction_keys: Array) -> Array:
