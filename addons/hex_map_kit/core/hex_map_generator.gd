@@ -1952,18 +1952,21 @@ static func _draw_symmetric_area_center(
 	var draw_count = 0
 	var draw_counts: Array = []
 	var draw_node: Array = []
+	var reference_directions := _edge_reference_directions(step_directions)
 
 	if arc_size == 0:
 		draw_count = _draw_from_prob(state, pen, wall_probability)
 
-	for step in step_directions:
+	for side in range(step_directions.size()):
+		var step = step_directions[side]
 		if arc_size != 0:
 			draw_count = 0
 		draw_node.append(pen)
 		for _index in range(arc_size):
-			draw_count += _draw_from_prob(
+			draw_count += _draw_edge_from_distribution_or_prob(
 				state,
 				pen,
+				_reference_points_for_orders(pen, reference_directions[side]),
 				wall_probability * (1.0 - (float(draw_count) / float(arc_size)))
 			)
 			pen = pen.add(step)
@@ -1986,18 +1989,12 @@ static func _draw_symmetric_area_from_center(
 	var rule = state["rule"]
 	var step_directions = _symmetry_edge_step_directions(flat_left)
 	var wave_directions: Array = []
-	var reference_directions: Array = []
 	var arc_size = (rule.map_unit_radius - 1) % 3
 	var edge_count = _sum_int(draw_counts) * (1 if arc_size == 2 else 2)
 
 	for side in range(3):
 		wave_directions.append(step_directions[(side + 2) % 3].subtract(step_directions[side]))
-	for side in range(3):
-		reference_directions.append([
-			step_directions[side].negated(),
-			wave_directions[side].negated().subtract(step_directions[side]).subtract(step_directions[side]),
-			wave_directions[side].negated().subtract(step_directions[side]),
-		])
+	var reference_directions := _edge_reference_directions(step_directions)
 
 	for _wave_index in range(int(rule.map_unit_radius / 3)):
 		arc_size += 3
@@ -2036,6 +2033,20 @@ static func _draw_symmetric_area_from_center(
 		"edge_count": edge_count,
 		"draw_node": draw_node,
 	}
+
+
+static func _edge_reference_directions(step_directions: Array) -> Array:
+	var wave_directions: Array = []
+	var result: Array = []
+	for side in range(3):
+		wave_directions.append(step_directions[(side + 2) % 3].subtract(step_directions[side]))
+	for side in range(3):
+		result.append([
+			step_directions[side].negated(),
+			wave_directions[side].negated().subtract(step_directions[side]).subtract(step_directions[side]),
+			wave_directions[side].negated().subtract(step_directions[side]),
+		])
+	return result
 
 
 static func _draw_symmetric_phase2_outer_boundary(

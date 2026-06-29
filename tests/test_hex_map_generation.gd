@@ -46,6 +46,7 @@ func _run() -> void:
 	_test_distribution_probabilities_match_unity_tables()
 	_test_markov_distribution_reference_frame_matches_core_order()
 	_test_symmetric_markov_distribution_uses_edge_reference_counts()
+	_test_symmetric_center_arc_uses_generated_reference_distribution()
 	_test_rectangle_map_data()
 	_test_hexagon_map_data()
 	_test_primary_map_data_exposes_item_keys()
@@ -550,6 +551,21 @@ func _test_symmetric_markov_distribution_uses_edge_reference_counts() -> void:
 	_assert_true(int(custom_distribution.counts_by_ref_count.get(3, 0)) > 0, "symmetric Markov generation uses 3-reference distribution states")
 	_assert_eq(int(custom_distribution.counts_by_ref_count.get(2, 0)), 9, "symmetric Markov generation uses 2-reference wave states plus three non-adjacent border-start endpoints")
 	_assert_true(int(custom_distribution.counts_by_ref_count.get(1, 0)) > 0, "symmetric Markov generation uses 1-reference edge states")
+
+
+func _test_symmetric_center_arc_uses_generated_reference_distribution() -> void:
+	var custom_distribution = ZeroDistribution.new()
+	HexMapGenerator.generate_symmetric_toric_walls(
+		20,
+		1.0,
+		1901,
+		20,
+		[],
+		custom_distribution
+	)
+	_assert_eq(int(custom_distribution.counts_by_ref_count.get(0, 0)), 2, "only the two initial split-center seeds use no generated Markov references")
+	_assert_true(int(custom_distribution.counts_by_ref_count.get(1, 0)) > 36, "center arc cells with one generated neighbor use 1-reference distribution states")
+	_assert_eq(int(custom_distribution.counts_by_ref_count.get(2, 0)), 39, "center arc and border-start cells with two generated neighbors use 2-reference distribution states")
 
 
 func _test_rectangle_map_data() -> void:
