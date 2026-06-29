@@ -804,8 +804,11 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	body.add_child(help)
 	var patterns: Array = _adjacency_patterns()
-	var patterns_box := VBoxContainer.new()
+	var patterns_box := HFlowContainer.new()
 	patterns_box.name = "AdjacencyRulesPatternList"
+	patterns_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	patterns_box.add_theme_constant_override("h_separation", 12)
+	patterns_box.add_theme_constant_override("v_separation", 10)
 	body.add_child(patterns_box)
 	var rebuild := func(): pass
 	rebuild = func():
@@ -857,9 +860,12 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 	dialog.popup_centered(Vector2i(560, 640))
 
 
-func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callable) -> HBoxContainer:
-	var row := HBoxContainer.new()
-	row.name = "AdjacencyPatternRow_%d" % pattern_index
+func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callable) -> VBoxContainer:
+	var row := VBoxContainer.new()
+	row.name = "AdjacencyPatternCard_%d" % pattern_index
+	row.custom_minimum_size = Vector2(132, 154)
+	row.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	row.add_theme_constant_override("separation", 4)
 	var pattern := patterns[pattern_index] as Dictionary
 	var present := {}
 	for key in (pattern.get("directions", []) as Array):
@@ -867,6 +873,7 @@ func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callab
 	var panel := HexCellButtonPanel.new()
 	panel.name = "AdjacencyPatternPanel_%d" % pattern_index
 	panel.custom_minimum_size = Vector2(120, 110)
+	panel.size = Vector2(120, 110)
 	var labels := {}
 	var metadata := {}
 	var pressable := {}
@@ -918,8 +925,24 @@ func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callab
 			dirs.append(direction_key)
 		(patterns[pattern_index] as Dictionary)["directions"] = dirs
 	)
-	row.add_child(panel)
+	var preview_area := Control.new()
+	preview_area.name = "AdjacencyPatternPreviewArea_%d" % pattern_index
+	preview_area.custom_minimum_size = Vector2(132, 116)
+	preview_area.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	panel.anchor_left = 0.5
+	panel.anchor_top = 0.5
+	panel.anchor_right = 0.5
+	panel.anchor_bottom = 0.5
+	panel.offset_left = -60.0
+	panel.offset_top = -55.0
+	panel.offset_right = 60.0
+	panel.offset_bottom = 55.0
+	preview_area.add_child(panel)
+	var remove_button := _adjacency_pattern_remove_button(patterns, pattern_index, rebuild)
+	preview_area.add_child(remove_button)
+	row.add_child(preview_area)
 	var prob_spin := SpinBox.new()
+	prob_spin.name = "AdjacencyPatternProbabilitySpin_%d" % pattern_index
 	prob_spin.min_value = 0.0
 	prob_spin.max_value = 1.0
 	prob_spin.step = 0.05
@@ -934,15 +957,34 @@ func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callab
 			"label_color": _contrasting_label_color(next_probability_fill),
 		})
 	)
-	row.add_child(_labeled_control("Probability", prob_spin))
+	row.add_child(_spinbox_value_centered_row(prob_spin))
+	return row
+
+
+func _adjacency_pattern_remove_button(patterns: Array, pattern_index: int, rebuild: Callable) -> Button:
 	var remove_button := Button.new()
-	remove_button.text = "Remove"
+	remove_button.name = "AdjacencyPatternRemoveButton_%d" % pattern_index
+	remove_button.text = "×"
+	remove_button.tooltip_text = "Remove pattern"
+	remove_button.focus_mode = Control.FOCUS_NONE
+	remove_button.flat = true
+	remove_button.custom_minimum_size = Vector2(24, 24)
+	remove_button.anchor_left = 1.0
+	remove_button.anchor_top = 0.0
+	remove_button.anchor_right = 1.0
+	remove_button.anchor_bottom = 0.0
+	remove_button.offset_left = -24.0
+	remove_button.offset_top = 0.0
+	remove_button.offset_right = 0.0
+	remove_button.offset_bottom = 24.0
+	if has_theme_icon("Close", "EditorIcons"):
+		remove_button.icon = get_theme_icon("Close", "EditorIcons")
+		remove_button.text = ""
 	remove_button.pressed.connect(func():
 		patterns.remove_at(pattern_index)
 		rebuild.call()
 	)
-	row.add_child(remove_button)
-	return row
+	return remove_button
 
 
 func _component_sizes_from_directions(direction_keys: Array) -> Array:

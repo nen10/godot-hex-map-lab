@@ -6,6 +6,7 @@ func _init() -> void:
 func _run() -> void:
 	await _test_generation_dock_state_evaluator_splits_control_logic()
 	await _test_generation_dock_adjacency_rule_validation()
+	await _test_build_inspector_adjacency_rules_dialog_uses_flow_cards()
 	await _test_generation_dock_symmetric_hexagon_minimum_radii()
 	await _test_generation_dock_shape_universe_uses_canonical_hexagon_and_square_torus()
 	await _test_generation_dock_torus_connectivity_controls()
@@ -209,6 +210,56 @@ func _test_generation_dock_adjacency_rule_validation() -> void:
 	_assert_eq(dock.generation_status()["status"], "Ready", "resolved adjacency block restores ready status")
 
 	dock.queue_free()
+	await process_frame
+
+
+func _test_build_inspector_adjacency_rules_dialog_uses_flow_cards() -> void:
+	var inspector := HexMapBuildNodeInspector.new()
+	root.add_child(inspector)
+	await process_frame
+
+	inspector.inspect_node({
+		"id": "items",
+		"type": HexGenerationNodeTypes.NODE_ITEM_GENERATOR,
+		"params": {
+			"placement_method": "adjacency_rules",
+			"probability_rules": {
+				"default": 0.1,
+				"rules": [
+					{"directions": [HexVector.q_axis().key()], "probability": 0.25},
+					{"directions": [HexVector.r_axis().key()], "probability": 0.75},
+				],
+			},
+		},
+	}, "overlay")
+	await process_frame
+
+	inspector._open_adjacency_rules_dialog(null)
+	await process_frame
+
+	var dialog := inspector.find_child("Adjacency Rules Window", true, false)
+	_assert_true(dialog is AcceptDialog, "Adjacency Rules dialog opens from build inspector")
+	var flow := dialog.find_child("AdjacencyRulesPatternList", true, false)
+	_assert_true(flow is HFlowContainer, "Adjacency Rules patterns use a horizontal flow container")
+	_assert_eq(flow.get_child_count(), 2, "Adjacency Rules flow contains one card per pattern")
+
+	var card := flow.get_child(0) as Control
+	_assert_true(card is VBoxContainer, "Adjacency pattern card stacks preview and probability spin")
+	var preview := card.find_child("AdjacencyPatternPreviewArea_0", true, false)
+	var panel := card.find_child("AdjacencyPatternPanel_0", true, false)
+	var spin := card.find_child("AdjacencyPatternProbabilitySpin_0", true, false)
+	var remove_button := card.find_child("AdjacencyPatternRemoveButton_0", true, false)
+	_assert_true(panel is HexCellButtonPanel and panel.get_parent() == preview, "Adjacency pattern preview owns the HexCellButton")
+	_assert_true(spin is SpinBox and spin.get_parent().get_parent() == card, "Adjacency pattern probability spin sits below the HexCellButton")
+	_assert_true(remove_button is Button and remove_button.get_parent() == preview, "Adjacency pattern remove button sits in the preview area's top-right control layer")
+
+	var add_button := dialog.find_child("AddAdjacencyPattern", true, false) as Button
+	add_button.pressed.emit()
+	await process_frame
+	_assert_eq(flow.get_child_count(), 3, "Add pattern appends another card to the same flow container")
+
+	dialog.queue_free()
+	inspector.queue_free()
 	await process_frame
 
 
