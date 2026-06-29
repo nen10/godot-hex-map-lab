@@ -418,6 +418,11 @@ func _test_markov_reference_panels_align_to_plus_q_generation() -> void:
 		_assert_eq(slots.size(), reference_count, "Markov panel count %d shows exactly %d reference cells" % [reference_count, reference_count])
 		_assert_eq(int((slots[0] as Dictionary).get("bit", -1)), 0, "Markov panel count %d keeps reference bit 0 first" % reference_count)
 		_assert_eq(((slots[0] as Dictionary).get("cell", null)).key(), behind_q, "Markov panel count %d reference bit 0 sits directly behind +q" % reference_count)
+		if reference_count == 2:
+			var second_ref = (slots[1] as Dictionary).get("cell", null)
+			_assert_eq(second_ref.key(), HexVector.r_axis().negated().key(), "Markov panel count 2 bit 1 uses the non-adjacent border-start reference")
+			var ref_delta = ((slots[0] as Dictionary).get("cell", null)).subtract(second_ref)
+			_assert_true(ref_delta.l1_norm() > 1, "Markov panel count 2 reference cells are not adjacent")
 
 	inspector.queue_free()
 	await process_frame

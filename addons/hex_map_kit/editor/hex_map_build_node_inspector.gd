@@ -509,20 +509,38 @@ func _build_markov_distribution_editor() -> HBoxContainer:
 
 func _build_row_by_refcount(refcount: int, weights: Array) -> Dictionary:
 	var row_box := HBoxContainer.new()
+	row_box.add_theme_constant_override("separation", 16)
+
 	var spin_list: Array[SpinBox] = []
 	var states: int = 1 << refcount
+
 	for index in range(states):
 		var state_box := VBoxContainer.new()
+		state_box.custom_minimum_size = Vector2(0, 0)
+		state_box.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		state_box.add_theme_constant_override("separation", 4)
+
 		var panel := _markov_state_panel(refcount, index, float(weights[index]))
 		state_box.add_child(panel)
+
 		var spin := SpinBox.new()
 		spin.min_value = 0.0
 		spin.max_value = 8.0
 		spin.step = 0.5
 		spin.value = float(weights[index])
+
+		spin.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		spin.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		spin.add_theme_font_size_override("font_size", 24)
+
+		var line_edit := spin.get_line_edit()
+		line_edit.add_theme_font_size_override("font_size", 24)
+		line_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
+
 		state_box.add_child(spin)
 		row_box.add_child(state_box)
 		spin_list.append(spin)
+
 	return {"row": row_box, "spins": spin_list}
 
 func _open_markov_distribution_dialog(summary_label: Label = null) -> void:
@@ -607,6 +625,11 @@ func _markov_default_weights(reference_count: int) -> Array:
 			return [0.0]
 
 func _markov_reference_visual_slots(reference_count: int) -> Array:
+	if reference_count == 2:
+		return [
+			{"bit": 0, "cell": HexVector.q_axis().negated()},
+			{"bit": 1, "cell": HexVector.r_axis().negated()},
+		]
 	var frame := HexMapGeneratorScript.markov_distribution_reference_frame(_markov_reference_frame_direction_id(reference_count), reference_count)
 	var cells: Array = frame.get("reference_directions", [])
 	var result := []
@@ -620,8 +643,9 @@ func _markov_reference_visual_slots(reference_count: int) -> Array:
 func _markov_reference_frame_direction_id(reference_count: int) -> int:
 	# Align every reference-count panel (1/2/3) to a single, fixed generation
 	# direction so the Hex Panel reads consistently. The generation arrow (">")
-	# points at +q, and the reference cells are the leading 1/2/3 entries of that
-	# frame (reference bit 0 is always the cell directly behind +q).
+	# points at +q. The 2-reference panel uses the border-start endpoint
+	# geometry: bit 0 is directly behind +q, while bit 1 is the non-adjacent
+	# toric reference across the border.
 	return MARKOV_REFERENCE_FRAME_GENERATION_DIRECTION_ID
 
 
@@ -670,9 +694,9 @@ func _markov_state_panel(reference_count: int, state_index: int, weight: float) 
 		"shape_kind": "custom",
 		"shape_cells": shape_cells,
 		"flat_top": _effective_flat_top,
-		"cell_radius": 10.0,
-		"cell_gap": 1.0,
-		"padding": Vector2(3, 3),
+		"cell_radius": 16.0,
+		"cell_gap": 0.0,
+		"padding": Vector2(16, 16),
 		"center_cell": HexVector.zero(),
 		"pressable_cells": pressable,
 		"label_by_cell": labels,
