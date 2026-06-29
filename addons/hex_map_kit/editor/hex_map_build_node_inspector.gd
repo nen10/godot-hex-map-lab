@@ -18,6 +18,8 @@ const MARKOV_WEIGHT_SPIN_MINIMUM_SIZE := Vector2(76, 34)
 const ADJACENCY_PROBABILITY_SPIN_MINIMUM_SIZE := Vector2(78, 30)
 const ADJACENCY_PATTERN_HOVER_TINT := Color(0.5, 0.5, 0.5)
 const ADJACENCY_PATTERN_HOVER_TINT_WEIGHT := 0.6
+const ADJACENCY_RULES_DIALOG_FALLBACK_SIZE := Vector2i(560, 640)
+const ADJACENCY_RULES_DIALOG_MIN_SIZE := Vector2i(420, 360)
 
 var _node_id := ""
 var _node_type := ""
@@ -798,18 +800,26 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 	var dialog := AcceptDialog.new()
 	dialog.name = "Adjacency Rules Window"
 	dialog.title = "Adjacency Rules"
+	var dialog_size := _adjacency_rules_dialog_size()
 	var body := VBoxContainer.new()
 	var help := Label.new()
-	help.text = "Each pattern is a neighbor mask centered on the generated cell. Toggle cells: black = reference present, white = absent. Center darkness = wall probability."
+	help.text = "Toggle cells: { black: present, white: absent }.\nCenter darkness = generation probability.\nPattern equality: connected component size sets."
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	body.add_child(help)
 	var patterns: Array = _adjacency_patterns()
+	var patterns_scroll := ScrollContainer.new()
+	patterns_scroll.name = "AdjacencyRulesPatternScroll"
+	patterns_scroll.custom_minimum_size = _adjacency_rules_pattern_scroll_size(dialog_size)
+	patterns_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	patterns_scroll.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	patterns_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	var patterns_box := HFlowContainer.new()
 	patterns_box.name = "AdjacencyRulesPatternList"
 	patterns_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	patterns_box.add_theme_constant_override("h_separation", 12)
 	patterns_box.add_theme_constant_override("v_separation", 10)
-	body.add_child(patterns_box)
+	patterns_scroll.add_child(patterns_box)
+	body.add_child(patterns_scroll)
 	var rebuild := func(): pass
 	rebuild = func():
 		for child in patterns_box.get_children():
@@ -857,7 +867,39 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 		dialog.queue_free()
 	)
 	add_child(dialog)
-	dialog.popup_centered(Vector2i(560, 640))
+	dialog.popup_centered_clamped(dialog_size, 0.5)
+	dialog.size = dialog_size
+	dialog.set_deferred("size", dialog_size)
+
+
+func _adjacency_rules_dialog_size() -> Vector2i:
+	var display_size := _available_display_size()
+	if display_size.x < ADJACENCY_RULES_DIALOG_MIN_SIZE.x * 2 or display_size.y < ADJACENCY_RULES_DIALOG_MIN_SIZE.y * 2:
+		return ADJACENCY_RULES_DIALOG_FALLBACK_SIZE
+	return Vector2i(
+		maxi(ADJACENCY_RULES_DIALOG_MIN_SIZE.x, int(float(display_size.x) * 0.5)),
+		maxi(ADJACENCY_RULES_DIALOG_MIN_SIZE.y, int(float(display_size.y) * 0.5))
+	)
+
+
+func _available_display_size() -> Vector2i:
+	if DisplayServer.get_name() != "headless":
+		var screen_size := DisplayServer.screen_get_size(DisplayServer.window_get_current_screen())
+		if screen_size.x > 0 and screen_size.y > 0:
+			return screen_size
+	var viewport := get_viewport()
+	if viewport != null:
+		var viewport_size := viewport.get_visible_rect().size
+		if viewport_size.x > 0.0 and viewport_size.y > 0.0:
+			return Vector2i(int(viewport_size.x), int(viewport_size.y))
+	return Vector2i.ZERO
+
+
+func _adjacency_rules_pattern_scroll_size(dialog_size: Vector2i) -> Vector2:
+	return Vector2(
+		maxf(260.0, float(dialog_size.x - 72)),
+		maxf(180.0, float(dialog_size.y - 220))
+	)
 
 
 func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callable) -> VBoxContainer:

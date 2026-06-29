@@ -218,6 +218,12 @@ func _test_build_inspector_adjacency_rules_dialog_uses_flow_cards() -> void:
 	root.add_child(inspector)
 	await process_frame
 
+	var rules := []
+	for index in range(12):
+		rules.append({
+			"directions": [HexVector.directions()[index % HexVector.directions().size()].key()],
+			"probability": float(index % 10) / 10.0,
+		})
 	inspector.inspect_node({
 		"id": "items",
 		"type": HexGenerationNodeTypes.NODE_ITEM_GENERATOR,
@@ -225,10 +231,7 @@ func _test_build_inspector_adjacency_rules_dialog_uses_flow_cards() -> void:
 			"placement_method": "adjacency_rules",
 			"probability_rules": {
 				"default": 0.1,
-				"rules": [
-					{"directions": [HexVector.q_axis().key()], "probability": 0.25},
-					{"directions": [HexVector.r_axis().key()], "probability": 0.75},
-				],
+				"rules": rules,
 			},
 		},
 	}, "overlay")
@@ -236,12 +239,17 @@ func _test_build_inspector_adjacency_rules_dialog_uses_flow_cards() -> void:
 
 	inspector._open_adjacency_rules_dialog(null)
 	await process_frame
+	await process_frame
 
 	var dialog := inspector.find_child("Adjacency Rules Window", true, false)
 	_assert_true(dialog is AcceptDialog, "Adjacency Rules dialog opens from build inspector")
+	_assert_eq(dialog.size, inspector._adjacency_rules_dialog_size(), "Adjacency Rules dialog uses the display-aware target size")
+	var scroll := dialog.find_child("AdjacencyRulesPatternScroll", true, false)
+	_assert_true(scroll is ScrollContainer, "Adjacency Rules patterns are contained in a scroll area")
 	var flow := dialog.find_child("AdjacencyRulesPatternList", true, false)
 	_assert_true(flow is HFlowContainer, "Adjacency Rules patterns use a horizontal flow container")
-	_assert_eq(flow.get_child_count(), 2, "Adjacency Rules flow contains one card per pattern")
+	_assert_true(flow.get_parent() == scroll, "Adjacency Rules flow is inside the scroll area so it cannot force dialog height")
+	_assert_eq(flow.get_child_count(), 12, "Adjacency Rules flow contains one card per pattern")
 
 	var card := flow.get_child(0) as Control
 	_assert_true(card is VBoxContainer, "Adjacency pattern card stacks preview and probability spin")
@@ -256,7 +264,7 @@ func _test_build_inspector_adjacency_rules_dialog_uses_flow_cards() -> void:
 	var add_button := dialog.find_child("AddAdjacencyPattern", true, false) as Button
 	add_button.pressed.emit()
 	await process_frame
-	_assert_eq(flow.get_child_count(), 3, "Add pattern appends another card to the same flow container")
+	_assert_eq(flow.get_child_count(), 13, "Add pattern appends another card to the same flow container")
 
 	dialog.queue_free()
 	inspector.queue_free()
