@@ -739,8 +739,13 @@ func _entry_fill(entry: Dictionary) -> Color:
 	var entry_id = String(entry.get("id", ""))
 	if entry_id == _pressed_id:
 		return Color(0.28, 0.44, 0.72, 0.95)
+	var base_fill := _entry_base_fill(entry)
 	if entry_id == _hovered_id:
-		return Color(0.32, 0.42, 0.58, 0.85)
+		return _entry_hover_fill(entry, base_fill)
+	return base_fill
+
+
+func _entry_base_fill(entry: Dictionary) -> Color:
 	var metadata = entry.get("metadata", {})
 	if metadata is Dictionary and (metadata as Dictionary).has("fill_color"):
 		return (metadata as Dictionary)["fill_color"]
@@ -749,6 +754,21 @@ func _entry_fill(entry: Dictionary) -> Color:
 	if not bool(entry.get("pressable", true)):
 		return Color(0.22, 0.22, 0.24, 0.7)
 	return Color(0.24, 0.31, 0.42, 0.85)
+
+
+func _entry_hover_fill(entry: Dictionary, base_fill: Color) -> Color:
+	var metadata = entry.get("metadata", {})
+	if metadata is Dictionary:
+		var md := metadata as Dictionary
+		if not bool(md.get("hover_fill_enabled", true)):
+			return base_fill
+		if md.has("hover_fill_color"):
+			return md["hover_fill_color"]
+		if md.has("hover_tint_color") or md.has("hover_tint_weight"):
+			var tint: Color = md.get("hover_tint_color", Color(0.5, 0.5, 0.5, base_fill.a))
+			tint.a = base_fill.a
+			return base_fill.lerp(tint, clampf(float(md.get("hover_tint_weight", 0.6)), 0.0, 1.0))
+	return Color(0.32, 0.42, 0.58, 0.85)
 
 
 func _entry_outline(entry: Dictionary) -> Color:

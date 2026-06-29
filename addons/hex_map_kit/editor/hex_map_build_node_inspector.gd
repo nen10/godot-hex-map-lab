@@ -16,6 +16,8 @@ const MARKOV_REFERENCE_FRAME_GENERATION_DIRECTION_ID := 4
 const MARKOV_WEIGHT_SPIN_FONT_SIZE := 20
 const MARKOV_WEIGHT_SPIN_MINIMUM_SIZE := Vector2(76, 34)
 const ADJACENCY_PROBABILITY_SPIN_MINIMUM_SIZE := Vector2(78, 30)
+const ADJACENCY_PATTERN_HOVER_TINT := Color(0.5, 0.5, 0.5)
+const ADJACENCY_PATTERN_HOVER_TINT_WEIGHT := 0.6
 
 var _node_id := ""
 var _node_type := ""
@@ -685,6 +687,10 @@ func _markov_reference_visual_slots(reference_count: int) -> Array:
 			{"bit": 0, "cell": HexVector.q_axis().negated()},
 			{"bit": 1, "cell": HexVector.r_axis().negated()},
 		]
+	if reference_count == 1:
+		return [
+			{"bit": 0, "cell": HexVector.r_axis().negated()},
+		]
 	var frame := HexMapGeneratorScript.markov_distribution_reference_frame(_markov_reference_frame_direction_id(reference_count), reference_count)
 	var cells: Array = frame.get("reference_directions", [])
 	var result := []
@@ -873,6 +879,9 @@ func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callab
 			"toggle_on_fill": Color.BLACK,
 			"toggle_off_fill": Color.WHITE,
 			"fill_color": Color.BLACK if present.has(key) else Color.WHITE,
+			"hover_tint_color": ADJACENCY_PATTERN_HOVER_TINT,
+			"hover_tint_weight": ADJACENCY_PATTERN_HOVER_TINT_WEIGHT,
+			"hover_fill_enabled": true,
 		}
 		pressable[key] = true
 		toggle_cells[key] = present.has(key)
@@ -883,12 +892,13 @@ func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callab
 	metadata[center_key] = {
 		"fill_color": probability_fill,
 		"label_color": _contrasting_label_color(probability_fill),
+		"hover_fill_enabled": false,
 	}
 	panel.configure({
 		"shape_kind": "directions",
 		"flat_top": _effective_flat_top,
-		"cell_radius": 12.0,
-		"cell_gap": 1.0,
+		"cell_radius": 16.0,
+		"cell_gap": 0.0,
 		"padding": Vector2(4, 4),
 		"center_cell": HexVector.zero(),
 		"pressable_cells": pressable,
@@ -914,7 +924,7 @@ func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callab
 	prob_spin.max_value = 1.0
 	prob_spin.step = 0.05
 	prob_spin.value = float(pattern.get("probability", 0.5))
-	_configure_numeric_spinbox(prob_spin, 14, ADJACENCY_PROBABILITY_SPIN_MINIMUM_SIZE)
+	_configure_numeric_spinbox(prob_spin, 20, ADJACENCY_PROBABILITY_SPIN_MINIMUM_SIZE)
 	prob_spin.value_changed.connect(func(v: float):
 		(patterns[pattern_index] as Dictionary)["probability"] = v
 		var next_probability_fill := _probability_fill(v)

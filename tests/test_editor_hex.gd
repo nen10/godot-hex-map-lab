@@ -11,6 +11,7 @@ func _run() -> void:
 	await _test_hex_cell_button_layout_shape_cells_custom_ring_disc()
 	await _test_hex_cell_button_panel_emits_pressed_for_hex_hit()
 	await _test_hex_cell_button_panel_emits_hover_for_hex_hit()
+	await _test_hex_cell_button_panel_hover_fill_can_tint_or_skip_cells()
 	await _test_hex_cell_button_panel_accepts_label_display_state()
 	await _test_hex_cell_button_panel_does_not_press_disabled_cell()
 	await _test_hex_cell_button_panel_focus_navigation()
@@ -159,6 +160,49 @@ func _test_hex_cell_button_panel_emits_hover_for_hex_hit() -> void:
 	await process_frame
 
 
+func _test_hex_cell_button_panel_hover_fill_can_tint_or_skip_cells() -> void:
+	var direction_key: String = HexVector.q_axis().key()
+	var center_key: String = HexVector.zero().key()
+	var center_fill := Color(0.2, 0.2, 0.2)
+	var panel = HexCellButtonPanel.new()
+	panel.configure({
+		"shape_kind": HexCellButtonLayout.SHAPE_DIRECTIONS,
+		"pressable_cells": _direction_pressable_cells(),
+		"cell_radius": 12.0,
+		"metadata_by_cell": {
+			direction_key: {
+				"fill_color": Color.BLACK,
+				"hover_tint_color": Color(0.5, 0.5, 0.5),
+				"hover_tint_weight": 0.1,
+			},
+			center_key: {
+				"fill_color": center_fill,
+				"hover_fill_enabled": false,
+			},
+		},
+	})
+	root.add_child(panel)
+	await process_frame
+
+	var entries := _entries_by_id(panel.get_entries())
+	_send_panel_motion(panel, entries[direction_key]["center"])
+	_assert_color_approx(
+		panel._entry_fill(entries[direction_key]),
+		Color(0.05, 0.05, 0.05),
+		"hex cell panel can tint hovered cell fill toward gray"
+	)
+
+	_send_panel_motion(panel, entries[center_key]["center"])
+	_assert_color_approx(
+		panel._entry_fill(entries[center_key]),
+		center_fill,
+		"hex cell panel can suppress hover fill for a specific cell"
+	)
+
+	panel.queue_free()
+	await process_frame
+
+
 func _test_hex_cell_button_panel_accepts_label_display_state() -> void:
 	var labels := {HexVector.zero().key(): "0,0,0"}
 	var panel = HexCellButtonPanel.new()
@@ -224,5 +268,3 @@ func _test_hex_cell_button_panel_focus_navigation() -> void:
 
 	panel.queue_free()
 	await process_frame
-
-
