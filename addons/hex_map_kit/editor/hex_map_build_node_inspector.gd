@@ -18,14 +18,14 @@ const HexMapEditorPathSelectorScript = preload("res://addons/hex_map_kit/editor/
 const MARKOV_REFERENCE_FRAME_GENERATION_DIRECTION_ID := 4
 const MARKOV_WEIGHT_SPIN_FONT_SIZE := 20
 const MARKOV_WEIGHT_SPIN_MINIMUM_SIZE := Vector2(76, 34)
-const ADJACENCY_PROBABILITY_SPIN_MINIMUM_SIZE := Vector2(78, 30)
+const ADJACENCY_PROBABILITY_SPIN_MINIMUM_SIZE := Vector2(32, 28)
 const ADJACENCY_PATTERN_HOVER_TINT := Color(0.5, 0.5, 0.5)
 const ADJACENCY_PATTERN_HOVER_TINT_WEIGHT := 0.6
 # Adjacency Rules layout.
 # The window is freely resizable; the pattern cards simply reflow to fit the
 # current width, and the scroll area fills whatever space is left. These values
 # only define one fixed card footprint and the *initial* window size.
-const ADJACENCY_PATTERN_CARD_SIZE := Vector2i(120, 174)
+const ADJACENCY_PATTERN_CARD_SIZE := Vector2i(120, 168)
 const ADJACENCY_PATTERN_GAP := 6
 # How many cards the window tries to show per row when it first opens.
 const ADJACENCY_RULES_DEFAULT_COLUMNS := 10
@@ -1072,8 +1072,8 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 
 func _adjacency_rules_dialog_size() -> Vector2i:
 	return Vector2i(
-		_adjacency_pattern_row_width(ADJACENCY_RULES_DEFAULT_COLUMNS) + ADJACENCY_RULES_DEFAULT_CHROME.x,
-		ADJACENCY_PATTERN_CARD_SIZE.y + ADJACENCY_RULES_DEFAULT_CHROME.y
+		_adjacency_pattern_row_width(ADJACENCY_RULES_DEFAULT_COLUMNS) + ADJACENCY_RULES_DEFAULT_CHROME.x + 780,
+		(ADJACENCY_PATTERN_CARD_SIZE.y + ADJACENCY_RULES_DEFAULT_CHROME.y) * 2
 	)
 
 
@@ -1085,6 +1085,7 @@ func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callab
 	var row := VBoxContainer.new()
 	row.name = "AdjacencyPatternCard_%d" % pattern_index
 	row.custom_minimum_size = Vector2(ADJACENCY_PATTERN_CARD_SIZE)
+	row.size = Vector2(ADJACENCY_PATTERN_CARD_SIZE)
 	row.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	row.add_theme_constant_override("separation", 0)
 	var pattern := patterns[pattern_index] as Dictionary
@@ -1125,7 +1126,7 @@ func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callab
 	panel.configure({
 		"shape_kind": "directions",
 		"flat_top": _effective_flat_top,
-		"cell_radius": 16.0,
+		"cell_radius": 12.0,
 		"cell_gap": 0.0,
 		"padding": Vector2(0, 0),
 		"center_cell": HexVector.zero(),
@@ -1133,12 +1134,15 @@ func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callab
 		"toggle_cells": toggle_cells,
 		"label_by_cell": labels,
 		"metadata_by_cell": metadata,
-		"show_labels": true,
+		"show_labels": false,
 	})
 	var components_label := Label.new()
 	components_label.name = "AdjacencyPatternComponentsLabel_%d" % pattern_index
 	components_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	components_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# Never let the components text widen the card; clip instead.
+	components_label.clip_text = true
+	components_label.custom_minimum_size = Vector2(0, 0)
 	_refresh_adjacency_pattern_components_label(components_label, pattern)
 	panel.cell_toggled.connect(func(entry: Dictionary, pressed: bool):
 		var direction_key = String((entry.get("metadata", {}) as Dictionary).get("direction", ""))
@@ -1175,6 +1179,9 @@ func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callab
 	prob_spin.max_value = 1.0
 	prob_spin.step = 0.05
 	prob_spin.value = float(pattern.get("probability", 0.5))
+	# Explicitly give the value box a small fixed width so it always fits the
+	# card, then centre the value box on the HexCellButton centre using the same
+	# spinner-mirroring row as the Markov mesh spins.
 	_configure_numeric_spinbox(prob_spin, 20, ADJACENCY_PROBABILITY_SPIN_MINIMUM_SIZE)
 	prob_spin.value_changed.connect(func(v: float):
 		(patterns[pattern_index] as Dictionary)["probability"] = v
@@ -1217,15 +1224,15 @@ func _adjacency_pattern_remove_button(card: Control, patterns: Array, pattern_in
 	remove_button.tooltip_text = "Remove pattern"
 	remove_button.focus_mode = Control.FOCUS_NONE
 	remove_button.flat = true
-	remove_button.custom_minimum_size = Vector2(24, 24)
+	remove_button.custom_minimum_size = Vector2(32, 28)
 	remove_button.anchor_left = 1.0
 	remove_button.anchor_top = 0.0
 	remove_button.anchor_right = 1.0
 	remove_button.anchor_bottom = 0.0
-	remove_button.offset_left = -24.0
+	remove_button.offset_left = -32.0
 	remove_button.offset_top = 0.0
 	remove_button.offset_right = 0.0
-	remove_button.offset_bottom = 24.0
+	remove_button.offset_bottom = 28.0
 	if has_theme_icon("Close", "EditorIcons"):
 		remove_button.icon = get_theme_icon("Close", "EditorIcons")
 		remove_button.text = ""

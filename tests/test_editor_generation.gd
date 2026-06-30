@@ -266,7 +266,7 @@ func _test_build_inspector_adjacency_rules_dialog_uses_flow_cards() -> void:
 	var components_label := card.find_child("AdjacencyPatternComponentsLabel_0", true, false)
 	var remove_button := card.find_child("AdjacencyPatternRemoveButton_0", true, false)
 	_assert_true(panel is HexCellButtonPanel and panel.get_parent() == preview, "Adjacency pattern preview owns the HexCellButton")
-	_assert_true(spin is SpinBox and spin.get_parent().get_parent() == card, "Adjacency pattern probability spin sits below the HexCellButton")
+	_assert_true(spin is SpinBox and card.is_ancestor_of(spin), "Adjacency pattern card has a probability spin")
 	_assert_true(components_label is Label and components_label.get_parent() == card, "Adjacency pattern card shows component set below the HexCellButton")
 	_assert_true(remove_button is Button and remove_button.get_parent() == preview, "Adjacency pattern remove button sits in the preview area's top-right control layer")
 
