@@ -21,8 +21,17 @@ const MARKOV_WEIGHT_SPIN_MINIMUM_SIZE := Vector2(76, 34)
 const ADJACENCY_PROBABILITY_SPIN_MINIMUM_SIZE := Vector2(78, 30)
 const ADJACENCY_PATTERN_HOVER_TINT := Color(0.5, 0.5, 0.5)
 const ADJACENCY_PATTERN_HOVER_TINT_WEIGHT := 0.6
-const ADJACENCY_RULES_DIALOG_FALLBACK_SIZE := Vector2i(560, 640)
-const ADJACENCY_RULES_DIALOG_MIN_SIZE := Vector2i(420, 360)
+# Adjacency Rules layout.
+# The window is freely resizable; the pattern cards simply reflow to fit the
+# current width, and the scroll area fills whatever space is left. These values
+# only define one fixed card footprint and the *initial* window size.
+const ADJACENCY_PATTERN_CARD_SIZE := Vector2i(120, 174)
+const ADJACENCY_PATTERN_GAP := 6
+# How many cards the window tries to show per row when it first opens.
+const ADJACENCY_RULES_DEFAULT_COLUMNS := 10
+# Extra space added to the initial size for window chrome, the scroll bar, and
+# the header/footer controls. Only affects the size on open, not the min size.
+const ADJACENCY_RULES_DEFAULT_CHROME := Vector2i(60, 380)
 
 var _node_id := ""
 var _node_type := ""
@@ -805,8 +814,10 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 	dialog.title = "Adjacency Rules"
 	var dialog_size := _adjacency_rules_dialog_size()
 	var body := VBoxContainer.new()
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var help := Label.new()
-	help.text = "Toggle cells: { black: present, white: absent }.\nCenter darkness = generation probability.\nPattern equality: connected component size sets."
+	help.text = "Toggle cells: black = reference present, white = absent. Center darkness = generation probability."
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	body.add_child(help)
 	var name_edit := LineEdit.new()
@@ -849,24 +860,35 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 	var refresh_presets := func():
 		preset_paths.clear()
 		preset_option.clear()
-		for preset in HexAdjacencyRulePresetsScript.list_presets():
-			preset_option.add_item(String((preset as Dictionary).get("name", "")))
-			preset_paths.append(String((preset as Dictionary).get("path", "")))
-		if preset_paths.is_empty():
+		var presets := HexAdjacencyRulePresetsScript.list_presets()
+		if presets.is_empty():
 			preset_option.add_item("(no saved presets)")
 			preset_option.set_item_disabled(0, true)
+			return
+		preset_option.add_item("Select preset to load...")
+		preset_paths.append("")
+		for preset in presets:
+			preset_option.add_item(String((preset as Dictionary).get("name", "")))
+			preset_paths.append(String((preset as Dictionary).get("path", "")))
 	body.add_child(preset_box)
 	var patterns_scroll := ScrollContainer.new()
 	patterns_scroll.name = "AdjacencyRulesPatternScroll"
-	patterns_scroll.custom_minimum_size = _adjacency_rules_pattern_scroll_size(dialog_size)
+	# Reserve at least one full row of cards. Fixing the scroll's minimum WIDTH to
+	# a row also forces the HFlowContainer to lay out horizontally from the very
+	# first frame; otherwise the dialog measures the cards stacked in one narrow
+	# column at popup time and opens at a wrong (huge) size in the editor.
+	patterns_scroll.custom_minimum_size = Vector2(
+		float(_adjacency_pattern_row_width(ADJACENCY_RULES_DEFAULT_COLUMNS)),
+		float(ADJACENCY_PATTERN_CARD_SIZE.y)
+	)
 	patterns_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	patterns_scroll.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	patterns_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	patterns_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	var patterns_box := HFlowContainer.new()
 	patterns_box.name = "AdjacencyRulesPatternList"
 	patterns_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	patterns_box.add_theme_constant_override("h_separation", 12)
-	patterns_box.add_theme_constant_override("v_separation", 10)
+	patterns_box.add_theme_constant_override("h_separation", ADJACENCY_PATTERN_GAP)
+	patterns_box.add_theme_constant_override("v_separation", ADJACENCY_PATTERN_GAP)
 	patterns_scroll.add_child(patterns_box)
 	body.add_child(patterns_scroll)
 	var rebuild := func(): pass
@@ -907,7 +929,12 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 			return
 		_scan_editor_filesystem()
 		refresh_presets.call()
-		status_label.text = "Saved: %s" % path
+		for index in range(preset_paths.size()):
+			if String(preset_paths[index]) == path:
+				preset_option.select(index)
+				break
+		var saved_rule_count := (rule_set.to_dialog_dict().get("rules", []) as Array).size()
+		status_label.text = "Saved preset \"%s\" (%d patterns) → %s" % [rule_set.display_name, saved_rule_count, path]
 	var load_file_button := Button.new()
 	load_file_button.name = "LoadAdjacencyRuleSetFile"
 	load_file_button.text = "Load File..."
@@ -933,9 +960,24 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 			status_label.text = "No preset selected."
 			return
 		var path := String(preset_paths[selected])
+		if path == "":
+			status_label.text = "No preset selected."
+			return
 		apply_rule_set_to_window.call(HexAdjacencyRulePresetsScript.load(path), path)
 	)
-	preset_select_row.add_child(load_preset_button)
+	# Selecting a preset from the dropdown loads it into the window immediately,
+	# so "read a saved rule set into the editor" is a single intentional click.
+	# select() called programmatically (refresh/save) does not emit item_selected,
+	# so this never clobbers the initial window content or a freshly saved set.
+	preset_option.item_selected.connect(func(index: int):
+		if index < 0 or index >= preset_paths.size():
+			return
+		var path := String(preset_paths[index])
+		if path == "":
+			return
+		apply_rule_set_to_window.call(HexAdjacencyRulePresetsScript.load(path), path)
+	)
+	preset_actions_row.add_child(load_preset_button)
 	preset_actions_row.add_child(load_file_button)
 	var save_file_button := Button.new()
 	save_file_button.name = "SaveAdjacencyRuleSetFile"
@@ -1003,46 +1045,46 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 	dialog.canceled.connect(func():
 		dialog.queue_free()
 	)
-	add_child(dialog)
-	dialog.popup_centered_clamped(dialog_size, 0.5)
+	# Parent this large editor window to the editor's base control. If it stays
+	# under the node inspector, Godot embeds/clamps it to the dock rect (observed
+	# around 658x440), regardless of _adjacency_rules_dialog_size().
+	var dialog_host: Node = self
+	if Engine.is_editor_hint() and EditorInterface.get_base_control() != null:
+		dialog_host = EditorInterface.get_base_control()
+	dialog_host.add_child(dialog)
+	if dialog_host != self:
+		tree_exiting.connect(func():
+			if is_instance_valid(dialog):
+				dialog.queue_free()
+		, CONNECT_ONE_SHOT)
+	# AcceptDialog keeps wrap_controls on so it lays out / clips its child
+	# correctly. That also means the window can never open smaller than the
+	# child's minimum size, so we keep that minimum small (compact help text +
+	# a short scroll area) and let _adjacency_rules_dialog_size() drive the size.
+	dialog.unresizable = false
+	dialog.popup_centered(dialog_size)
 	dialog.size = dialog_size
+	# AcceptDialog measures the flow grid before it gets its real width, so the
+	# first size can be a stale tall value. Re-apply the intended size after the
+	# layout settles so the window opens at _adjacency_rules_dialog_size().
 	dialog.set_deferred("size", dialog_size)
 
 
 func _adjacency_rules_dialog_size() -> Vector2i:
-	var display_size := _available_display_size()
-	if display_size.x < ADJACENCY_RULES_DIALOG_MIN_SIZE.x * 2 or display_size.y < ADJACENCY_RULES_DIALOG_MIN_SIZE.y * 2:
-		return ADJACENCY_RULES_DIALOG_FALLBACK_SIZE
 	return Vector2i(
-		maxi(ADJACENCY_RULES_DIALOG_MIN_SIZE.x, int(float(display_size.x) * 0.5)),
-		maxi(ADJACENCY_RULES_DIALOG_MIN_SIZE.y, int(float(display_size.y) * 0.5))
+		_adjacency_pattern_row_width(ADJACENCY_RULES_DEFAULT_COLUMNS) + ADJACENCY_RULES_DEFAULT_CHROME.x,
+		ADJACENCY_PATTERN_CARD_SIZE.y + ADJACENCY_RULES_DEFAULT_CHROME.y
 	)
 
 
-func _available_display_size() -> Vector2i:
-	if DisplayServer.get_name() != "headless":
-		var screen_size := DisplayServer.screen_get_size(DisplayServer.window_get_current_screen())
-		if screen_size.x > 0 and screen_size.y > 0:
-			return screen_size
-	var viewport := get_viewport()
-	if viewport != null:
-		var viewport_size := viewport.get_visible_rect().size
-		if viewport_size.x > 0.0 and viewport_size.y > 0.0:
-			return Vector2i(int(viewport_size.x), int(viewport_size.y))
-	return Vector2i.ZERO
-
-
-func _adjacency_rules_pattern_scroll_size(dialog_size: Vector2i) -> Vector2:
-	return Vector2(
-		maxf(260.0, float(dialog_size.x - 72)),
-		maxf(180.0, float(dialog_size.y - 350))
-	)
+func _adjacency_pattern_row_width(columns: int) -> int:
+	return ADJACENCY_PATTERN_CARD_SIZE.x * columns + ADJACENCY_PATTERN_GAP * maxi(0, columns - 1)
 
 
 func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callable) -> VBoxContainer:
 	var row := VBoxContainer.new()
 	row.name = "AdjacencyPatternCard_%d" % pattern_index
-	row.custom_minimum_size = Vector2(132, 174)
+	row.custom_minimum_size = Vector2(ADJACENCY_PATTERN_CARD_SIZE)
 	row.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	row.add_theme_constant_override("separation", 0)
 	var pattern := patterns[pattern_index] as Dictionary
@@ -1112,7 +1154,7 @@ func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callab
 	)
 	var preview_area := Control.new()
 	preview_area.name = "AdjacencyPatternPreviewArea_%d" % pattern_index
-	preview_area.custom_minimum_size = Vector2(132, 116)
+	preview_area.custom_minimum_size = Vector2(float(ADJACENCY_PATTERN_CARD_SIZE.x), 116.0)
 	preview_area.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	panel.anchor_left = 0.5
 	panel.anchor_top = 0.5
