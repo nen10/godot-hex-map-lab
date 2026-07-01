@@ -690,9 +690,9 @@ func _refresh_markov_panel_weight(panel: HexCellButtonPanel, weight: float) -> v
 	})
 
 
-func _probability_fill(probability: float) -> Color:
-	var shade := 1.0 - clampf(probability, 0.0, 1.0)
-	return Color(shade, shade, shade)
+func _probability_fill(probability: float, with_color: Color = Color.WHITE) -> Color:
+	var shade := clampf(probability, 0.0, 1.0)
+	return Color(1.0 - shade * (1.0 - with_color.r), 1.0 - shade * (1.0 - with_color.g), 1.0 - shade * (1.0 - with_color.b))
 
 
 func _markov_reference_visual_slots(reference_count: int) -> Array:
@@ -817,7 +817,7 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var help := Label.new()
-	help.text = "Toggle cells: black = reference present, white = absent. Center darkness = generation probability."
+	help.text = "Toggle cells: black = reference present, white = absent. Center color = generation probability."
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	body.add_child(help)
 	var name_edit := LineEdit.new()
@@ -1072,7 +1072,7 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 
 func _adjacency_rules_dialog_size() -> Vector2i:
 	return Vector2i(
-		_adjacency_pattern_row_width(ADJACENCY_RULES_DEFAULT_COLUMNS) + ADJACENCY_RULES_DEFAULT_CHROME.x + 780,
+		_adjacency_pattern_row_width(ADJACENCY_RULES_DEFAULT_COLUMNS) + ADJACENCY_RULES_DEFAULT_CHROME.x + 580,
 		(ADJACENCY_PATTERN_CARD_SIZE.y + ADJACENCY_RULES_DEFAULT_CHROME.y) * 2
 	)
 
@@ -1094,20 +1094,24 @@ func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callab
 		present[String(key)] = true
 	var panel := HexCellButtonPanel.new()
 	panel.name = "AdjacencyPatternPanel_%d" % pattern_index
-	panel.custom_minimum_size = Vector2(120, 110)
-	panel.size = Vector2(120, 110)
+	# The panel fills the preview area; the hex content is bottom-aligned inside
+	# it so it sits right above the label. The hex/label spacing is controlled by
+	# the card VBox separation, not by panel sizing.
+	panel.custom_minimum_size = Vector2.ZERO
 	var labels := {}
 	var metadata := {}
 	var pressable := {}
 	var toggle_cells := {}
+	var presence_fill := Color(0.0, 0.1, 0.2)
+
 	for direction in HexVector.directions():
 		var key: String = direction.key()
 		labels[key] = ""
 		metadata[key] = {
 			"direction": key,
-			"toggle_on_fill": Color.BLACK,
+			"toggle_on_fill": presence_fill,
 			"toggle_off_fill": Color.WHITE,
-			"fill_color": Color.BLACK if present.has(key) else Color.WHITE,
+			"fill_color": presence_fill if present.has(key) else Color.WHITE,
 			"hover_tint_color": ADJACENCY_PATTERN_HOVER_TINT,
 			"hover_tint_weight": ADJACENCY_PATTERN_HOVER_TINT_WEIGHT,
 			"hover_fill_enabled": true,
@@ -1116,7 +1120,7 @@ func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callab
 		toggle_cells[key] = present.has(key)
 	var center_key: String = HexVector.zero().key()
 	var probability := float(pattern.get("probability", 0.5))
-	var probability_fill := _probability_fill(probability)
+	var probability_fill := _probability_fill(probability, Color(1.0, 0.35, 0.0))
 	labels[center_key] = "%.2f" % probability
 	metadata[center_key] = {
 		"fill_color": probability_fill,
@@ -1135,6 +1139,8 @@ func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callab
 		"label_by_cell": labels,
 		"metadata_by_cell": metadata,
 		"show_labels": false,
+		"report_natural_minimum": false,
+		"vertical_alignment": HexCellButtonPanel.ContentAlign.END,
 	})
 	var components_label := Label.new()
 	components_label.name = "AdjacencyPatternComponentsLabel_%d" % pattern_index
@@ -1158,16 +1164,16 @@ func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callab
 	)
 	var preview_area := Control.new()
 	preview_area.name = "AdjacencyPatternPreviewArea_%d" % pattern_index
-	preview_area.custom_minimum_size = Vector2(float(ADJACENCY_PATTERN_CARD_SIZE.x), 116.0)
+	preview_area.custom_minimum_size = Vector2(float(ADJACENCY_PATTERN_CARD_SIZE.x), 80.0)
 	preview_area.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	panel.anchor_left = 0.5
-	panel.anchor_top = 0.5
-	panel.anchor_right = 0.5
-	panel.anchor_bottom = 0.5
-	panel.offset_left = -60.0
-	panel.offset_top = -55.0
-	panel.offset_right = 60.0
-	panel.offset_bottom = 55.0
+	panel.anchor_left = 0.0
+	panel.anchor_top = 0.0
+	panel.anchor_right = 1.0
+	panel.anchor_bottom = 1.0
+	panel.offset_left = 0.0
+	panel.offset_top = 0.0
+	panel.offset_right = 0.0
+	panel.offset_bottom = 0.0
 	preview_area.add_child(panel)
 	var remove_button := _adjacency_pattern_remove_button(row, patterns, pattern_index, rebuild)
 	preview_area.add_child(remove_button)
@@ -1185,7 +1191,7 @@ func _adjacency_pattern_row(patterns: Array, pattern_index: int, rebuild: Callab
 	_configure_numeric_spinbox(prob_spin, 20, ADJACENCY_PROBABILITY_SPIN_MINIMUM_SIZE)
 	prob_spin.value_changed.connect(func(v: float):
 		(patterns[pattern_index] as Dictionary)["probability"] = v
-		var next_probability_fill := _probability_fill(v)
+		var next_probability_fill := _probability_fill(v, Color(1.0, 0.35, 0.0))
 		panel.update_cell(HexVector.zero(), {
 			"label": "%.2f" % v,
 			"fill_color": next_probability_fill,
@@ -1224,15 +1230,19 @@ func _adjacency_pattern_remove_button(card: Control, patterns: Array, pattern_in
 	remove_button.tooltip_text = "Remove pattern"
 	remove_button.focus_mode = Control.FOCUS_NONE
 	remove_button.flat = true
-	remove_button.custom_minimum_size = Vector2(32, 28)
+	# Small hit area in the corner so it does not overlap the hex cell buttons.
+	remove_button.custom_minimum_size = Vector2(14, 14)
+	# expand_icon lets the Close icon shrink to the small button instead of
+	# forcing the button (and its hit area) up to the icon's native size.
+	# remove_button.expand_icon = true
 	remove_button.anchor_left = 1.0
 	remove_button.anchor_top = 0.0
 	remove_button.anchor_right = 1.0
 	remove_button.anchor_bottom = 0.0
-	remove_button.offset_left = -32.0
+	remove_button.offset_left = -24.0
 	remove_button.offset_top = 0.0
 	remove_button.offset_right = 0.0
-	remove_button.offset_bottom = 28.0
+	remove_button.offset_bottom = 14.0
 	if has_theme_icon("Close", "EditorIcons"):
 		remove_button.icon = get_theme_icon("Close", "EditorIcons")
 		remove_button.text = ""

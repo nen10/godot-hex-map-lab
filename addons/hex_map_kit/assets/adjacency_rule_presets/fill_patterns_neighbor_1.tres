@@ -1,0 +1,44 @@
+[gd_resource type="Resource" script_class="HexAdjacencyRuleSet" format=3 uid="uid://d4jobch0rer6a"]
+
+[ext_resource type="Script" uid="uid://b5oa1ovv3q2om" path="res://addons/hex_map_kit/adapter/hex_adjacency_rule_set.gd" id="1_0k3v1"]
+
+[resource]
+script = ExtResource("1_0k3v1")
+display_name = "fill patterns: neighbor 1"
+patterns = [{
+"directions": ["0,1,0"],
+"probability": 0.0
+}, {
+"directions": ["0,1,0", "-1,0,0"],
+"probability": 0.0
+}, {
+"directions": ["-1,0,0", "0,0,-1"],
+"probability": 0.0
+}, {
+"directions": ["-1,0,0", "0,-1,0", "0,0,-1"],
+"probability": 0.0
+}, {
+"directions": ["-1,0,0", "0,1,0", "0,-1,0"],
+"probability": 0.0
+}, {
+"directions": ["-1,0,0", "0,1,0", "0,-1,0", "1,0,0"],
+"probability": 0.0
+}, {
+"directions": ["-1,0,0", "0,1,0", "0,0,-1", "0,-1,0"],
+"probability": 0.0
+}, {
+"directions": ["-1,0,0", "0,1,0", "0,0,-1"],
+"probability": 0.0
+}, {
+"directions": ["0,0,1", "-1,0,0", "0,1,0", "0,0,-1"],
+"probability": 0.0
+}, {
+"directions": ["0,0,1", "-1,0,0", "0,1,0", "0,0,-1", "1,0,0"],
+"probability": 0.0
+}, {
+"directions": [],
+"probability": 0.0
+}, {
+"directions": ["-1,0,0", "0,1,0", "0,0,1", "0,-1,0", "1,0,0", "0,0,-1"],
+"probability": 0.0
+}]
