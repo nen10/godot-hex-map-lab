@@ -15,7 +15,7 @@ Status 運用: `docs/process/QUEUE_OPERATION_RULES.md`。Proof は `PROOF_LOG.md
 
 | id | status | deps | deliverable | target files | acceptance |
 |---|---|---|---|---|---|
-| `GQM-10_UNTYPED_CANVAS_AND_ADAPTATION_ROWS` | `BACKLOG` | `GQM-01` | canvas を統合 4 ノード・全 port type 0・一色に。type id 割当/valid pair 管理/型別色を削除。`connection_request` で adaptation 既定値確定 + 循環拒否（`_is_node_hover_valid` でも drag 中抑制）。input 行に adaptation dropdown（`floor ▾`/`cells ▾`/`item(key)`）を slot 行 Control として内蔵 | `hex_map_build_graph_canvas.gd`, `tests/test_build_graph_canvas.gd` | S: 任意 node 出力→任意 input が editor で接続でき、循環だけ拒否される。adaptation が edge に保存され run に反映。既存 canvas test を統合ノードへ書き換え。`./tools/test.sh` green |
+| `GQM-10_UNTYPED_CANVAS_AND_ADAPTATION_ROWS` | `READY` | `GQM-01` | canvas を統合 4 ノード・全 port type 0・一色に。type id 割当/valid pair 管理/型別色を削除。`connection_request` で adaptation 既定値確定 + 循環拒否（`_is_node_hover_valid` でも drag 中抑制）。input 行に adaptation dropdown（`floor ▾`/`cells ▾`/`item(key)`）を slot 行 Control として内蔵 | `hex_map_build_graph_canvas.gd`, `tests/test_build_graph_canvas.gd` | S: 任意 node 出力→任意 input が editor で接続でき、循環だけ拒否される。adaptation が edge に保存され run に反映。既存 canvas test を統合ノードへ書き換え。`./tools/test.sh` green |
 | `GQM-11_CONSOLIDATED_NODE_INTERNAL_UI` | `BACKLOG` | `GQM-03`, `GQM-10` | ノード内 cascade を schema から描画（Terrain Generation: 台紙⇔壁⇔distribution⇔通路⇔toric、Item Generation: method⇔criteria⇔method別 field）。titlebar に node 名編集 + criteria 資産 chip（RESOURCE_MODEL §4 文法で editor window へ）。method 変更で子要素が名称ごと morph | canvas / inspector / criteria windows | S: 旧 inspector の `_param_*` match 群が消え schema 駆動になる。morph の editor test + 実描画キャプチャ。`./tools/test.sh` green |
 | `GQM-12_RESULT_STACK_AND_PROMOTE` | `BACKLOG` | `GQM-10` | Result node = substrate 自動判別行（未使用 terrain の明示）+ overlay 行（接続順・並べ替え・write policy）+ 層ごと promote。stack panel 表示 | canvas / build_screen / promote | S: 基本形で terrain+overlay の promote が層単位で機能。未使用 terrain 表示。実描画キャプチャ + test |
 
@@ -31,7 +31,7 @@ Status 運用: `docs/process/QUEUE_OPERATION_RULES.md`。Proof は `PROOF_LOG.md
 
 | id | status | deps | deliverable | target files | acceptance |
 |---|---|---|---|---|---|
-| `GQM-16_RUNTIME_PARITY_WITH_REFERENCE_ASSETS` | `BACKLOG` | `GQM-01`, `GQM-02` | runtime Map Build が統合 graph + **reference 資産の解決**込みで editor と同一 seed 同一結果（V6） | runtime build + tests | S: reference/embed 双方で parity test green |
+| `GQM-16_RUNTIME_PARITY_WITH_REFERENCE_ASSETS` | `READY` | `GQM-01`, `GQM-02` | runtime Map Build が統合 graph + **reference 資産の解決**込みで editor と同一 seed 同一結果（V6） | runtime build + tests | S: reference/embed 双方で parity test green |
 | `GQM-17_CRITERIA_WINDOW_DOD` | `BACKLOG` | `GQM-11` | V8: criteria window の完成定義「各パラメータが不快感なく UI に反映」を DoD 化し実描画キャプチャで判定 | windows + captures | S: capture 一式 + DoD チェックリスト |
 
 ## Current pointer

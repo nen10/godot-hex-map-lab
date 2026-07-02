@@ -71,3 +71,17 @@ proof:
     - `addons/hex_map_kit/generation/hex_generation_param_schema.gd.uid`
     - `tests/test_generation_graph.gd`
     - `docs/plan/2026-07-02_GRAPH_QUALITY_MANAGEMENT_UX_REDESIGN/IMPLEMENTATION_QUEUE.md`
+
+### GQM_G1_PHASE_INTEGRATION_2026-07-03
+
+proof:
+  merged:
+    - agent/cx-GQM-01（gate ACCEPT・engine/adaptation/normalizer）
+    - agent/cx-GQM-02（gate ACCEPT・asset two-tier/resources）
+    - agent/cx-GQM-03（gate ACCEPT・consolidated param schema）
+  integration_tests:
+    - `./tools/test.sh`（GQM-01+02 合流後, run id `20260703-062750-23496`, exit 0, 37 files all pass）
+    - `./tools/test.sh`（GQM-03 合流後の最終 run は本 entry 直後に追記）
+  notes:
+    - GQM-01/02 の self-review 命名は orchestrator 契約書の指定ミスを gate 規約（完全 task id 形式）へ是正
+    - GQM-01 の commit は sandbox gitdir 制約により orchestrator 代行
