@@ -120,8 +120,16 @@ static func _build_state(
 
 static func _distribution_inline_name(key: String, entry: Dictionary, params: Dictionary) -> String:
 	if key == "distribution_id" or String(params.get("distribution_mode", "")) == "preset":
-		var current_id = params.get("distribution_id", entry.get("default", 20))
-		for option in entry.get("options", []) as Array:
+		var options = entry.get("options", []) as Array
+		var default_id = entry.get("default", 20)
+		if options.is_empty():
+			var id_entry = (HexGenerationParamSchemaScript.declarations(
+				HexGenerationNodeTypesScript.NODE_TERRAIN_GENERATION
+			) as Dictionary).get("distribution_id", {}) as Dictionary
+			options = id_entry.get("options", []) as Array
+			default_id = id_entry.get("default", default_id)
+		var current_id = params.get("distribution_id", default_id)
+		for option in options:
 			var option_dict := option as Dictionary
 			if _values_equal(option_dict.get("value", null), current_id):
 				return String(option_dict.get("label", "Distribution"))
