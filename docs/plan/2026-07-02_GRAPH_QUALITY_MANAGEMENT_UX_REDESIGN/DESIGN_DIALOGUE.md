@@ -173,7 +173,7 @@ criteria 種別ごとの現状（2026-07-03 コード裏取り）は非対称で
 | ⑤ Profile + Generate (Simple) | on-ramp | **template に統合**（Simple profile は template の一種。R2-2-3） |
 | ⑥⑦⑧ Batch / Seed randomize / Shape randomize | 多数生成→比較 | **撤去**（V9 回答: 1 生成で理想を出すコンセプトに原理的に不要。`GENERATION_GRAPH_MODEL.md` §5 の「半オプション」判断を上書き → Q-R2-2） |
 | ② Load Graph / ③ Overwrite selected | graph 資産の読込・上書き | 機能は必要だが header の一等地の意義は無い。**resource model（R2-2-2）の導線として再設計**し header から外す |
-| ① Context chips | 文脈表示 | 情報の要否から再検討（resource model と同時） |
+| ① Context chips | 文脈表示 | 情報の要否から再検討（resource model と同時） | -> 一般原則:その画面で設定を変更できない項目は表示する意味がない により、撤去または移動して設定可能UI化する
 
 ## R2-5. 最後尾 parking（回答理由の記録）
 
@@ -189,6 +189,6 @@ criteria 種別ごとの現状（2026-07-03 コード裏取り）は非対称で
 
 ## R2-6. Round 3 への問い（3 つに絞る）
 
-1. **Q-R2-1（resource model の骨子）**: R2-2-2 を別紙 `RESOURCE_MODEL.md` として起こす。対象は adjacency rules / markov distribution / item pool / graph / 生成結果 の 5 種で、規約は「置き場所・命名・sample/production 分離・preset root・embed vs reference・共通操作文法（Preset dropdown + Save/Load）」。**この骨子で書き始めて良いか。他に資産化したい criteria はあるか。**
-2. **Q-R2-2（batch 系の撤去）**: Batch N / Seed randomize / Shape randomize を UI から完全撤去し、`GENERATION_GRAPH_MODEL.md` §5 の「半オプション（N 生成）」判断を上書きして良いか（runner の複数 run 能力自体は headless に残る）。
-3. **Q-R2-3（生成結果 resource の保存内容）**: (a) graph snapshot + seed のみ（軽い・切替時に再生成が走る）/ (b) 出力 data 込み（切替が即時・大マップの再生成コストを回避・file は重い）。**切替の即時性を優先するなら (b) 推奨**（thumbnail 否定の理由「大サイズ生成コスト」と整合）。
+1. **Q-R2-1（resource model の骨子）**: R2-2-2 を別紙 `RESOURCE_MODEL.md` として起こす。対象は adjacency rules / markov distribution / item pool / graph / 生成結果 の 5 種で、規約は「置き場所・命名・sample/production 分離・preset root・embed vs reference・共通操作文法（Preset dropdown + Save/Load）」。**この骨子で書き始めて良いか。他に資産化したい criteria はあるか。** ->資産化はこのままで良いが、設定項目及びassetごとの、生成方式決定のためのノードグラフ内での核依存関係がUX動線としてUIにわかりやすく反映される必要があり、一つの項目を設定したときに、他の項目が連動して変わる上階繊維モデルによる管理機能が旧Generateタブから十分に引き継がれておらず、ユーザーに暗黙知を必要とする設定変更作業を過剰に要求した状態に現状なっているため、このこと含めて(schema 中央化と並んで)明確さを与えられるように改善する必要がある。
+2. **Q-R2-2（batch 系の撤去）**: Batch N / Seed randomize / Shape randomize を UI から完全撤去し、`GENERATION_GRAPH_MODEL.md` §5 の「半オプション（N 生成）」判断を上書きして良いか（runner の複数 run 能力自体は headless に残る）。-> それで進める。この機能自体は実需要後に設計すれば十分であり、開発上の理念に関与しないため先回りした提供は不要。
+3. **Q-R2-3（生成結果 resource の保存内容）**: (a) graph snapshot + seed のみ（軽い・切替時に再生成が走る）/ (b) 出力 data 込み（切替が即時・大マップの再生成コストを回避・file は重い）。**切替の即時性を優先するなら (b) 推奨**（thumbnail 否定の理由「大サイズ生成コスト」と整合）。-> (b)で進める
