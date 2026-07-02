@@ -4,6 +4,7 @@ extends RefCounted
 
 const HexGenerationGraphScript = preload("res://addons/hex_map_kit/generation/hex_generation_graph.gd")
 const HexGenerationNodeTypesScript = preload("res://addons/hex_map_kit/generation/hex_generation_node_types.gd")
+const HexGenerationAdaptationScript = preload("res://addons/hex_map_kit/generation/hex_generation_adaptation.gd")
 const HexMapDataScript = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
 const HexOverlayDataScript = preload("res://addons/hex_map_kit/core/hex_overlay_data.gd")
 
@@ -142,7 +143,7 @@ static func run_with_report(graph: Dictionary, context: Dictionary = {}) -> Dict
 	var recomputed_node_ids := PackedStringArray()
 	var reused_node_ids := PackedStringArray()
 	var recomputed_set := {}
-	var order: Array = topo["order"]
+	var order: Array = _execution_order(graph, topo["order"])
 	var interrupt_options = context.get("interrupt_options", {}) as Dictionary
 	var progress_plan := _progress_plan(graph, order, context)
 	for order_index in range(order.size()):
@@ -156,7 +157,7 @@ static func run_with_report(graph: Dictionary, context: Dictionary = {}) -> Dict
 		for port_name in incoming[node_id].keys():
 			var edge: Dictionary = incoming[node_id][port_name]
 			var from_node := String(edge.get("from_node", ""))
-			inputs[port_name] = cache.get(String(edge.get("from_node", "")), null)
+			inputs[port_name] = _edge_input_value(edge, node, cache)
 			if recomputed_set.has(from_node):
 				upstream_changed = true
 		var should_recompute = not previous_cache.has(node_id) \
@@ -174,7 +175,8 @@ static func run_with_report(graph: Dictionary, context: Dictionary = {}) -> Dict
 				order.size(),
 				progress_range
 			)
-			cache[node_id] = HexGenerationNodeTypesScript.run_node(node, inputs, context)
+			var node_context := _node_context(context, graph, cache, node_id)
+			cache[node_id] = HexGenerationNodeTypesScript.run_node(node, inputs, node_context)
 			_restore_progress_callback(interrupt_options, original_progress_callback, relay != null)
 			recomputed_node_ids.append(node_id)
 			recomputed_set[node_id] = true
@@ -211,6 +213,158 @@ static func _dirty_set(values) -> Dictionary:
 		for value in values:
 			result[String(value)] = true
 	return result
+
+
+static func _node_context(context: Dictionary, graph: Dictionary, cache: Dictionary, node_id: String) -> Dictionary:
+	var result := context.duplicate(false)
+	result["__graph"] = graph
+	result["__cache"] = cache
+	result["__node_id"] = node_id
+	return result
+
+
+static func _edge_input_value(edge: Dictionary, target_node: Dictionary, cache: Dictionary):
+	var raw_value = cache.get(String(edge.get("from_node", "")), null)
+	var target_type := String(target_node.get("type", ""))
+	if target_type == HexGenerationNodeTypesScript.NODE_RESULT:
+		return raw_value
+	if not HexGenerationNodeTypesScript.is_consolidated_type(target_type):
+		return raw_value
+	return HexGenerationAdaptationScript.adapt_to_selection(raw_value, String(edge.get("adaptation", "")))
+
+
+static func _execution_order(graph: Dictionary, explicit_order: Array) -> Array:
+	var implicit_edges := _implicit_default_domain_edges(graph)
+	if implicit_edges.is_empty():
+		return explicit_order
+	var nodes = graph.get("nodes", {}) as Dictionary
+	var indegree := {}
+	var adjacency := {}
+	for node_id in nodes.keys():
+		indegree[node_id] = 0
+		adjacency[node_id] = []
+	for edge in graph.get("edges", []) as Array:
+		_add_order_edge(edge as Dictionary, nodes, adjacency, indegree)
+	for edge in implicit_edges:
+		_add_order_edge(edge as Dictionary, nodes, adjacency, indegree)
+
+	var order_rank := {}
+	for index in range(explicit_order.size()):
+		order_rank[String(explicit_order[index])] = index
+	var ready: Array = []
+	for node_id in nodes.keys():
+		if int(indegree[node_id]) == 0:
+			ready.append(node_id)
+	_sort_ready_by_rank(ready, order_rank)
+
+	var order: Array = []
+	while not ready.is_empty():
+		var node_id = ready.pop_front()
+		order.append(node_id)
+		var next_nodes: Array = adjacency[node_id]
+		_sort_ready_by_rank(next_nodes, order_rank)
+		for next_node in next_nodes:
+			indegree[next_node] = int(indegree[next_node]) - 1
+			if int(indegree[next_node]) == 0:
+				ready.append(next_node)
+		_sort_ready_by_rank(ready, order_rank)
+	return order if order.size() == nodes.size() else explicit_order
+
+
+static func _add_order_edge(edge: Dictionary, nodes: Dictionary, adjacency: Dictionary, indegree: Dictionary) -> void:
+	var from_node := String(edge.get("from_node", ""))
+	var to_node := String(edge.get("to_node", ""))
+	if from_node == to_node:
+		return
+	if not nodes.has(from_node) or not nodes.has(to_node):
+		return
+	if (adjacency[from_node] as Array).has(to_node):
+		return
+	(adjacency[from_node] as Array).append(to_node)
+	indegree[to_node] = int(indegree[to_node]) + 1
+
+
+static func _sort_ready_by_rank(values: Array, order_rank: Dictionary) -> void:
+	values.sort_custom(func(a, b):
+		return int(order_rank.get(String(a), 1000000)) < int(order_rank.get(String(b), 1000000))
+	)
+
+
+static func _implicit_default_domain_edges(graph: Dictionary) -> Array:
+	var result: Array = []
+	var nodes = graph.get("nodes", {}) as Dictionary
+	for node_id in nodes.keys():
+		var node = nodes[node_id] as Dictionary
+		if String(node.get("type", "")) != HexGenerationNodeTypesScript.NODE_ITEM_GENERATION:
+			continue
+		var item_id := String(node_id)
+		if _has_incoming_port(graph, item_id, "domain"):
+			continue
+		var substrate_id := _default_substrate_for_item_generation(graph, item_id)
+		if substrate_id == "" or substrate_id == item_id:
+			continue
+		result.append({
+			"from_node": substrate_id,
+			"to_node": item_id,
+		})
+	return result
+
+
+static func _has_incoming_port(graph: Dictionary, node_id: String, port_name: String) -> bool:
+	for edge in graph.get("edges", []) as Array:
+		var edge_dict := edge as Dictionary
+		if String(edge_dict.get("to_node", "")) == node_id and String(edge_dict.get("to_port", "")) == port_name:
+			return true
+	return false
+
+
+static func _default_substrate_for_item_generation(graph: Dictionary, item_node_id: String) -> String:
+	var result_ids := _result_ids_for_item_generation(graph, item_node_id)
+	if result_ids.is_empty():
+		result_ids = _result_node_ids(graph)
+	for result_id in result_ids:
+		var substrate_id := _result_substrate_terrain_generation_node_id(graph, String(result_id))
+		if substrate_id != "":
+			return substrate_id
+	return ""
+
+
+static func _result_ids_for_item_generation(graph: Dictionary, item_node_id: String) -> Array:
+	var result: Array = []
+	var nodes = graph.get("nodes", {}) as Dictionary
+	for edge in graph.get("edges", []) as Array:
+		var edge_dict := edge as Dictionary
+		if String(edge_dict.get("from_node", "")) != item_node_id:
+			continue
+		var to_node := String(edge_dict.get("to_node", ""))
+		var node = nodes.get(to_node, {}) as Dictionary
+		if String(node.get("type", "")) == HexGenerationNodeTypesScript.NODE_RESULT and not result.has(to_node):
+			result.append(to_node)
+	return result
+
+
+static func _result_node_ids(graph: Dictionary) -> Array:
+	var result: Array = []
+	var nodes = graph.get("nodes", {}) as Dictionary
+	for node_id in nodes.keys():
+		var node = nodes[node_id] as Dictionary
+		if String(node.get("type", "")) == HexGenerationNodeTypesScript.NODE_RESULT:
+			result.append(String(node_id))
+	result.sort()
+	return result
+
+
+static func _result_substrate_terrain_generation_node_id(graph: Dictionary, result_node_id: String) -> String:
+	var nodes = graph.get("nodes", {}) as Dictionary
+	for edge in graph.get("edges", []) as Array:
+		var edge_dict := edge as Dictionary
+		if String(edge_dict.get("to_node", "")) != result_node_id:
+			continue
+		var from_node := String(edge_dict.get("from_node", ""))
+		var node = nodes.get(from_node, {}) as Dictionary
+		if String(node.get("type", "")) == HexGenerationNodeTypesScript.NODE_TERRAIN_GENERATION:
+			return from_node
+	return ""
 
 
 static func _cancel_requested(
@@ -397,6 +551,12 @@ static func _progress_range_for_node(progress_plan: Dictionary, node_id: String)
 static func _estimated_output_cells(node: Dictionary, input_estimates: Dictionary, context: Dictionary) -> int:
 	var params := _node_params(node)
 	match String(node.get("type", "")):
+		HexGenerationNodeTypesScript.NODE_TERRAIN_GENERATION:
+			if String(params.get("base_mode", "shape")) == "shape":
+				return _estimate_shape_cells(params)
+			return _estimate_source_cells(params, node.get("resource_refs", {}), context)
+		HexGenerationNodeTypesScript.NODE_ITEM_GENERATION:
+			return _input_cells(input_estimates, "domain", _fallback_cells(context))
 		HexGenerationNodeTypesScript.NODE_SOURCE:
 			return _estimate_source_cells(params, node.get("resource_refs", {}), context)
 		HexGenerationNodeTypesScript.NODE_SHAPE:
@@ -413,12 +573,9 @@ static func _estimated_output_cells(node: Dictionary, input_estimates: Dictionar
 				_input_cells(input_estimates, "add", _fallback_cells(context))
 			)
 		HexGenerationNodeTypesScript.NODE_SET_OPERATION:
-			return max(
-				_input_cells(input_estimates, "a", _fallback_cells(context)),
-				_input_cells(input_estimates, "b", 0)
-			)
+			return _max_input_cells(input_estimates, _fallback_cells(context))
 		HexGenerationNodeTypesScript.NODE_RESULT:
-			return _input_cells(input_estimates, HexGenerationNodeTypesScript.RESULT_TERRAIN_PORT, _fallback_cells(context))
+			return _max_input_cells(input_estimates, _fallback_cells(context))
 		_:
 			return _fallback_cells(context)
 
@@ -432,6 +589,30 @@ static func _estimated_node_work(
 	var params := _node_params(node)
 	var cells := max(1, output_cells)
 	match String(node.get("type", "")):
+		HexGenerationNodeTypesScript.NODE_TERRAIN_GENERATION:
+			var work := 0.0
+			if String(params.get("base_mode", "shape")) == "shape":
+				work += float(cells) * _shape_work_per_cell(params)
+			else:
+				work += float(cells) * PROGRESS_SOURCE_WORK_PER_CELL
+			var wall_mode := String(params.get("wall_method", "none"))
+			if wall_mode == "markov_mesh":
+				work += float(cells) * PROGRESS_WALL_MARKOV_WORK_PER_CELL
+			elif wall_mode != "none":
+				work += float(cells) * PROGRESS_WALL_RANDOM_WORK_PER_CELL
+			var connect_method := String(params.get("connectivity_method", params.get("method", "none")))
+			match connect_method:
+				"sparse":
+					work += float(cells) * PROGRESS_CONNECT_SPARSE_WORK_PER_CELL
+				"terminal":
+					work += float(cells) * PROGRESS_CONNECT_TERMINAL_WORK_PER_CELL
+				"none":
+					work += float(cells) * PROGRESS_CONNECT_NONE_WORK_PER_CELL
+				"dense", "default", _:
+					work += float(cells) * PROGRESS_CONNECT_DENSE_WORK_PER_CELL
+			return work
+		HexGenerationNodeTypesScript.NODE_ITEM_GENERATION:
+			return _item_generation_work(params, cells)
 		HexGenerationNodeTypesScript.NODE_SOURCE:
 			return float(cells) * PROGRESS_SOURCE_WORK_PER_CELL
 		HexGenerationNodeTypesScript.NODE_SHAPE:
@@ -456,17 +637,7 @@ static func _estimated_node_work(
 			var per_cell := PROGRESS_FILTER_DISTANCE_WORK_PER_CELL if _uses_distance_filter(params) else PROGRESS_FILTER_SIMPLE_WORK_PER_CELL
 			return float(cells) * per_cell
 		HexGenerationNodeTypesScript.NODE_ITEM_GENERATOR:
-			var placement_method := String(params.get("placement_method", params.get("mode", "weighted")))
-			match placement_method:
-				"limited":
-					return float(cells) * PROGRESS_ITEM_LIMITED_WORK_PER_CELL
-				"adjacency_rules":
-					var radius := clampi(int(params.get("neighbor_radius", 1)), 1, 16)
-					var neighbor_area := 3 * radius * (radius + 1)
-					var component_multiplier := 1.25 if _rules_need_component_sizes(params.get("probability_rules", {})) else 1.0
-					return float(cells * neighbor_area) * PROGRESS_ITEM_ADJACENCY_WORK_PER_CELL_AREA * component_multiplier
-				"weighted", "random", _:
-					return float(cells) * PROGRESS_ITEM_RANDOM_WORK_PER_CELL
+			return _item_generation_work(params, cells)
 		HexGenerationNodeTypesScript.NODE_COMPOSE:
 			var base_cells := _input_cells(input_estimates, "base", cells)
 			var add_cells := _input_cells(input_estimates, "add", cells)
@@ -496,6 +667,13 @@ static func _input_cells(input_estimates: Dictionary, port_name: String, fallbac
 	if estimate is Dictionary:
 		return max(0, int((estimate as Dictionary).get("cells", fallback)))
 	return max(0, fallback)
+
+
+static func _max_input_cells(input_estimates: Dictionary, fallback: int) -> int:
+	var result := 0
+	for port_name in input_estimates.keys():
+		result = max(result, _input_cells(input_estimates, String(port_name), 0))
+	return result if result > 0 else max(0, fallback)
 
 
 static func _fallback_cells(context: Dictionary) -> int:
@@ -553,6 +731,20 @@ static func _uses_distance_filter(params: Dictionary) -> bool:
 	return params.has("within_distance_of") or params.has("origin_points") or params.has("distance") or params.has("max_distance")
 
 
+static func _item_generation_work(params: Dictionary, cells: int) -> float:
+	var placement_method := String(params.get("placement_method", params.get("mode", "weighted")))
+	match placement_method:
+		"limited":
+			return float(cells) * PROGRESS_ITEM_LIMITED_WORK_PER_CELL
+		"adjacency_rules":
+			var radius := clampi(int(params.get("neighbor_radius", 1)), 1, 16)
+			var neighbor_area := 3 * radius * (radius + 1)
+			var component_multiplier := 1.25 if _rules_need_component_sizes(params.get("probability_rules", {})) else 1.0
+			return float(cells * neighbor_area) * PROGRESS_ITEM_ADJACENCY_WORK_PER_CELL_AREA * component_multiplier
+		"weighted", "random", _:
+			return float(cells) * PROGRESS_ITEM_RANDOM_WORK_PER_CELL
+
+
 static func _result_overlay_input_count(input_estimates: Dictionary) -> int:
 	var count := 0
 	for key in input_estimates.keys():
@@ -578,6 +770,14 @@ static func _rules_need_component_sizes(rules_value) -> bool:
 static func _node_mode(node: Dictionary) -> String:
 	var params := _node_params(node)
 	match String(node.get("type", "")):
+		HexGenerationNodeTypesScript.NODE_TERRAIN_GENERATION:
+			return "%s/%s/%s" % [
+				String(params.get("base_mode", "shape")),
+				String(params.get("wall_method", "none")),
+				String(params.get("connectivity_method", params.get("method", "none"))),
+			]
+		HexGenerationNodeTypesScript.NODE_ITEM_GENERATION:
+			return String(params.get("placement_method", params.get("mode", "weighted")))
 		HexGenerationNodeTypesScript.NODE_SOURCE:
 			return String(params.get("kind", "provided"))
 		HexGenerationNodeTypesScript.NODE_SHAPE:
@@ -602,6 +802,10 @@ static func _node_mode(node: Dictionary) -> String:
 
 static func _node_title(node_type: String) -> String:
 	match node_type:
+		HexGenerationNodeTypesScript.NODE_TERRAIN_GENERATION:
+			return "Terrain Generation"
+		HexGenerationNodeTypesScript.NODE_ITEM_GENERATION:
+			return "Item Generation"
 		HexGenerationNodeTypesScript.NODE_SOURCE:
 			return "Source"
 		HexGenerationNodeTypesScript.NODE_SHAPE:

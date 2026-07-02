@@ -11,7 +11,9 @@ const HexMapDocumentTerrainLayerResource = preload("res://addons/hex_map_kit/ada
 const HexMapDocumentOverlayLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_overlay_layer_resource.gd")
 const HexGenerationResultResource = preload("res://addons/hex_map_kit/adapter/hex_generation_result_resource.gd")
 const HexGenerationPorts = preload("res://addons/hex_map_kit/generation/hex_generation_ports.gd")
+const HexGenerationAdaptation = preload("res://addons/hex_map_kit/generation/hex_generation_adaptation.gd")
 const HexGenerationGraph = preload("res://addons/hex_map_kit/generation/hex_generation_graph.gd")
+const HexGenerationGraphNormalizer = preload("res://addons/hex_map_kit/generation/hex_generation_graph_normalizer.gd")
 const HexGenerationGraphRunner = preload("res://addons/hex_map_kit/generation/hex_generation_graph_runner.gd")
 
 var _failures: Array[String] = []
@@ -33,13 +35,18 @@ func _run() -> void:
 	_test_same_graph_and_seed_are_deterministic()
 	_test_empty_graph_runs_to_empty_cache()
 	_test_overlay_to_region_filter_returns_occupied_cells()
-	_test_result_requires_terrain_and_rejects_result_input()
+	_test_result_accepts_untyped_inputs_and_reports_unused()
 	_test_duplicate_input_edge_is_rejected()
 	_test_result_keeps_multiple_overlays_in_port_order()
 	_test_structured_adjacency_rules_and_custom_markov_distribution()
 	_test_square_markov_mesh_missing_size_uses_visible_default()
 	_test_connectivity_toric_passage_owns_wrap_topology()
 	_test_item_generator_limited_places_exact_counts()
+	_test_item_generation_default_domain_follows_result_substrate()
+	_test_consolidated_basic_form_matches_legacy_result()
+	_test_adaptation_matrix_is_total()
+	_test_would_create_cycle_reports_true_and_false()
+	_test_normalize_graph_preserves_legacy_basic_and_straight_chain()
 
 	if _failures.is_empty():
 		print("test_generation_graph.gd: all tests passed")
@@ -234,39 +241,34 @@ func _test_overlay_to_region_filter_returns_occupied_cells() -> void:
 	_assert_eq(overlay_selection.size(), overlay.occupied_cells().size(), "overlay filter_target=floor falls back to occupied_cells()")
 
 
-func _test_result_requires_terrain_and_rejects_result_input() -> void:
-	var missing = HexGenerationGraph.new_graph()
-	HexGenerationGraph.add_node(missing, "overlay_source", "source", {
+func _test_result_accepts_untyped_inputs_and_reports_unused() -> void:
+	var overlay_only = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(overlay_only, "overlay_source", "source", {
 		"kind": "provided",
 		"data": HexOverlayData.from_item_cells([_cell(0, 0)], "spawn", [_cell(0, 0)]),
 		"output_type": HexGenerationPorts.OVERLAY,
 	})
-	HexGenerationGraph.add_node(missing, "result", "result")
-	HexGenerationGraph.add_edge(missing, "overlay_source", "result", "overlay_0")
-	var validation = HexGenerationGraph.validate(missing)
-	_assert_false(validation["ok"], "REPAIR-11 Result without terrain is invalid")
-	_assert_true(_has_error(validation, "missing_required_input"), "REPAIR-11 missing Result terrain reports missing_required_input")
+	HexGenerationGraph.add_node(overlay_only, "result", "result")
+	HexGenerationGraph.add_edge(overlay_only, "overlay_source", "result", "in_0")
+	var validation = HexGenerationGraph.validate(overlay_only)
+	_assert_true(validation["ok"], "GQM-01 Result accepts overlay-only untyped input")
+	var overlay_result = HexGenerationGraphRunner.run(overlay_only)["result"] as HexGenerationResultResource
+	_assert_eq(overlay_result.primary_map, null, "GQM-01 overlay-only Result leaves substrate empty")
+	_assert_eq(overlay_result.overlay_maps.size(), 1, "GQM-01 overlay-only Result still records overlay input")
 
 	var result_to_result = HexGenerationGraph.new_graph()
 	HexGenerationGraph.add_node(result_to_result, "shape", "shape", {"shape": "rectangle", "width": 2, "height": 2})
 	HexGenerationGraph.add_node(result_to_result, "result_a", "result")
 	HexGenerationGraph.add_node(result_to_result, "result_b", "result")
 	HexGenerationGraph.add_edge(result_to_result, "shape", "result_a", "terrain")
-	HexGenerationGraph.add_edge(result_to_result, "result_a", "result_b", "terrain")
+	HexGenerationGraph.add_edge(result_to_result, "shape", "result_b", "in_0")
+	HexGenerationGraph.add_edge(result_to_result, "result_a", "result_b", "in_1")
 	validation = HexGenerationGraph.validate(result_to_result)
-	_assert_false(validation["ok"], "REPAIR-11 Result output cannot feed Result terrain")
-	_assert_true(_has_error(validation, "type_mismatch"), "REPAIR-11 Result->Result terrain reports type_mismatch")
-
-	var result_to_overlay = HexGenerationGraph.new_graph()
-	HexGenerationGraph.add_node(result_to_overlay, "shape", "shape", {"shape": "rectangle", "width": 2, "height": 2})
-	HexGenerationGraph.add_node(result_to_overlay, "result_a", "result")
-	HexGenerationGraph.add_node(result_to_overlay, "result_b", "result")
-	HexGenerationGraph.add_edge(result_to_overlay, "shape", "result_a", "terrain")
-	HexGenerationGraph.add_edge(result_to_overlay, "shape", "result_b", "terrain")
-	HexGenerationGraph.add_edge(result_to_overlay, "result_a", "result_b", "overlay_0")
-	validation = HexGenerationGraph.validate(result_to_overlay)
-	_assert_false(validation["ok"], "REPAIR-11 Result output cannot feed Result overlay slot")
-	_assert_true(_has_error(validation, "type_mismatch"), "REPAIR-11 Result->Result overlay reports type_mismatch")
+	_assert_true(validation["ok"], "GQM-01 Result->Result untyped connection validates")
+	var result_b = HexGenerationGraphRunner.run(result_to_result)["result_b"] as HexGenerationResultResource
+	var unused = result_b.metadata.get("unused_inputs", []) as Array
+	_assert_eq(unused.size(), 1, "GQM-01 Result records non-material Result input as unused")
+	_assert_eq(String((unused[0] as Dictionary).get("producer_kind", "")), "result", "GQM-01 unused Result input records producer kind")
 
 
 func _test_duplicate_input_edge_is_rejected() -> void:
@@ -327,10 +329,10 @@ func _test_result_keeps_multiple_overlays_in_port_order() -> void:
 	_assert_true(result is HexGenerationResultResource, "REPAIR-11 Result node outputs HexGenerationResultResource")
 	_assert_eq(result.overlay_maps.size(), 2, "REPAIR-11 Result stores both overlay maps")
 	_assert_eq(result.overlay_map, result.overlay_maps[0], "REPAIR-11 legacy overlay_map mirrors first overlay")
-	_assert_eq(result.overlay_maps[0].to_overlay_data().item_keys(), ["spawn"], "REPAIR-11 overlay_0 remains first despite reversed edge insertion")
-	_assert_eq(result.overlay_maps[1].to_overlay_data().item_keys(), ["loot", "spawn"], "REPAIR-11 overlay_1 remains second")
+	_assert_eq(result.overlay_maps[0].to_overlay_data().item_keys(), ["loot", "spawn"], "GQM-01 first connected overlay is first")
+	_assert_eq(result.overlay_maps[1].to_overlay_data().item_keys(), ["spawn"], "GQM-01 second connected overlay is second")
 	var overlay_inputs = result.metadata.get("overlay_inputs", []) as Array
-	_assert_eq(String((overlay_inputs[0] as Dictionary)["port"]), "overlay_0", "REPAIR-11 overlay metadata starts at overlay_0")
+	_assert_eq(String((overlay_inputs[0] as Dictionary)["port"]), "overlay_1", "GQM-01 overlay metadata follows connection order")
 	_assert_true(bool((overlay_inputs[0] as Dictionary)["present"]), "REPAIR-11 overlay_0 metadata is present")
 	_assert_true(bool((overlay_inputs[1] as Dictionary)["present"]), "REPAIR-11 overlay_1 metadata is present")
 	var conflicts = result.metadata.get("overlay_conflicts", []) as Array
@@ -498,6 +500,233 @@ func _test_item_generator_limited_places_exact_counts() -> void:
 	_assert_eq(overlay.item_cells("key").size(), 1, "limited pool entry with limit=1 places exactly one item")
 
 
+func _test_item_generation_default_domain_follows_result_substrate() -> void:
+	var graph = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(graph, "terrain", "terrain_generation", {
+		"base_mode": "shape",
+		"shape": "rectangle",
+		"width": 3,
+		"height": 2,
+		"wall_method": "none",
+		"connectivity_method": "none",
+	})
+	HexGenerationGraph.add_node(graph, "items", "item_generation", {
+		"placement_method": "weighted",
+		"placement_probability": 1.0,
+		"item_pool": [{"name": "spawn", "weight": 1.0}],
+	})
+	HexGenerationGraph.add_node(graph, "result", "result")
+	HexGenerationGraph.add_edge(graph, "terrain", "result", "in_0")
+	HexGenerationGraph.add_edge(graph, "items", "result", "in_1")
+
+	var cache = HexGenerationGraphRunner.run(graph)
+	var terrain = cache["terrain"] as HexMapData
+	var overlay = cache["items"] as HexOverlayData
+	_assert_keys_eq(overlay.item_cells("spawn"), terrain.floor_cells(), "GQM-01 item_generation default domain follows Result substrate floor")
+
+
+func _test_consolidated_basic_form_matches_legacy_result() -> void:
+	var legacy := _legacy_basic_form_graph()
+	var consolidated := _consolidated_basic_form_graph()
+	_assert_eq((legacy["nodes"] as Dictionary).size(), 15, "GQM-01 legacy basic fixture has 15 nodes")
+	_assert_eq((legacy["edges"] as Array).size(), 16, "GQM-01 legacy basic fixture has 16 edges")
+	_assert_eq((consolidated["nodes"] as Dictionary).size(), 7, "GQM-01 consolidated basic fixture has 7 nodes")
+	_assert_eq((consolidated["edges"] as Array).size(), 9, "GQM-01 consolidated basic fixture has 9 edges")
+	var legacy_report = HexGenerationGraphRunner.run_with_report(legacy, {"seed": 707})
+	var consolidated_report = HexGenerationGraphRunner.run_with_report(consolidated, {"seed": 707})
+	_assert_true(bool(legacy_report["ok"]), "GQM-01 legacy basic graph runs")
+	_assert_true(bool(consolidated_report["ok"]), "GQM-01 consolidated basic graph runs")
+	_assert_result_output_eq(
+		(consolidated_report["cache"] as Dictionary)["result"] as HexGenerationResultResource,
+		(legacy_report["cache"] as Dictionary)["result"] as HexGenerationResultResource,
+		"GQM-01 consolidated basic output matches legacy"
+	)
+	var unused = (((consolidated_report["cache"] as Dictionary)["result"] as HexGenerationResultResource).metadata.get("unused_inputs", []) as Array)
+	_assert_eq(unused.size(), 1, "GQM-01 second terrain Result input is reported as unused")
+	_assert_eq(String((unused[0] as Dictionary).get("reason", "")), "extra_terrain", "GQM-01 unused terrain input records reason")
+
+
+func _test_adaptation_matrix_is_total() -> void:
+	var terrain = HexMapData.from_cells([_cell(0, 0), _cell(1, 0)], [_cell(1, 0)])
+	var overlay = HexOverlayData.from_item_cells([_cell(0, 0), _cell(1, 0)], "gem", [_cell(0, 0)])
+	var selection = [_cell(1, 0)]
+	var values = [terrain, overlay, selection, null]
+	var adaptations = ["", "floor", "wall", "any", "cells", "item:gem", "item(Floor)", "unknown"]
+	for value in values:
+		for adaptation in adaptations:
+			var adapted = HexGenerationAdaptation.adapt_to_selection(value, adaptation)
+			_assert_true(adapted is Array, "GQM-01 adaptation matrix returns an Array for %s/%s" % [HexGenerationAdaptation.producer_kind(value), adaptation])
+	_assert_keys_eq(HexGenerationAdaptation.adapt_to_selection(terrain, "floor"), [_cell(0, 0)], "GQM-01 terrain floor adaptation")
+	_assert_keys_eq(HexGenerationAdaptation.adapt_to_selection(terrain, "wall"), [_cell(1, 0)], "GQM-01 terrain wall adaptation")
+	_assert_keys_eq(HexGenerationAdaptation.adapt_to_selection(overlay, "cells"), [_cell(0, 0)], "GQM-01 overlay cells adaptation")
+	_assert_keys_eq(HexGenerationAdaptation.adapt_to_selection(overlay, "item:gem"), [_cell(0, 0)], "GQM-01 overlay item adaptation")
+	_assert_keys_eq(HexGenerationAdaptation.adapt_to_selection(selection, "wall"), selection, "GQM-01 selection adaptation is identity")
+
+
+func _test_would_create_cycle_reports_true_and_false() -> void:
+	var graph = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(graph, "a", "terrain_generation", {"base_mode": "shape", "shape": "rectangle"})
+	HexGenerationGraph.add_node(graph, "b", "terrain_generation", {"base_mode": "shape", "shape": "rectangle"})
+	HexGenerationGraph.add_node(graph, "result", "result")
+	HexGenerationGraph.add_edge(graph, "a", "b", "terminals")
+	_assert_true(HexGenerationGraph.would_create_cycle(graph, "b", "a"), "GQM-01 cycle helper reports a back edge")
+	_assert_false(HexGenerationGraph.would_create_cycle(graph, "a", "result"), "GQM-01 cycle helper allows a forward edge")
+
+
+func _test_normalize_graph_preserves_legacy_basic_and_straight_chain() -> void:
+	var straight := _legacy_straight_chain_graph()
+	var normalized_straight = HexGenerationGraphNormalizer.normalize_graph(straight)
+	var straight_validation = HexGenerationGraph.validate(normalized_straight)
+	_assert_true(bool(straight_validation["ok"]), "GQM-01 normalized straight chain validates")
+	var straight_cache = HexGenerationGraphRunner.run(straight, {"seed": 101})
+	var normalized_straight_cache = HexGenerationGraphRunner.run(normalized_straight, {"seed": 101})
+	_assert_map_data_eq(normalized_straight_cache["connect"] as HexMapData, straight_cache["connect"] as HexMapData, "GQM-01 normalized straight chain output")
+
+	var legacy_basic := _legacy_basic_form_graph()
+	var normalized_basic = HexGenerationGraphNormalizer.normalize_graph(legacy_basic)
+	var basic_validation = HexGenerationGraph.validate(normalized_basic)
+	_assert_true(bool(basic_validation["ok"]), "GQM-01 normalized basic graph validates")
+	var legacy_report = HexGenerationGraphRunner.run_with_report(legacy_basic, {"seed": 707})
+	var normalized_report = HexGenerationGraphRunner.run_with_report(normalized_basic, {"seed": 707})
+	_assert_true(bool(normalized_report["ok"]), "GQM-01 normalized basic graph runs")
+	_assert_result_output_eq(
+		(normalized_report["cache"] as Dictionary)["result"] as HexGenerationResultResource,
+		(legacy_report["cache"] as Dictionary)["result"] as HexGenerationResultResource,
+		"GQM-01 normalized basic output matches legacy"
+	)
+
+
+func _legacy_straight_chain_graph() -> Dictionary:
+	var graph = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(graph, "shape", "shape", {"shape": "rectangle", "width": 5, "height": 3})
+	HexGenerationGraph.add_node(graph, "walls", "wall_field", {
+		"wall_method": "random_probability",
+		"wall_probability": 0.25,
+		"seed": 17,
+	})
+	HexGenerationGraph.add_node(graph, "connect", "connectivity", {
+		"method": "dense",
+		"seed": 23,
+	})
+	HexGenerationGraph.add_edge(graph, "shape", "walls", "in")
+	HexGenerationGraph.add_edge(graph, "walls", "connect", "in")
+	return graph
+
+
+func _legacy_basic_form_graph() -> Dictionary:
+	var graph = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(graph, "shape_main", "shape", {"shape": "rectangle", "width": 4, "height": 3})
+	HexGenerationGraph.add_node(graph, "walls_main", "wall_field", {
+		"wall_method": "random_probability",
+		"wall_probability": 0.0,
+		"seed": 5,
+	})
+	HexGenerationGraph.add_node(graph, "connect_main", "connectivity", {"method": "dense", "seed": 11})
+	HexGenerationGraph.add_node(graph, "result", "result")
+	HexGenerationGraph.add_node(graph, "shape_pattern", "shape", {"shape": "rectangle", "width": 4, "height": 3})
+	HexGenerationGraph.add_node(graph, "walls_pattern", "wall_field", {
+		"wall_method": "random_probability",
+		"wall_probability": 0.0,
+		"seed": 7,
+	})
+	HexGenerationGraph.add_node(graph, "pattern_filter", "terrain_filter", {"filter_target": "floor"})
+	HexGenerationGraph.add_node(graph, "seeds_a", "item_generator", {
+		"placement_method": "weighted",
+		"placement_probability": 1.0,
+		"seed": 13,
+		"item_pool": [{"name": "seed_a", "weight": 1.0}],
+	})
+	HexGenerationGraph.add_node(graph, "seeds_b", "item_generator", {
+		"placement_method": "weighted",
+		"placement_probability": 1.0,
+		"seed": 17,
+		"item_pool": [{"name": "seed_b", "weight": 1.0}],
+	})
+	HexGenerationGraph.add_node(graph, "overlay_filter_a", "overlay_filter", {"filter_target": "floor"})
+	HexGenerationGraph.add_node(graph, "overlay_filter_b", "overlay_filter", {"filter_target": "floor"})
+	HexGenerationGraph.add_node(graph, "seed_union", "set_operation", {"operation": "union", "display_name": "seed_union"})
+	HexGenerationGraph.add_node(graph, "main_filter", "terrain_filter", {"filter_target": "floor"})
+	HexGenerationGraph.add_node(graph, "domain_intersection", "set_operation", {"operation": "intersection", "display_name": "item_domain"})
+	HexGenerationGraph.add_node(graph, "items", "item_generator", {
+		"placement_method": "weighted",
+		"placement_probability": 1.0,
+		"seed": 19,
+		"item_pool": [{"name": "gem", "weight": 1.0}],
+	})
+	HexGenerationGraph.add_edge(graph, "shape_main", "walls_main", "in")
+	HexGenerationGraph.add_edge(graph, "walls_main", "connect_main", "in")
+	HexGenerationGraph.add_edge(graph, "connect_main", "result", "terrain")
+	HexGenerationGraph.add_edge(graph, "shape_pattern", "walls_pattern", "in")
+	HexGenerationGraph.add_edge(graph, "walls_pattern", "pattern_filter", "in")
+	HexGenerationGraph.add_edge(graph, "pattern_filter", "seeds_a", "scope")
+	HexGenerationGraph.add_edge(graph, "pattern_filter", "seeds_b", "scope")
+	HexGenerationGraph.add_edge(graph, "seeds_a", "overlay_filter_a", "in")
+	HexGenerationGraph.add_edge(graph, "seeds_b", "overlay_filter_b", "in")
+	HexGenerationGraph.add_edge(graph, "overlay_filter_a", "seed_union", "a")
+	HexGenerationGraph.add_edge(graph, "overlay_filter_b", "seed_union", "b")
+	HexGenerationGraph.add_edge(graph, "connect_main", "main_filter", "in")
+	HexGenerationGraph.add_edge(graph, "main_filter", "domain_intersection", "a")
+	HexGenerationGraph.add_edge(graph, "seed_union", "domain_intersection", "b")
+	HexGenerationGraph.add_edge(graph, "domain_intersection", "items", "scope")
+	HexGenerationGraph.add_edge(graph, "items", "result", "overlay_0")
+	return graph
+
+
+func _consolidated_basic_form_graph() -> Dictionary:
+	var graph = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(graph, "terrain", "terrain_generation", {
+		"base_mode": "shape",
+		"shape": "rectangle",
+		"width": 4,
+		"height": 3,
+		"wall_method": "random_probability",
+		"wall_probability": 0.0,
+		"wall_seed": 5,
+		"connectivity_method": "dense",
+		"connectivity_seed": 11,
+	})
+	HexGenerationGraph.add_node(graph, "pattern_b", "terrain_generation", {
+		"base_mode": "shape",
+		"shape": "rectangle",
+		"width": 4,
+		"height": 3,
+		"wall_method": "random_probability",
+		"wall_probability": 0.0,
+		"wall_seed": 7,
+		"connectivity_method": "none",
+	})
+	HexGenerationGraph.add_node(graph, "seeds_a", "item_generation", {
+		"placement_method": "weighted",
+		"placement_probability": 1.0,
+		"seed": 13,
+		"item_pool": [{"name": "seed_a", "weight": 1.0}],
+	})
+	HexGenerationGraph.add_node(graph, "seeds_b", "item_generation", {
+		"placement_method": "weighted",
+		"placement_probability": 1.0,
+		"seed": 17,
+		"item_pool": [{"name": "seed_b", "weight": 1.0}],
+	})
+	HexGenerationGraph.add_node(graph, "domain", "set_operation", {"operation": "intersection", "display_name": "item_domain"})
+	HexGenerationGraph.add_node(graph, "items", "item_generation", {
+		"placement_method": "weighted",
+		"placement_probability": 1.0,
+		"seed": 19,
+		"item_pool": [{"name": "gem", "weight": 1.0}],
+	})
+	HexGenerationGraph.add_node(graph, "result", "result")
+	HexGenerationGraph.add_edge(graph, "pattern_b", "seeds_a", "domain", "out", "floor")
+	HexGenerationGraph.add_edge(graph, "pattern_b", "seeds_b", "domain", "out", "floor")
+	HexGenerationGraph.add_edge(graph, "terrain", "domain", "in_0", "out", "floor")
+	HexGenerationGraph.add_edge(graph, "seeds_a", "domain", "in_1", "out", "cells")
+	HexGenerationGraph.add_edge(graph, "seeds_b", "domain", "in_2", "out", "cells")
+	HexGenerationGraph.add_edge(graph, "domain", "items", "domain")
+	HexGenerationGraph.add_edge(graph, "terrain", "result", "in_0")
+	HexGenerationGraph.add_edge(graph, "items", "result", "in_1")
+	HexGenerationGraph.add_edge(graph, "pattern_b", "result", "in_2")
+	return graph
+
+
 func _cell(q: int, r: int):
 	return HexVector.apply_basis(q, 0, r)
 
@@ -515,6 +744,36 @@ func _keys(points: Array) -> Array:
 		result.append(point.key())
 	result.sort()
 	return result
+
+
+func _assert_result_output_eq(actual: HexGenerationResultResource, expected: HexGenerationResultResource, message: String) -> void:
+	_assert_true(actual is HexGenerationResultResource, "%s actual is a generation result" % message)
+	_assert_true(expected is HexGenerationResultResource, "%s expected is a generation result" % message)
+	if not (actual is HexGenerationResultResource) or not (expected is HexGenerationResultResource):
+		return
+	_assert_eq(actual.primary_map != null, expected.primary_map != null, "%s primary map presence" % message)
+	if actual.primary_map != null and expected.primary_map != null:
+		_assert_map_data_eq(actual.primary_map.to_map_data(), expected.primary_map.to_map_data(), "%s substrate" % message)
+	_assert_eq(actual.overlay_maps.size(), expected.overlay_maps.size(), "%s overlay count" % message)
+	for index in range(min(actual.overlay_maps.size(), expected.overlay_maps.size())):
+		_assert_overlay_data_eq(
+			actual.overlay_maps[index].to_overlay_data(),
+			expected.overlay_maps[index].to_overlay_data(),
+			"%s overlay %d" % [message, index]
+		)
+
+
+func _assert_map_data_eq(actual: HexMapData, expected: HexMapData, message: String) -> void:
+	_assert_keys_eq(actual.cells, expected.cells, "%s cells" % message)
+	_assert_keys_eq(actual.walls, expected.walls, "%s walls" % message)
+	_assert_eq(actual.cyclic_size, expected.cyclic_size, "%s cyclic size" % message)
+
+
+func _assert_overlay_data_eq(actual: HexOverlayData, expected: HexOverlayData, message: String) -> void:
+	_assert_keys_eq(actual.cells, expected.cells, "%s cells" % message)
+	_assert_eq(actual.item_keys(), expected.item_keys(), "%s item keys" % message)
+	for item_key in expected.item_keys():
+		_assert_keys_eq(actual.item_cells(String(item_key)), expected.item_cells(String(item_key)), "%s item cells %s" % [message, String(item_key)])
 
 
 func _assert_true(value: bool, message: String) -> void:

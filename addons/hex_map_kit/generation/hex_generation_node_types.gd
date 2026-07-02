@@ -3,6 +3,7 @@ class_name HexGenerationNodeTypes
 extends RefCounted
 
 const HexGenerationPortsScript = preload("res://addons/hex_map_kit/generation/hex_generation_ports.gd")
+const HexGenerationAdaptationScript = preload("res://addons/hex_map_kit/generation/hex_generation_adaptation.gd")
 const HexMapDataScript = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
 const HexMapGeneratorScript = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
 const HexOverlayDataScript = preload("res://addons/hex_map_kit/core/hex_overlay_data.gd")
@@ -13,9 +14,10 @@ const HexMapDocumentResourceScript = preload("res://addons/hex_map_kit/adapter/h
 const HexMapDocumentTerrainLayerResourceScript = preload("res://addons/hex_map_kit/adapter/hex_map_document_terrain_layer_resource.gd")
 const HexMapDocumentOverlayLayerResourceScript = preload("res://addons/hex_map_kit/adapter/hex_map_document_overlay_layer_resource.gd")
 const HexGenerationResultResourceScript = preload("res://addons/hex_map_kit/adapter/hex_generation_result_resource.gd")
-const HexAdjacencyRuleSetScript = preload("res://addons/hex_map_kit/adapter/hex_adjacency_rule_set.gd")
 const HexWallDistributionResourceScript = preload("res://addons/hex_map_kit/adapter/hex_wall_distribution_resource.gd")
 
+const NODE_TERRAIN_GENERATION := "terrain_generation"
+const NODE_ITEM_GENERATION := "item_generation"
 const NODE_SOURCE := "source"
 const NODE_SHAPE := "shape"
 const NODE_WALL_FIELD := "wall_field"
@@ -50,18 +52,32 @@ static func is_result_overlay_port(port_name: String) -> bool:
 
 
 static func registry() -> Dictionary:
-	var result_inputs := {
-		RESULT_TERRAIN_PORT: {
-			"accepts": [HexGenerationPortsScript.TERRAIN],
-			"required": true,
-		},
-	}
-	for port_name in result_overlay_port_names():
-		result_inputs[port_name] = {
-			"accepts": [HexGenerationPortsScript.OVERLAY],
-			"required": false,
-		}
+	var result_inputs := {}
 	return {
+		NODE_TERRAIN_GENERATION: {
+			"inputs": {
+				"terminals": {
+					"accepts": HexGenerationPortsScript.ALL,
+					"required": false,
+					"untyped": true,
+				},
+			},
+			"output": HexGenerationPortsScript.TERRAIN,
+			"run_method": "_run_terrain_generation",
+			"title": "Terrain Generation",
+		},
+		NODE_ITEM_GENERATION: {
+			"inputs": {
+				"domain": {
+					"accepts": HexGenerationPortsScript.ALL,
+					"required": false,
+					"untyped": true,
+				},
+			},
+			"output": HexGenerationPortsScript.OVERLAY,
+			"run_method": "_run_item_generation",
+			"title": "Item Generation",
+		},
 		NODE_SOURCE: {
 			"inputs": {},
 			"output": "",
@@ -151,23 +167,16 @@ static func registry() -> Dictionary:
 			"run_method": "_run_compose",
 		},
 		NODE_SET_OPERATION: {
-			"inputs": {
-				"a": {
-					"accepts": [HexGenerationPortsScript.SELECTION],
-					"required": true,
-				},
-				"b": {
-					"accepts": [HexGenerationPortsScript.SELECTION],
-					"required": false,
-				},
-			},
+			"inputs": {},
 			"output": HexGenerationPortsScript.SELECTION,
 			"run_method": "_run_set_operation",
+			"title": "Set Operation",
 		},
 		NODE_RESULT: {
 			"inputs": result_inputs,
 			"output": HexGenerationPortsScript.RESULT,
 			"run_method": "_run_result",
+			"title": "Result",
 		},
 	}
 
@@ -181,7 +190,38 @@ static func input_definitions(node_type: String) -> Dictionary:
 
 
 static func input_definition(node_type: String, port_name: String) -> Dictionary:
-	return input_definitions(node_type).get(port_name, {})
+	var definitions := input_definitions(node_type)
+	if definitions.has(port_name):
+		return definitions[port_name]
+	if is_variadic_input_port(node_type, port_name):
+		return {
+			"accepts": HexGenerationPortsScript.ALL,
+			"required": false,
+			"untyped": true,
+			"variadic": true,
+		}
+	return {}
+
+
+static func is_consolidated_type(node_type: String) -> bool:
+	return [
+		NODE_TERRAIN_GENERATION,
+		NODE_ITEM_GENERATION,
+		NODE_SET_OPERATION,
+		NODE_RESULT,
+	].has(node_type)
+
+
+static func is_variadic_input_port(node_type: String, port_name: String) -> bool:
+	match node_type:
+		NODE_SET_OPERATION:
+			return port_name.begins_with("in_") or port_name == "a" or port_name == "b"
+		NODE_RESULT:
+			return port_name.begins_with("in_") \
+				or port_name == RESULT_TERRAIN_PORT \
+				or is_result_overlay_port(port_name)
+		_:
+			return false
 
 
 static func output_type_for_node(node: Dictionary) -> String:
@@ -196,6 +236,10 @@ static func run_node(node: Dictionary, inputs: Dictionary, context: Dictionary):
 	var params = node.get("params", {})
 	var resource_refs = node.get("resource_refs", {})
 	match node_type:
+		NODE_TERRAIN_GENERATION:
+			return _run_terrain_generation(inputs, params, context, resource_refs)
+		NODE_ITEM_GENERATION:
+			return _run_item_generation(inputs, params, context, resource_refs)
 		NODE_SOURCE:
 			return _run_source(inputs, params, context, resource_refs)
 		NODE_SHAPE:
@@ -220,6 +264,122 @@ static func run_node(node: Dictionary, inputs: Dictionary, context: Dictionary):
 			return _run_result(inputs, params, context, resource_refs)
 		_:
 			return null
+
+
+static func _run_terrain_generation(inputs: Dictionary, params: Dictionary, context: Dictionary, resource_refs: Dictionary):
+	var terrain
+	var base_mode := String(params.get("base_mode", "shape"))
+	match base_mode:
+		"document_terrain", "map_resource", "result_terrain":
+			terrain = _run_source({}, _source_params_for_base_mode(base_mode, params), context, resource_refs)
+		"shape", _:
+			terrain = _run_shape({}, params, context, resource_refs)
+
+	var wall_method := String(params.get("wall_method", "none"))
+	if wall_method != "none":
+		var wall_params := params.duplicate(true)
+		wall_params["wall_method"] = wall_method
+		if params.has("wall_seed"):
+			wall_params["seed"] = int(params.get("wall_seed", 0))
+		terrain = _run_wall_field({"in": terrain}, wall_params, context, resource_refs)
+
+	var connectivity_method := String(params.get("connectivity_method", params.get("method", "none")))
+	if connectivity_method != "none" or bool(params.get("toric_passage", false)):
+		var connectivity_params := params.duplicate(true)
+		connectivity_params["method"] = connectivity_method
+		if params.has("connectivity_seed"):
+			connectivity_params["seed"] = int(params.get("connectivity_seed", 0))
+		var connectivity_inputs := {"in": terrain}
+		if inputs.has("terminals"):
+			connectivity_inputs["terminals"] = inputs["terminals"]
+		terrain = _run_connectivity(connectivity_inputs, connectivity_params, context, resource_refs)
+	return terrain
+
+
+static func _run_item_generation(inputs: Dictionary, params: Dictionary, context: Dictionary, resource_refs: Dictionary):
+	var domain: Array = []
+	if inputs.has("domain"):
+		domain = HexMapDataScript.unique_points(inputs.get("domain", []))
+	elif String(params.get("source_mode", "none")) == "document_overlay":
+		var overlay = _run_source({}, _source_params_for_base_mode("document_overlay", params), context, resource_refs)
+		domain = HexGenerationAdaptationScript.adapt_to_selection(
+			overlay,
+			String(params.get("source_adaptation", params.get("adaptation", "")))
+		)
+	else:
+		domain = _default_item_domain_from_result_substrate(context)
+	return _run_item_generator({"scope": domain}, params, context, resource_refs)
+
+
+static func _source_params_for_base_mode(mode: String, params: Dictionary) -> Dictionary:
+	var result := params.duplicate(true)
+	match mode:
+		"document_overlay":
+			result["kind"] = "document_overlay"
+		"document_terrain":
+			result["kind"] = "document_terrain"
+		"map_resource":
+			result["kind"] = "map_resource"
+		"result_terrain":
+			result["kind"] = "result_terrain"
+		_:
+			result["kind"] = String(params.get("kind", "provided"))
+	return result
+
+
+static func _default_item_domain_from_result_substrate(context: Dictionary) -> Array:
+	var graph = context.get("__graph", null)
+	var cache = context.get("__cache", null)
+	if not graph is Dictionary or not cache is Dictionary:
+		return []
+	var node_id := String(context.get("__node_id", ""))
+	var result_ids := _result_ids_for_item_generation(graph as Dictionary, node_id)
+	if result_ids.is_empty():
+		result_ids = _result_node_ids(graph as Dictionary)
+	for result_id in result_ids:
+		var substrate_node_id := _result_substrate_terrain_generation_node_id(graph as Dictionary, String(result_id))
+		if substrate_node_id == "":
+			continue
+		if not (cache as Dictionary).has(substrate_node_id):
+			continue
+		return HexGenerationAdaptationScript.adapt_to_selection((cache as Dictionary)[substrate_node_id], HexGenerationAdaptationScript.ADAPT_FLOOR)
+	return []
+
+
+static func _result_ids_for_item_generation(graph: Dictionary, item_node_id: String) -> Array:
+	var result: Array = []
+	for edge in graph.get("edges", []) as Array:
+		if String((edge as Dictionary).get("from_node", "")) != item_node_id:
+			continue
+		var to_node := String((edge as Dictionary).get("to_node", ""))
+		var node = (graph.get("nodes", {}) as Dictionary).get(to_node, {}) as Dictionary
+		if String(node.get("type", "")) == NODE_RESULT and not result.has(to_node):
+			result.append(to_node)
+	return result
+
+
+static func _result_node_ids(graph: Dictionary) -> Array:
+	var result: Array = []
+	var nodes = graph.get("nodes", {}) as Dictionary
+	for node_id in nodes.keys():
+		var node = nodes[node_id] as Dictionary
+		if String(node.get("type", "")) == NODE_RESULT:
+			result.append(String(node_id))
+	result.sort()
+	return result
+
+
+static func _result_substrate_terrain_generation_node_id(graph: Dictionary, result_node_id: String) -> String:
+	var nodes = graph.get("nodes", {}) as Dictionary
+	for edge in graph.get("edges", []) as Array:
+		var edge_dict := edge as Dictionary
+		if String(edge_dict.get("to_node", "")) != result_node_id:
+			continue
+		var from_node_id := String(edge_dict.get("from_node", ""))
+		var from_node = nodes.get(from_node_id, {}) as Dictionary
+		if String(from_node.get("type", "")) == NODE_TERRAIN_GENERATION:
+			return from_node_id
+	return ""
 
 
 static func _run_source(_inputs: Dictionary, params: Dictionary, context: Dictionary, resource_refs: Dictionary):
@@ -403,22 +563,53 @@ static func _run_compose(inputs: Dictionary, params: Dictionary, _context: Dicti
 
 
 static func _run_set_operation(inputs: Dictionary, params: Dictionary, _context: Dictionary, _resource_refs: Dictionary) -> Array:
-	var a: Array = inputs.get("a", [])
-	var b: Array = inputs.get("b", [])
+	var selections := _ordered_set_operation_inputs(inputs)
+	if selections.is_empty():
+		return []
+	var first: Array = selections[0]
 	var operation = String(params.get("operation", "union"))
 	match operation:
 		"intersection":
-			if b.is_empty():
-				return a.duplicate()
-			return _intersect_selections(a, b)
+			var intersection := first.duplicate()
+			for index in range(1, selections.size()):
+				intersection = _intersect_selections(intersection, selections[index])
+			return intersection
 		"difference":
-			if b.is_empty():
-				return a.duplicate()
-			return _difference_selections(a, b)
+			var difference := first.duplicate()
+			for index in range(1, selections.size()):
+				difference = _difference_selections(difference, selections[index])
+			return difference
 		"union", _:
-			if b.is_empty():
-				return a.duplicate()
-			return HexMapDataScript.unique_points(a + b)
+			var union := first.duplicate()
+			for index in range(1, selections.size()):
+				union.append_array(selections[index])
+			return HexMapDataScript.unique_points(union)
+
+
+static func _ordered_set_operation_inputs(inputs: Dictionary) -> Array:
+	var indexed: Array = []
+	for port_name in inputs.keys():
+		var port := String(port_name)
+		if port.begins_with("in_"):
+			indexed.append({
+				"index": int(port.substr(3)),
+				"selection": _selection_from_input(inputs[port_name]),
+			})
+	indexed.sort_custom(func(a, b): return int((a as Dictionary)["index"]) < int((b as Dictionary)["index"]))
+	var result: Array = []
+	for entry in indexed:
+		result.append((entry as Dictionary)["selection"])
+	if result.is_empty() and inputs.has("a"):
+		result.append(_selection_from_input(inputs.get("a", [])))
+		if inputs.has("b"):
+			result.append(_selection_from_input(inputs.get("b", [])))
+	return result
+
+
+static func _selection_from_input(value) -> Array:
+	if value is Array:
+		return HexMapDataScript.unique_points(value as Array)
+	return []
 
 
 static func _intersect_selections(a: Array, b: Array) -> Array:
@@ -438,39 +629,104 @@ static func _run_result(inputs: Dictionary, params: Dictionary, context: Diction
 	var result = HexGenerationResultResourceScript.new()
 	result.status = "generated"
 	var orientation_val := int(context.get("orientation", params.get("orientation", 0)))
-	var terrain_input = inputs.get(RESULT_TERRAIN_PORT, null)
-	if terrain_input is HexMapDataScript:
-		result.primary_map = HexMapResourceScript.from_map_data(terrain_input as HexMapDataScript, orientation_val)
 	result.overlay_maps.clear()
 	var overlay_inputs: Array = []
 	var overlay_sources: Array = []
-	for index in range(result_overlay_port_names().size()):
-		var port_name := String(result_overlay_port_names()[index])
-		var overlay_input = inputs.get(port_name, null)
-		var present := overlay_input is HexOverlayDataScript
-		var item_count := 0
-		if present:
-			var overlay_data := overlay_input as HexOverlayDataScript
+	var terrain_inputs: Array = []
+	var unused_inputs: Array = []
+	var substrate_set := false
+	var ordered_inputs := _ordered_result_inputs(inputs, context)
+	for input_entry in ordered_inputs:
+		var port_name := String((input_entry as Dictionary).get("port", ""))
+		var from_node := String((input_entry as Dictionary).get("from_node", ""))
+		var value = (input_entry as Dictionary).get("value", null)
+		if value is HexMapDataScript:
+			var terrain_data := value as HexMapDataScript
+			if not substrate_set:
+				result.primary_map = HexMapResourceScript.from_map_data(terrain_data, orientation_val)
+				substrate_set = true
+				terrain_inputs.append({
+					"port": port_name,
+					"from_node": from_node,
+					"role": "substrate",
+					"cell_count": terrain_data.cells.size(),
+					"wall_count": terrain_data.walls.size(),
+				})
+			else:
+				unused_inputs.append(_unused_result_input(port_name, from_node, "terrain", "extra_terrain"))
+				terrain_inputs.append({
+					"port": port_name,
+					"from_node": from_node,
+					"role": "unused",
+					"cell_count": terrain_data.cells.size(),
+					"wall_count": terrain_data.walls.size(),
+				})
+		elif value is HexOverlayDataScript:
+			var overlay_data := value as HexOverlayDataScript
+			var overlay_index: int = result.overlay_maps.size()
 			result.overlay_maps.append(HexOverlayResourceScript.from_overlay_data(overlay_data, orientation_val))
-			item_count = _overlay_data_item_count(overlay_data)
 			overlay_sources.append({
 				"port": port_name,
+				"from_node": from_node,
 				"data": overlay_data,
 			})
-		overlay_inputs.append({
-			"port": port_name,
-			"overlay_index": index,
-			"present": present,
-			"item_count": item_count,
-		})
+			overlay_inputs.append({
+				"port": port_name,
+				"from_node": from_node,
+				"overlay_index": overlay_index,
+				"present": true,
+				"item_count": _overlay_data_item_count(overlay_data),
+			})
+		else:
+			unused_inputs.append(_unused_result_input(port_name, from_node, HexGenerationAdaptationScript.producer_kind(value), "not_result_material"))
 	result.overlay_map = result.overlay_maps[0] if result.overlay_maps.size() > 0 else null
 	result.metadata = {
 		"terrain_present": result.primary_map != null,
+		"terrain_inputs": terrain_inputs,
 		"overlay_inputs": overlay_inputs,
 		"overlay_count": result.overlay_maps.size(),
+		"unused_inputs": unused_inputs,
 		"overlay_conflicts": _overlay_conflicts(overlay_sources),
 	}
 	return result
+
+
+static func _ordered_result_inputs(inputs: Dictionary, context: Dictionary) -> Array:
+	var graph = context.get("__graph", null)
+	var node_id := String(context.get("__node_id", ""))
+	var result: Array = []
+	if graph is Dictionary and node_id != "":
+		for edge in (graph as Dictionary).get("edges", []) as Array:
+			var edge_dict := edge as Dictionary
+			if String(edge_dict.get("to_node", "")) != node_id:
+				continue
+			var port_name := String(edge_dict.get("to_port", ""))
+			if not inputs.has(port_name):
+				continue
+			result.append({
+				"port": port_name,
+				"from_node": String(edge_dict.get("from_node", "")),
+				"value": inputs[port_name],
+			})
+		return result
+	var ports := inputs.keys()
+	ports.sort()
+	for port_name in ports:
+		result.append({
+			"port": String(port_name),
+			"from_node": "",
+			"value": inputs[port_name],
+		})
+	return result
+
+
+static func _unused_result_input(port_name: String, from_node: String, producer_kind: String, reason: String) -> Dictionary:
+	return {
+		"port": port_name,
+		"from_node": from_node,
+		"producer_kind": producer_kind,
+		"reason": reason,
+	}
 
 
 static func _overlay_data_item_count(data: HexOverlayDataScript) -> int:
@@ -686,7 +942,7 @@ static func _probability_rules_param(value) -> Dictionary:
 			var key = _rule_key(rule)
 			result[key] = clampf(float(rule.get("probability", 0.0)), 0.0, 1.0)
 		return result
-	var parse_result := HexAdjacencyRuleSetScript.parse_rules_text_report(String(value))
+	var parse_result := _parse_probability_rules_text_report(String(value))
 	return parse_result.get("rules", {}) as Dictionary
 
 
@@ -701,6 +957,50 @@ static func _rule_key(rule: Dictionary):
 			parts.append(str(size))
 		return "components:%s" % ",".join(parts)
 	return Vector2i(int(rule.get("count", 0)), int(rule.get("components", 0)))
+
+
+static func _parse_probability_rules_text_report(text: String) -> Dictionary:
+	var rules := {}
+	var invalid_entries: Array[String] = []
+	for raw_entry in text.split(";", false):
+		var entry = String(raw_entry).strip_edges()
+		if entry == "":
+			continue
+		var pair = entry.split("=", false, 1)
+		if pair.size() != 2:
+			invalid_entries.append(entry)
+			continue
+		var key_text = String(pair[0]).strip_edges()
+		var value_text = String(pair[1]).strip_edges()
+		if key_text == "" or not value_text.is_valid_float():
+			invalid_entries.append(entry)
+			continue
+		var key = _probability_rule_key_from_text(key_text)
+		if key == null:
+			invalid_entries.append(entry)
+			continue
+		rules[key] = clampf(float(value_text), 0.0, 1.0)
+	return {
+		"rules": rules,
+		"invalid_entries": invalid_entries,
+	}
+
+
+static func _probability_rule_key_from_text(key_text: String):
+	if key_text == "default":
+		return "default"
+	if key_text.is_valid_int():
+		return int(key_text)
+	if key_text.count(",") == 1:
+		var parts = key_text.split(",", false, 1)
+		if parts.size() == 2 \
+				and String(parts[0]).strip_edges().is_valid_int() \
+				and String(parts[1]).strip_edges().is_valid_int():
+			return Vector2i(
+				int(String(parts[0]).strip_edges()),
+				int(String(parts[1]).strip_edges())
+			)
+	return null
 
 
 static func _interrupt_options(context: Dictionary) -> Dictionary:
