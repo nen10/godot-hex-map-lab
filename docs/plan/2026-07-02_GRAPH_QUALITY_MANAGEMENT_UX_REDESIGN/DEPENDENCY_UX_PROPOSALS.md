@@ -271,3 +271,17 @@ lane 案の本質的価値は帯 UI ではなく**統合の単位**だった。�
 1. **Q-DEP-7**: Source 系（document / map resource / prior result）の吸収先——Terrain Generation の台紙 mode + Item Generation の定義域 source mode で良いか（Source node の廃止）。->ok
 2. **Q-DEP-8**: Result の substrate 規則——「最初に接続された terrain が substrate、2 本目以降の terrain は行に『未使用』明示」で良いか。-> ok
 3. **Q-DEP-9**: adaptation の既定値は terrain→`floor` / overlay→`cells` で良いか。素材 Terrain Generation の台紙 default を出力側と連動させる案（旧 Q-DEP-6）はこのモデルでも有効か。-> 規定値ok,拡張として: " Terrain Generation の台紙 default を出力側と連動させる案" -> ItemGenerationの台紙defaultこそ自由度が高いため連動が必要。
+
+---
+
+# Round 4 (2026-07-03) — 全確定・実行フェーズへ
+
+R3-5 の回答により設計は**全確定**。ユーザー指示:「良い計画です。自律的に進めてください。明確で自明な作業に分解できたタスクはワーカーに委譲し、分担して効率的に」。
+
+| 確定事項 | 内容 |
+|---|---|
+| Q-DEP-7 | **Source node 廃止**。Terrain Generation の台紙 mode（shape / document / map resource / prior result）+ Item Generation の定義域 source mode に吸収 |
+| Q-DEP-8 | Result の substrate =「最初に接続された terrain」。2 本目以降の terrain は行に「未使用」明示 |
+| Q-DEP-9 | adaptation 既定値: terrain→`floor` / overlay→`cells`。**連動 default の主対象は Item Generation の定義域**（未接続時 default = 出力 terrain の floor に連動。自由度が高い項目ほど連動が必要）。素材 Terrain Generation の台紙「= 出力 terrain 連動」option も維持 |
+
+**実行への反映**: 本設計は `ROADMAP.md` + `IMPLEMENTATION_QUEUE.md`（本 plan dir）として queue 化した。`RESOURCE_MODEL.md` §7 の旧スライス表は GQM queue へ移行。旧 queue（2026-06-14）の `REPAIR-21` は `GQM-03` に吸収（SUPERSEDED）。

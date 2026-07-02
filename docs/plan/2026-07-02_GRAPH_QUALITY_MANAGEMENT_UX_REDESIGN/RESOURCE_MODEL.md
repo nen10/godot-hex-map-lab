@@ -96,18 +96,9 @@ adjacency rules window（磨き込み中）を**基準形**として全 kind に
 - **生成結果**: 名前付き保存 → **リスト**（thumbnail はやらない）→ 選択で viewport へ即時切替（data 込みなので再生成なし）→ そのまま promote 可能。
 - Batch N / Seed randomize / Shape randomize は撤去（確定）。
 
-## 7. 実装スライス案（本ドキュメント確定後に queue 化）
+## 7. 実装スライス — **GQM queue へ移行（2026-07-03）**
 
-| # | slice | 内容 | 依存 |
-|---|---|---|---|
-| 1 | 置き場所規約 + presets service 二層化 | `<kind>` 汎用の bundled/project 二層 service。adjacency rules を移行して基準形を確立 | — |
-| 2 | schema 中央化 = `REPAIR-21`（拡張版） | §5.1 の宣言（visible_when / label_by_mode / derived_default / affects / asset_kind）+ default 常時有効。headless schema test | — |
-| 3 | wall distribution の資産化 | resource 参照 + preset root 読込 + V5 round-trip test | 1 |
-| 4 | item pool の資産化 | `HexItemPoolResource` 新設 + editor 統合 | 1, 2 |
-| 5 | 依存連動の inspector 反映 | §5.2 連動表示 + 由来 chip（操作可能） | 2 |
-| 6 | 生成結果の保存/切替 | (b) data 込み・リスト・即時切替・promote 導線 | 1 |
-| 7 | graph template + header 整理 | bundled graph preset / Profile 行置換 / Load Graph 等の移設 / batch 系撤去 | 1 |
-| 8 | V6 runtime 同一性 | **reference 資産の runtime 解決**を含めた同一 seed 同一結果 test | 3, 4 |
+本節の旧スライス表は、`DEPENDENCY_UX_PROPOSALS.md` Round 3/4（統合 4 ノード・無型 edge・adaptation）確定を受けて `IMPLEMENTATION_QUEUE.md`（本 plan dir）の `GQM-*` task 群に全面改訂・移行した。対応: 旧 1→`GQM-02` / 旧 2→`GQM-03`（統合ノード対象に変更）/ 旧 3・4→`GQM-02` / 旧 5→`GQM-10`・`GQM-11`（adaptation 行 + ノード内 cascade に置換）/ 旧 6→`GQM-14` / 旧 7→`GQM-13` / 旧 8→`GQM-16`。
 
 ## 8. 未決事項（round 2 への問い）
 
