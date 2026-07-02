@@ -38,6 +38,8 @@ func _run() -> void:
 	_test_result_keeps_multiple_overlays_in_port_order()
 	_test_structured_adjacency_rules_and_custom_markov_distribution()
 	_test_square_markov_mesh_missing_size_uses_visible_default()
+	_test_connectivity_toric_passage_owns_wrap_topology()
+	_test_item_generator_limited_places_exact_counts()
 
 	if _failures.is_empty():
 		print("test_generation_graph.gd: all tests passed")
@@ -421,6 +423,79 @@ func _test_square_markov_mesh_missing_size_uses_visible_default() -> void:
 	var terrain = cache["walls"] as HexMapData
 	_assert_eq(shape.cells.size(), 9, "Square shape missing size uses inspector-visible default instead of one cell")
 	_assert_eq(terrain.cells.size(), 9, "Square Markov Mesh missing size preserves the default square cell set")
+
+
+func _test_connectivity_toric_passage_owns_wrap_topology() -> void:
+	var graph = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(graph, "shape", "shape", {
+		"shape": "square",
+		"size": 3,
+	})
+	HexGenerationGraph.add_node(graph, "connect", "connectivity", {
+		"method": "dense",
+		"seed": 7,
+		"toric_passage": true,
+	})
+	HexGenerationGraph.add_edge(graph, "shape", "connect", "in")
+	var cache = HexGenerationGraphRunner.run(graph)
+	var shape = cache["shape"] as HexMapData
+	var terrain = cache["connect"] as HexMapData
+	_assert_eq(shape.cyclic_size, 0, "Shape node no longer owns toric topology")
+	_assert_eq(terrain.cyclic_size, 3, "Connectivity toric_passage derives wrap topology from the square cell set")
+
+	var flat_graph = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(flat_graph, "shape", "shape", {
+		"shape": "square",
+		"size": 3,
+	})
+	HexGenerationGraph.add_node(flat_graph, "connect", "connectivity", {
+		"method": "dense",
+		"seed": 7,
+	})
+	HexGenerationGraph.add_edge(flat_graph, "shape", "connect", "in")
+	var flat_terrain = HexGenerationGraphRunner.run(flat_graph)["connect"] as HexMapData
+	_assert_eq(flat_terrain.cyclic_size, 0, "Connectivity without toric_passage leaves topology flat")
+
+	var rect_graph = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(rect_graph, "shape", "shape", {
+		"shape": "rectangle",
+		"width": 4,
+		"height": 3,
+	})
+	HexGenerationGraph.add_node(rect_graph, "connect", "connectivity", {
+		"method": "dense",
+		"seed": 7,
+		"toric_passage": true,
+	})
+	HexGenerationGraph.add_edge(rect_graph, "shape", "connect", "in")
+	var rect_terrain = HexGenerationGraphRunner.run(rect_graph)["connect"] as HexMapData
+	_assert_eq(rect_terrain.cyclic_size, 0, "Connectivity toric_passage refuses wrap on a non-square cell set")
+
+
+func _test_item_generator_limited_places_exact_counts() -> void:
+	var graph = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(graph, "shape", "shape", {
+		"shape": "square",
+		"size": 4,
+	})
+	HexGenerationGraph.add_node(graph, "floor_filter", "terrain_filter", {
+		"filter_target": "floor",
+	})
+	HexGenerationGraph.add_node(graph, "items", "item_generator", {
+		"placement_method": "limited",
+		"seed": 5,
+		"item_pool": [
+			{"name": "chest", "limit": 2},
+			{"name": "key", "limit": 1},
+		],
+	})
+	HexGenerationGraph.add_edge(graph, "shape", "floor_filter", "in")
+	HexGenerationGraph.add_edge(graph, "floor_filter", "items", "scope")
+
+	var overlay = HexGenerationGraphRunner.run(graph)["items"]
+	_assert_true(overlay is HexOverlayData, "limited item generator outputs HexOverlayData")
+	_assert_eq(overlay.item_cells("chest").size(), 2, "limited pool entry with limit=2 places exactly two items")
+	_assert_eq(overlay.item_cells("key").size(), 1, "limited pool entry with limit=1 places exactly one item")
 
 
 func _cell(q: int, r: int):

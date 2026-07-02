@@ -254,14 +254,13 @@ static func _run_shape(_inputs: Dictionary, params: Dictionary, _context: Dictio
 	var shape = String(params.get("shape", "rectangle"))
 	match shape:
 		"square":
-			return HexMapDataScript.square(max(1, int(params.get("size", DEFAULT_SQUARE_SIZE))), bool(params.get("toric", false)))
+			return HexMapDataScript.square(max(1, int(params.get("size", DEFAULT_SQUARE_SIZE))))
 		"hexagon":
 			return HexMapDataScript.hexagon(max(0, int(params.get("radius", DEFAULT_HEXAGON_RADIUS))))
 		"rectangle", _:
 			return HexMapDataScript.rectangle(
 				max(1, int(params.get("width", DEFAULT_RECTANGLE_WIDTH))),
-				max(1, int(params.get("height", DEFAULT_RECTANGLE_HEIGHT))),
-				bool(params.get("toric", false))
+				max(1, int(params.get("height", DEFAULT_RECTANGLE_HEIGHT)))
 			)
 
 
@@ -306,6 +305,10 @@ static func _run_wall_field(inputs: Dictionary, params: Dictionary, context: Dic
 
 static func _run_connectivity(inputs: Dictionary, params: Dictionary, context: Dictionary, _resource_refs: Dictionary):
 	var data = _clone_terrain(inputs.get("in", null))
+	if bool(params.get("toric_passage", false)):
+		var toric_size := _toric_passage_cyclic_size(data.cells)
+		if toric_size > 0:
+			data.cyclic_size = toric_size
 	var terminals = inputs.get("terminals", _points_param(params, "terminals"))
 	var method = String(params.get("method", params.get("mode", "dense")))
 	var seed = _seed(params, context, 101)
@@ -721,6 +724,24 @@ static func _filter_by_distance_params(points: Array, params: Dictionary) -> Arr
 				result.append(point)
 				break
 	return HexMapDataScript.unique_points(result)
+
+
+static func _toric_passage_cyclic_size(cells: Array) -> int:
+	# Toric wrap is only defined on a full size x size square cell set
+	# (core asserts width == height for toric maps).
+	var count := cells.size()
+	if count <= 0:
+		return 0
+	var side := int(round(sqrt(float(count))))
+	if side * side != count:
+		return 0
+	var cell_keys := {}
+	for cell in cells:
+		cell_keys[cell.key()] = true
+	for square_cell in HexMapDataScript.square(side).cells:
+		if not cell_keys.has(square_cell.key()):
+			return 0
+	return side
 
 
 static func _compute_cyclic_size(cells: Array) -> int:

@@ -23,6 +23,11 @@ Build graph repair track の各 queue を、今後の相談開始点として使
 | `REPAIR-16_REGION_FILTER_NODE_TYPING_REDESIGN` | `COMPLETE` | [findings](../../development_log/2026-06-24_BUILD_NODE_DESIGN_GAPS_FINDINGS.md) | Terrain Filter / Overlay Filter を editor-real typed node として再設計 |
 | `REPAIR-17_ADJACENCY_RULES_WINDOW` | `COMPLETE` | [findings](../../development_log/2026-06-24_BUILD_NODE_DESIGN_GAPS_FINDINGS.md) | probability_rules text を廃止し structured Adjacency Rules window へ |
 | `REPAIR-18_MARKOV_DISTRIBUTION_WINDOW` | `COMPLETE` | [findings](../../development_log/2026-06-24_BUILD_NODE_DESIGN_GAPS_FINDINGS.md) | Markov Mesh custom distribution editor と custom_distribution 配線 |
+| `REPAIR-19_ITEM_METHOD_FIELD_WIRING` | `COMPLETE` | [decisions](../../development_log/2026-07-02_OLD_GENERATE_EXECUTION_DEPENDENCY_MODEL_DECISIONS.md) | Item Generator の method 依存 item 行（weight/limit）と adjacency `item_name` |
+| `REPAIR-20_CONNECTIVITY_TORIC_OWNERSHIP` | `COMPLETE` | [decisions](../../development_log/2026-07-02_OLD_GENERATE_EXECUTION_DEPENDENCY_MODEL_DECISIONS.md) | toric topology 所有権を Shape から Connectivity `toric_passage` へ移設 |
+| `REPAIR-21_NODE_PARAM_SCHEMA_CENTRALIZATION` | `READY` | [decisions](../../development_log/2026-07-02_OLD_GENERATE_EXECUTION_DEPENDENCY_MODEL_DECISIONS.md) | 方式依存 param schema を generation 層の宣言的 registry へ中央化 |
+| `REPAIR-22_SEMANTIC_RUN_GATE` | `READY` | [decisions](../../development_log/2026-07-02_OLD_GENERATE_EXECUTION_DEPENDENCY_MODEL_DECISIONS.md) | 旧 block_reason UX の graph 版（node validate + Generate gate） |
+| `REPAIR-23_ADJACENCY_SCAN_PARITY_REAUDIT` | `READY` | [decisions](../../development_log/2026-07-02_OLD_GENERATE_EXECUTION_DEPENDENCY_MODEL_DECISIONS.md) | perf branch 走査再設計後の adjacency parity / markov custom parity 再監査 |
 
 ## 相談時の読み順
 

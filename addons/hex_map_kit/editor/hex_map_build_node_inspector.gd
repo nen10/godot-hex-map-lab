@@ -87,6 +87,8 @@ func set_param(key: String, value: Variant) -> void:
 	_params[key] = value
 	_ensure_params_for_changed_value(key, value)
 	_refresh_param_controls()
+	if key == "placement_method":
+		_refresh_item_pool_editor_rows()
 	node_params_changed.emit(_node_id, _params.duplicate(true))
 
 
@@ -243,6 +245,10 @@ func _refresh_param_controls() -> void:
 		var row = entry.get("row", null) as Control
 		if row != null:
 			row.visible = bool(visibility.get(key, true))
+		if key == "item_pool":
+			var control = entry.get("control", null) as Control
+			if control != null:
+				control.visible = bool(visibility.get(key, true))
 
 
 func _create_param_control(key: String, current_value) -> Control:
@@ -335,7 +341,11 @@ func _build_item_pool_editor() -> VBoxContainer:
 	var add_button := Button.new()
 	add_button.text = "+ Add"
 	add_button.pressed.connect(func():
-		var new_entry := {"name": "entry_%d" % entries.size(), "weight": 1.0}
+		var new_entry := {"name": "entry_%d" % entries.size()}
+		if _item_pool_placement_method() == "limited":
+			new_entry["limit"] = 1
+		else:
+			new_entry["weight"] = 1.0
 		entries.append(new_entry)
 		_params["item_pool"] = entries
 		_commit_item_pool()
@@ -346,6 +356,23 @@ func _build_item_pool_editor() -> VBoxContainer:
 	return container
 
 
+func _item_pool_placement_method() -> String:
+	return String(_params.get("placement_method", _params.get("mode", "weighted")))
+
+
+func _refresh_item_pool_editor_rows() -> void:
+	var entry = _param_controls.get("item_pool", null)
+	if not entry is Dictionary:
+		return
+	var container = (entry as Dictionary).get("control", null)
+	if not container is VBoxContainer:
+		return
+	var entries: Array = _params.get("item_pool", [])
+	if not entries is Array:
+		entries = []
+	_refresh_item_pool_rows(container, entries)
+
+
 func _refresh_item_pool_rows(container: VBoxContainer, entries: Array) -> void:
 	for i in range(container.get_child_count() - 1, -1, -1):
 		var child = container.get_child(i)
@@ -353,6 +380,7 @@ func _refresh_item_pool_rows(container: VBoxContainer, entries: Array) -> void:
 			continue
 		container.remove_child(child)
 		child.queue_free()
+	var limited := _item_pool_placement_method() == "limited"
 	for i in range(entries.size()):
 		var entry = entries[i] as Dictionary
 		var row := HBoxContainer.new()
@@ -365,19 +393,31 @@ func _refresh_item_pool_rows(container: VBoxContainer, entries: Array) -> void:
 			_commit_item_pool()
 		)
 		row.add_child(name_edit)
-		var weight_label := Label.new()
-		weight_label.text = "weight:"
-		row.add_child(weight_label)
-		var weight_spin := SpinBox.new()
-		weight_spin.min_value = 0.0
-		weight_spin.max_value = 1.0
-		weight_spin.step = 0.05
-		weight_spin.value = clampf(float(entry.get("weight", 1.0)), 0.0, 1.0)
-		weight_spin.value_changed.connect(func(v: float):
-			entry["weight"] = v
-			_commit_item_pool()
-		)
-		row.add_child(weight_spin)
+		var value_label := Label.new()
+		value_label.name = "ItemPoolValueLabel_%d" % i
+		value_label.text = "count:" if limited else "weight:"
+		row.add_child(value_label)
+		var value_spin := SpinBox.new()
+		value_spin.name = "ItemPoolValueSpin_%d" % i
+		if limited:
+			value_spin.min_value = 0
+			value_spin.max_value = 999
+			value_spin.step = 1
+			value_spin.value = maxi(0, int(entry.get("limit", 0)))
+			value_spin.value_changed.connect(func(v: float):
+				entry["limit"] = int(v)
+				_commit_item_pool()
+			)
+		else:
+			value_spin.min_value = 0.0
+			value_spin.max_value = 1.0
+			value_spin.step = 0.05
+			value_spin.value = clampf(float(entry.get("weight", 1.0)), 0.0, 1.0)
+			value_spin.value_changed.connect(func(v: float):
+				entry["weight"] = v
+				_commit_item_pool()
+			)
+		row.add_child(value_spin)
 		var remove_button := Button.new()
 		remove_button.text = "-"
 		var row_index := i
@@ -817,7 +857,7 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var help := Label.new()
-	help.text = "Toggle cells: black = reference present, white = absent. Center color = generation probability."
+	help.text = "Toggle cells:\n    black = reference present\n    white = absent.\nCenter color: generation probability."
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	body.add_child(help)
 	var name_edit := LineEdit.new()
@@ -1072,8 +1112,8 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 
 func _adjacency_rules_dialog_size() -> Vector2i:
 	return Vector2i(
-		_adjacency_pattern_row_width(ADJACENCY_RULES_DEFAULT_COLUMNS) + ADJACENCY_RULES_DEFAULT_CHROME.x + 580,
-		(ADJACENCY_PATTERN_CARD_SIZE.y + ADJACENCY_RULES_DEFAULT_CHROME.y) * 2
+		_adjacency_pattern_row_width(ADJACENCY_RULES_DEFAULT_COLUMNS) + ADJACENCY_RULES_DEFAULT_CHROME.x + 600,
+		(ADJACENCY_PATTERN_CARD_SIZE.y + ADJACENCY_RULES_DEFAULT_CHROME.y) * 2 + 40
 	)
 
 
@@ -1416,9 +1456,9 @@ func _param_control_type(node_type: String, key: String) -> String:
 			return "spin_float"
 		"width", "height", "size", "radius", "seed", "neighbor_radius":
 			return "spin_int"
-		"toric", "include_generated_reference":
+		"toric_passage", "include_generated_reference":
 			return "check"
-		"source_key", "item_key", "selectors", "probability_rules":
+		"source_key", "item_key", "item_name", "selectors", "probability_rules":
 			return "line_edit"
 		_:
 			return ""
@@ -1572,8 +1612,10 @@ func _param_default(key: String, node_type: String) -> Variant:
 			return HexGenerationNodeTypesScript.DEFAULT_SQUARE_SIZE
 		"radius":
 			return HexGenerationNodeTypesScript.DEFAULT_HEXAGON_RADIUS
-		"toric":
+		"toric_passage":
 			return false
+		"item_name":
+			return "item"
 		"wall_probability":
 			return 0.3
 		"distribution_id":
@@ -1619,13 +1661,14 @@ func _param_visibility_for_type(node_type: String, params: Dictionary) -> Dictio
 			result["height"] = shape == "rectangle"
 			result["size"] = shape == "square"
 			result["radius"] = shape == "hexagon"
-			result["toric"] = shape != "hexagon"
 		HexGenerationNodeTypesScript.NODE_REGION_FILTER, HexGenerationNodeTypesScript.NODE_TERRAIN_FILTER, HexGenerationNodeTypesScript.NODE_OVERLAY_FILTER:
 			var ft := String(params.get("filter_target", params.get("mode", "floor")))
 			result["item_key"] = ft == "item_key"
 		HexGenerationNodeTypesScript.NODE_ITEM_GENERATOR:
 			var pm := String(params.get("placement_method", params.get("mode", "weighted")))
 			result["placement_probability"] = pm == "weighted"
+			result["item_name"] = pm == "adjacency_rules"
+			result["item_pool"] = pm != "adjacency_rules"
 			result["probability_rules"] = pm == "adjacency_rules"
 			result["neighbor_radius"] = pm == "adjacency_rules"
 			result["include_generated_reference"] = pm == "adjacency_rules"
@@ -1647,15 +1690,15 @@ func _param_keys_for_type(node_type: String) -> Array:
 		HexGenerationNodeTypesScript.NODE_SOURCE:
 			return ["kind", "source_key", "output_type"]
 		HexGenerationNodeTypesScript.NODE_SHAPE:
-			return ["shape", "width", "height", "size", "radius", "toric"]
+			return ["shape", "width", "height", "size", "radius"]
 		HexGenerationNodeTypesScript.NODE_WALL_FIELD:
 			return ["wall_method", "wall_probability", "distribution_mode", "distribution_id", "custom_distribution", "seed"]
 		HexGenerationNodeTypesScript.NODE_CONNECTIVITY:
-			return ["method", "seed"]
+			return ["method", "toric_passage", "seed"]
 		HexGenerationNodeTypesScript.NODE_REGION_FILTER, HexGenerationNodeTypesScript.NODE_TERRAIN_FILTER, HexGenerationNodeTypesScript.NODE_OVERLAY_FILTER:
 			return ["filter_target", "item_key", "shift_offset"]
 		HexGenerationNodeTypesScript.NODE_ITEM_GENERATOR:
-			return ["placement_method", "placement_probability", "item_pool", "probability_rules", "neighbor_radius", "include_generated_reference", "seed"]
+			return ["placement_method", "placement_probability", "item_name", "item_pool", "probability_rules", "neighbor_radius", "include_generated_reference", "seed"]
 		HexGenerationNodeTypesScript.NODE_COMPOSE:
 			return ["write_policy", "existing_policy"]
 		HexGenerationNodeTypesScript.NODE_SET_OPERATION:

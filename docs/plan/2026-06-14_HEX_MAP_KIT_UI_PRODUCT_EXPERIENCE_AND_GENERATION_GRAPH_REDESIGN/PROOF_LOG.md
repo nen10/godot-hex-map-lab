@@ -670,3 +670,40 @@ proof:
   result:
     - REPAIR-18 uses distribution_mode (`preset` vs `custom`), custom weights 0..8, 0/1/2/3 reference cases, and independent preset preservation.
     - REPAIR-17 uses multi-pattern hex panels with present=black/absent=white and component-size multiset core keys.
+
+
+### OLD_GENERATE_EXECUTION_DEPENDENCY_DECISIONS_2026-07-02
+
+proof:
+  decision_record:
+    - `docs/development_log/2026-07-02_OLD_GENERATE_EXECUTION_DEPENDENCY_MODEL_DECISIONS.md`
+  user_decisions:
+    - protected_floor: UI移行しない（drop、filter中間レイヤー合成で表現）。
+    - toric: Connectivity側で管理（Shape param撤去、`toric_passage`へ移設）。
+    - mask+crop / deductor floor: drop（明示記録）。
+    - adjacency direction toggle: multiset のまま確定（closed）。
+    - seed lab: park（QA park方針準拠）。source registry: typed Source nodesでsuperseded。
+  matrix_update:
+    - `docs/plan/2026-06-14_HEX_MAP_KIT_UI_PRODUCT_EXPERIENCE_AND_GENERATION_GRAPH_REDESIGN/REPAIR-15_MARKOV_ADJACENCY_MAPPING/OLD_GENERATE_MIGRATION_AUDIT_MATRIX.md`（2026-07-02 決定反映 section）
+
+
+### REPAIR-19_ITEM_METHOD_FIELD_WIRING / REPAIR-20_CONNECTIVITY_TORIC_OWNERSHIP
+
+proof:
+  decision_record:
+    - `docs/development_log/2026-07-02_OLD_GENERATE_EXECUTION_DEPENDENCY_MODEL_DECISIONS.md`
+  tests:
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --script tests/test_generation_graph.gd` (exit 0; toric ownership契約 + limited正確数配置)
+    - `/Applications/Godot.app/Contents/MacOS/Godot --headless --script tests/test_editor_generation.gd` (exit 0; method依存item行 + toric ownership inspector検証)
+    - `./tools/test.sh` (run id `20260702-061528-6983`, exit 0)
+  major files:
+    - `addons/hex_map_kit/generation/hex_generation_node_types.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_node_inspector.gd`
+    - `addons/hex_map_kit/generation/hex_generation_preset.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_graph_canvas.gd`
+    - `tests/test_generation_graph.gd`
+    - `tests/test_editor_generation.gd`
+  result:
+    - limited pool 行は core が読む `limit` key を書き、graph 実行で正確数配置を確認。
+    - adjacency は `item_name` を露出し pool editor を隠す。
+    - Connectivity `toric_passage` が square cell 集合でのみ wrap topology を設定し、Shape は topology を所有しない。

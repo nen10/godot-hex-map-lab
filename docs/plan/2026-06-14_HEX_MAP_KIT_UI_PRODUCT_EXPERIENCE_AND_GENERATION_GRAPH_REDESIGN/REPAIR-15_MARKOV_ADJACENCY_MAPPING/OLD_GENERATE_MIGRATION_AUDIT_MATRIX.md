@@ -82,3 +82,24 @@
 1. P0（#13, #15）を REPAIR-15 配下の実装 slice として切り出す。
 2. P1（#8, #14, #7）は判断事項を本 matrix で確定してから実装。
 3. P2 は「移行 or drop」をユーザー判断で確定し、drop は明示記録する（無音 drop しない）。
+
+---
+
+## 2026-07-02 決定反映（status 更新）
+
+ユーザー判断と実装により以下の行の status を更新する。判断根拠と model 設計は
+`docs/development_log/2026-07-02_OLD_GENERATE_EXECUTION_DEPENDENCY_MODEL_DECISIONS.md` を一次資料とする。
+
+| # | old behavior | 新 status | 根拠 |
+|---|---|---|---|
+| 2 | symmetric shape | **dropped（確定）** | 専用 option は作らない。square + Wall Field markov の合成で表現 |
+| 4 | seed lab | **parked（確定）** | score/比較は QA 系。QA park 方針に従い移行しない。batch N + randomize は維持 |
+| 8 | protected floor | **dropped（確定）** | filter 用中間レイヤー合成で表現。engine params 読みは headless 用に維持、UI/port は作らない |
+| 10 | toric passage | **migrated** | Connectivity node `toric_passage` param に移設（REPAIR-20）。Shape の toric param は撤去 |
+| 13 | item limit (count) | **migrated** | method 依存 item 行（weighted=weight / limited=limit）+ 行再描画（REPAIR-19）。adjacency の `item_name` 露出も同時解消 |
+| 14 | adjacency direction semantics | **closed** | multiset のまま確定。core 方向一致拡張はしない |
+| 15 | include_generated_reference 走査 | **superseded → 再監査** | 走査戦略は perf branch（border-start / center-arc seeds）で再設計済み。findings #2 の前提は失効。`REPAIR-23` で parity 再監査 |
+| 16 | mask query + crop | **dropped（確定）** | Filter + Set Operation の自力構成に委ねる。preset 化もしない |
+| 17 | deductor floor query | **dropped（確定）** | 同上 |
+| 18 | source registry / stack | **superseded（確定）** | typed Source nodes + edge 合成が上位互換 |
+| 7 | markov custom parity | verify（継続） | `REPAIR-23` に同梱して確認 |

@@ -103,12 +103,10 @@ static func _shape_params(options: Dictionary) -> Dictionary:
 			return {
 				"shape": "square",
 				"size": max(1, int(options.get("radius", options.get("width", 6)))),
-				"toric": false,
 			}
 		"rectangle", _:
 			return {
 				"shape": "rectangle",
 				"width": max(1, int(options.get("width", 8))),
 				"height": max(1, int(options.get("height", 6))),
-				"toric": false,
 			}

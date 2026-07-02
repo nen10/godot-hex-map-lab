@@ -710,7 +710,6 @@ static func default_params_for_type(node_type: String) -> Dictionary:
 				"shape": "rectangle",
 				"width": 6,
 				"height": 4,
-				"toric": false,
 			}
 		HexGenerationNodeTypesScript.NODE_WALL_FIELD:
 			return {

@@ -7,6 +7,8 @@ func _run() -> void:
 	await _test_generation_dock_state_evaluator_splits_control_logic()
 	await _test_generation_dock_adjacency_rule_validation()
 	await _test_build_inspector_adjacency_rules_dialog_uses_flow_cards()
+	await _test_build_inspector_item_pool_fields_follow_placement_method()
+	await _test_build_inspector_param_fields_follow_toric_ownership()
 	await _test_generation_dock_symmetric_hexagon_minimum_radii()
 	await _test_generation_dock_shape_universe_uses_canonical_hexagon_and_square_torus()
 	await _test_generation_dock_torus_connectivity_controls()
@@ -281,6 +283,92 @@ func _test_build_inspector_adjacency_rules_dialog_uses_flow_cards() -> void:
 	_assert_eq(flow.get_child_count(), 13, "Add pattern appends another card to the same flow container")
 
 	dialog.queue_free()
+	inspector.queue_free()
+	await process_frame
+
+
+func _test_build_inspector_item_pool_fields_follow_placement_method() -> void:
+	var inspector := HexMapBuildNodeInspector.new()
+	root.add_child(inspector)
+	await process_frame
+
+	inspector.inspect_node({
+		"id": "items",
+		"type": HexGenerationNodeTypes.NODE_ITEM_GENERATOR,
+		"params": {
+			"placement_method": "weighted",
+			"item_pool": [{"name": "chest", "weight": 0.5}],
+		},
+	}, "overlay")
+	await process_frame
+
+	var weight_label := inspector.find_child("ItemPoolValueLabel_0", true, false) as Label
+	_assert_true(weight_label != null and weight_label.text == "weight:", "weighted method shows a weight field per pool entry")
+	var weight_spin := inspector.find_child("ItemPoolValueSpin_0", true, false) as SpinBox
+	_assert_true(weight_spin != null and is_equal_approx(weight_spin.step, 0.05), "weighted pool value spin edits a 0..1 weight")
+
+	var committed: Array = []
+	inspector.node_params_changed.connect(func(_node_id: String, params: Dictionary):
+		committed.append(params.duplicate(true))
+	)
+	inspector.set_param("placement_method", "limited")
+	await process_frame
+
+	var count_label := inspector.find_child("ItemPoolValueLabel_0", true, false) as Label
+	_assert_true(count_label != null and count_label.text == "count:", "limited method relabels the pool entry field as a count")
+	var count_spin := inspector.find_child("ItemPoolValueSpin_0", true, false) as SpinBox
+	_assert_true(count_spin != null and is_equal_approx(count_spin.step, 1.0), "limited pool value spin edits an integer count")
+	_assert_eq(int(count_spin.value), 0, "limited count renders the stored limit value honestly instead of reusing weight")
+
+	count_spin.value_changed.emit(3.0)
+	await process_frame
+	_assert_true(not committed.is_empty(), "editing the limited count commits node params")
+	var pool = (committed.back() as Dictionary).get("item_pool", []) as Array
+	_assert_eq(int((pool[0] as Dictionary).get("limit", 0)), 3, "limited count writes the core-visible limit key")
+	_assert_true((pool[0] as Dictionary).has("weight"), "switching methods preserves the weighted setting")
+
+	inspector.queue_free()
+	await process_frame
+
+
+func _test_build_inspector_param_fields_follow_toric_ownership() -> void:
+	var inspector := HexMapBuildNodeInspector.new()
+	root.add_child(inspector)
+	await process_frame
+
+	inspector.inspect_node({
+		"id": "shape",
+		"type": HexGenerationNodeTypes.NODE_SHAPE,
+		"params": {"shape": "square", "size": 3},
+	}, "terrain")
+	await process_frame
+	var shape_fields := Array(inspector.inspector_snapshot()["param_fields"])
+	_assert_true(not shape_fields.has("toric"), "Shape inspector no longer offers a toric switch")
+
+	inspector.inspect_node({
+		"id": "connect",
+		"type": HexGenerationNodeTypes.NODE_CONNECTIVITY,
+		"params": {"method": "dense"},
+	}, "terrain")
+	await process_frame
+	var connectivity_fields := Array(inspector.inspector_snapshot()["param_fields"])
+	_assert_true(connectivity_fields.has("toric_passage"), "Connectivity inspector owns the toric passage switch")
+	var toric_row := inspector.find_child("ParamRow_toric_passage", true, false) as Control
+	_assert_true(toric_row != null and toric_row.visible, "Connectivity toric passage control is visible")
+
+	inspector.inspect_node({
+		"id": "items",
+		"type": HexGenerationNodeTypes.NODE_ITEM_GENERATOR,
+		"params": {"placement_method": "adjacency_rules"},
+	}, "overlay")
+	await process_frame
+	var item_fields := Array(inspector.inspector_snapshot()["param_fields"])
+	_assert_true(item_fields.has("item_name"), "Item Generator exposes the adjacency item name")
+	var item_name_row := inspector.find_child("ParamRow_item_name", true, false) as Control
+	_assert_true(item_name_row != null and item_name_row.visible, "adjacency method shows the item name field")
+	var pool_editor := inspector.find_child("ItemPoolEditor", true, false) as Control
+	_assert_true(pool_editor != null and not pool_editor.visible, "adjacency method hides the weighted/limited pool editor")
+
 	inspector.queue_free()
 	await process_frame
 

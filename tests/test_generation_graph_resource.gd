@@ -101,7 +101,6 @@ func _sample_graph() -> Dictionary:
 		"shape": "rectangle",
 		"width": 7,
 		"height": 4,
-		"toric": false,
 	})
 	HexGenerationGraph.add_node(graph, "walls", "wall_field", {
 		"wall_probability": 0.35,
