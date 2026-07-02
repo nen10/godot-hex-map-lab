@@ -537,6 +537,63 @@ func promote_selected_output(role: String = "overlay") -> Dictionary:
 	return _last_promote_result.duplicate(true)
 
 
+func promote_result_row(node_id: String, input_name: String) -> Dictionary:
+	if _canvas == null:
+		return {}
+	if _workspace_asset_context == null or _workspace_asset_context.level_document == null:
+		_last_promote_result = {
+			"ok": false,
+			"written_role": "result_row",
+			"blocked_reason": "Choose a Level Document before promoting a Result row.",
+		}
+		_refresh_selected_node()
+		return _last_promote_result.duplicate(true)
+	var row_output := _canvas.result_row_output(node_id, input_name)
+	var row = row_output.get("row", {}) as Dictionary
+	if not bool(row_output.get("ok", false)):
+		_last_promote_result = {
+			"ok": false,
+			"written_role": String(row.get("promote_role", "result_row")),
+			"result_row": row.duplicate(true),
+			"blocked_reason": String(row_output.get("blocked_reason", "Result row is not promotable.")),
+		}
+		if _status_label != null:
+			_status_label.text = String(_last_promote_result.get("blocked_reason", "Result row is not promotable."))
+		_refresh_selected_node()
+		return _last_promote_result.duplicate(true)
+	var role := String(row_output.get("role", row.get("promote_role", "")))
+	var options := {
+		"graph_node_id": node_id,
+		"result_port": input_name,
+		"result_row_kind": String(row.get("kind", "")),
+		"write_policy": String(row.get("write_policy", "")),
+	}
+	if role == "overlay":
+		var overlay_index := int(row.get("overlay_index", 0))
+		options["layer_id"] = "generated_overlay_%d" % overlay_index
+		options["display_name"] = "Generated Overlay %d" % (overlay_index + 1)
+		options["overlay_index"] = overlay_index
+		options["result_overlay_count"] = max(int(row.get("result_overlay_count", 0)), overlay_index + 1)
+		options["preserve_existing_generated"] = true
+		options["write_tile_assignments"] = false
+	elif role == "terrain":
+		options["layer_id"] = "generated_terrain"
+		options["display_name"] = "Generated Terrain"
+	_last_promote_result = HexGenerationPromoteScript.promote(
+		row_output.get("output", null),
+		_workspace_asset_context.level_document,
+		role,
+		options
+	)
+	_last_promote_result["result_row"] = row.duplicate(true)
+	if bool(_last_promote_result.get("ok", false)):
+		_last_viewport_apply_report = _apply_document_to_context_layer()
+	if _status_label != null:
+		_status_label.text = String(_last_promote_result.get("status_text", _last_promote_result.get("blocked_reason", "")))
+	_refresh_selected_node()
+	return _last_promote_result.duplicate(true)
+
+
 func build_screen_snapshot() -> Dictionary:
 	var canvas_snapshot := _canvas.canvas_snapshot() if _canvas != null else {}
 	var run_state := _canvas.run_state_snapshot() if _canvas != null else {}
@@ -789,6 +846,7 @@ func _build_ui() -> void:
 	_canvas.graph_changed.connect(_on_canvas_graph_changed)
 	_canvas.graph_run_completed.connect(_on_canvas_graph_run_completed)
 	_canvas.criteria_asset_chip_pressed.connect(_on_canvas_criteria_asset_chip_pressed)
+	_canvas.result_row_promote_requested.connect(_on_canvas_result_row_promote_requested)
 	_inspector.node_params_changed.connect(_on_inspector_params_changed)
 	_inspector.promote_requested.connect(_on_inspector_promote_requested)
 	_refresh_context()
@@ -1597,6 +1655,14 @@ func _on_inspector_promote_requested(node_id: String, role: String) -> void:
 		_canvas.select_graph_node(node_id)
 	promote_selected_output(role)
 	promote_requested.emit(node_id, role)
+
+
+func _on_canvas_result_row_promote_requested(node_id: String, input_name: String) -> void:
+	if _canvas != null:
+		_canvas.select_graph_node(node_id)
+	var result := promote_result_row(node_id, input_name)
+	var row = result.get("result_row", {}) as Dictionary
+	promote_requested.emit(node_id, String(row.get("promote_role", "result_row")))
 
 
 func _ensure_build_context_for_generate(reason: String, options: Dictionary = {}) -> Dictionary:

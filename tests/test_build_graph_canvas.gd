@@ -11,6 +11,7 @@ func _init() -> void:
 func _run() -> void:
 	await _test_build_screen_opens_on_graph_canvas()
 	await _test_consolidated_editor_connections_and_result_rows()
+	await _test_result_overlay_row_reorder_updates_run_order()
 	await _test_canvas_rejects_cycles()
 	await _test_adaptation_dropdown_persists_and_changes_run_output()
 	await _test_selection_adaptation_display_is_passthrough()
@@ -52,6 +53,7 @@ func _test_consolidated_editor_connections_and_result_rows() -> void:
 	await process_frame
 
 	var terrain = canvas.add_graph_node(HexGenerationNodeTypes.NODE_TERRAIN_GENERATION, Vector2.ZERO, "terrain")
+	var terrain_extra = canvas.add_graph_node(HexGenerationNodeTypes.NODE_TERRAIN_GENERATION, Vector2(0, 180), "terrain_extra")
 	var items = canvas.add_graph_node(HexGenerationNodeTypes.NODE_ITEM_GENERATION, Vector2(220, 0), "items")
 	var union = canvas.add_graph_node(HexGenerationNodeTypes.NODE_SET_OPERATION, Vector2(440, 0), "union")
 	var result = canvas.add_graph_node(HexGenerationNodeTypes.NODE_RESULT, Vector2(660, 0), "result")
@@ -63,7 +65,8 @@ func _test_consolidated_editor_connections_and_result_rows() -> void:
 	_assert_true(bool(canvas.request_connection(terrain, 0, result, canvas._slot_for_input_name(result, "in_0"))["ok"]), "GQM-10 terrain_generation connects to result input")
 	_assert_true(bool(canvas.request_connection(items, 0, result, canvas._slot_for_input_name(result, "in_1"))["ok"]), "GQM-10 item_generation connects to result input")
 	_assert_true(bool(canvas.request_connection(union, 0, result, canvas._slot_for_input_name(result, "in_2"))["ok"]), "GQM-10 set_operation connects to result input")
-	_assert_true(canvas._slot_for_input_name(result, "in_3") >= 0, "GQM-10 result keeps one empty input row")
+	_assert_true(bool(canvas.request_connection(terrain_extra, 0, result, canvas._slot_for_input_name(result, "in_3"))["ok"]), "GQM-12 extra terrain connects to result input")
+	_assert_true(canvas._slot_for_input_name(result, "in_4") >= 0, "GQM-10 result keeps one empty input row")
 
 	var report = canvas.run_graph()
 	_assert_true(bool(report["ok"]), "GQM-10 consolidated editor graph runs")
@@ -71,6 +74,63 @@ func _test_consolidated_editor_connections_and_result_rows() -> void:
 	_assert_eq(String((rows["in_0"] as Dictionary)["resolution"]), "substrate", "GQM-10 result row resolves terrain as substrate")
 	_assert_eq(String((rows["in_1"] as Dictionary)["resolution"]), "overlay 0", "GQM-10 result row resolves item output as overlay 0")
 	_assert_eq(String((rows["in_2"] as Dictionary)["resolution"]), "unused", "GQM-10 result row resolves selection output as unused")
+	_assert_eq(String((rows["in_3"] as Dictionary)["unused_reason"]), "extra_terrain", "GQM-12 extra terrain row records unused reason")
+	_assert_true(String((rows["in_3"] as Dictionary)["tooltip"]).contains("first connected terrain"), "GQM-12 extra terrain tooltip explains substrate selection")
+
+	canvas.queue_free()
+	await process_frame
+
+
+func _test_result_overlay_row_reorder_updates_run_order() -> void:
+	var canvas = HexMapBuildGraphCanvas.new()
+	root.add_child(canvas)
+	await process_frame
+
+	var terrain_params = HexGenerationParamSchema.default_params(HexGenerationNodeTypes.NODE_TERRAIN_GENERATION)
+	terrain_params["base_mode"] = "shape"
+	terrain_params["shape"] = "rectangle"
+	terrain_params["width"] = 3
+	terrain_params["height"] = 1
+	terrain_params["wall_method"] = "none"
+	var spawn_params = HexGenerationParamSchema.default_params(HexGenerationNodeTypes.NODE_ITEM_GENERATION)
+	spawn_params["placement_method"] = "weighted"
+	spawn_params["placement_probability"] = 1.0
+	spawn_params["item_pool"] = [{"name": "spawn", "weight": 1.0}]
+	var loot_params = HexGenerationParamSchema.default_params(HexGenerationNodeTypes.NODE_ITEM_GENERATION)
+	loot_params["placement_method"] = "weighted"
+	loot_params["placement_probability"] = 1.0
+	loot_params["item_pool"] = [{"name": "loot", "weight": 1.0}]
+	var terrain = canvas.add_graph_node(HexGenerationNodeTypes.NODE_TERRAIN_GENERATION, Vector2.ZERO, "terrain", terrain_params)
+	var spawn = canvas.add_graph_node(HexGenerationNodeTypes.NODE_ITEM_GENERATION, Vector2(220, 0), "items_spawn", spawn_params)
+	var loot = canvas.add_graph_node(HexGenerationNodeTypes.NODE_ITEM_GENERATION, Vector2(220, 140), "items_loot", loot_params)
+	var result = canvas.add_graph_node(HexGenerationNodeTypes.NODE_RESULT, Vector2(520, 0), "result")
+	_assert_true(bool(canvas.request_connection(terrain, 0, spawn, canvas._slot_for_input_name(spawn, "domain"))["ok"]), "GQM-12 setup terrain->spawn")
+	_assert_true(bool(canvas.request_connection(terrain, 0, loot, canvas._slot_for_input_name(loot, "domain"))["ok"]), "GQM-12 setup terrain->loot")
+	_assert_true(bool(canvas.request_connection(terrain, 0, result, canvas._slot_for_input_name(result, "in_0"))["ok"]), "GQM-12 setup terrain->result")
+	_assert_true(bool(canvas.request_connection(spawn, 0, result, canvas._slot_for_input_name(result, "in_1"))["ok"]), "GQM-12 setup spawn overlay row")
+	_assert_true(bool(canvas.request_connection(loot, 0, result, canvas._slot_for_input_name(result, "in_2"))["ok"]), "GQM-12 setup loot overlay row")
+
+	var initial_report = canvas.run_graph()
+	_assert_true(bool(initial_report["ok"]), "GQM-12 initial Result stack graph runs")
+	var initial_result = (initial_report["cache"] as Dictionary)["result"]
+	var initial_inputs = (initial_result.get("metadata") as Dictionary)["overlay_inputs"] as Array
+	_assert_eq(String((initial_inputs[0] as Dictionary)["from_node"]), "items_spawn", "GQM-12 initial overlay 0 is the first connected overlay")
+	_assert_true(canvas.move_result_overlay_row(result, "in_2", -1), "GQM-12 row move accepts moving second overlay up")
+	var moved_graph = canvas.build_graph_model()
+	var result_edges: Array = []
+	for edge in moved_graph["edges"] as Array:
+		var edge_dict := edge as Dictionary
+		if String(edge_dict.get("to_node", "")) == result and String(edge_dict.get("from_node", "")).begins_with("items_"):
+			result_edges.append(edge_dict)
+	_assert_eq(String((result_edges[0] as Dictionary)["from_node"]), "items_loot", "GQM-12 graph edge order follows moved overlay row")
+	var moved_report = canvas.run_graph()
+	_assert_true(bool(moved_report["ok"]), "GQM-12 moved Result stack graph runs")
+	var moved_result = (moved_report["cache"] as Dictionary)["result"]
+	var moved_inputs = (moved_result.get("metadata") as Dictionary)["overlay_inputs"] as Array
+	_assert_eq(String((moved_inputs[0] as Dictionary)["from_node"]), "items_loot", "GQM-12 run overlay order follows row move")
+	var rows := _rows_by_input(canvas.canvas_snapshot()["result_rows"] as Array)
+	_assert_eq(String((rows["in_1"] as Dictionary)["source_node"]), "items_loot", "GQM-12 visible row order follows moved overlay")
+	_assert_true(bool((rows["in_1"] as Dictionary)["can_move_down"]), "GQM-12 moved overlay row exposes reverse move action")
 
 	canvas.queue_free()
 	await process_frame

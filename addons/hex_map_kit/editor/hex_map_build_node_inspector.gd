@@ -109,7 +109,7 @@ func set_param(key: String, value: Variant) -> void:
 func set_promote_enabled(enabled: bool) -> void:
 	_promote_enabled = enabled
 	if _promote_button != null:
-		_promote_button.disabled = not _promote_enabled or _output_type == "" or (not _preview_available and _output_type != HexGenerationPortsScript.RESULT)
+		_refresh_promote_action_state()
 
 
 func set_effective_flat_top(flat_top: bool) -> void:
@@ -134,6 +134,7 @@ func inspector_snapshot() -> Dictionary:
 		"preview_available": _preview_available,
 		"promote_button_present": _promote_button != null,
 		"promote_enabled": _promote_button != null and not _promote_button.disabled,
+		"result_row_promote_primary": _node_type == HexGenerationNodeTypesScript.NODE_RESULT,
 		"resource_ref_binding_present": not _resource_ref_fields_for_type(_node_type).is_empty(),
 		"connection_warnings": _connection_warnings.duplicate(true),
 	}
@@ -207,7 +208,7 @@ func _refresh_ui() -> void:
 		_warning_label.visible = false
 		_clear_param_controls()
 		_resource_ref_label.text = ""
-		_promote_button.disabled = true
+		_refresh_promote_action_state()
 		_last_built_node_id = ""
 		_last_schema_signature = ""
 		return
@@ -224,7 +225,21 @@ func _refresh_ui() -> void:
 	_refresh_param_controls()
 	var refs := _resource_ref_fields_for_type(_node_type)
 	_resource_ref_label.text = "Resource refs: %s" % (", ".join(refs) if not refs.is_empty() else "none")
-	_promote_button.disabled = not _promote_enabled or _output_type == "" or (not _preview_available and _output_type != HexGenerationPortsScript.RESULT)
+	_refresh_promote_action_state()
+
+
+func _refresh_promote_action_state() -> void:
+	if _promote_button == null:
+		return
+	var result_row_primary := _node_type == HexGenerationNodeTypesScript.NODE_RESULT
+	_promote_button.text = "Use Result row Promote" if result_row_primary else "Promote output to Layer"
+	_promote_button.tooltip_text = "Use the Promote button on a Result substrate or overlay row." if result_row_primary else "Promote selected node output to a document layer"
+	_promote_button.disabled = result_row_primary \
+		or not _promote_enabled \
+		or _output_type == "" \
+		or (not _preview_available and _output_type != HexGenerationPortsScript.RESULT)
+	if _role_option != null:
+		_role_option.disabled = result_row_primary
 
 
 func _refresh_warnings() -> void:

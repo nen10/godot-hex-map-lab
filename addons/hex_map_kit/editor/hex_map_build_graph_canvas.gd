@@ -6,6 +6,7 @@ signal graph_changed
 signal selected_graph_node_changed(node_id: String)
 signal graph_run_completed(report: Dictionary)
 signal criteria_asset_chip_pressed(node_id: String, editor_key: String)
+signal result_row_promote_requested(node_id: String, input_name: String)
 
 const HexGenerationGraphScript = preload("res://addons/hex_map_kit/generation/hex_generation_graph.gd")
 const HexGenerationGraphRunnerScript = preload("res://addons/hex_map_kit/generation/hex_generation_graph_runner.gd")
@@ -24,6 +25,14 @@ const UNTYPED_PORT_COLOR := Color(0.58, 0.68, 0.72)
 const ADAPTATION_ITEM_PREFIX := "item:"
 const ADAPTATION_OPTION_NONE := "__none__"
 const ADAPTATION_OPTION_ITEM := "__item__"
+const RESULT_WRITE_POLICY_ADD_ITEM := "add_item"
+const RESULT_WRITE_POLICY_REPLACE_ITEM := "replace_item"
+const RESULT_WRITE_POLICY_ADD_REPLACE := "add_replace"
+const RESULT_WRITE_POLICY_OPTIONS := [
+	{"label": "Add Item", "value": RESULT_WRITE_POLICY_ADD_ITEM},
+	{"label": "Replace Item", "value": RESULT_WRITE_POLICY_REPLACE_ITEM},
+	{"label": "Add Replace", "value": RESULT_WRITE_POLICY_ADD_REPLACE},
+]
 
 const NODE_TITLES := {
 	HexGenerationNodeTypesScript.NODE_TERRAIN_GENERATION: "Terrain Generation",
@@ -249,7 +258,14 @@ func clear_graph() -> void:
 	selected_graph_node_changed.emit("")
 
 
-func request_connection(from_node: String, from_port: int, to_node: String, to_port: int, adaptation_override: String = "") -> Dictionary:
+func request_connection(
+	from_node: String,
+	from_port: int,
+	to_node: String,
+	to_port: int,
+	adaptation_override: String = "",
+	write_policy_override: String = ""
+) -> Dictionary:
 	var validation := validate_connection(from_node, from_port, to_node, to_port)
 	if not bool(validation.get("ok", false)):
 		_last_rejected_connection = validation.duplicate(true)
@@ -261,22 +277,30 @@ func request_connection(from_node: String, from_port: int, to_node: String, to_p
 	var adaptation := String(validation.get("adaptation", ""))
 	if adaptation_override.strip_edges() != "":
 		adaptation = adaptation_override.strip_edges()
-	_connections.append({
+	var to_port_name := _input_name_for_slot(to_node, to_port)
+	var connection := {
 		"from_node": from_node,
 		"from_port": from_port,
 		"to_node": to_node,
 		"to_port": to_port,
 		"from_port_name": HexGenerationNodeTypesScript.PORT_OUT,
-		"to_port_name": _input_name_for_slot(to_node, to_port),
+		"to_port_name": to_port_name,
 		"port_type": validation.get("port_type", ""),
 		"adaptation": adaptation,
-	})
-	_clear_forced_input_port(to_node, _input_name_for_slot(to_node, to_port))
+	}
+	if _node_type_for_id(to_node) == HexGenerationNodeTypesScript.NODE_RESULT:
+		connection["write_policy"] = _normalized_result_write_policy(
+			write_policy_override if write_policy_override.strip_edges() != "" else _result_write_policy_for_input(to_node, to_port_name)
+		)
+	_connections.append(connection)
+	if _node_type_for_id(to_node) == HexGenerationNodeTypesScript.NODE_RESULT:
+		_sync_result_write_policy_params_from_connections(to_node)
+	_clear_forced_input_port(to_node, to_port_name)
 	_sync_graph_edit_from_connection_model()
 	_last_status = "Connected %s to %s.%s." % [
 		from_node,
 		to_node,
-		_input_name_for_slot(to_node, to_port),
+		to_port_name,
 	]
 	_mark_dirty_from_node(to_node)
 	graph_changed.emit()
@@ -424,6 +448,8 @@ func set_node_params(node_id: String, params: Dictionary) -> void:
 	graph_node.set_meta("hex_generation_params", params.duplicate(true))
 	graph_node.title = _title_for_node(String(graph_node.get_meta("hex_generation_node_type", "")), params)
 	_configure_graph_node_titlebar(graph_node, node_id, String(graph_node.get_meta("hex_generation_node_type", "")), params)
+	if String(graph_node.get_meta("hex_generation_node_type", "")) == HexGenerationNodeTypesScript.NODE_RESULT:
+		_sync_result_connection_write_policies_from_params(node_id)
 	_last_status = "Updated %s parameters." % node_id
 	_mark_dirty_from_node(node_id)
 	graph_changed.emit()
@@ -453,7 +479,7 @@ func build_graph_model() -> Dictionary:
 			node.get("resource_refs", {})
 		)
 	for connection in _connections:
-		HexGenerationGraphScript.add_edge(
+		var edge := HexGenerationGraphScript.add_edge(
 			graph,
 			String(connection.get("from_node", "")),
 			String(connection.get("to_node", "")),
@@ -461,6 +487,9 @@ func build_graph_model() -> Dictionary:
 			String(connection.get("from_port_name", HexGenerationNodeTypesScript.PORT_OUT)),
 			String(connection.get("adaptation", ""))
 		)
+		var write_policy := String(connection.get("write_policy", "")).strip_edges()
+		if write_policy != "":
+			edge["write_policy"] = _normalized_result_write_policy(write_policy)
 	return graph
 
 
@@ -502,7 +531,14 @@ func restore_graph_model(graph: Dictionary, preferred_selected_node_id: String =
 		var to_slot := _slot_for_input_name(to_node, String(edge.get("to_port", "")))
 		if from_slot < 0 or to_slot < 0:
 			continue
-		var connection := request_connection(from_node, from_slot, to_node, to_slot, String(edge.get("adaptation", "")))
+		var connection := request_connection(
+			from_node,
+			from_slot,
+			to_node,
+			to_slot,
+			String(edge.get("adaptation", "")),
+			String(edge.get("write_policy", ""))
+		)
 		if bool(connection.get("ok", false)):
 			connection_count += 1
 
@@ -984,12 +1020,7 @@ func _slot_row_control(node_id: String, input_name: String, output_type: String)
 	if input_name != "" and _uses_adaptation_control(node_id, input_name):
 		_add_adaptation_controls(row, node_id, input_name)
 	if input_name != "" and _node_type_for_id(node_id) == HexGenerationNodeTypesScript.NODE_RESULT:
-		var resolution := Label.new()
-		resolution.name = "ResultResolution %s %s" % [node_id, input_name]
-		resolution.text = _result_resolution_text(node_id, input_name)
-		resolution.custom_minimum_size = Vector2(88, 0)
-		resolution.add_theme_font_size_override("font_size", 16)
-		row.add_child(resolution)
+		_add_result_row_controls(row, node_id, input_name)
 	return row
 
 
@@ -1096,6 +1127,64 @@ func _add_adaptation_controls(row: HBoxContainer, node_id: String, input_name: S
 	key_edit.text_changed.connect(_on_adaptation_key_changed.bind(node_id, input_name))
 
 
+func _add_result_row_controls(row: HBoxContainer, node_id: String, input_name: String) -> void:
+	var row_data := _result_row_data(node_id, input_name)
+	var resolution := Label.new()
+	resolution.name = "ResultResolution %s %s" % [node_id, input_name]
+	resolution.text = String(row_data.get("resolution", "unused"))
+	resolution.tooltip_text = String(row_data.get("tooltip", ""))
+	resolution.custom_minimum_size = Vector2(92, 0)
+	resolution.add_theme_font_size_override("font_size", 16)
+	row.add_child(resolution)
+	if bool(row_data.get("is_overlay", false)):
+		var up_button := Button.new()
+		up_button.name = "ResultRowMoveUp %s %s" % [node_id, input_name]
+		up_button.text = "Up"
+		up_button.tooltip_text = "Move this overlay row earlier in the Result stack"
+		up_button.disabled = not bool(row_data.get("can_move_up", false))
+		up_button.pressed.connect(func():
+			move_result_overlay_row(node_id, input_name, -1)
+		)
+		row.add_child(up_button)
+		var down_button := Button.new()
+		down_button.name = "ResultRowMoveDown %s %s" % [node_id, input_name]
+		down_button.text = "Down"
+		down_button.tooltip_text = "Move this overlay row later in the Result stack"
+		down_button.disabled = not bool(row_data.get("can_move_down", false))
+		down_button.pressed.connect(func():
+			move_result_overlay_row(node_id, input_name, 1)
+		)
+		row.add_child(down_button)
+		_add_result_write_policy_control(row, node_id, input_name)
+	if bool(row_data.get("connected", false)):
+		var promote_button := Button.new()
+		promote_button.name = "ResultRowPromote %s %s" % [node_id, input_name]
+		promote_button.text = "Promote"
+		promote_button.disabled = not bool(row_data.get("promotable", false))
+		promote_button.tooltip_text = "Promote this Result row" if bool(row_data.get("promotable", false)) else String(row_data.get("tooltip", ""))
+		promote_button.pressed.connect(func():
+			result_row_promote_requested.emit(node_id, input_name)
+		)
+		row.add_child(promote_button)
+
+
+func _add_result_write_policy_control(row: HBoxContainer, node_id: String, input_name: String) -> void:
+	var option := OptionButton.new()
+	option.name = "ResultWritePolicy %s %s" % [node_id, input_name]
+	option.custom_minimum_size = Vector2(132, 0)
+	option.tooltip_text = "Overlay write policy"
+	for policy in RESULT_WRITE_POLICY_OPTIONS:
+		var policy_dict := policy as Dictionary
+		var item_index := option.item_count
+		option.add_item(String(policy_dict.get("label", "")))
+		option.set_item_metadata(item_index, String(policy_dict.get("value", RESULT_WRITE_POLICY_ADD_ITEM)))
+	option.select(_result_write_policy_option_index(option, _result_write_policy_for_input(node_id, input_name)))
+	option.item_selected.connect(func(index: int):
+		set_result_row_write_policy(node_id, input_name, String(option.get_item_metadata(index)))
+	)
+	row.add_child(option)
+
+
 func _add_adaptation_option(option: OptionButton, label: String, value: String) -> void:
 	var index := option.item_count
 	option.add_item(label)
@@ -1186,6 +1275,107 @@ func connection_adaptation(node_id: String, input_name: String) -> String:
 	return String(edge.get("adaptation", ""))
 
 
+func set_result_row_write_policy(node_id: String, input_name: String, write_policy: String) -> bool:
+	if _node_type_for_id(node_id) != HexGenerationNodeTypesScript.NODE_RESULT:
+		return false
+	var normalized := _normalized_result_write_policy(write_policy)
+	for index in range(_connections.size()):
+		var connection := _connections[index] as Dictionary
+		if String(connection.get("to_node", "")) != node_id:
+			continue
+		if String(connection.get("to_port_name", "")) != input_name:
+			continue
+		connection["write_policy"] = normalized
+		_set_result_param_write_policy(node_id, input_name, normalized)
+		_last_status = "Updated %s.%s write policy." % [node_id, input_name]
+		_mark_dirty_from_node(node_id)
+		graph_changed.emit()
+		return true
+	return false
+
+
+func result_row_write_policy(node_id: String, input_name: String) -> String:
+	return _result_write_policy_for_input(node_id, input_name)
+
+
+func can_move_result_overlay_row(node_id: String, input_name: String, direction: int) -> bool:
+	var overlay_indices := _result_overlay_connection_indices(node_id)
+	var current := _result_overlay_connection_list_index(overlay_indices, node_id, input_name)
+	if current < 0:
+		return false
+	var next := current + (1 if direction > 0 else -1)
+	return next >= 0 and next < overlay_indices.size()
+
+
+func move_result_overlay_row(node_id: String, input_name: String, direction: int) -> bool:
+	if direction == 0:
+		return false
+	var overlay_indices := _result_overlay_connection_indices(node_id)
+	var current := _result_overlay_connection_list_index(overlay_indices, node_id, input_name)
+	if current < 0:
+		return false
+	var next := current + (1 if direction > 0 else -1)
+	if next < 0 or next >= overlay_indices.size():
+		return false
+	var a := int(overlay_indices[current])
+	var b := int(overlay_indices[next])
+	var temp := _connections[a]
+	_connections[a] = _connections[b]
+	_connections[b] = temp
+	_compact_variadic_input_connections(node_id)
+	_sync_result_write_policy_params_from_connections(node_id)
+	_sync_graph_edit_from_connection_model()
+	_last_status = "Moved Result overlay row %s.%s." % [node_id, input_name]
+	_mark_dirty_from_node(node_id)
+	graph_changed.emit()
+	return true
+
+
+func result_row_output(node_id: String, input_name: String) -> Dictionary:
+	var row_data := _result_row_data(node_id, input_name)
+	if not bool(row_data.get("promotable", false)):
+		return {
+			"ok": false,
+			"blocked_reason": String(row_data.get("tooltip", "Result row is not promotable.")),
+			"row": row_data,
+		}
+	var cache = _last_run_report.get("cache", {}) as Dictionary
+	var output = cache.get(node_id, null)
+	if output == null:
+		return {
+			"ok": false,
+			"blocked_reason": "Run the graph before promoting this Result row.",
+			"row": row_data,
+		}
+	var role := String(row_data.get("promote_role", ""))
+	if role == "terrain":
+		var terrain_res = output.get("primary_map")
+		if terrain_res != null and terrain_res.has_method("to_map_data"):
+			return {
+				"ok": true,
+				"role": "terrain",
+				"output": terrain_res.to_map_data(),
+				"row": row_data,
+			}
+	elif role == "overlay":
+		var overlay_maps = output.get("overlay_maps")
+		var overlay_index := int(row_data.get("overlay_index", -1))
+		if overlay_maps is Array and overlay_index >= 0 and overlay_index < (overlay_maps as Array).size():
+			var overlay_res = (overlay_maps as Array)[overlay_index]
+			if overlay_res != null and overlay_res.has_method("to_overlay_data"):
+				return {
+					"ok": true,
+					"role": "overlay",
+					"output": overlay_res.to_overlay_data(),
+					"row": row_data,
+				}
+	return {
+		"ok": false,
+		"blocked_reason": "Result row output is unavailable.",
+		"row": row_data,
+	}
+
+
 func _connection_for_input_name(node_id: String, input_name: String) -> Dictionary:
 	for connection in _connections:
 		var connection_dict := connection as Dictionary
@@ -1195,30 +1385,265 @@ func _connection_for_input_name(node_id: String, input_name: String) -> Dictiona
 	return {}
 
 
-func _result_resolution_text(node_id: String, input_name: String) -> String:
-	if _connection_for_input_name(node_id, input_name).is_empty():
-		return "unused"
+func _result_row_data(node_id: String, input_name: String) -> Dictionary:
+	var edge := _connection_for_input_name(node_id, input_name)
+	var connected := not edge.is_empty()
+	var data := {
+		"node_id": node_id,
+		"input": input_name,
+		"connected": connected,
+		"source_node": String(edge.get("from_node", "")),
+		"resolution": "unused",
+		"kind": "empty",
+		"promotable": false,
+		"promote_role": "",
+		"overlay_index": -1,
+		"result_overlay_count": 0,
+		"unused_reason": "not_connected",
+		"write_policy": _result_write_policy_for_input(node_id, input_name),
+		"write_policy_label": _result_write_policy_label(_result_write_policy_for_input(node_id, input_name)),
+		"is_overlay": false,
+	}
+	if not connected:
+		data["tooltip"] = "Connect an output to include it in the Result stack."
+		return data
+	var metadata := _result_metadata_for_node(node_id)
+	for entry in metadata.get("terrain_inputs", []) as Array:
+		var terrain_entry := entry as Dictionary
+		if String(terrain_entry.get("port", "")) != input_name:
+			continue
+		var role := String(terrain_entry.get("role", "unused"))
+		if role == "substrate":
+			data["resolution"] = "substrate"
+			data["kind"] = "substrate"
+			data["promotable"] = true
+			data["promote_role"] = "terrain"
+			data["unused_reason"] = ""
+		else:
+			data["kind"] = "unused_terrain"
+			data["unused_reason"] = "extra_terrain"
+		data["tooltip"] = _result_row_tooltip(data)
+		return data
+	for entry in metadata.get("overlay_inputs", []) as Array:
+		var overlay_entry := entry as Dictionary
+		if String(overlay_entry.get("port", "")) != input_name:
+			continue
+		var overlay_index := int(overlay_entry.get("overlay_index", _result_overlay_index_for_input_name(node_id, input_name)))
+		var policy := _normalized_result_write_policy(String(overlay_entry.get("write_policy", data["write_policy"])))
+		data["resolution"] = "overlay %d" % overlay_index
+		data["kind"] = "overlay"
+		data["promotable"] = true
+		data["promote_role"] = "overlay"
+		data["overlay_index"] = overlay_index
+		data["result_overlay_count"] = int(metadata.get("overlay_count", max(overlay_index + 1, 0)))
+		data["unused_reason"] = ""
+		data["write_policy"] = policy
+		data["write_policy_label"] = _result_write_policy_label(policy)
+		data["is_overlay"] = true
+		data["can_move_up"] = can_move_result_overlay_row(node_id, input_name, -1)
+		data["can_move_down"] = can_move_result_overlay_row(node_id, input_name, 1)
+		data["tooltip"] = _result_row_tooltip(data)
+		return data
+	for entry in metadata.get("unused_inputs", []) as Array:
+		var unused_entry := entry as Dictionary
+		if String(unused_entry.get("port", "")) != input_name:
+			continue
+		data["kind"] = "unused_%s" % String(unused_entry.get("producer_kind", "input"))
+		data["unused_reason"] = String(unused_entry.get("reason", "not_result_material"))
+		data["tooltip"] = _result_row_tooltip(data)
+		return data
+	var producer_type := _result_input_producer_type(node_id, input_name)
+	if producer_type == HexGenerationPortsScript.TERRAIN:
+		if _result_input_is_first_terrain(node_id, input_name):
+			data["resolution"] = "substrate"
+			data["kind"] = "substrate"
+			data["promotable"] = true
+			data["promote_role"] = "terrain"
+			data["unused_reason"] = ""
+		else:
+			data["kind"] = "unused_terrain"
+			data["unused_reason"] = "extra_terrain"
+	elif producer_type == HexGenerationPortsScript.OVERLAY:
+		var overlay_index := _result_overlay_index_for_input_name(node_id, input_name)
+		data["resolution"] = "overlay %d" % overlay_index if overlay_index >= 0 else "overlay"
+		data["kind"] = "overlay"
+		data["promotable"] = true
+		data["promote_role"] = "overlay"
+		data["overlay_index"] = overlay_index
+		data["result_overlay_count"] = _result_overlay_connection_indices(node_id).size()
+		data["unused_reason"] = ""
+		data["is_overlay"] = true
+		data["can_move_up"] = can_move_result_overlay_row(node_id, input_name, -1)
+		data["can_move_down"] = can_move_result_overlay_row(node_id, input_name, 1)
+	else:
+		data["kind"] = "unused_%s" % producer_type
+		data["unused_reason"] = "not_result_material"
+	data["tooltip"] = _result_row_tooltip(data)
+	return data
+
+
+func _result_metadata_for_node(node_id: String) -> Dictionary:
 	var cache = _last_run_report.get("cache", {}) as Dictionary
 	var result_value = cache.get(node_id, null)
 	if not result_value is Object:
-		return "unused"
+		return {}
 	var metadata_value = (result_value as Object).get("metadata")
-	if not metadata_value is Dictionary:
-		return "unused"
-	var metadata := metadata_value as Dictionary
-	for entry in metadata.get("terrain_inputs", []) as Array:
-		var data := entry as Dictionary
-		if String(data.get("port", "")) == input_name:
-			return String(data.get("role", "unused"))
-	for entry in metadata.get("overlay_inputs", []) as Array:
-		var data := entry as Dictionary
-		if String(data.get("port", "")) == input_name:
-			return "overlay %d" % int(data.get("overlay_index", 0))
-	for entry in metadata.get("unused_inputs", []) as Array:
-		var data := entry as Dictionary
-		if String(data.get("port", "")) == input_name:
-			return "unused"
-	return "unused"
+	return metadata_value as Dictionary if metadata_value is Dictionary else {}
+
+
+func _result_row_tooltip(row_data: Dictionary) -> String:
+	match String(row_data.get("unused_reason", "")):
+		"extra_terrain":
+			return "Unused: Result substrate is the first connected terrain input."
+		"not_result_material":
+			return "Unused: Result can promote the terrain substrate and overlay rows only."
+		"not_connected":
+			return "Connect an output to include it in the Result stack."
+		_:
+			if bool(row_data.get("is_overlay", false)):
+				return "Overlay row: order and write policy define the Result stack."
+			if String(row_data.get("kind", "")) == "substrate":
+				return "Substrate: first connected terrain input."
+	return ""
+
+
+func _result_input_producer_type(node_id: String, input_name: String) -> String:
+	var edge := _connection_for_input_name(node_id, input_name)
+	if edge.is_empty():
+		return ""
+	var from_node := node_dictionary(String(edge.get("from_node", "")))
+	if from_node.is_empty():
+		return ""
+	return HexGenerationNodeTypesScript.output_type_for_node(from_node)
+
+
+func _result_input_is_first_terrain(node_id: String, input_name: String) -> bool:
+	for connection in _connections:
+		var connection_dict := connection as Dictionary
+		if String(connection_dict.get("to_node", "")) != node_id:
+			continue
+		if _result_input_producer_type(node_id, String(connection_dict.get("to_port_name", ""))) != HexGenerationPortsScript.TERRAIN:
+			continue
+		return String(connection_dict.get("to_port_name", "")) == input_name
+	return false
+
+
+func _result_overlay_index_for_input_name(node_id: String, input_name: String) -> int:
+	var overlay_index := 0
+	for connection in _connections:
+		var connection_dict := connection as Dictionary
+		if String(connection_dict.get("to_node", "")) != node_id:
+			continue
+		if _result_input_producer_type(node_id, String(connection_dict.get("to_port_name", ""))) != HexGenerationPortsScript.OVERLAY:
+			continue
+		if String(connection_dict.get("to_port_name", "")) == input_name:
+			return overlay_index
+		overlay_index += 1
+	return -1
+
+
+func _result_overlay_connection_indices(node_id: String) -> Array:
+	var result: Array = []
+	for index in range(_connections.size()):
+		var connection := _connections[index] as Dictionary
+		if String(connection.get("to_node", "")) != node_id:
+			continue
+		if _result_input_producer_type(node_id, String(connection.get("to_port_name", ""))) != HexGenerationPortsScript.OVERLAY:
+			continue
+		result.append(index)
+	return result
+
+
+func _result_overlay_connection_list_index(indices: Array, node_id: String, input_name: String) -> int:
+	for list_index in range(indices.size()):
+		var connection := _connections[int(indices[list_index])] as Dictionary
+		if String(connection.get("to_node", "")) == node_id and String(connection.get("to_port_name", "")) == input_name:
+			return list_index
+	return -1
+
+
+func _normalized_result_write_policy(write_policy: String) -> String:
+	match write_policy.strip_edges():
+		RESULT_WRITE_POLICY_REPLACE_ITEM:
+			return RESULT_WRITE_POLICY_REPLACE_ITEM
+		RESULT_WRITE_POLICY_ADD_REPLACE:
+			return RESULT_WRITE_POLICY_ADD_REPLACE
+		_:
+			return RESULT_WRITE_POLICY_ADD_ITEM
+
+
+func _result_write_policy_label(write_policy: String) -> String:
+	var normalized := _normalized_result_write_policy(write_policy)
+	for policy in RESULT_WRITE_POLICY_OPTIONS:
+		var policy_dict := policy as Dictionary
+		if String(policy_dict.get("value", "")) == normalized:
+			return String(policy_dict.get("label", normalized))
+	return normalized
+
+
+func _result_write_policy_option_index(option: OptionButton, write_policy: String) -> int:
+	var normalized := _normalized_result_write_policy(write_policy)
+	for index in range(option.item_count):
+		if String(option.get_item_metadata(index)) == normalized:
+			return index
+	return 0
+
+
+func _result_write_policy_for_input(node_id: String, input_name: String) -> String:
+	var edge := _connection_for_input_name(node_id, input_name)
+	if not edge.is_empty() and String(edge.get("write_policy", "")).strip_edges() != "":
+		return _normalized_result_write_policy(String(edge.get("write_policy", "")))
+	var graph_node := _graph_node(node_id)
+	if graph_node == null:
+		return RESULT_WRITE_POLICY_ADD_ITEM
+	var params = graph_node.get_meta("hex_generation_params", {}) as Dictionary
+	var policies = params.get("result_write_policies", {})
+	if policies is Dictionary:
+		return _normalized_result_write_policy(String((policies as Dictionary).get(input_name, RESULT_WRITE_POLICY_ADD_ITEM)))
+	return RESULT_WRITE_POLICY_ADD_ITEM
+
+
+func _set_result_param_write_policy(node_id: String, input_name: String, write_policy: String) -> void:
+	var graph_node := _graph_node(node_id)
+	if graph_node == null:
+		return
+	var params := (graph_node.get_meta("hex_generation_params", {}) as Dictionary).duplicate(true)
+	var policies = params.get("result_write_policies", {})
+	var policy_map := (policies as Dictionary).duplicate(true) if policies is Dictionary else {}
+	policy_map[input_name] = _normalized_result_write_policy(write_policy)
+	params["result_write_policies"] = policy_map
+	graph_node.set_meta("hex_generation_params", params)
+
+
+func _sync_result_connection_write_policies_from_params(node_id: String) -> void:
+	for connection in _connections:
+		var connection_dict := connection as Dictionary
+		if String(connection_dict.get("to_node", "")) != node_id:
+			continue
+		var input_name := String(connection_dict.get("to_port_name", ""))
+		connection_dict["write_policy"] = _result_write_policy_for_input(node_id, input_name)
+
+
+func _sync_result_write_policy_params_from_connections(node_id: String) -> void:
+	var graph_node := _graph_node(node_id)
+	if graph_node == null:
+		return
+	var params := (graph_node.get_meta("hex_generation_params", {}) as Dictionary).duplicate(true)
+	var policy_map := {}
+	for connection in _connections:
+		var connection_dict := connection as Dictionary
+		if String(connection_dict.get("to_node", "")) != node_id:
+			continue
+		var input_name := String(connection_dict.get("to_port_name", ""))
+		if input_name == "":
+			continue
+		policy_map[input_name] = _normalized_result_write_policy(String(connection_dict.get("write_policy", RESULT_WRITE_POLICY_ADD_ITEM)))
+	params["result_write_policies"] = policy_map
+	graph_node.set_meta("hex_generation_params", params)
+
+
+func _result_resolution_text(node_id: String, input_name: String) -> String:
+	return String(_result_row_data(node_id, input_name).get("resolution", "unused"))
 
 
 func _sync_graph_edit_from_connection_model() -> void:
@@ -1281,6 +1706,8 @@ func _compact_variadic_input_connections(node_id: String) -> void:
 			continue
 		connection_dict["to_port_name"] = "in_%d" % next_index
 		next_index += 1
+	if node_type == HexGenerationNodeTypesScript.NODE_RESULT:
+		_sync_result_write_policy_params_from_connections(node_id)
 
 
 func _ensure_input_row_for_port(node_id: String, input_name: String) -> void:
@@ -1560,12 +1987,7 @@ func _result_rows_snapshot() -> Array[Dictionary]:
 		if _node_type_for_id(String(node_id)) != HexGenerationNodeTypesScript.NODE_RESULT:
 			continue
 		for input_name in _input_names_for_node(String(node_id)):
-			rows.append({
-				"node_id": String(node_id),
-				"input": String(input_name),
-				"connected": not _connection_for_input_name(String(node_id), String(input_name)).is_empty(),
-				"resolution": _result_resolution_text(String(node_id), String(input_name)),
-			})
+			rows.append(_result_row_data(String(node_id), String(input_name)))
 	return rows
 
 

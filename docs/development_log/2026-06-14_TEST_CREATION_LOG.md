@@ -39,11 +39,11 @@
 - `tests/test_graph_load_context.gd`
   - Generation Graph Resource の editor load context ownership、新規 node embed 復元、overwrite generated 層置換、手動層保持
 - `tests/test_build_graph_canvas.gd`
-  - Build tab graph canvas、untyped port / consolidated connection acceptance、legacy logical rejection、adaptation row persistence、GraphEdit→Dictionary model同期、3-node chain preview、run cache/dirty/failure state、failure/progress node highlight、Generate popup progress、palette/inspector contract
+  - Build tab graph canvas、untyped port / consolidated connection acceptance、legacy logical rejection、adaptation row persistence、Result stack row resolution / overlay reorder / row-control snapshot、GraphEdit→Dictionary model同期、3-node chain preview、run cache/dirty/failure state、failure/progress node highlight、Generate popup progress、palette/inspector contract
 - `tests/test_build_screen_full.gd`
   - Build tab Simple/Profile entry、Profile→preset graph、canvas 一体化、terrain promote、graph-less selected layer の UI button bootstrap、Simple Generate の viewport projection / Apply-Revert pending state
 - `tests/test_generation_promote.gd`
-  - Generation Graph output の Document promote、generated層置換、manual層保持、overlay/object/terrain role、save/load roundtrip、Build screen vertical slice、Build context bootstrap、top Generate の new/selected HexTileMapLayer viewport projection、Apply/Revert preview contract
+  - Generation Graph output の Document promote、generated層置換、manual層保持、overlay/object/terrain role、Result write policy stack composition、Result row substrate/overlay promote、save/load roundtrip、Build screen vertical slice、Build context bootstrap、top Generate の new/selected HexTileMapLayer viewport projection、Apply/Revert preview contract
 - `tests/test_hex_adapter.gd`
   - canonical resource adapter、save/load roundtrip、validation エンジン、依存解決、プロファイル検証
 - `tests/test_hex_tile_map_layer.gd`
