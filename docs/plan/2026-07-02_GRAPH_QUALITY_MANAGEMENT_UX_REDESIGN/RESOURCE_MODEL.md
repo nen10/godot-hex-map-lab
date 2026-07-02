@@ -75,7 +75,9 @@ adjacency rules window（磨き込み中）を**基準形**として全 kind に
 | `affects` | この項目を変えると連動して変わる項目の一覧（**headless に test 可能**） | evaluate_control_state 全体 |
 | `asset_kind` | この param が消費する資産種別（§2） | —（新規。資産⇔node の依存を宣言） |
 
-### 5.2 inspector の連動表示
+### 5.2 inspector の連動表示 — **撤回（2026-07-03）**
+
+> 本節の「由来 chip」案は回答（下記 `->` 注記）により撤回。依存を**説明する UI** ではなく**編集面そのものを依存の形にする**設計として `DEPENDENCY_UX_PROPOSALS.md` に差し替えた（系譜レーン案・生やす文法・Shape 台紙化・親子 morph）。§5.1 の schema 宣言は差し替え後も基盤として維持。
 
 - 切替時に「静かに隠す/出す」のではなく、**何が連動して変わったかが分かる遷移**を見せる（REPAIR-19 の method 切替行再描画の一般化）。
 - **cross-node 依存**（例: `toric_passage` は square 入力でのみ意味を持つ、distribution 資産は wall_method=markov でのみ消費、Item Generator は上流 selection が定義域）: param 行に**由来 chip**（「この設定は上流 X / 資産 Y に依存」）として表示する。**gate / block にはしない**（R2-3 原則: 意味を持たない組合せは default へ静かに整合させ、依存の説明だけを示す）。
