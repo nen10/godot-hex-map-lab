@@ -81,7 +81,7 @@ proof:
     - agent/cx-GQM-03（gate ACCEPT・consolidated param schema）
   integration_tests:
     - `./tools/test.sh`（GQM-01+02 合流後, run id `20260703-062750-23496`, exit 0, 37 files all pass）
-    - `./tools/test.sh`（GQM-03 合流後の最終 run は本 entry 直後に追記）
+    - `./tools/test.sh`（GQM-03 合流後, run id `20260703-064503-39097`, exit 0）
   notes:
     - GQM-01/02 の self-review 命名は orchestrator 契約書の指定ミスを gate 規約（完全 task id 形式）へ是正
     - GQM-01 の commit は sandbox gitdir 制約により orchestrator 代行
