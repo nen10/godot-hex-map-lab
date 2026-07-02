@@ -395,7 +395,7 @@ func _test_consolidated_inspector_schema_rows_and_morph() -> void:
 	await process_frame
 
 	var snapshot := inspector.inspector_snapshot()
-	_assert_eq(Array(snapshot["param_fields"]), _schema_keys(HexGenerationNodeTypes.NODE_TERRAIN_GENERATION, terrain_params), "GQM-11 terrain inspector field order matches schema")
+	_assert_eq(Array(snapshot["param_fields"]), _schema_inspector_keys(HexGenerationNodeTypes.NODE_TERRAIN_GENERATION, terrain_params), "GQM-18 terrain inspector field order matches visible schema entries")
 	_assert_eq(Array(snapshot["visible_param_fields"]), _schema_visible_keys(HexGenerationNodeTypes.NODE_TERRAIN_GENERATION, terrain_params), "GQM-11 terrain visible rows match schema default state")
 	_assert_true(not Array(snapshot["visible_param_fields"]).has("distribution_mode"), "GQM-11 default terrain hides Markov-only distribution fields")
 
@@ -406,6 +406,8 @@ func _test_consolidated_inspector_schema_rows_and_morph() -> void:
 	_assert_eq(Array(snapshot["visible_param_fields"]), _schema_visible_keys(HexGenerationNodeTypes.NODE_TERRAIN_GENERATION, markov_params), "GQM-11 wall_method morph updates visible rows without node reselect")
 	_assert_true(Array(snapshot["visible_param_fields"]).has("distribution_mode"), "GQM-11 markov method shows distribution mode")
 	_assert_true(Array(snapshot["visible_param_fields"]).has("distribution_id"), "GQM-11 markov preset shows distribution selector")
+	_assert_true(not Array(snapshot["param_fields"]).has(HexGenerationCriteriaUi.PATH_DISTRIBUTION), "GQM-18 terrain inspector omits the raw distribution asset path row")
+	_assert_true(inspector.find_child("ParamRow_%s" % HexGenerationCriteriaUi.PATH_DISTRIBUTION, true, false) == null, "GQM-18 terrain inspector does not mount a distribution asset path LineEdit row")
 	_assert_eq(String((snapshot["param_labels"] as Dictionary).get("wall_probability", "")), "Initial Probability", "GQM-11 schema label_by_mode reaches inspector")
 
 	inspector.set_param("distribution_mode", "custom")
@@ -422,14 +424,18 @@ func _test_consolidated_inspector_schema_rows_and_morph() -> void:
 	}, "overlay")
 	await process_frame
 	snapshot = inspector.inspector_snapshot()
-	_assert_eq(Array(snapshot["param_fields"]), _schema_keys(HexGenerationNodeTypes.NODE_ITEM_GENERATION, item_params), "GQM-11 item inspector field order matches schema")
+	_assert_eq(Array(snapshot["param_fields"]), _schema_inspector_keys(HexGenerationNodeTypes.NODE_ITEM_GENERATION, item_params), "GQM-18 item inspector field order matches visible schema entries")
 	_assert_true(Array(snapshot["visible_param_fields"]).has("item_pool"), "GQM-11 weighted item generation shows item pool")
+	_assert_true(not Array(snapshot["param_fields"]).has(HexGenerationCriteriaUi.PATH_ITEM_POOL), "GQM-18 item inspector omits the raw item pool asset path row")
+	_assert_true(inspector.find_child("ParamRow_%s" % HexGenerationCriteriaUi.PATH_ITEM_POOL, true, false) == null, "GQM-18 item inspector does not mount an item pool asset path LineEdit row")
 	inspector.set_param("placement_method", "adjacency_rules")
 	await process_frame
 	snapshot = inspector.inspector_snapshot()
 	_assert_true(Array(snapshot["visible_param_fields"]).has("probability_rules"), "GQM-11 placement method morph shows rules editor")
 	_assert_true(Array(snapshot["visible_param_fields"]).has("item_name"), "GQM-11 adjacency method shows item name")
 	_assert_true(not Array(snapshot["visible_param_fields"]).has("item_pool"), "GQM-11 adjacency method hides item pool")
+	_assert_true(not Array(snapshot["param_fields"]).has(HexGenerationCriteriaUi.PATH_RULES), "GQM-18 item inspector omits the raw adjacency rules asset path row")
+	_assert_true(inspector.find_child("ParamRow_%s" % HexGenerationCriteriaUi.PATH_RULES, true, false) == null, "GQM-18 item inspector does not mount a rules asset path LineEdit row")
 
 	inspector.queue_free()
 	await process_frame
@@ -451,6 +457,10 @@ func _test_consolidated_inspector_criteria_chip_sources() -> void:
 	root.add_child(inspector)
 	await process_frame
 	var item_params := HexGenerationParamSchema.default_params(HexGenerationNodeTypes.NODE_ITEM_GENERATION)
+	var committed: Array = []
+	inspector.node_params_changed.connect(func(_node_id: String, params: Dictionary):
+		committed.append(params.duplicate(true))
+	)
 	inspector.inspect_node({
 		"id": "items",
 		"type": HexGenerationNodeTypes.NODE_ITEM_GENERATION,
@@ -459,6 +469,7 @@ func _test_consolidated_inspector_criteria_chip_sources() -> void:
 	await process_frame
 	var chips := inspector.inspector_snapshot()["criteria_chips"] as Array
 	_assert_true(_chip_labels(chips).has("pool: inline"), "GQM-11 item pool chip displays inline source")
+	_assert_true(not Array(inspector.inspector_snapshot()["param_fields"]).has(HexGenerationCriteriaUi.PATH_ITEM_POOL), "GQM-18 raw item pool asset path is not an inspector row")
 
 	item_params[HexGenerationCriteriaUi.PATH_ITEM_POOL] = pool_path
 	inspector.inspect_node({
@@ -471,20 +482,53 @@ func _test_consolidated_inspector_criteria_chip_sources() -> void:
 	var labels := _chip_labels(chips)
 	_assert_true(labels.has("pool: Treasure Pool [ref]"), "GQM-11 item pool chip displays referenced asset name")
 
-	var chip_button := inspector.find_child("CriteriaChip_item_pool", true, false) as Button
-	_assert_true(chip_button is Button, "GQM-11 criteria chip is clickable")
-	chip_button.pressed.emit()
+	var chip_button := inspector.find_child("CriteriaChip_item_pool", true, false) as MenuButton
+	_assert_true(chip_button is MenuButton, "GQM-18 criteria chip is an asset operation menu")
+	var popup := chip_button.get_popup()
+	_assert_true(_popup_item_texts(popup).has("Load from asset..."), "GQM-18 chip menu exposes Load from asset")
+	_assert_true(_popup_item_texts(popup).has("Save as asset..."), "GQM-18 chip menu exposes Save as asset")
+	_assert_true(_popup_item_texts(popup).has("Detach to inline"), "GQM-18 chip menu exposes Detach to inline")
+	for text in _popup_item_texts(popup):
+		_assert_true(not String(text).contains("res://"), "GQM-18 chip menu labels do not expose asset paths")
+	popup.id_pressed.emit(_popup_item_id_by_text(popup, "Open editor..."))
 	await process_frame
-	_assert_true(inspector.find_child("Item Pool Editor Window", true, false) is AcceptDialog, "GQM-11 item pool chip opens the item pool editor window")
+	_assert_true(inspector.find_child("Item Pool Editor Window", true, false) is AcceptDialog, "GQM-18 item pool chip menu opens the item pool editor window")
+
+	inspector.inspect_node({
+		"id": "items",
+		"type": HexGenerationNodeTypes.NODE_ITEM_GENERATION,
+		"params": HexGenerationParamSchema.default_params(HexGenerationNodeTypes.NODE_ITEM_GENERATION),
+	}, "overlay")
+	await process_frame
+	chip_button = inspector.find_child("CriteriaChip_item_pool", true, false) as MenuButton
+	popup = chip_button.get_popup()
+	popup.id_pressed.emit(_popup_item_id_by_text(popup, "Treasure Pool [project]"))
+	await process_frame
+	_assert_true(not committed.is_empty(), "GQM-18 chip menu Load from asset commits node params")
+	var loaded_params := committed.back() as Dictionary
+	_assert_eq(String(loaded_params.get(HexGenerationCriteriaUi.PATH_ITEM_POOL, "")), pool_path, "GQM-18 chip menu Load from asset stores the reference path in params")
+	var loaded_pool := loaded_params.get("item_pool", []) as Array
+	_assert_eq(String((loaded_pool[0] as Dictionary).get("name", "")), "chest", "GQM-18 chip menu Load from asset applies the asset content")
+
+	chip_button = inspector.find_child("CriteriaChip_item_pool", true, false) as MenuButton
+	popup = chip_button.get_popup()
+	popup.id_pressed.emit(_popup_item_id_by_text(popup, "Detach to inline"))
+	await process_frame
+	var detached_params := committed.back() as Dictionary
+	_assert_eq(String(detached_params.get(HexGenerationCriteriaUi.PATH_ITEM_POOL, "")), "", "GQM-18 chip menu Detach clears the reference path in params")
+	var detached_pool := detached_params.get("item_pool", []) as Array
+	_assert_eq(String((detached_pool[0] as Dictionary).get("name", "")), "chest", "GQM-18 chip menu Detach preserves inline criteria data")
 
 	inspector.queue_free()
 	ProjectSettings.set_setting(HexMapAssetLibrary.ASSET_ROOT_SETTING, previous_setting)
 	await process_frame
 
 
-func _schema_keys(node_type: String, params: Dictionary) -> Array:
+func _schema_inspector_keys(node_type: String, params: Dictionary) -> Array:
 	var result: Array = []
 	for entry in HexGenerationParamSchema.schema_for(node_type, params):
+		if bool((entry as Dictionary).get("hidden", false)):
+			continue
 		result.append(String((entry as Dictionary).get("key", "")))
 	return result
 
@@ -492,6 +536,8 @@ func _schema_keys(node_type: String, params: Dictionary) -> Array:
 func _schema_visible_keys(node_type: String, params: Dictionary) -> Array:
 	var result: Array = []
 	for entry in HexGenerationParamSchema.schema_for(node_type, params):
+		if bool((entry as Dictionary).get("hidden", false)):
+			continue
 		if bool((entry as Dictionary).get("visible_when", true)):
 			result.append(String((entry as Dictionary).get("key", "")))
 	return result
@@ -502,6 +548,20 @@ func _chip_labels(chips: Array) -> Array:
 	for chip in chips:
 		result.append(String((chip as Dictionary).get("label", "")))
 	return result
+
+
+func _popup_item_texts(popup: PopupMenu) -> Array:
+	var result: Array = []
+	for index in range(popup.item_count):
+		result.append(popup.get_item_text(index))
+	return result
+
+
+func _popup_item_id_by_text(popup: PopupMenu, text: String) -> int:
+	for index in range(popup.item_count):
+		if popup.get_item_text(index) == text:
+			return popup.get_item_id(index)
+	return -1
 
 
 func _test_generation_dock_symmetric_hexagon_minimum_radii() -> void:

@@ -32,7 +32,7 @@ Status 運用: `docs/process/QUEUE_OPERATION_RULES.md`。Proof は `PROOF_LOG.md
 | id | status | deps | deliverable | target files | acceptance |
 |---|---|---|---|---|---|
 | `GQM-16_RUNTIME_PARITY_WITH_REFERENCE_ASSETS` | `COMPLETE` | `GQM-01`, `GQM-02` | runtime Map Build が統合 graph + **reference 資産の解決**込みで editor と同一 seed 同一結果（V6） | runtime build + tests | S: reference/embed 双方で parity test green |
-| `GQM-18_CRITERIA_CHIP_POLISH` | `READY` | `GQM-11` | GQM-11 視覚検証の所見3点の磨き込み: (1) `*_asset_path` の raw LineEdit 行を inspector から隠し、資産の参照/保存は titlebar chip（Save as / Load / inline へ戻す）へ一本化（path text を UX にしない方針）。(2) 未接続 input 行の adaptation 表示「そのまま (selection)」を空行表現（例: 未接続）に分離。(3) titlebar の node 名 field の幅確保。(4) Result の空き変則行の「unused」表示を未接続表現に分離（GQM-12 視覚検証所見）。 | inspector / criteria_ui / canvas | S: 実描画キャプチャで3点の解消を確認。E: chip が資産操作の単一導線になり、path 文字列は UI に露出しない。 |
+| `GQM-18_CRITERIA_CHIP_POLISH` | `COMPLETE` | `GQM-11` | GQM-11 視覚検証の所見4点の磨き込み: (1) `*_asset_path` の raw LineEdit 行を inspector から隠し、資産の参照/保存は titlebar chip（Save as / Load / inline へ戻す）へ一本化（path text を UX にしない方針）。(2) 未接続 input 行の adaptation 表示「そのまま (selection)」を空行表現（例: 未接続）に分離。(3) titlebar の node 名 field の幅確保。(4) Result の空き変則行の「unused」表示を未接続表現に分離（GQM-12 視覚検証所見）。 | inspector / criteria_ui / canvas | S: `tests/test_build_graph_canvas.gd` / `tests/test_editor_generation.gd` / `./tools/test.sh` green。実描画キャプチャ確認は merge 後 orchestrator 担当。E: chip が資産操作の単一導線になり、path 文字列は UI に露出しない。 |
 | `GQM-17_CRITERIA_WINDOW_DOD` | `BACKLOG` | `GQM-11` | V8: criteria window の完成定義「各パラメータが不快感なく UI に反映」を DoD 化し実描画キャプチャで判定 | windows + captures | S: capture 一式 + DoD チェックリスト |
 
 ## Current pointer

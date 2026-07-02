@@ -296,15 +296,69 @@ func _refresh_criteria_chips() -> void:
 		return
 	_clear_criteria_chips()
 	for state in HexGenerationCriteriaUiScript.chip_states(_node_type, _params):
-		var chip := Button.new()
-		chip.name = "CriteriaChip_%s" % String((state as Dictionary).get("editor_key", "asset"))
-		chip.text = String((state as Dictionary).get("label", "asset: inline"))
-		chip.tooltip_text = "Open criteria editor"
-		chip.pressed.connect(func():
-			open_criteria_editor(String((state as Dictionary).get("editor_key", "")))
-		)
+		var state_dict := state as Dictionary
+		var chip := _build_criteria_chip_menu(state_dict)
 		_criteria_chip_row.add_child(chip)
 	_criteria_chip_row.visible = _criteria_chip_row.get_child_count() > 0
+
+
+func _build_criteria_chip_menu(state: Dictionary) -> MenuButton:
+	var editor_key := String(state.get("editor_key", "asset"))
+	var chip := MenuButton.new()
+	chip.name = "CriteriaChip_%s" % editor_key
+	chip.text = String(state.get("label", "asset: inline"))
+	chip.tooltip_text = "Criteria asset actions"
+	var popup := chip.get_popup()
+	HexGenerationCriteriaUiScript.populate_chip_menu(popup, editor_key, _params)
+	popup.id_pressed.connect(func(id: int):
+		_on_criteria_chip_menu_id(id, editor_key, popup)
+	)
+	return chip
+
+
+func _on_criteria_chip_menu_id(id: int, editor_key: String, popup: PopupMenu) -> void:
+	if id == HexGenerationCriteriaUiScript.CHIP_MENU_OPEN_EDITOR:
+		open_criteria_editor(editor_key)
+	elif id == HexGenerationCriteriaUiScript.CHIP_MENU_SAVE_AS_ASSET:
+		_save_criteria_asset_from_chip(editor_key)
+	elif id == HexGenerationCriteriaUiScript.CHIP_MENU_DETACH_TO_INLINE:
+		_detach_criteria_asset_from_chip(editor_key)
+	elif id >= HexGenerationCriteriaUiScript.CHIP_MENU_LOAD_ASSET_BASE:
+		var path := HexGenerationCriteriaUiScript.menu_item_path(popup, id)
+		if path != "":
+			_load_criteria_asset_from_chip(editor_key, path)
+
+
+func _load_criteria_asset_from_chip(editor_key: String, path: String) -> void:
+	var resource = HexMapAssetLibraryScript.load(path)
+	var next_params := HexGenerationCriteriaUiScript.params_after_asset_load(editor_key, _params, resource, path)
+	if next_params.is_empty():
+		push_error("Could not load criteria asset.")
+		return
+	_params = next_params
+	_refresh_ui()
+	if _node_id != "":
+		node_params_changed.emit(_node_id, _params.duplicate(true))
+
+
+func _save_criteria_asset_from_chip(editor_key: String) -> void:
+	var display_name := _criteria_asset_save_name(editor_key)
+	var save_result := HexGenerationCriteriaUiScript.save_current_as_asset(editor_key, _params, display_name)
+	if int(save_result.get("error", FAILED)) != OK:
+		push_error("Could not save criteria asset.")
+		return
+	_params = (save_result.get("params", _params) as Dictionary).duplicate(true)
+	_scan_editor_filesystem()
+	_refresh_ui()
+	if _node_id != "":
+		node_params_changed.emit(_node_id, _params.duplicate(true))
+
+
+func _detach_criteria_asset_from_chip(editor_key: String) -> void:
+	_params = HexGenerationCriteriaUiScript.params_after_detach(editor_key, _params)
+	_refresh_ui()
+	if _node_id != "":
+		node_params_changed.emit(_node_id, _params.duplicate(true))
 
 
 func _clear_criteria_chips() -> void:
@@ -884,17 +938,7 @@ func _build_criteria_asset_operation_row(
 
 
 func _criteria_asset_save_name(editor_key: String) -> String:
-	var display_name := _display_name_for_current_node().strip_edges()
-	if display_name == "":
-		display_name = _node_id
-	match editor_key:
-		HexGenerationCriteriaUiScript.EDITOR_DISTRIBUTION:
-			return "%s Distribution" % display_name
-		HexGenerationCriteriaUiScript.EDITOR_RULES:
-			return "%s Rules" % display_name
-		HexGenerationCriteriaUiScript.EDITOR_ITEM_POOL:
-			return "%s Pool" % display_name
-	return "%s Criteria" % display_name
+	return HexGenerationCriteriaUiScript.criteria_save_name(editor_key, _display_name_for_current_node(), _node_id)
 
 
 func _item_pool_resource_from_params() -> HexItemPoolResourceScript:
@@ -1357,7 +1401,7 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 		var error := int(save_result.get("error", FAILED))
 		var saved_path := String(save_result.get("path", path))
 		if error != OK:
-			status_label.text = "Save failed: %s (%d)" % [saved_path, error]
+			status_label.text = "Save failed (%d)." % error
 			push_error("Failed to save adjacency rule set: %d" % error)
 			return
 		_scan_editor_filesystem()
@@ -1371,7 +1415,7 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 		if _node_id != "":
 			node_params_changed.emit(_node_id, _params.duplicate(true))
 		var saved_rule_count := (rule_set.to_dialog_dict().get("rules", []) as Array).size()
-		status_label.text = "Saved preset \"%s\" (%d patterns) -> %s" % [rule_set.display_name, saved_rule_count, saved_path]
+		status_label.text = "Saved preset \"%s\" (%d patterns)." % [rule_set.display_name, saved_rule_count]
 	var load_file_button := Button.new()
 	load_file_button.name = "LoadAdjacencyRuleSetFile"
 	load_file_button.text = "Load File..."
@@ -1434,7 +1478,7 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 		var duplicate_error := int(duplicate_result.get("error", FAILED))
 		var duplicate_path := String(duplicate_result.get("path", ""))
 		if duplicate_error != OK:
-			status_label.text = "Duplicate failed: %s (%d)" % [duplicate_path, duplicate_error]
+			status_label.text = "Duplicate failed (%d)." % duplicate_error
 			push_error("Failed to duplicate adjacency rule set: %d" % duplicate_error)
 			return
 		_scan_editor_filesystem()
@@ -1447,7 +1491,7 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 		_refresh_criteria_chips()
 		if _node_id != "":
 			node_params_changed.emit(_node_id, _params.duplicate(true))
-		status_label.text = "Duplicated to project: %s" % duplicate_path
+		status_label.text = "Duplicated to project: %s" % String((duplicate_result.get("entry", {}) as Dictionary).get("name", display_name))
 	)
 	preset_actions_row.add_child(duplicate_preset_button)
 	preset_actions_row.add_child(load_file_button)
@@ -1882,7 +1926,12 @@ func _hex_direction_short_label(direction: HexVector) -> String:
 
 func _field_entries_for_type(node_type: String, params: Dictionary) -> Array[Dictionary]:
 	if HexGenerationNodeTypesScript.is_consolidated_type(node_type):
-		return HexGenerationParamSchemaScript.schema_for(node_type, params)
+		var result: Array[Dictionary] = []
+		for entry in HexGenerationParamSchemaScript.schema_for(node_type, params):
+			if bool((entry as Dictionary).get("hidden", false)):
+				continue
+			result.append(entry as Dictionary)
+		return result
 	var result: Array[Dictionary] = []
 	var visibility := _legacy_field_visibility_for_type(node_type, params)
 	for key in _legacy_field_keys_for_type(node_type):

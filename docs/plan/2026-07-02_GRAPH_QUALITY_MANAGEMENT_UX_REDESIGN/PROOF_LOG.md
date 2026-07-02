@@ -270,3 +270,34 @@ proof:
     - Result 行の substrate/overlay N 解決・Up/Down 並べ替え（先頭/末尾の正しい無効化）・write policy dropdown・行 Promote・run ok
   finding:
     - 空き変則行の「unused」表示は未接続表現へ分離 → GQM-18 に追記済み
+
+### GQM-18_CRITERIA_CHIP_POLISH
+
+proof:
+  review: `docs/review/autopilot/GQM-18_CRITERIA_CHIP_POLISH_SELF_REVIEW_2026-07-03.md`
+  execution:
+    - `docs/review/autopilot/GQM-18_CRITERIA_CHIP_POLISH_SELF_REVIEW_2026-07-03.md`
+  implementation:
+    - `*_asset_path` schema entries are declared `hidden: true`, and the inspector filters hidden entries out of `param_fields`, visible rows, and mounted controls.
+    - Criteria chips are `MenuButton` asset operation menus with `Open editor...`, `Load from asset...`, `Save as asset...`, and `Detach to inline`; menu labels use asset display names and source badges, not paths.
+    - Chip menu Load/Detach uses `HexMapAssetLibrary` and writes canonical reference params while preserving inline criteria data on detach.
+    - Unconnected adaptation rows render `未接続` with no dropdown; connected selection passthrough remains `そのまま (selection)`.
+    - Result empty rows render `未接続`, while connected unused rows retain `unused` and explicit `unused_reason`.
+    - Consolidated titlebar display-name fields now reserve 220px and expand horizontally.
+  tests:
+    - focused `res://tests/test_build_graph_canvas.gd` (exit 0)
+    - focused `res://tests/test_editor_generation.gd` (exit 0)
+    - `./tools/test.sh` (exit 0; run id `20260703-082916-34691`)
+    - UI metric report `.godot_user/ui-metrics/20260703-082916-34691/workspace_layout_metrics.md`: P0 `0`, P1 `0`
+  acceptance:
+    - `tests/test_editor_generation.gd` verifies hidden raw asset path rows and chip menu Load/Detach params mutation.
+    - `tests/test_build_graph_canvas.gd` verifies unconnected vs connected selection rows, Result unconnected vs unused rows, and titlebar chip/menu/name-field behavior.
+    - Actual rendered capture confirmation remains assigned to orchestrator per GQM-18 user contract.
+  major files:
+    - `addons/hex_map_kit/editor/hex_generation_criteria_ui.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_node_inspector.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_graph_canvas.gd`
+    - `addons/hex_map_kit/generation/hex_generation_param_schema.gd`
+    - `tests/test_build_graph_canvas.gd`
+    - `tests/test_editor_generation.gd`
+    - `docs/review/autopilot/GQM-18_CRITERIA_CHIP_POLISH_SELF_REVIEW_2026-07-03.md`
