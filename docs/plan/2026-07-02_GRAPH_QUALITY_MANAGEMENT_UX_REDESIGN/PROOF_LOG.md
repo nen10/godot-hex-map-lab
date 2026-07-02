@@ -51,3 +51,23 @@ proof:
     - UI metric report `.godot_user/ui-metrics/20260703-062141-16845/workspace_layout_metrics.md`: P0 `0`, P1 `0`.
   self_review:
     - `docs/review/autopilot/GQM-02_SELF_REVIEW_2026-07-03.md`
+
+### GQM-03_SCHEMA_FOR_CONSOLIDATED_NODES
+
+proof:
+  review: `docs/review/autopilot/GQM-03_SCHEMA_FOR_CONSOLIDATED_NODES_SELF_REVIEW_2026-07-03.md`
+  execution:
+    - `docs/review/autopilot/GQM-03_SCHEMA_FOR_CONSOLIDATED_NODES_SELF_REVIEW_2026-07-03.md`
+  tests:
+    - `res://tests/test_generation_graph.gd` (focused run exit 0)
+    - `./tools/test.sh` (exit 0; run id `20260703-063936-34518`)
+  acceptance:
+    - `HexGenerationParamSchema` exposes generation-layer `declarations(node_type)`, `schema_for(node_type, params)`, and `default_params(node_type)` for `terrain_generation`, `item_generation`, `set_operation`, and `result`.
+    - `tests/test_generation_graph.gd` enumerates all consolidated node method options and validates declaration shape, effective boolean visibility, dynamic Markov wall probability label, derived defaults, affects arrays, and asset kinds without editor imports.
+    - `tests/test_generation_graph.gd` proves schema default params execute through the runner for terrain-only, terrain+item+result, adjacency default item generation, and two-input set_operation graphs.
+    - `tests/test_generation_graph.gd` mechanically verifies declared `affects` keys match the effective schema diffs across enumerated method states.
+  major files:
+    - `addons/hex_map_kit/generation/hex_generation_param_schema.gd`
+    - `addons/hex_map_kit/generation/hex_generation_param_schema.gd.uid`
+    - `tests/test_generation_graph.gd`
+    - `docs/plan/2026-07-02_GRAPH_QUALITY_MANAGEMENT_UX_REDESIGN/IMPLEMENTATION_QUEUE.md`
