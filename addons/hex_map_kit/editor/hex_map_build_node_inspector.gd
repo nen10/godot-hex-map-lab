@@ -8,8 +8,10 @@ signal promote_requested(node_id: String, role: String)
 const HexGenerationNodeTypesScript = preload("res://addons/hex_map_kit/generation/hex_generation_node_types.gd")
 const HexGenerationPortsScript = preload("res://addons/hex_map_kit/generation/hex_generation_ports.gd")
 const HexMapGeneratorScript = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
+const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const HexAdjacencyRuleSetScript = preload("res://addons/hex_map_kit/adapter/hex_adjacency_rule_set.gd")
 const HexAdjacencyRulePresetsScript = preload("res://addons/hex_map_kit/editor/hex_adjacency_rule_presets.gd")
+const HexCellButtonPanel = preload("res://addons/hex_map_kit/editor/hex_cell_button_panel.gd")
 const HexMapEditorPathSelectorScript = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
 
 # Markov reference-frame direction id whose generation step is +q. The Hex Panel
@@ -908,7 +910,11 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 		preset_option.add_item("Select preset to load...")
 		preset_paths.append("")
 		for preset in presets:
-			preset_option.add_item(String((preset as Dictionary).get("name", "")))
+			var source := String((preset as Dictionary).get("source", ""))
+			var label := String((preset as Dictionary).get("name", ""))
+			if source != "":
+				label = "%s [%s]" % [label, source]
+			preset_option.add_item(label)
 			preset_paths.append(String((preset as Dictionary).get("path", "")))
 	body.add_child(preset_box)
 	var patterns_scroll := ScrollContainer.new()
@@ -962,19 +968,21 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 		if rule_set.display_name.strip_edges() == "":
 			rule_set.display_name = path.get_file().get_basename().capitalize()
 			name_edit.text = rule_set.display_name
-		var error := HexAdjacencyRulePresetsScript.save(rule_set, path)
+		var save_result := HexAdjacencyRulePresetsScript.save_with_result(rule_set, path)
+		var error := int(save_result.get("error", FAILED))
+		var saved_path := String(save_result.get("path", path))
 		if error != OK:
-			status_label.text = "Save failed: %s (%d)" % [path, error]
+			status_label.text = "Save failed: %s (%d)" % [saved_path, error]
 			push_error("Failed to save adjacency rule set: %d" % error)
 			return
 		_scan_editor_filesystem()
 		refresh_presets.call()
 		for index in range(preset_paths.size()):
-			if String(preset_paths[index]) == path:
+			if String(preset_paths[index]) == saved_path:
 				preset_option.select(index)
 				break
 		var saved_rule_count := (rule_set.to_dialog_dict().get("rules", []) as Array).size()
-		status_label.text = "Saved preset \"%s\" (%d patterns) → %s" % [rule_set.display_name, saved_rule_count, path]
+		status_label.text = "Saved preset \"%s\" (%d patterns) → %s" % [rule_set.display_name, saved_rule_count, saved_path]
 	var load_file_button := Button.new()
 	load_file_button.name = "LoadAdjacencyRuleSetFile"
 	load_file_button.text = "Load File..."
@@ -1018,6 +1026,37 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 		apply_rule_set_to_window.call(HexAdjacencyRulePresetsScript.load(path), path)
 	)
 	preset_actions_row.add_child(load_preset_button)
+	var duplicate_preset_button := Button.new()
+	duplicate_preset_button.name = "DuplicateAdjacencyPresetToProject"
+	duplicate_preset_button.text = "Duplicate To Project"
+	duplicate_preset_button.pressed.connect(func():
+		var selected := preset_option.selected
+		if selected < 0 or selected >= preset_paths.size():
+			status_label.text = "No preset selected."
+			return
+		var source_path := String(preset_paths[selected])
+		if source_path == "":
+			status_label.text = "No preset selected."
+			return
+		var display_name := name_edit.text.strip_edges()
+		if display_name == "":
+			display_name = source_path.get_file().get_basename().capitalize()
+		var duplicate_result := HexAdjacencyRulePresetsScript.duplicate_to_project(source_path, display_name)
+		var duplicate_error := int(duplicate_result.get("error", FAILED))
+		var duplicate_path := String(duplicate_result.get("path", ""))
+		if duplicate_error != OK:
+			status_label.text = "Duplicate failed: %s (%d)" % [duplicate_path, duplicate_error]
+			push_error("Failed to duplicate adjacency rule set: %d" % duplicate_error)
+			return
+		_scan_editor_filesystem()
+		refresh_presets.call()
+		for index in range(preset_paths.size()):
+			if String(preset_paths[index]) == duplicate_path:
+				preset_option.select(index)
+				break
+		status_label.text = "Duplicated to project: %s" % duplicate_path
+	)
+	preset_actions_row.add_child(duplicate_preset_button)
 	preset_actions_row.add_child(load_file_button)
 	var save_file_button := Button.new()
 	save_file_button.name = "SaveAdjacencyRuleSetFile"
@@ -1038,8 +1077,8 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 	preset_actions_row.add_child(save_file_button)
 	var save_preset_button := Button.new()
 	save_preset_button.name = "SaveAdjacencyPreset"
-	save_preset_button.text = "Save Preset"
-	save_preset_button.tooltip_text = "Save under the addon adjacency rule preset folder so it appears in this Preset list."
+	save_preset_button.text = "Save Project Asset"
+	save_preset_button.tooltip_text = "Save under the project adjacency rule asset folder so it appears in this Preset list."
 	save_preset_button.pressed.connect(func():
 		var display_name := name_edit.text.strip_edges()
 		if display_name == "":

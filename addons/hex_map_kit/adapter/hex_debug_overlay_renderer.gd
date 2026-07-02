@@ -1,6 +1,8 @@
 class_name HexDebugOverlayRenderer
 extends RefCounted
 
+const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
+
 const DEFAULT_PATH_OUTLINE_WIDTH := 4.0
 const DEFAULT_PATH_MARKER_RADIUS := 5.0
 const DEFAULT_LOOP_OUTLINE_COLOR := Color(0.18, 0.44, 0.82, 0.26)

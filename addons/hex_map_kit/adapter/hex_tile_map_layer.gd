@@ -20,6 +20,7 @@ const HexGenerationGraphResource = preload("res://addons/hex_map_kit/adapter/hex
 const HexMapGraphBuilder = preload("res://addons/hex_map_kit/generation/hex_map_graph_builder.gd")
 const HexDebugOverlayRenderer = preload("res://addons/hex_map_kit/adapter/hex_debug_overlay_renderer.gd")
 const HexGameplayQueryService = preload("res://addons/hex_map_kit/adapter/hex_gameplay_query_service.gd")
+const HexMapData = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const HexToricCoordinate = preload("res://addons/hex_map_kit/core/hex_toric_coordinate.gd")
 

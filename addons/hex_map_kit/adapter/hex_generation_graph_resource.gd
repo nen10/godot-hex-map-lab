@@ -66,7 +66,7 @@ func set_from_dict(graph: Dictionary) -> void:
 
 
 static func from_dict(graph: Dictionary) -> HexGenerationGraphResource:
-	var resource := HexGenerationGraphResource.new()
+	var resource = load("res://addons/hex_map_kit/adapter/hex_generation_graph_resource.gd").new()
 	resource.set_from_dict(graph)
 	return resource
 
