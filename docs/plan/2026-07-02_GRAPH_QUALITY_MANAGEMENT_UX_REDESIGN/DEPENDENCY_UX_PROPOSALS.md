@@ -222,7 +222,7 @@ lane 案の本質的価値は帯 UI ではなく**統合の単位**だった。�
 |---|---|---|
 | **Terrain Generation** | Shape + Wall Field + Connectivity + Source(terrain 系) | 台紙（shape / document / map resource / prior result）⇔ 壁 method ⇔ distribution 資産 ⇔ 通路 method ⇔ toric——旧タブ cascade の全体 |
 | **Item Generation** | Terrain/Overlay Filter + Item Generator + Source(overlay 系) | 定義域 adaptation ⇔ placement method ⇔ criteria 資産（pool / rules）⇔ method 別 field |
-| **Set Operation** | Set Operation（+「名前付き部分式」の役割） | op（∪/∩/∖）・各入力の adaptation。**node 名 = 部分式の名前**（`mask_1` 等） |
+| **Set Operation** | Set Operation（+「名前付き部分式」の役割） | op（∪/∩/∖）・各入力の adaptation。**node 名 = 部分式の名前**（`mask_1` 等） | -> 1layerのみ受付でも(orとして)有効に受け渡せる(i.e. default: or)。
 | **Result** | Result + Promote 導線 | substrate 自動判別・overlay 積み順（接続順・行で並べ替え）・write policy・promote |
 
 基本形（round 2 添付・実測 15 node / 16 edge。R2-3 の 13/12 は誤記）はこの統合で **7 node / 9 edge** になる。Filter 2 種と Source と Shape は node として消滅する。
@@ -268,6 +268,6 @@ lane 案の本質的価値は帯 UI ではなく**統合の単位**だった。�
 
 ## R3-5. round 4 への問い
 
-1. **Q-DEP-7**: Source 系（document / map resource / prior result）の吸収先——Terrain Generation の台紙 mode + Item Generation の定義域 source mode で良いか（Source node の廃止）。
-2. **Q-DEP-8**: Result の substrate 規則——「最初に接続された terrain が substrate、2 本目以降の terrain は行に『未使用』明示」で良いか。
-3. **Q-DEP-9**: adaptation の既定値は terrain→`floor` / overlay→`cells` で良いか。素材 Terrain Generation の台紙 default を出力側と連動させる案（旧 Q-DEP-6）はこのモデルでも有効か。
+1. **Q-DEP-7**: Source 系（document / map resource / prior result）の吸収先——Terrain Generation の台紙 mode + Item Generation の定義域 source mode で良いか（Source node の廃止）。->ok
+2. **Q-DEP-8**: Result の substrate 規則——「最初に接続された terrain が substrate、2 本目以降の terrain は行に『未使用』明示」で良いか。-> ok
+3. **Q-DEP-9**: adaptation の既定値は terrain→`floor` / overlay→`cells` で良いか。素材 Terrain Generation の台紙 default を出力側と連動させる案（旧 Q-DEP-6）はこのモデルでも有効か。-> 規定値ok,拡張として: " Terrain Generation の台紙 default を出力側と連動させる案" -> ItemGenerationの台紙defaultこそ自由度が高いため連動が必要。
