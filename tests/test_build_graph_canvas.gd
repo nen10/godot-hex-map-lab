@@ -13,6 +13,8 @@ func _run() -> void:
 	await _test_consolidated_editor_connections_and_result_rows()
 	await _test_canvas_rejects_cycles()
 	await _test_adaptation_dropdown_persists_and_changes_run_output()
+	await _test_selection_adaptation_display_is_passthrough()
+	await _test_consolidated_titlebar_criteria_chip_opens_editor()
 	await _test_canvas_uses_untyped_ports_and_legacy_rejection()
 	await _test_canvas_builds_model_and_runs_three_node_preview()
 	await _test_run_state_caches_and_marks_dirty_downstream()
@@ -141,6 +143,55 @@ func _test_adaptation_dropdown_persists_and_changes_run_output() -> void:
 	_assert_eq(wall_overlay.item_cells("spawn").size(), 2, "GQM-10 wall adaptation changes the placement target for the next run")
 
 	canvas.queue_free()
+	await process_frame
+
+
+func _test_selection_adaptation_display_is_passthrough() -> void:
+	var canvas = HexMapBuildGraphCanvas.new()
+	root.add_child(canvas)
+	await process_frame
+
+	var terrain = canvas.add_graph_node(HexGenerationNodeTypes.NODE_TERRAIN_GENERATION, Vector2.ZERO, "terrain")
+	var selector = canvas.add_graph_node(HexGenerationNodeTypes.NODE_SET_OPERATION, Vector2(220, 0), "selector")
+	var consumer = canvas.add_graph_node(HexGenerationNodeTypes.NODE_SET_OPERATION, Vector2(440, 0), "consumer")
+	_assert_true(bool(canvas.request_connection(terrain, 0, selector, canvas._slot_for_input_name(selector, "in_0"))["ok"]), "GQM-11 setup terrain to selection producer")
+	_assert_true(bool(canvas.request_connection(selector, 0, consumer, canvas._slot_for_input_name(consumer, "in_0"))["ok"]), "GQM-11 selection producer connects to selection consumer")
+
+	var rows := _rows_by_node_input(canvas.canvas_snapshot()["adaptation_rows"] as Array)
+	var row = rows["consumer:in_0"] as Dictionary
+	_assert_eq(String(row.get("adaptation", "")), "", "GQM-11 selection passthrough adaptation is stored as empty")
+	_assert_eq(String(row.get("display", "")), "そのまま (selection)", "GQM-11 selection passthrough is displayed clearly")
+	var option = (canvas._graph_node(consumer) as GraphNode).find_child("Adaptation consumer in_0", true, false) as OptionButton
+	_assert_true(option is OptionButton, "GQM-11 selection passthrough keeps an adaptation control")
+	_assert_eq(option.get_item_text(0), "そのまま (selection)", "GQM-11 dropdown first item names passthrough selection instead of none")
+
+	canvas.queue_free()
+	await process_frame
+
+
+func _test_consolidated_titlebar_criteria_chip_opens_editor() -> void:
+	var screen = HexMapBuildScreen.new()
+	root.add_child(screen)
+	await process_frame
+
+	var params := HexGenerationParamSchema.default_params(HexGenerationNodeTypes.NODE_TERRAIN_GENERATION)
+	params["wall_method"] = "markov_mesh"
+	params["distribution_mode"] = "preset"
+	params["distribution_id"] = 20
+	var terrain = screen.graph_canvas().add_graph_node(HexGenerationNodeTypes.NODE_TERRAIN_GENERATION, Vector2.ZERO, "terrain", params)
+	screen.graph_canvas().select_graph_node(terrain)
+	await process_frame
+
+	var titlebars := screen.graph_canvas().canvas_snapshot()["node_titlebars"] as Dictionary
+	var chips := ((titlebars["terrain"] as Dictionary)["criteria_chips"] as Array)
+	_assert_true(_chip_labels(chips).has("dist: Maze"), "GQM-11 canvas titlebar chip displays the applied distribution source")
+	var chip_button := (screen.graph_canvas()._graph_node("terrain") as GraphNode).find_child("HexTitlebarCriteriaChip_terrain_distribution", true, false) as Button
+	_assert_true(chip_button is Button, "GQM-11 canvas titlebar mounts a clickable distribution chip")
+	chip_button.pressed.emit()
+	await process_frame
+	_assert_true(screen.node_inspector().find_child("Markov Distribution Window", true, false) is AcceptDialog, "GQM-11 titlebar distribution chip opens the Markov distribution editor")
+
+	screen.queue_free()
 	await process_frame
 
 
@@ -484,6 +535,21 @@ func _rows_by_input(rows: Array) -> Dictionary:
 	for row in rows:
 		var row_dict := row as Dictionary
 		result[String(row_dict.get("input", ""))] = row_dict
+	return result
+
+
+func _rows_by_node_input(rows: Array) -> Dictionary:
+	var result := {}
+	for row in rows:
+		var row_dict := row as Dictionary
+		result["%s:%s" % [String(row_dict.get("node_id", "")), String(row_dict.get("input", ""))]] = row_dict
+	return result
+
+
+func _chip_labels(chips: Array) -> Array:
+	var result: Array = []
+	for chip in chips:
+		result.append(String((chip as Dictionary).get("label", "")))
 	return result
 
 

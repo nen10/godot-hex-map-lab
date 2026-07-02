@@ -149,3 +149,34 @@ proof:
     - `tests/test_generation_graph.gd`
     - `tests/test_graph_runtime_build.gd`
     - `tests/test_generation_graph_resource.gd`
+
+### GQM-11_CONSOLIDATED_NODE_INTERNAL_UI
+
+proof:
+  review: `docs/review/autopilot/GQM-11_CONSOLIDATED_NODE_INTERNAL_UI_SELF_REVIEW_2026-07-03.md`
+  execution:
+    - `docs/review/autopilot/GQM-11_CONSOLIDATED_NODE_INTERNAL_UI_SELF_REVIEW_2026-07-03.md`
+  implementation:
+    - Consolidated inspector param rows now render from `HexGenerationParamSchema.schema_for()`; old consolidated `_param_*` match helpers were removed and remaining branch logic is legacy-only.
+    - Method fields refresh dependent rows in place through schema `affects`, including terrain wall/distribution mode changes and item placement criteria changes.
+    - Consolidated node titlebars and inspector headers expose editable `display_name` plus criteria chips for wall distribution, adjacency rules, and item pool sources.
+    - Criteria chips display inline/reference names through canonical params `distribution_asset_path`, `rules_asset_path`, and `item_pool_asset_path`, and criteria UI operations use `HexMapAssetLibrary`.
+    - Selection input passthrough adaptation is displayed as `そのまま (selection)` instead of raw `none`.
+  tests:
+    - `res://tests/test_build_graph_canvas.gd` focused run exit `0`.
+    - `res://tests/test_editor_generation.gd` focused run exit `0`.
+    - `res://tests/test_build_screen_full.gd` focused run exit `0`.
+    - `./tools/test.sh` exit `0`; run id `20260703-073658-80829`.
+    - UI metric report `.godot_user/ui-metrics/20260703-073658-80829/workspace_layout_metrics.md`: P0 `0`, P1 `0`.
+  acceptance:
+    - `tests/test_editor_generation.gd` compares consolidated inspector rows to schema key order, verifies visible-row morphing without reselection, and checks inline/reference criteria chip labels.
+    - `tests/test_build_graph_canvas.gd` verifies titlebar criteria chip display/open behavior and the clarified selection passthrough label.
+    - `generation/` and `adapter/` were not changed; runtime path resolution remains owned by GQM-16 per contract.
+  major files:
+    - `addons/hex_map_kit/editor/hex_generation_criteria_ui.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_node_inspector.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_graph_canvas.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_screen.gd`
+    - `tests/test_editor_generation.gd`
+    - `tests/test_build_graph_canvas.gd`
+    - `docs/plan/2026-07-02_GRAPH_QUALITY_MANAGEMENT_UX_REDESIGN/IMPLEMENTATION_QUEUE.md`

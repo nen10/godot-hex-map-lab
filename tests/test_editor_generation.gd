@@ -1,5 +1,11 @@
 extends "res://tests/test_editor_plugin_test_base.gd"
 
+const HexGenerationNodeTypes = preload("res://addons/hex_map_kit/generation/hex_generation_node_types.gd")
+const HexGenerationParamSchema = preload("res://addons/hex_map_kit/generation/hex_generation_param_schema.gd")
+const HexGenerationCriteriaUi = preload("res://addons/hex_map_kit/editor/hex_generation_criteria_ui.gd")
+const HexMapAssetLibrary = preload("res://addons/hex_map_kit/editor/hex_map_asset_library.gd")
+const HexItemPoolResource = preload("res://addons/hex_map_kit/adapter/hex_item_pool_resource.gd")
+
 func _init() -> void:
 	_run.call_deferred()
 
@@ -9,6 +15,8 @@ func _run() -> void:
 	await _test_build_inspector_adjacency_rules_dialog_uses_flow_cards()
 	await _test_build_inspector_item_pool_fields_follow_placement_method()
 	await _test_build_inspector_param_fields_follow_toric_ownership()
+	await _test_consolidated_inspector_schema_rows_and_morph()
+	await _test_consolidated_inspector_criteria_chip_sources()
 	await _test_generation_dock_symmetric_hexagon_minimum_radii()
 	await _test_generation_dock_shape_universe_uses_canonical_hexagon_and_square_torus()
 	await _test_generation_dock_torus_connectivity_controls()
@@ -371,6 +379,129 @@ func _test_build_inspector_param_fields_follow_toric_ownership() -> void:
 
 	inspector.queue_free()
 	await process_frame
+
+
+func _test_consolidated_inspector_schema_rows_and_morph() -> void:
+	var inspector := HexMapBuildNodeInspector.new()
+	root.add_child(inspector)
+	await process_frame
+
+	var terrain_params := HexGenerationParamSchema.default_params(HexGenerationNodeTypes.NODE_TERRAIN_GENERATION)
+	inspector.inspect_node({
+		"id": "terrain",
+		"type": HexGenerationNodeTypes.NODE_TERRAIN_GENERATION,
+		"params": terrain_params,
+	}, "terrain")
+	await process_frame
+
+	var snapshot := inspector.inspector_snapshot()
+	_assert_eq(Array(snapshot["param_fields"]), _schema_keys(HexGenerationNodeTypes.NODE_TERRAIN_GENERATION, terrain_params), "GQM-11 terrain inspector field order matches schema")
+	_assert_eq(Array(snapshot["visible_param_fields"]), _schema_visible_keys(HexGenerationNodeTypes.NODE_TERRAIN_GENERATION, terrain_params), "GQM-11 terrain visible rows match schema default state")
+	_assert_true(not Array(snapshot["visible_param_fields"]).has("distribution_mode"), "GQM-11 default terrain hides Markov-only distribution fields")
+
+	inspector.set_param("wall_method", "markov_mesh")
+	await process_frame
+	var markov_params := (inspector.inspector_snapshot()["param_values"] as Dictionary)
+	snapshot = inspector.inspector_snapshot()
+	_assert_eq(Array(snapshot["visible_param_fields"]), _schema_visible_keys(HexGenerationNodeTypes.NODE_TERRAIN_GENERATION, markov_params), "GQM-11 wall_method morph updates visible rows without node reselect")
+	_assert_true(Array(snapshot["visible_param_fields"]).has("distribution_mode"), "GQM-11 markov method shows distribution mode")
+	_assert_true(Array(snapshot["visible_param_fields"]).has("distribution_id"), "GQM-11 markov preset shows distribution selector")
+	_assert_eq(String((snapshot["param_labels"] as Dictionary).get("wall_probability", "")), "Initial Probability", "GQM-11 schema label_by_mode reaches inspector")
+
+	inspector.set_param("distribution_mode", "custom")
+	await process_frame
+	snapshot = inspector.inspector_snapshot()
+	_assert_true(Array(snapshot["visible_param_fields"]).has("custom_distribution"), "GQM-11 custom distribution morph shows custom editor")
+	_assert_true(not Array(snapshot["visible_param_fields"]).has("distribution_id"), "GQM-11 custom distribution morph hides preset selector")
+
+	var item_params := HexGenerationParamSchema.default_params(HexGenerationNodeTypes.NODE_ITEM_GENERATION)
+	inspector.inspect_node({
+		"id": "items",
+		"type": HexGenerationNodeTypes.NODE_ITEM_GENERATION,
+		"params": item_params,
+	}, "overlay")
+	await process_frame
+	snapshot = inspector.inspector_snapshot()
+	_assert_eq(Array(snapshot["param_fields"]), _schema_keys(HexGenerationNodeTypes.NODE_ITEM_GENERATION, item_params), "GQM-11 item inspector field order matches schema")
+	_assert_true(Array(snapshot["visible_param_fields"]).has("item_pool"), "GQM-11 weighted item generation shows item pool")
+	inspector.set_param("placement_method", "adjacency_rules")
+	await process_frame
+	snapshot = inspector.inspector_snapshot()
+	_assert_true(Array(snapshot["visible_param_fields"]).has("probability_rules"), "GQM-11 placement method morph shows rules editor")
+	_assert_true(Array(snapshot["visible_param_fields"]).has("item_name"), "GQM-11 adjacency method shows item name")
+	_assert_true(not Array(snapshot["visible_param_fields"]).has("item_pool"), "GQM-11 adjacency method hides item pool")
+
+	inspector.queue_free()
+	await process_frame
+
+
+func _test_consolidated_inspector_criteria_chip_sources() -> void:
+	var had_setting := ProjectSettings.has_setting(HexMapAssetLibrary.ASSET_ROOT_SETTING)
+	var previous_setting = ProjectSettings.get_setting(HexMapAssetLibrary.ASSET_ROOT_SETTING) if had_setting else HexMapAssetLibrary.DEFAULT_ASSET_ROOT
+	ProjectSettings.set_setting(HexMapAssetLibrary.ASSET_ROOT_SETTING, _test_resource_dir("gqm11_assets"))
+
+	var pool_resource := HexItemPoolResource.new()
+	pool_resource.display_name = "Treasure Pool"
+	pool_resource.entries = [{"name": "chest", "weight": 1.0, "limit": 2}]
+	var save_result := HexMapAssetLibrary.save(pool_resource, HexGenerationParamSchema.ASSET_ITEM_POOLS, "Treasure Pool")
+	_assert_eq(int(save_result.get("error", FAILED)), OK, "GQM-11 test item pool asset saves")
+	var pool_path := String(save_result.get("path", ""))
+
+	var inspector := HexMapBuildNodeInspector.new()
+	root.add_child(inspector)
+	await process_frame
+	var item_params := HexGenerationParamSchema.default_params(HexGenerationNodeTypes.NODE_ITEM_GENERATION)
+	inspector.inspect_node({
+		"id": "items",
+		"type": HexGenerationNodeTypes.NODE_ITEM_GENERATION,
+		"params": item_params,
+	}, "overlay")
+	await process_frame
+	var chips := inspector.inspector_snapshot()["criteria_chips"] as Array
+	_assert_true(_chip_labels(chips).has("pool: inline"), "GQM-11 item pool chip displays inline source")
+
+	item_params[HexGenerationCriteriaUi.PATH_ITEM_POOL] = pool_path
+	inspector.inspect_node({
+		"id": "items",
+		"type": HexGenerationNodeTypes.NODE_ITEM_GENERATION,
+		"params": item_params,
+	}, "overlay")
+	await process_frame
+	chips = inspector.inspector_snapshot()["criteria_chips"] as Array
+	var labels := _chip_labels(chips)
+	_assert_true(labels.has("pool: Treasure Pool [ref]"), "GQM-11 item pool chip displays referenced asset name")
+
+	var chip_button := inspector.find_child("CriteriaChip_item_pool", true, false) as Button
+	_assert_true(chip_button is Button, "GQM-11 criteria chip is clickable")
+	chip_button.pressed.emit()
+	await process_frame
+	_assert_true(inspector.find_child("Item Pool Editor Window", true, false) is AcceptDialog, "GQM-11 item pool chip opens the item pool editor window")
+
+	inspector.queue_free()
+	ProjectSettings.set_setting(HexMapAssetLibrary.ASSET_ROOT_SETTING, previous_setting)
+	await process_frame
+
+
+func _schema_keys(node_type: String, params: Dictionary) -> Array:
+	var result: Array = []
+	for entry in HexGenerationParamSchema.schema_for(node_type, params):
+		result.append(String((entry as Dictionary).get("key", "")))
+	return result
+
+
+func _schema_visible_keys(node_type: String, params: Dictionary) -> Array:
+	var result: Array = []
+	for entry in HexGenerationParamSchema.schema_for(node_type, params):
+		if bool((entry as Dictionary).get("visible_when", true)):
+			result.append(String((entry as Dictionary).get("key", "")))
+	return result
+
+
+func _chip_labels(chips: Array) -> Array:
+	var result: Array = []
+	for chip in chips:
+		result.append(String((chip as Dictionary).get("label", "")))
+	return result
 
 
 func _test_generation_dock_symmetric_hexagon_minimum_radii() -> void:
