@@ -496,6 +496,25 @@ func build_graph_model() -> Dictionary:
 	return graph
 
 
+func _restore_layout_depths(graph: Dictionary, ordered_nodes: Array) -> Dictionary:
+	# Longest-path depth per node so restored graphs land in topological
+	# columns instead of one overlapping row.
+	var depths := {}
+	for raw_node_id in ordered_nodes:
+		depths[String(raw_node_id)] = 0
+	for raw_node_id in ordered_nodes:
+		var node_id := String(raw_node_id)
+		for raw_edge in graph.get("edges", []) as Array:
+			var edge = raw_edge as Dictionary
+			if String(edge.get("to_node", "")) != node_id:
+				continue
+			var from_node := String(edge.get("from_node", ""))
+			if not depths.has(from_node):
+				continue
+			depths[node_id] = max(int(depths[node_id]), int(depths[from_node]) + 1)
+	return depths
+
+
 func restore_graph_model(graph: Dictionary, preferred_selected_node_id: String = "") -> Dictionary:
 	clear_graph()
 	var nodes = graph.get("nodes", {}) as Dictionary
@@ -512,17 +531,21 @@ func restore_graph_model(graph: Dictionary, preferred_selected_node_id: String =
 			"reason": "empty_graph",
 		}
 
-	var index := 0
+	var depths := _restore_layout_depths(graph, ordered_nodes)
+	var rows_per_depth := {}
 	for raw_node_id in ordered_nodes:
 		var node_id := String(raw_node_id)
 		var node = nodes.get(node_id, {}) as Dictionary
 		var node_type := String(node.get("type", ""))
-		var restored_id := add_graph_node(node_type, Vector2(40 + index * 210, 120), node_id, node.get("params", {}) as Dictionary)
+		var depth := int(depths.get(node_id, 0))
+		var row := int(rows_per_depth.get(depth, 0))
+		rows_per_depth[depth] = row + 1
+		var position := Vector2(40 + depth * 540, 80 + row * 260)
+		var restored_id := add_graph_node(node_type, position, node_id, node.get("params", {}) as Dictionary)
 		if restored_id == "":
 			continue
 		set_node_params(restored_id, node.get("params", {}) as Dictionary)
 		set_node_resource_refs(restored_id, node.get("resource_refs", {}) as Dictionary)
-		index += 1
 
 	var connection_count := 0
 	for raw_edge in graph.get("edges", []) as Array:

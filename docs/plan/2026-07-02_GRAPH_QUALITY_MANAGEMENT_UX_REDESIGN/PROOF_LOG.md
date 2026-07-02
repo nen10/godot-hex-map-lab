@@ -342,3 +342,15 @@ proof:
     - `tests/test_graph_load_context.gd`
     - `tests/test_editor_workspace.gd`
     - `tests/test_generation_promote.gd`
+
+### GQM-13_18_VISUAL_VERIFICATION_2026-07-03（orchestrator 実施）
+
+proof:
+  method:
+    - 非 headless Godot + `tools/probe_gqm13_screen_visual.gd`（基本形 template 適用 → Generate → キャプチャ）
+  capture:
+    - `.godot_user/visual-verification/GQM-13-18/swept_header_basic_template.png`
+  verified:
+    - header 最終形（Template[bundled 基本形/Simple] / Save as / Load / Generate / Apply / Revert / status）・撤去対象（Batch/randomize/Profile/Simple/Load Graph/Overwrite/context chips）の消滅・Add 行の統合4型化・基本形 template 適用と Generate 成功（8 node outputs）・「未接続」と「そのまま (selection)」の分離・titlebar 幅確保
+  orchestrator_fix:
+    - 読込時のノード配置が単純横並びで重なっていたため、restore_graph_model に**トポロジ深さの段組みレイアウト**（`_restore_layout_depths`、列=最長経路深さ・行=同深さ内順）を実装。canvas/load/screen テスト green を確認
