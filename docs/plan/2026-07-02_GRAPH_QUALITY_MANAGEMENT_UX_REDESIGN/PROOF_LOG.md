@@ -270,3 +270,44 @@ proof:
     - Result 行の substrate/overlay N 解決・Up/Down 並べ替え（先頭/末尾の正しい無効化）・write policy dropdown・行 Promote・run ok
   finding:
     - 空き変則行の「unused」表示は未接続表現へ分離 → GQM-18 に追記済み
+
+### GQM-13_HEADER_SWEEP_TEMPLATE_GENERATE_UNIFY
+
+proof:
+  review: `docs/review/autopilot/GQM-13_HEADER_SWEEP_TEMPLATE_GENERATE_UNIFY_SELF_REVIEW_2026-07-03.md`
+  execution:
+    - `docs/plan/2026-07-02_GRAPH_QUALITY_MANAGEMENT_UX_REDESIGN/GQM-13_HEADER_SWEEP_TEMPLATE_GENERATE_UNIFY/`
+    - `docs/review/autopilot/GQM-13_HEADER_SWEEP_TEMPLATE_GENERATE_UNIFY_SELF_REVIEW_2026-07-03.md`
+  docs:
+    - `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+  implementation:
+    - Build header is now `Template / Save as... / Load... / Generate / Apply / Revert / status`; old batch/randomize/profile/simple/load-graph/overwrite/context-chip controls are absent.
+    - Bundled graph templates `基本形` and `Simple` are listed through `HexMapAssetLibrary.list("graphs")`; `基本形` is first and expands to the 8-node / 9-edge R2-3 template.
+    - Template load uses the existing normalized graph-resource path, asks for confirmation when replacing an existing canvas graph, and Save as writes the current graph to the project `graphs` layer for round-trip loading.
+    - Primary Generate always runs the current canvas graph; graphless Build bootstrap creates the integrated Simple graph instead of a profile/simple fallback route.
+  tests:
+    - `Godot --headless --path . --import` (exit 0; regenerated missing local `.godot/imported` texture cache before the full suite)
+    - focused `res://tests/test_build_screen_full.gd` (exit 0)
+    - focused `res://tests/test_build_graph_canvas.gd` (exit 0)
+    - focused `res://tests/test_graph_load_context.gd` (exit 0)
+    - focused `res://tests/test_editor_workspace.gd` (exit 0)
+    - focused `res://tests/test_generation_promote.gd` (exit 0)
+    - `./tools/test.sh` (exit 0; run id `20260703-084635-53903`)
+    - UI metric report `.godot_user/ui-metrics/20260703-084635-53903/workspace_layout_metrics.md`: P0 `0`, P1 `0`
+  acceptance:
+    - Header snapshot proves removed controls are absent and Template / Save as / Load / Generate / Apply / Revert / status are present.
+    - `基本形` template apply creates an 8-node / 9-edge graph and Generate succeeds.
+    - Save as -> Load round-trip stores a project graph asset and reloads it through the same normalized load route.
+    - Generate works without a profile by bootstrapping a Simple graph on the selected or newly created `HexTileMapLayer`.
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_build_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_workspace.gd`
+    - `addons/hex_map_kit/generation/hex_generation_preset.gd`
+    - `addons/hex_map_kit/adapter/hex_generation_graph_resource.gd`
+    - `addons/hex_map_kit/assets/graphs_presets/basic.tres`
+    - `addons/hex_map_kit/assets/graphs_presets/simple.tres`
+    - `tests/test_build_screen_full.gd`
+    - `tests/test_build_graph_canvas.gd`
+    - `tests/test_graph_load_context.gd`
+    - `tests/test_editor_workspace.gd`
+    - `tests/test_generation_promote.gd`

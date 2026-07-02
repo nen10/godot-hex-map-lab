@@ -1,5 +1,6 @@
 extends "res://tests/test_editor_plugin_test_base.gd"
 
+const HexMapAssetLibrary = preload("res://addons/hex_map_kit/editor/hex_map_asset_library.gd")
 const HexGenerationPreset = preload("res://addons/hex_map_kit/generation/hex_generation_preset.gd")
 const HexGenerationGraph = preload("res://addons/hex_map_kit/generation/hex_generation_graph.gd")
 const HexGenerationGraphRunner = preload("res://addons/hex_map_kit/generation/hex_generation_graph_runner.gd")
@@ -11,14 +12,15 @@ func _init() -> void:
 
 
 func _run() -> void:
-	_test_preset_factory_maps_generation_profile_to_three_node_graph()
-	await _test_build_screen_simple_profile_opens_graph_and_promotes_terrain()
-	await _test_workspace_simple_generate_bootstraps_graphless_selected_layer()
-	await _test_simple_profile_without_project_profile_uses_default_graph()
+	_test_preset_factory_maps_generation_profile_to_two_node_graph()
+	await _test_build_header_sweeps_old_controls_and_lists_templates()
+	await _test_basic_template_applies_and_generates()
+	await _test_graph_save_as_load_roundtrip()
+	await _test_workspace_generate_bootstraps_graphless_selected_layer_without_profile()
 	_finish("res://tests/test_build_screen_full.gd")
 
 
-func _test_preset_factory_maps_generation_profile_to_three_node_graph() -> void:
+func _test_preset_factory_maps_generation_profile_to_two_node_graph() -> void:
 	var profile := HexGenerationProfileResource.new()
 	profile.profile_id = "screen30_hex"
 	profile.display_name = "Screen 30 Hex"
@@ -30,157 +32,153 @@ func _test_preset_factory_maps_generation_profile_to_three_node_graph() -> void:
 
 	var graph: Dictionary = HexGenerationPreset.from_profile(profile)
 	var validation: Dictionary = HexGenerationGraph.validate(graph)
-	_assert_true(bool(validation["ok"]), "SCREEN-30 preset graph validates")
-	_assert_eq((graph["nodes"] as Dictionary).size(), 2, "GQM-15 preset graph has Terrain Generation and Result")
-	_assert_eq((graph["edges"] as Array).size(), 1, "GQM-15 preset graph connects consolidated terrain to Result")
+	_assert_true(bool(validation["ok"]), "GQM-13 headless preset graph validates")
+	_assert_eq((graph["nodes"] as Dictionary).size(), 2, "GQM-13 headless Simple preset has Terrain Generation and Result")
+	_assert_eq((graph["edges"] as Array).size(), 1, "GQM-13 headless Simple preset connects terrain to Result")
 	var terrain = (graph["nodes"] as Dictionary)["terrain"] as Dictionary
 	var result = (graph["nodes"] as Dictionary)["result"] as Dictionary
-	_assert_eq(String(terrain["type"]), HexGenerationNodeTypes.NODE_TERRAIN_GENERATION, "GQM-15 Simple preset uses consolidated terrain")
-	_assert_eq(String(result["type"]), HexGenerationNodeTypes.NODE_RESULT, "GQM-15 Simple preset keeps Result node")
-	_assert_true(_all_nodes_are_consolidated(graph), "GQM-15 Simple preset contains only consolidated node types")
-	_assert_eq(String((terrain["params"] as Dictionary)["shape"]), "hexagon", "SCREEN-30 profile shape reaches graph params")
-	_assert_eq(int((terrain["params"] as Dictionary)["radius"]), 5, "SCREEN-30 profile radius reaches graph params")
-	_assert_eq(float((terrain["params"] as Dictionary)["wall_probability"]), 0.37, "SCREEN-30 profile wall probability reaches graph params")
-	_assert_eq(int((terrain["params"] as Dictionary)["wall_seed"]), 42, "SCREEN-30 profile seed reaches wall graph params")
-	_assert_eq(String((terrain["params"] as Dictionary)["connectivity_method"]), "sparse", "SCREEN-30 profile connectivity reaches graph params")
+	_assert_eq(String(terrain["type"]), HexGenerationNodeTypes.NODE_TERRAIN_GENERATION, "GQM-13 Simple preset uses consolidated terrain")
+	_assert_eq(String(result["type"]), HexGenerationNodeTypes.NODE_RESULT, "GQM-13 Simple preset keeps Result node")
+	_assert_true(_all_nodes_are_consolidated(graph), "GQM-13 Simple preset contains only consolidated node types")
+	_assert_eq(String((terrain["params"] as Dictionary)["shape"]), "hexagon", "GQM-13 profile shape reaches graph params")
+	_assert_eq(int((terrain["params"] as Dictionary)["radius"]), 5, "GQM-13 profile radius reaches graph params")
+	_assert_eq(float((terrain["params"] as Dictionary)["wall_probability"]), 0.37, "GQM-13 profile wall probability reaches graph params")
+	_assert_eq(int((terrain["params"] as Dictionary)["wall_seed"]), 42, "GQM-13 profile seed reaches wall graph params")
+	_assert_eq(String((terrain["params"] as Dictionary)["connectivity_method"]), "sparse", "GQM-13 profile connectivity reaches graph params")
 	var promote_targets = HexGenerationPreset.promote_targets_for_profile(profile)
-	_assert_eq(String((promote_targets[0] as Dictionary)["node_id"]), "result", "SCREEN-30 preset promote target is Result")
-	_assert_eq(String((promote_targets[0] as Dictionary)["role"]), "result", "SCREEN-30 preset promote role is Result")
-	_assert_simple_preset_matches_legacy_chain(graph, _legacy_simple_profile_graph(profile), "GQM-15 Simple preset output matches legacy chain")
+	_assert_eq(String((promote_targets[0] as Dictionary)["node_id"]), "result", "GQM-13 preset promote target is Result")
+	_assert_eq(String((promote_targets[0] as Dictionary)["role"]), "result", "GQM-13 preset promote role is Result")
+	_assert_simple_preset_matches_legacy_chain(graph, _legacy_simple_profile_graph(profile), "GQM-13 Simple preset output matches legacy chain")
 
 
-func _test_build_screen_simple_profile_opens_graph_and_promotes_terrain() -> void:
-	var context := HexMapWorkspaceAssetContext.new()
-	context.set_level_document(HexMapDocumentResource.new())
-	var profile := HexGenerationProfileResource.new()
-	profile.profile_id = "screen30_profile"
-	profile.display_name = "Screen 30 Profile"
-	profile.shape_id = "rectangle"
-	profile.width = 7
-	profile.height = 5
-	profile.default_seed = 9
-	profile.wall_probability = 0.2
-	profile.connectivity_mode = "dense"
-	context.set_generation_profile(profile)
-
+func _test_build_header_sweeps_old_controls_and_lists_templates() -> void:
 	var screen = HexMapBuildScreen.new()
-	screen.set_workspace_asset_context(context)
 	root.add_child(screen)
-	var scene_root = Node2D.new()
-	root.add_child(scene_root)
-	var selected_layer = HexTileMapLayer.new()
-	selected_layer.name = "Screen30DirectLayer"
-	selected_layer.level_document_resource = context.level_document
-	scene_root.add_child(selected_layer)
 	await process_frame
-	screen.ensure_graph_context_for_hex_tile_map_layer(selected_layer, {"run": false})
-
-	var before = screen.build_screen_snapshot()
-	_assert_true(bool(before["simple_profile_bar_present"]), "SCREEN-30 Build screen exposes Simple profile band")
-	_assert_true(bool(before["simple_generate_button_present"]), "SCREEN-30 Build screen exposes Simple Generate action")
-	_assert_true(bool(before["canvas_is_dominant"]), "SCREEN-30 canvas remains dominant with Simple band present")
-	_assert_eq(String(before["simple_profile_selected"]), "Screen 30 Profile", "SCREEN-30 Simple band shows selected project profile")
-
-	var result = screen.run_simple_profile_graph()
-	_assert_true(bool(result["ok"]), "SCREEN-30 Simple profile graph runs")
-	_assert_eq(String(result["profile_id"]), "screen30_profile", "SCREEN-30 Simple graph records profile id")
-	_assert_true(bool(result["preset_graph_visible_in_canvas"]), "SCREEN-30 Simple graph is visible in the canvas")
-	_assert_eq(String(result["promote_target_role"]), "result", "SCREEN-30 Simple graph targets Result promote")
-	_assert_true(bool((result["promote_result"] as Dictionary).get("ok", false)), "SCREEN-30 Simple graph promotes Result")
-	_assert_eq(context.level_document.terrain_layers.size(), 1, "SCREEN-30 terrain promote writes generated terrain")
 
 	var snapshot = screen.build_screen_snapshot()
-	_assert_true(bool(snapshot["preview_available"]), "SCREEN-30 Simple graph has preview after generate")
-	_assert_true(bool(snapshot["simple_and_graph_same_model"]), "SCREEN-30 Simple and graph share the same visible model")
-	_assert_true(bool(snapshot["preset_graph_visible_in_canvas"]), "SCREEN-30 snapshot records preset graph on canvas")
-	_assert_eq(String(snapshot["promote_target_role"]), "result", "SCREEN-30 snapshot shows Result promote role")
-	_assert_true(bool(snapshot["dirty_status_visible"]), "SCREEN-30 dirty state is visible")
-	_assert_true(bool(snapshot["last_run_visible"]), "SCREEN-30 last run state is visible")
-	_assert_viewport_projection_ok(snapshot, "SCREEN-30 direct Simple graph projects to viewport")
+	_assert_eq(String(snapshot["primary_action"]), "Generate", "GQM-13 primary action is Generate")
+	_assert_true(bool(snapshot["template_dropdown_present"]), "GQM-13 Build header exposes Template dropdown")
+	_assert_true(bool(snapshot["save_as_button_present"]), "GQM-13 Build header exposes Save as")
+	_assert_true(bool(snapshot["load_button_present"]), "GQM-13 Build header exposes Load")
+	_assert_true(bool(snapshot["template_basic_first"]), "GQM-13 Basic template is first")
+	_assert_true(int(snapshot["template_option_count"]) >= 2, "GQM-13 bundled graph templates are listed")
+	_assert_eq(String(snapshot["template_selected"]), "基本形", "GQM-13 Basic template is selected first")
+	_assert_true(not bool(snapshot["load_graph_button_present"]), "GQM-13 old Load Graph button is absent")
+	_assert_true(not bool(snapshot["overwrite_selected_graph_check_present"]), "GQM-13 old Overwrite selected checkbox is absent")
+	_assert_true(not bool(snapshot["simple_profile_bar_present"]), "GQM-13 old Profile row is absent")
+	_assert_true(not bool(snapshot["simple_generate_button_present"]), "GQM-13 old Generate Simple button is absent")
+	_assert_true(not bool(snapshot["batch_controls_secondary"]), "GQM-13 batch controls are removed")
+	_assert_true(not bool(snapshot["seed_randomize"]), "GQM-13 Seed randomize is removed")
+	_assert_true(not bool(snapshot["shape_randomize"]), "GQM-13 Shape randomize is removed")
+	_assert_true(not bool(snapshot["context_chips_visible"]), "GQM-13 context chip text label is absent")
+	_assert_true(screen.find_child("Build Simple Generate Button", true, false) == null, "GQM-13 Simple Generate node is not mounted")
+	_assert_true(screen.find_child("Build Simple Profile Option", true, false) == null, "GQM-13 Profile option node is not mounted")
+	_assert_true(screen.find_child("Build Batch Count", true, false) == null, "GQM-13 Batch count node is not mounted")
+	_assert_true(screen.find_child("Build Seed Randomize", true, false) == null, "GQM-13 Seed randomize node is not mounted")
+	_assert_true(screen.find_child("Build Shape Randomize", true, false) == null, "GQM-13 Shape randomize node is not mounted")
+	_assert_true(screen.find_child("Build Load Graph Button", true, false) == null, "GQM-13 old Load Graph node is not mounted")
+	_assert_true(screen.find_child("Build Overwrite Selected Graph", true, false) == null, "GQM-13 Overwrite node is not mounted")
+	_assert_true(screen.find_child("Build Context Chips", true, false) == null, "GQM-13 context chip label node is not mounted")
 
-	var terrain_params := screen.graph_canvas().node_params("terrain")
-	terrain_params["wall_probability"] = 0.12
-	terrain_params["wall_seed"] = 9
-	screen.graph_canvas().set_node_params("terrain", terrain_params)
-	snapshot = screen.build_screen_snapshot()
-	var dirty_ids = snapshot["dirty_node_ids"] as PackedStringArray
-	_assert_true(dirty_ids.has("terrain"), "SCREEN-30 graph edit marks preset terrain node dirty")
-	_assert_true(dirty_ids.has("result"), "SCREEN-30 graph edit marks downstream Result node dirty")
-	var rerun = screen.run_graph()
-	_assert_true(bool(rerun["ok"]), "SCREEN-30 edited preset graph reruns through the graph path")
-
-	scene_root.queue_free()
 	screen.queue_free()
 	await process_frame
 
 
-func _test_workspace_simple_generate_bootstraps_graphless_selected_layer() -> void:
+func _test_basic_template_applies_and_generates() -> void:
+	var screen = HexMapBuildScreen.new()
+	root.add_child(screen)
+	await process_frame
+
+	var simple_load = screen.apply_template_by_name("Simple")
+	_assert_true(bool(simple_load["ok"]), "GQM-13 Simple template applies")
+	var blocked = screen.apply_template_by_name("基本形")
+	_assert_true(bool(blocked.get("confirmation_required", false)), "GQM-13 existing graph replacement requires confirmation")
+	var basic_load = screen.apply_template_by_name("基本形", {"confirm_replace": true})
+	_assert_true(bool(basic_load["ok"]), "GQM-13 Basic template applies after confirmation")
+	var snapshot = screen.build_screen_snapshot()
+	var canvas = snapshot["canvas"] as Dictionary
+	_assert_true(int(canvas["node_count"]) >= 7, "GQM-13 Basic template creates 7+ nodes")
+	_assert_eq(int(canvas["connection_count"]), 9, "GQM-13 Basic template creates 9 edges")
+	var node_ids = canvas["node_ids"] as PackedStringArray
+	for node_id in PackedStringArray(["terrain", "pattern_b", "seeds_a", "seeds_b", "mask_1", "domain_items", "items", "result"]):
+		_assert_true(node_ids.has(node_id), "GQM-13 Basic template has node %s" % node_id)
+	var report = screen.run_graph()
+	_assert_true(bool(report["ok"]), "GQM-13 Basic template Generate succeeds")
+	_assert_true(bool(screen.build_screen_snapshot()["preview_available"]), "GQM-13 Basic template produces graph preview cache")
+
+	screen.queue_free()
+	await process_frame
+
+
+func _test_graph_save_as_load_roundtrip() -> void:
+	var had_setting := ProjectSettings.has_setting(HexMapAssetLibrary.ASSET_ROOT_SETTING)
+	var previous_setting = ProjectSettings.get_setting(HexMapAssetLibrary.ASSET_ROOT_SETTING) if had_setting else HexMapAssetLibrary.DEFAULT_ASSET_ROOT
+	var asset_root := _test_resource_dir("gqm13_asset_root")
+	ProjectSettings.set_setting(HexMapAssetLibrary.ASSET_ROOT_SETTING, asset_root)
+
+	var screen = HexMapBuildScreen.new()
+	root.add_child(screen)
+	await process_frame
+
+	_assert_true(bool(screen.apply_template_by_name("基本形", {"confirm_replace": true})["ok"]), "GQM-13 roundtrip starts from Basic template")
+	var save_result = screen.save_current_graph_as("GQM13 Round Trip")
+	var save_path := String(save_result.get("path", ""))
+	_assert_eq(int(save_result.get("error", FAILED)), OK, "GQM-13 Save as stores project graph")
+	_assert_true(save_path.begins_with("%s/graphs/" % asset_root), "GQM-13 Save as writes to project graphs layer")
+	_assert_true(HexMapAssetLibrary.load(save_path) is HexGenerationGraphResource, "GQM-13 saved graph reloads as graph resource")
+
+	_assert_true(bool(screen.apply_template_by_name("Simple", {"confirm_replace": true})["ok"]), "GQM-13 Simple template can replace current graph")
+	_assert_eq(int((screen.build_screen_snapshot()["canvas"] as Dictionary)["node_count"]), 2, "GQM-13 Simple replacement changes canvas")
+	var load_result = screen.apply_template_by_name("GQM13 Round Trip", {"confirm_replace": true})
+	_assert_true(bool(load_result["ok"]), "GQM-13 Load reads saved project graph")
+	_assert_eq(String(load_result.get("template_source", "")), HexMapAssetLibrary.SOURCE_PROJECT, "GQM-13 Load identifies project source")
+	var loaded_canvas = (screen.build_screen_snapshot()["canvas"] as Dictionary)
+	_assert_true(int(loaded_canvas["node_count"]) >= 7, "GQM-13 loaded project graph restores Basic node count")
+	_assert_eq(int(loaded_canvas["connection_count"]), 9, "GQM-13 loaded project graph restores Basic edge count")
+
+	screen.queue_free()
+	await process_frame
+	ProjectSettings.set_setting(HexMapAssetLibrary.ASSET_ROOT_SETTING, previous_setting)
+
+
+func _test_workspace_generate_bootstraps_graphless_selected_layer_without_profile() -> void:
 	var workspace = HexMapWorkspace.new()
 	root.add_child(workspace)
 	await process_frame
 	var scene_root = Node2D.new()
 	root.add_child(scene_root)
 	var selected_layer = HexTileMapLayer.new()
-	selected_layer.name = "Screen30GraphlessLayer"
+	selected_layer.name = "GQM13GraphlessLayer"
 	scene_root.add_child(selected_layer)
 	await process_frame
-	workspace.set_selected_hex_tile_map_node(selected_layer, "test.screen30.select_graphless")
-
-	var profile := HexGenerationProfileResource.new()
-	profile.profile_id = "screen30_workspace_profile"
-	profile.display_name = "Screen 30 Workspace Profile"
-	profile.shape_id = "rectangle"
-	profile.width = 6
-	profile.height = 4
-	profile.wall_probability = 0.1
-	workspace.workspace_asset_context().set_generation_profile(profile)
+	workspace.set_selected_hex_tile_map_node(selected_layer, "test.gqm13.select_graphless")
 	await process_frame
 
-	var button = workspace.build_screen().find_child("Build Simple Generate Button", true, false) as Button
-	_assert_true(button is Button, "SCREEN-30 Workspace mounts Simple Generate button")
+	var before = workspace.generation_screen_snapshot()
+	_assert_true(bool(before["template_dropdown_present"]), "GQM-13 workspace Build exposes Template")
+	_assert_true(not bool(before["simple_generate_button_present"]), "GQM-13 workspace does not expose Simple Generate")
+	var button = workspace.build_screen().find_child("Build Generate Button", true, false) as Button
+	_assert_true(button is Button, "GQM-13 Workspace mounts primary Generate button")
 	button.emit_signal("pressed")
 	await process_frame
-	var progress_snapshot = workspace.generation_screen_snapshot()
-	_assert_true(bool(progress_snapshot["run_progress_popup_visible"]), "SCREEN-30 Simple button shows progress before profile graph preparation")
-	await _wait_for_workspace_preview_pending(workspace, "SCREEN-30 Simple button path")
+	await _wait_for_workspace_preview_pending(workspace, "GQM-13 primary Generate path")
 
 	var snapshot = workspace.generation_screen_snapshot()
-	_assert_true(selected_layer.level_document_resource is HexMapDocumentResource, "SCREEN-30 graphless selected layer receives document context")
-	_assert_true(selected_layer.generation_graph_resource is HexGenerationGraphResource, "SCREEN-30 graphless selected layer receives embedded graph resource")
-	_assert_eq(String(selected_layer.generation_graph_resource.ownership_semantics), "embed", "SCREEN-30 generated graph resource is embedded")
-	_assert_eq(String(selected_layer.generation_graph_resource.semantics_reference_path), "", "SCREEN-30 embedded graph resource is self-contained")
+	_assert_true(selected_layer.level_document_resource is HexMapDocumentResource, "GQM-13 graphless selected layer receives document context")
+	_assert_true(selected_layer.generation_graph_resource is HexGenerationGraphResource, "GQM-13 graphless selected layer receives graph resource")
 	var stored_graph: Dictionary = selected_layer.generation_graph_resource.to_graph_model()
-	_assert_true((stored_graph["nodes"] as Dictionary).has("result"), "SCREEN-30 selected layer graph resource stores the Simple preset Result graph")
-	_assert_true(selected_layer.level_document_resource.terrain_layers.size() > 0, "SCREEN-30 Simple button path promotes terrain without Resource reference failure")
-	_assert_true(selected_layer.display_used_cell_count() > 0, "SCREEN-30 Simple button path projects generated terrain to viewport layer")
-	_assert_true(bool(snapshot["build_context_ready"]), "SCREEN-30 Workspace button path records ready build context")
-	_assert_true(bool(snapshot["viewport_preview_visible"]), "SCREEN-30 Simple button path records visible viewport preview")
-	_assert_true(int(snapshot["viewport_preview_cell_count"]) > 0, "SCREEN-30 Simple button path records viewport cell count")
-	_assert_viewport_projection_ok(snapshot, "SCREEN-30 Simple button path has a successful viewport projection report")
-	_assert_eq(String(snapshot["preview_commit_state"]), "preview_pending", "SCREEN-30 Simple button path leaves Apply/Revert preview pending")
-	_assert_true(bool(snapshot["node_thumbnail_secondary"]), "SCREEN-30 node thumbnail remains secondary proof only")
-	_assert_true(bool((snapshot["simple_generate_result"] as Dictionary).get("context_layer_has_graph_resource", false)), "SCREEN-30 Simple result records context layer graph resource")
-	_assert_true(bool((snapshot["simple_generate_result"] as Dictionary).get("preset_graph_visible_in_canvas", false)), "SCREEN-30 Workspace button path opens preset graph in canvas")
+	_assert_eq((stored_graph["nodes"] as Dictionary).size(), 2, "GQM-13 profile-free bootstrap stores Simple graph")
+	_assert_true((stored_graph["nodes"] as Dictionary).has("result"), "GQM-13 profile-free bootstrap stores Result graph")
+	_assert_true(selected_layer.level_document_resource.terrain_layers.size() > 0, "GQM-13 primary Generate promotes terrain")
+	_assert_true(selected_layer.display_used_cell_count() > 0, "GQM-13 primary Generate projects generated terrain to viewport layer")
+	_assert_true(bool(snapshot["build_context_ready"]), "GQM-13 primary Generate records ready build context")
+	_assert_true(bool(snapshot["viewport_preview_visible"]), "GQM-13 primary Generate records visible viewport preview")
+	_assert_viewport_projection_ok(snapshot, "GQM-13 primary Generate has successful viewport projection report")
+	_assert_eq(String(snapshot["preview_commit_state"]), "preview_pending", "GQM-13 primary Generate leaves Apply/Revert preview pending")
 
 	scene_root.queue_free()
 	workspace.queue_free()
-	await process_frame
-
-
-func _test_simple_profile_without_project_profile_uses_default_graph() -> void:
-	var screen = HexMapBuildScreen.new()
-	root.add_child(screen)
-	await process_frame
-
-	var result = screen.run_simple_profile_graph()
-	_assert_true(bool(result["ok"]), "SCREEN-30 Simple profile runs with default profile when no project profile is selected")
-	_assert_eq(String(result["profile_id"]), "default_profile", "SCREEN-30 default profile is explicit")
-	_assert_true(bool(result["preset_graph_visible_in_canvas"]), "SCREEN-30 default Simple graph is visible in canvas")
-	var snapshot = screen.build_screen_snapshot()
-	_assert_eq(String(snapshot["simple_profile_selected"]), "Default Profile", "SCREEN-30 default profile appears in Simple band")
-	_assert_true(bool(snapshot["preview_available"]), "SCREEN-30 default Simple graph generates preview")
-
-	screen.queue_free()
 	await process_frame
 
 
