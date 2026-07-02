@@ -113,3 +113,82 @@ loop 段ごと。◎=背骨に直結 / ○=有効 / △=価値はあるが depth
 ---
 
 round 1 の主張の要約: **「graph = 品質管理面」を実体化する最短経路は、面の新設ではなく、(1) 観察の graph 内蔵化（node badge）、(2) 比較の最小形（batch 並置）、(3) 編集基盤の中央化（REPAIR-21/22）、(4) 既存 COMPLETE の実態検証（VERIFY track）である。**
+
+---
+---
+
+# Round 2 (2026-07-03) — 概念の修正と再提案
+
+round 1 への回答（本文中の `->` 注記）を受けた擦り合わせ。まずズレを明文化し、軸を差し替え、提案を出し直す。
+
+## R2-0. 認識のズレの明文化
+
+- **round 1 の誤読**: 「品質管理」を下流の管理——多数生成 → 観察（badge 乱立）→ 比較（batch 並置）→ 検証（VERIFY 大量）——で実体化しようとした。これは park したはずの **QA 的発想の裏口からの再輸入**だった。タブ配置論も「機能の UX 意義が確定する前の配置論」で順序が逆。
+- **修正後の理解**: 本製品は **1 回の生成で理想のマップが出る**ことを、アルゴリズム（Markov Mesh + 通路後段）と生成フローの設計で保証するコンセプト。したがって品質管理とは、**上流の基準（criteria）を視覚的に編集し、資産（resource file）として保存・使い回し・差し替えること**。下流の観察・比較は最小限に留め、実需要が観測されてから深める。
+- **順序の規律**: 機能が担う UX とその意義を先に確定し、配置（タブ・面・位置）はその後に検討する（§3 への指摘を規律化）。
+
+## R2-1. 修正後の軸 — 基準（criteria）のライフサイクル
+
+**作る（visual editor）→ 保存する（file 資産）→ 使い回す（preset）→ 差し替える（切替）→ 確定する（promote）**
+
+criteria 種別ごとの現状（2026-07-03 コード裏取り）は非対称で、これを **adjacency rules の形に揃える**のが軸:
+
+| criteria | visual editor | file 資産化 | preset | 現状評価 |
+|---|---|---|---|---|
+| adjacency rules | window（磨き込み中） | `.tres`（進行中） | dropdown + `assets/adjacency_rule_presets/` | **基準形（これに揃える）** |
+| markov distribution | window | **×**（graph params に dict 埋込。`custom_distribution_resource` の受け口は存在するが UI 未接続） | 組込み ID（Ilands/Maze/Discrete）のみ | file 化・「preset を root として custom へ読込」が無い |
+| item pool | inspector 行のみ | × | × | editor・資産化とも最弱 |
+| graph 全体 | canvas | `HexGenerationGraphResource` | ×（template 無し） | header に junk（R2-4） |
+| 生成結果 | viewport 投影 | `HexGenerationResultResource`（promote 用途のみ） | — | 名前付き保存・切替が無い |
+
+**resource 参照の中核価値**: criteria が file 資産になると、graph param は値の埋込ではなく **資産への参照**にできる。同じ rule set / distribution を複数 node・複数 graph で共有し、資産側の編集が全参照点へ波及する——「編集した指標」が単一の source of truth になる。これが「編集した指標に基づいた Map 生成」の資産面の実体。
+
+## R2-2. 採用提案（回答を反映した確定リスト・この順で進める）
+
+| 順 | 提案 | 根拠（回答） | 規模 |
+|---|---|---|---|
+| 1 | **REPAIR-21 param schema 中央化**。「default 常時有効」原則（R2-3）を schema の責務に含める | 「明確に進めます」 | queue 済み・着手可 |
+| 2 | **criteria resource 管理の統一設計**: custom_distribution の個別 file 化 + 既存 preset を root として custom に読込・item pool の preset 化・置き場所/命名/sample-production 分離の規約・embed vs reference 整合・adjacency rules と同一の操作文法（Preset dropdown + Save/Load） | 「重要」「そもそものリソースファイルの管理設計から合理化して欲しい」 | **別紙 `RESOURCE_MODEL.md` を round 3 で起こす規模** |
+| 3 | **header 一掃 + graph template**: 意味不明項目の撤去と、rooms / maze 等の template を primary 位置へ（R2-4 に棚卸し） | 「一掃して本質的な機能で押しつぶす利得が大きすぎる」 | 中 |
+| 4 | **生成結果の resource 保存/切替**: run 間比較の正体。名前付き保存 → 一覧（リスト表示。thumbnail はやらない）→ 切替 | 「リソースとして保存して切り替えるだけなのでは」 | 中（保存内容は Q-R2-3） |
+| 5 | **Item Generation node badge（最小）**: 生成項目数とレイヤー内割合のみ。他 node には出さない。レイヤー跨ぎ割合は概念混乱を招くためやらない。実需要を受けて再検討 | 回答どおり | 小 |
+| 6 | **V5 + V6**: 資産の round-trip 完全性 / runtime 同一性 test（提案 2 と同じ列車で） | 「良いと思います。進めてください」 | 小 |
+| 7 | **V8**: REPAIR-17/18 window の完成定義 =「各パラメータが不快感なく UI に反映される」を DoD 化し、実描画キャプチャで判定 | 回答（V5 注記の「グラフィカルなスキルを活用して検証」を DoD に昇格） | 小 |
+
+## R2-3. REPAIR-22 の再 scope 提案: 「semantic gate」→「default 常時有効」
+
+回答「全ての項目はデフォルトで埋まっているはずで、全体的な意義がよくわからない」を原則化する:
+
+- **全 param は default で充足され、default のまま Generate しても常に有効な生成が走る**。
+- 空 rules / 空 pool のような「実行を止めるべき状態」は、gate で検出するのではなく**構成不能にする**（adjacency は default preset、pool は default entry を schema が保証）。
+- したがって gate UI・block reason バッジは**作らない**。REPAIR-22 は独立 task として廃止し、この原則を REPAIR-21（schema 中央化）の acceptance に統合する。queue の書き換えは round 3 確定後に実施。
+
+## R2-4. header 一掃の棚卸し（機能の意義 → 残否。配置はその後）
+
+現状の Build 上部（コード実態）: ① Context chips（text 詰め込み）/ ② Load Graph / ③ Overwrite selected checkbox / ④ **Generate** / ⑤ Profile dropdown + Generate (Simple) の 2 行 + 下部 action row の ⑥ Batch N / ⑦ Seed randomize / ⑧ Shape randomize / ⑨ Apply / ⑩ Revert / ⑪ status。
+
+| 項目 | 担う機能 | 提案 |
+|---|---|---|
+| ④ Generate / ⑨⑩ Apply・Revert / ⑪ status | 生成と確定の primary | **残す** |
+| ⑤ Profile + Generate (Simple) | on-ramp | **template に統合**（Simple profile は template の一種。R2-2-3） |
+| ⑥⑦⑧ Batch / Seed randomize / Shape randomize | 多数生成→比較 | **撤去**（V9 回答: 1 生成で理想を出すコンセプトに原理的に不要。`GENERATION_GRAPH_MODEL.md` §5 の「半オプション」判断を上書き → Q-R2-2） |
+| ② Load Graph / ③ Overwrite selected | graph 資産の読込・上書き | 機能は必要だが header の一等地の意義は無い。**resource model（R2-2-2）の導線として再設計**し header から外す |
+| ① Context chips | 文脈表示 | 情報の要否から再検討（resource model と同時） |
+
+## R2-5. 最後尾 parking（回答理由の記録）
+
+| 項目 | 理由（回答の要旨） |
+|---|---|
+| V1 dirty 伝播 | 細かい改善より構造的 UX 問題が先。UX 確定後で十分 |
+| V2 typed ports | 論理層と UI 層のアダプター差異の理解の問題であり、検証課題ではない |
+| V3 Apply/Revert 縁ケース / V4 Simple↔canvas | 検証は軽いので可。問題が出ても修正は最後尾 |
+| V7 / REPAIR-23 走査 parity | UX 上の意義が不明確。最後尾（queue status 変更は round 3 で） |
+| V9 batch 結果先 / 比較面 | コンセプト原理的に不要（1 生成で理想）。thumbnail 並置は過去の悪例（四角タイルの無関係表示が graph 領域を圧迫）+ 大サイズ生成コストの危険。一覧が要るなら**リストで十分** |
+| 失敗・空出力 node の可視化 | 中間レイヤーは生成結果本体に含まれず、「出ない」と「出さない」をユーザー意図から区別できない。実需要待ち |
+| Q1 QA/Validate 配置 / Q2 比較 UX | どうでもいい（機能の意義確定が先） |
+
+## R2-6. Round 3 への問い（3 つに絞る）
+
+1. **Q-R2-1（resource model の骨子）**: R2-2-2 を別紙 `RESOURCE_MODEL.md` として起こす。対象は adjacency rules / markov distribution / item pool / graph / 生成結果 の 5 種で、規約は「置き場所・命名・sample/production 分離・preset root・embed vs reference・共通操作文法（Preset dropdown + Save/Load）」。**この骨子で書き始めて良いか。他に資産化したい criteria はあるか。**
+2. **Q-R2-2（batch 系の撤去）**: Batch N / Seed randomize / Shape randomize を UI から完全撤去し、`GENERATION_GRAPH_MODEL.md` §5 の「半オプション（N 生成）」判断を上書きして良いか（runner の複数 run 能力自体は headless に残る）。
+3. **Q-R2-3（生成結果 resource の保存内容）**: (a) graph snapshot + seed のみ（軽い・切替時に再生成が走る）/ (b) 出力 data 込み（切替が即時・大マップの再生成コストを回避・file は重い）。**切替の即時性を優先するなら (b) 推奨**（thumbnail 否定の理由「大サイズ生成コスト」と整合）。
