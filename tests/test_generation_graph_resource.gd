@@ -23,6 +23,7 @@ func _run() -> void:
 	_test_graph_resource_to_from_dict_roundtrip()
 	_test_graph_resource_graph_settings_roundtrip()
 	_test_graph_resource_result_overlay_ports_roundtrip()
+	_test_graph_resource_edge_adaptation_roundtrip()
 	_test_graph_resource_save_load_roundtrip()
 	_test_graph_resource_v5_params_save_load_roundtrip()
 	_test_item_pool_resource_save_load_roundtrip()
@@ -157,6 +158,31 @@ func _test_graph_resource_result_overlay_ports_roundtrip() -> void:
 	_assert_true(loaded is HexGenerationGraphResource, "REPAIR-11 Result overlay port graph reloads")
 	_assert_graph_eq((loaded as HexGenerationGraphResource).to_dict(), graph, "REPAIR-11 save/load preserves numbered Result overlay ports")
 	_assert_eq(String(((loaded as HexGenerationGraphResource).promote_targets[0] as Dictionary).get("role", "")), "result", "REPAIR-11 save/load keeps Result promote role")
+
+
+func _test_graph_resource_edge_adaptation_roundtrip() -> void:
+	var graph = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(graph, "terrain", "terrain_generation", {
+		"base_mode": "shape",
+		"shape": "rectangle",
+		"width": 3,
+		"height": 2,
+	})
+	HexGenerationGraph.add_node(graph, "items", "item_generation", {
+		"placement_method": "weighted",
+		"placement_probability": 1.0,
+		"item_pool": [{"name": "gem", "weight": 1.0}],
+	})
+	HexGenerationGraph.add_edge(graph, "terrain", "items", "domain", "out", "floor")
+	var resource = HexGenerationGraphResource.from_dict(graph)
+	resource.graph_id = "gqm16_edge_adaptation_roundtrip"
+
+	_assert_graph_eq(resource.to_dict(), graph, "GQM-16 resource to_dict preserves edge adaptation")
+	var path := _test_resource_path("gqm16_edge_adaptation_roundtrip.tres")
+	_assert_eq(ResourceSaver.save(resource, path), OK, "GQM-16 edge adaptation graph resource saves")
+	var loaded = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
+	_assert_true(loaded is HexGenerationGraphResource, "GQM-16 edge adaptation graph resource reloads")
+	_assert_graph_eq((loaded as HexGenerationGraphResource).to_dict(), graph, "GQM-16 save/load preserves edge adaptation")
 
 
 func _test_graph_resource_v5_params_save_load_roundtrip() -> void:

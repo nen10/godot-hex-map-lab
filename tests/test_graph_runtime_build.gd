@@ -1,10 +1,16 @@
 extends SceneTree
 
 const HexGenerationGraph = preload("res://addons/hex_map_kit/generation/hex_generation_graph.gd")
+const HexGenerationGraphRunner = preload("res://addons/hex_map_kit/generation/hex_generation_graph_runner.gd")
 const HexMapGraphBuilder = preload("res://addons/hex_map_kit/generation/hex_map_graph_builder.gd")
 const HexRuntimeGraphBuildSample = preload("res://examples/basic_runtime/runtime_graph_build_sample.gd")
+const HexGenerationResultResource = preload("res://addons/hex_map_kit/adapter/hex_generation_result_resource.gd")
 const HexGenerationGraphResource = preload("res://addons/hex_map_kit/adapter/hex_generation_graph_resource.gd")
+const HexAdjacencyRuleSet = preload("res://addons/hex_map_kit/adapter/hex_adjacency_rule_set.gd")
+const HexItemPoolResource = preload("res://addons/hex_map_kit/adapter/hex_item_pool_resource.gd")
 const HexMapResource = preload("res://addons/hex_map_kit/adapter/hex_map_resource.gd")
+const HexOverlayData = preload("res://addons/hex_map_kit/core/hex_overlay_data.gd")
+const HexWallDistributionResource = preload("res://addons/hex_map_kit/adapter/hex_wall_distribution_resource.gd")
 const HexTileMapLayer = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 const HexMapData = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
 
@@ -21,6 +27,8 @@ func _run() -> void:
 	_test_saved_embed_graph_builds_without_external_reference()
 	_test_reference_semantics_path_resolves_runtime_context()
 	_test_unresolved_semantics_returns_error()
+	_test_runtime_parity_inline_consolidated_graph()
+	_test_runtime_parity_reference_asset_consolidated_graph()
 	_test_runtime_path_has_no_editor_import()
 	await _test_layer_build_from_graph_applies_map()
 
@@ -94,6 +102,16 @@ func _test_unresolved_semantics_returns_error() -> void:
 	_assert_eq(String((result["errors"] as Array)[0]["code"]), "semantics_unresolved", "RUNTIME-50 unresolved semantics is reported as an error")
 
 
+func _test_runtime_parity_inline_consolidated_graph() -> void:
+	var resource := _consolidated_runtime_parity_graph_resource(false)
+	_assert_runtime_parity(resource, 91, "GQM-16 inline/embed consolidated graph")
+
+
+func _test_runtime_parity_reference_asset_consolidated_graph() -> void:
+	var resource := _consolidated_runtime_parity_graph_resource(true)
+	_assert_runtime_parity(resource, 92, "GQM-16 reference asset consolidated graph")
+
+
 func _test_runtime_path_has_no_editor_import() -> void:
 	for path in [
 		"res://addons/hex_map_kit/generation/hex_map_graph_builder.gd",
@@ -141,6 +159,64 @@ func _random_wall_graph_resource() -> HexGenerationGraphResource:
 	return resource
 
 
+func _consolidated_runtime_parity_graph_resource(reference_assets: bool) -> HexGenerationGraphResource:
+	var terrain_params := {
+		"base_mode": "shape",
+		"shape": "square",
+		"size": 4,
+		"wall_method": "markov_mesh",
+		"wall_probability": 0.0,
+		"distribution_mode": "custom",
+		"custom_distribution": _zero_custom_distribution(),
+		"wall_seed": 3,
+		"connectivity_method": "none",
+	}
+	var seed_params := {
+		"placement_method": "weighted",
+		"placement_probability": 1.0,
+		"seed": 5,
+		"item_pool": [{"name": "seed", "weight": 1.0, "limit": 4}],
+	}
+	var item_params := {
+		"placement_method": "adjacency_rules",
+		"item_name": "gem",
+		"probability_rules": {"default": 1.0, "rules": []},
+		"neighbor_radius": 1,
+		"include_generated_reference": false,
+		"seed": 7,
+	}
+	if reference_assets:
+		terrain_params["distribution_mode"] = "preset"
+		terrain_params["custom_distribution"] = _full_custom_distribution()
+		terrain_params["distribution_asset_path"] = _save_wall_distribution_resource("runtime_parity_distribution.tres", _zero_custom_distribution())
+		seed_params["item_pool"] = [{"name": "inline_seed", "weight": 1.0, "limit": 1}]
+		seed_params["item_pool_asset_path"] = _save_item_pool_resource("runtime_parity_pool.tres", [{"name": "seed", "weight": 1.0, "limit": 4}])
+		item_params["probability_rules"] = {"default": 0.0, "rules": []}
+		item_params["rules_asset_path"] = _save_adjacency_rule_resource("runtime_parity_rules.tres", "default=1.0")
+
+	var graph := HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(graph, "terrain", "terrain_generation", terrain_params)
+	HexGenerationGraph.add_node(graph, "seed_items", "item_generation", seed_params)
+	HexGenerationGraph.add_node(graph, "domain", "set_operation", {"operation": "intersection", "display_name": "item_domain"})
+	HexGenerationGraph.add_node(graph, "items", "item_generation", item_params)
+	HexGenerationGraph.add_node(graph, "result", "result")
+	HexGenerationGraph.add_edge(graph, "terrain", "seed_items", "domain", "out", "floor")
+	HexGenerationGraph.add_edge(graph, "terrain", "domain", "in_0", "out", "floor")
+	HexGenerationGraph.add_edge(graph, "seed_items", "domain", "in_1", "out", "cells")
+	HexGenerationGraph.add_edge(graph, "domain", "items", "domain")
+	HexGenerationGraph.add_edge(graph, "terrain", "result", "in_0")
+	HexGenerationGraph.add_edge(graph, "items", "result", "in_1")
+	var resource := HexGenerationGraphResource.from_dict(graph)
+	resource.graph_id = "gqm16_reference_parity" if reference_assets else "gqm16_inline_parity"
+	resource.ownership_semantics = "embed"
+	resource.semantics_snapshot = {"embed": true}
+	resource.promote_targets = [
+		{"node_id": "terrain", "role": "terrain"},
+		{"node_id": "items", "role": "overlay"},
+	]
+	return resource
+
+
 func _source_context_graph_resource() -> HexGenerationGraphResource:
 	var graph := HexGenerationGraph.new_graph()
 	HexGenerationGraph.add_node(graph, "input_map", "source", {
@@ -154,6 +230,33 @@ func _source_context_graph_resource() -> HexGenerationGraphResource:
 	return resource
 
 
+func _assert_runtime_parity(resource: HexGenerationGraphResource, seed: int, message: String) -> void:
+	var editor_report := HexGenerationGraphRunner.run_with_report(resource.to_dict(), {"seed": seed})
+	var runtime_result := HexMapGraphBuilder.build(resource, {"seed": seed})
+	_assert_true(bool(editor_report["ok"]), "%s editor-side runner succeeds" % message)
+	_assert_true(bool(runtime_result["ok"]), "%s runtime Map Build succeeds" % message)
+	_assert_eq((editor_report.get("warnings", []) as Array).size(), 0, "%s editor-side runner has no warnings" % message)
+	_assert_eq((runtime_result.get("warnings", []) as Array).size(), 0, "%s runtime Map Build has no warnings" % message)
+	var editor_cache = editor_report["cache"] as Dictionary
+	var editor_result = editor_cache["result"] as HexGenerationResultResource
+	_assert_true(editor_result is HexGenerationResultResource, "%s editor runner produces Result resource" % message)
+	if not (editor_result is HexGenerationResultResource):
+		return
+	_assert_true(editor_result.primary_map != null, "%s editor Result has a substrate map" % message)
+	if editor_result.primary_map == null:
+		return
+	_assert_eq(_map_signature(runtime_result["map_data"]), _map_signature(editor_result.primary_map.to_map_data()), "%s promoted terrain matches Result substrate" % message)
+	var runtime_overlays = runtime_result.get("overlays", []) as Array
+	_assert_eq(runtime_overlays.size(), 1, "%s runtime promotes one overlay" % message)
+	_assert_eq(editor_result.overlay_maps.size(), 1, "%s editor Result records one overlay" % message)
+	if runtime_overlays.size() == 0 or editor_result.overlay_maps.size() == 0:
+		return
+	var runtime_overlay = (runtime_overlays[0] as Dictionary).get("data", null)
+	_assert_true(runtime_overlay is HexOverlayData, "%s runtime promoted overlay is HexOverlayData" % message)
+	if runtime_overlay is HexOverlayData:
+		_assert_eq(_overlay_signature(runtime_overlay), _overlay_signature(editor_result.overlay_maps[0].to_overlay_data()), "%s promoted overlay matches Result overlay" % message)
+
+
 func _map_signature(data) -> String:
 	if not data is HexMapData:
 		return "<missing>"
@@ -162,6 +265,64 @@ func _map_signature(data) -> String:
 		str(HexMapData.sorted_keys(data.walls)),
 		int(data.cyclic_size),
 	]
+
+
+func _overlay_signature(data) -> String:
+	if not data is HexOverlayData:
+		return "<missing>"
+	var parts: Array = []
+	for item_key in (data as HexOverlayData).item_keys():
+		parts.append("%s=%s" % [String(item_key), str(HexMapData.sorted_keys((data as HexOverlayData).item_cells(String(item_key))))])
+	return "%s|%s|%d" % [
+		str(HexMapData.sorted_keys((data as HexOverlayData).cells)),
+		";".join(parts),
+		int((data as HexOverlayData).cyclic_size),
+	]
+
+
+func _zero_custom_distribution() -> Dictionary:
+	return {
+		"0": [0.0],
+		"1": [0.0, 0.0],
+		"2": [0.0, 0.0, 0.0, 0.0],
+		"3": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+	}
+
+
+func _full_custom_distribution() -> Dictionary:
+	return {
+		"0": [8.0],
+		"1": [8.0, 8.0],
+		"2": [8.0, 8.0, 8.0, 8.0],
+		"3": [8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0],
+	}
+
+
+func _save_wall_distribution_resource(file_name: String, weights: Dictionary) -> String:
+	var resource := HexWallDistributionResource.new()
+	resource.display_name = file_name.get_basename()
+	resource.weights_by_count = weights.duplicate(true)
+	var path := _test_resource_path(file_name)
+	_assert_eq(ResourceSaver.save(resource, path), OK, "GQM-16 runtime wall distribution resource saves")
+	return path
+
+
+func _save_item_pool_resource(file_name: String, entries: Array) -> String:
+	var resource := HexItemPoolResource.new()
+	resource.display_name = file_name.get_basename()
+	resource.entries = entries.duplicate(true)
+	var path := _test_resource_path(file_name)
+	_assert_eq(ResourceSaver.save(resource, path), OK, "GQM-16 runtime item pool resource saves")
+	return path
+
+
+func _save_adjacency_rule_resource(file_name: String, rules_text: String) -> String:
+	var resource := HexAdjacencyRuleSet.new()
+	resource.display_name = file_name.get_basename()
+	resource.rules_text = rules_text
+	var path := _test_resource_path(file_name)
+	_assert_eq(ResourceSaver.save(resource, path), OK, "GQM-16 runtime adjacency rule resource saves")
+	return path
 
 
 func _test_resource_path(file_name: String) -> String:

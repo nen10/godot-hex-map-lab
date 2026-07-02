@@ -122,3 +122,30 @@ proof:
     - 統合4ノードの構築・一色 edge・adaptation dropdown（terrain→floor / overlay→cells）・可変入力行（空き行1つ方式）・Result 行の substrate / overlay 0 / unused 解決・循環拒否（"Connection would create a cycle."）・run ok
   finding:
     - selection 入力の adaptation 表示が `none` で passthrough の意味が読めない → GQM-11 の deliverable に引き継ぎ済み
+
+### GQM-16_RUNTIME_PARITY_WITH_REFERENCE_ASSETS
+
+proof:
+  review: `docs/review/autopilot/GQM-16_RUNTIME_PARITY_WITH_REFERENCE_ASSETS_SELF_REVIEW_2026-07-03.md`
+  execution:
+    - `docs/review/autopilot/GQM-16_RUNTIME_PARITY_WITH_REFERENCE_ASSETS_SELF_REVIEW_2026-07-03.md`
+  tests:
+    - focused `res://tests/test_generation_graph.gd` (exit 0)
+    - focused `res://tests/test_generation_graph_resource.gd` (exit 0)
+    - focused `res://tests/test_graph_runtime_build.gd` (exit 0)
+    - `./tools/test.sh` (exit 0; run id `20260703-073022-75457`)
+    - UI metric report `.godot_user/ui-metrics/20260703-073022-75457/workspace_layout_metrics.md`: P0 `0`, P1 `0`
+  acceptance:
+    - `distribution_asset_path`, `rules_asset_path`, and `item_pool_asset_path` resolve in the shared generation run layer before node execution.
+    - Missing reference paths fall back to inline params and produce explicit `asset_reference_unresolved` warnings in runner/build reports.
+    - Runtime Map Build and editor-side `HexGenerationGraphRunner` produce identical promoted terrain and overlay signatures for inline/embed and generated `.tres` reference-asset graph resources with the same seed.
+    - Edge `adaptation` survives `HexGenerationGraphResource` dictionary conversion and `.tres` save/load round-trip.
+  major files:
+    - `addons/hex_map_kit/generation/hex_generation_node_types.gd`
+    - `addons/hex_map_kit/generation/hex_generation_param_schema.gd`
+    - `addons/hex_map_kit/generation/hex_generation_graph_runner.gd`
+    - `addons/hex_map_kit/generation/hex_map_graph_builder.gd`
+    - `addons/hex_map_kit/adapter/hex_generation_graph_resource.gd`
+    - `tests/test_generation_graph.gd`
+    - `tests/test_graph_runtime_build.gd`
+    - `tests/test_generation_graph_resource.gd`

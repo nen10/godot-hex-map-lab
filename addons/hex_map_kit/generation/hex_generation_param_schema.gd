@@ -85,6 +85,7 @@ static func _ordered_keys_for(node_type: String) -> Array[String]:
 				"wall_method",
 				"wall_probability",
 				"distribution_mode",
+				"distribution_asset_path",
 				"distribution_id",
 				"custom_distribution",
 				"wall_seed",
@@ -101,8 +102,10 @@ static func _ordered_keys_for(node_type: String) -> Array[String]:
 				"placement_method",
 				"placement_probability",
 				"item_pool",
+				"item_pool_asset_path",
 				"item_name",
 				"probability_rules",
+				"rules_asset_path",
 				"neighbor_radius",
 				"include_generated_reference",
 				"seed",
@@ -201,7 +204,7 @@ static func _terrain_generation_declarations() -> Dictionary:
 					"distribution_id": 20,
 				},
 			},
-			"affects": ["wall_probability", "distribution_mode", "distribution_id", "custom_distribution", "wall_seed"],
+			"affects": ["wall_probability", "distribution_mode", "distribution_asset_path", "distribution_id", "custom_distribution", "wall_seed"],
 		}),
 		"wall_probability": _entry("wall_probability", "Probability / Cell", CONTROL_SPIN_FLOAT, 0.3, {
 			"min": 0.0,
@@ -226,6 +229,10 @@ static func _terrain_generation_declarations() -> Dictionary:
 				"custom": {"custom_distribution": _default_custom_distribution()},
 			},
 			"affects": ["distribution_id", "custom_distribution"],
+		}),
+		"distribution_asset_path": _entry("distribution_asset_path", "Distribution Asset Path", CONTROL_LINE_EDIT, "", {
+			"visible_when": _is("wall_method", "markov_mesh"),
+			"asset_kind": ASSET_WALL_DISTRIBUTIONS,
 		}),
 		"distribution_id": _entry("distribution_id", "Distribution", CONTROL_OPTION, 20, {
 			"options": [
@@ -327,8 +334,10 @@ static func _item_generation_declarations() -> Dictionary:
 			"affects": [
 				"placement_probability",
 				"item_pool",
+				"item_pool_asset_path",
 				"item_name",
 				"probability_rules",
+				"rules_asset_path",
 				"neighbor_radius",
 				"include_generated_reference",
 			],
@@ -343,10 +352,18 @@ static func _item_generation_declarations() -> Dictionary:
 			"visible_when": _in("placement_method", ["weighted", "limited"]),
 			"asset_kind": ASSET_ITEM_POOLS,
 		}),
+		"item_pool_asset_path": _entry("item_pool_asset_path", "Item Pool Asset Path", CONTROL_LINE_EDIT, "", {
+			"visible_when": _in("placement_method", ["weighted", "limited"]),
+			"asset_kind": ASSET_ITEM_POOLS,
+		}),
 		"item_name": _entry("item_name", "Item Name", CONTROL_LINE_EDIT, "item", {
 			"visible_when": _is("placement_method", "adjacency_rules"),
 		}),
 		"probability_rules": _entry("probability_rules", "Probability Rules", CONTROL_PROBABILITY_RULES, _default_probability_rules(), {
+			"visible_when": _is("placement_method", "adjacency_rules"),
+			"asset_kind": ASSET_ADJACENCY_RULES,
+		}),
+		"rules_asset_path": _entry("rules_asset_path", "Rules Asset Path", CONTROL_LINE_EDIT, "", {
 			"visible_when": _is("placement_method", "adjacency_rules"),
 			"asset_kind": ASSET_ADJACENCY_RULES,
 		}),

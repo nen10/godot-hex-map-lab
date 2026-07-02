@@ -14,6 +14,8 @@ const HexMapDocumentResourceScript = preload("res://addons/hex_map_kit/adapter/h
 const HexMapDocumentTerrainLayerResourceScript = preload("res://addons/hex_map_kit/adapter/hex_map_document_terrain_layer_resource.gd")
 const HexMapDocumentOverlayLayerResourceScript = preload("res://addons/hex_map_kit/adapter/hex_map_document_overlay_layer_resource.gd")
 const HexGenerationResultResourceScript = preload("res://addons/hex_map_kit/adapter/hex_generation_result_resource.gd")
+const HexAdjacencyRuleSetScript = preload("res://addons/hex_map_kit/adapter/hex_adjacency_rule_set.gd")
+const HexItemPoolResourceScript = preload("res://addons/hex_map_kit/adapter/hex_item_pool_resource.gd")
 const HexWallDistributionResourceScript = preload("res://addons/hex_map_kit/adapter/hex_wall_distribution_resource.gd")
 
 const NODE_TERRAIN_GENERATION := "terrain_generation"
@@ -233,7 +235,7 @@ static func output_type_for_node(node: Dictionary) -> String:
 
 static func run_node(node: Dictionary, inputs: Dictionary, context: Dictionary):
 	var node_type = String(node.get("type", ""))
-	var params = node.get("params", {})
+	var params = _resolved_asset_reference_params(node_type, node.get("params", {}), context)
 	var resource_refs = node.get("resource_refs", {})
 	match node_type:
 		NODE_TERRAIN_GENERATION:
@@ -894,21 +896,235 @@ static func _points_param(params: Dictionary, key: String) -> Array:
 	return value.duplicate() if value is Array else []
 
 
+static func _resolved_asset_reference_params(node_type: String, params_value, context: Dictionary) -> Dictionary:
+	var result := (params_value as Dictionary).duplicate(true) if params_value is Dictionary else {}
+	match node_type:
+		NODE_TERRAIN_GENERATION:
+			_resolve_distribution_asset_path(result, context)
+		NODE_ITEM_GENERATION:
+			_resolve_rules_asset_path(result, context)
+			_resolve_item_pool_asset_path(result, context)
+	return result
+
+
+static func _resolve_distribution_asset_path(params: Dictionary, context: Dictionary) -> void:
+	var path := _asset_reference_path(params, "distribution_asset_path")
+	if path == "":
+		return
+	var resource = _load_asset_reference(path, "distribution_asset_path", "wall_distributions", context)
+	if resource is HexWallDistributionResourceScript:
+		params["custom_distribution_resource"] = resource
+		params["distribution_mode"] = "custom"
+		return
+	if resource != null:
+		_warn_asset_reference_type(
+			context,
+			"distribution_asset_path",
+			path,
+			"wall_distributions",
+			"HexWallDistributionResource",
+			resource
+		)
+
+
+static func _resolve_rules_asset_path(params: Dictionary, context: Dictionary) -> void:
+	var path := _asset_reference_path(params, "rules_asset_path")
+	if path == "":
+		return
+	var resource = _load_asset_reference(path, "rules_asset_path", "adjacency_rules", context)
+	if resource is HexAdjacencyRuleSetScript:
+		params["probability_rules"] = _probability_rules_from_adjacency_resource(resource as HexAdjacencyRuleSetScript)
+		return
+	if resource != null:
+		_warn_asset_reference_type(
+			context,
+			"rules_asset_path",
+			path,
+			"adjacency_rules",
+			"HexAdjacencyRuleSet",
+			resource
+		)
+
+
+static func _resolve_item_pool_asset_path(params: Dictionary, context: Dictionary) -> void:
+	var path := _asset_reference_path(params, "item_pool_asset_path")
+	if path == "":
+		return
+	var resource = _load_asset_reference(path, "item_pool_asset_path", "item_pools", context)
+	if resource is HexItemPoolResourceScript:
+		params["item_pool"] = (resource as HexItemPoolResourceScript).entries.duplicate(true)
+		return
+	if resource != null:
+		_warn_asset_reference_type(
+			context,
+			"item_pool_asset_path",
+			path,
+			"item_pools",
+			"HexItemPoolResource",
+			resource
+		)
+
+
+static func _asset_reference_path(params: Dictionary, key: String) -> String:
+	return String(params.get(key, "")).strip_edges()
+
+
+static func _load_asset_reference(path: String, param_key: String, asset_kind: String, context: Dictionary):
+	if not ResourceLoader.exists(path):
+		_append_asset_reference_warning(
+			context,
+			"asset_reference_unresolved",
+			param_key,
+			path,
+			asset_kind,
+			"",
+			"Asset reference '%s' does not exist. Falling back to inline values for %s." % [path, param_key]
+		)
+		return null
+	var resource = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
+	if resource == null:
+		_append_asset_reference_warning(
+			context,
+			"asset_reference_unresolved",
+			param_key,
+			path,
+			asset_kind,
+			"",
+			"Asset reference '%s' could not be loaded. Falling back to inline values for %s." % [path, param_key]
+		)
+	return resource
+
+
+static func _warn_asset_reference_type(
+	context: Dictionary,
+	param_key: String,
+	path: String,
+	asset_kind: String,
+	expected_type: String,
+	resource
+) -> void:
+	_append_asset_reference_warning(
+		context,
+		"asset_reference_type_mismatch",
+		param_key,
+		path,
+		asset_kind,
+		expected_type,
+		"Asset reference '%s' is not a %s. Falling back to inline values for %s." % [path, expected_type, param_key],
+		_actual_resource_type(resource)
+	)
+
+
+static func _append_asset_reference_warning(
+	context: Dictionary,
+	code: String,
+	param_key: String,
+	path: String,
+	asset_kind: String,
+	expected_type: String,
+	message: String,
+	actual_type: String = ""
+) -> void:
+	var warning := {
+		"code": code,
+		"node": String(context.get("__node_id", "")),
+		"param": param_key,
+		"path": path,
+		"asset_kind": asset_kind,
+		"expected_type": expected_type,
+		"actual_type": actual_type,
+		"message": message,
+	}
+	if context.has("__warnings") and context["__warnings"] is Array:
+		(context["__warnings"] as Array).append(warning)
+		return
+	push_warning(message)
+
+
+static func _actual_resource_type(resource) -> String:
+	if resource == null:
+		return "<null>"
+	if resource is Resource:
+		var script = (resource as Resource).get_script()
+		if script != null and script is Script:
+			var script_path := String((script as Script).resource_path)
+			if script_path != "":
+				return script_path
+	return resource.get_class() if resource is Object else str(typeof(resource))
+
+
+static func _probability_rules_from_adjacency_resource(resource: HexAdjacencyRuleSetScript) -> Dictionary:
+	if resource.has_pattern_data() or float(resource.default_probability) != 0.0:
+		var rules: Array = []
+		for raw_pattern in resource.patterns:
+			if not raw_pattern is Dictionary:
+				continue
+			var pattern := raw_pattern as Dictionary
+			var directions = pattern.get("directions", [])
+			rules.append({
+				"directions": directions.duplicate() if directions is Array else [],
+				"component_sizes": _component_sizes_from_direction_keys(directions if directions is Array else []),
+				"probability": clampf(float(pattern.get("probability", 0.5)), 0.0, 1.0),
+			})
+		return {
+			"default": clampf(float(resource.default_probability), 0.0, 1.0),
+			"rules": rules,
+		}
+	return resource.to_probability_rules()
+
+
+static func _component_sizes_from_direction_keys(direction_keys: Array) -> Array:
+	var cells: Array = []
+	for direction in HexVectorScript.directions():
+		if direction_keys.has(direction.key()):
+			cells.append(direction)
+	var remaining := {}
+	for cell in cells:
+		remaining[cell.key()] = cell
+	var sizes: Array = []
+	for cell in cells:
+		if not remaining.has(cell.key()):
+			continue
+		var size := 0
+		var stack: Array = [cell]
+		remaining.erase(cell.key())
+		while not stack.is_empty():
+			var current = stack.pop_back()
+			size += 1
+			for other in cells:
+				if not remaining.has(other.key()):
+					continue
+				if _hex_points_adjacent(current, other):
+					remaining.erase(other.key())
+					stack.append(other)
+		sizes.append(size)
+	sizes.sort()
+	return sizes
+
+
+static func _hex_points_adjacent(a, b) -> bool:
+	var delta = a.subtract(b)
+	for direction in HexVectorScript.directions():
+		if delta.key() == direction.key():
+			return true
+	return false
+
+
 static func _custom_wall_distribution(params: Dictionary):
 	if String(params.get("distribution_mode", "preset")) != "custom":
 		return null
-	var values = params.get("custom_distribution", [])
-	if values is Dictionary and not (values as Dictionary).is_empty():
-		var resource = HexWallDistributionResourceScript.new()
-		resource.weights_by_count = _normalize_custom_distribution_dict(values as Dictionary)
-		return resource
-	if values is Array and not (values as Array).is_empty():
-		var resource = HexWallDistributionResourceScript.new()
-		resource.weights_by_count = {"3": _normalize_distribution_weights(values as Array, 8)}
-		return resource
 	var resource = params.get("custom_distribution_resource", null)
 	if resource != null and resource.has_method("prob"):
 		return resource
+	var values = params.get("custom_distribution", [])
+	if values is Dictionary and not (values as Dictionary).is_empty():
+		var inline_resource = HexWallDistributionResourceScript.new()
+		inline_resource.weights_by_count = _normalize_custom_distribution_dict(values as Dictionary)
+		return inline_resource
+	if values is Array and not (values as Array).is_empty():
+		var inline_resource = HexWallDistributionResourceScript.new()
+		inline_resource.weights_by_count = {"3": _normalize_distribution_weights(values as Array, 8)}
+		return inline_resource
 	return null
 
 
@@ -935,6 +1151,10 @@ static func _probability_rules_param(value) -> Dictionary:
 		var data := value as Dictionary
 		if data.has("default"):
 			result["default"] = clampf(float(data.get("default", 0.0)), 0.0, 1.0)
+		for key in data.keys():
+			if ["default", "name", "rules"].has(key):
+				continue
+			result[key] = clampf(float(data[key]), 0.0, 1.0)
 		for raw_rule in data.get("rules", []) as Array:
 			if not raw_rule is Dictionary:
 				continue

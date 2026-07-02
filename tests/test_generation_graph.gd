@@ -10,6 +10,9 @@ const HexMapDocumentResource = preload("res://addons/hex_map_kit/adapter/hex_map
 const HexMapDocumentTerrainLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_terrain_layer_resource.gd")
 const HexMapDocumentOverlayLayerResource = preload("res://addons/hex_map_kit/adapter/hex_map_document_overlay_layer_resource.gd")
 const HexGenerationResultResource = preload("res://addons/hex_map_kit/adapter/hex_generation_result_resource.gd")
+const HexAdjacencyRuleSet = preload("res://addons/hex_map_kit/adapter/hex_adjacency_rule_set.gd")
+const HexItemPoolResource = preload("res://addons/hex_map_kit/adapter/hex_item_pool_resource.gd")
+const HexWallDistributionResource = preload("res://addons/hex_map_kit/adapter/hex_wall_distribution_resource.gd")
 const HexGenerationPorts = preload("res://addons/hex_map_kit/generation/hex_generation_ports.gd")
 const HexGenerationAdaptation = preload("res://addons/hex_map_kit/generation/hex_generation_adaptation.gd")
 const HexGenerationGraph = preload("res://addons/hex_map_kit/generation/hex_generation_graph.gd")
@@ -49,6 +52,8 @@ func _run() -> void:
 	_test_adaptation_matrix_is_total()
 	_test_would_create_cycle_reports_true_and_false()
 	_test_normalize_graph_preserves_legacy_basic_and_straight_chain()
+	_test_reference_asset_resolution_uses_three_asset_types()
+	_test_reference_asset_resolution_falls_back_with_warnings()
 	_test_consolidated_param_schema_enumerates_all_methods()
 	_test_schema_default_graphs_are_valid_and_execute()
 	_test_schema_affects_match_effective_schema_changes()
@@ -602,6 +607,104 @@ func _test_normalize_graph_preserves_legacy_basic_and_straight_chain() -> void:
 	)
 
 
+func _test_reference_asset_resolution_uses_three_asset_types() -> void:
+	var distribution_path := _save_wall_distribution_resource("gqm16_zero_distribution.tres", _zero_custom_distribution())
+	var item_pool_path := _save_item_pool_resource("gqm16_asset_pool.tres", [{"name": "asset_seed", "weight": 1.0, "limit": 2}])
+	var rules_path := _save_adjacency_rule_resource("gqm16_asset_rules.tres", "default=1.0")
+	var graph = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(graph, "terrain", "terrain_generation", {
+		"base_mode": "shape",
+		"shape": "square",
+		"size": 3,
+		"wall_method": "markov_mesh",
+		"wall_probability": 0.0,
+		"distribution_mode": "preset",
+		"distribution_id": 20,
+		"custom_distribution": _full_custom_distribution(),
+		"distribution_asset_path": distribution_path,
+		"connectivity_method": "none",
+	})
+	HexGenerationGraph.add_node(graph, "seed_items", "item_generation", {
+		"placement_method": "weighted",
+		"placement_probability": 1.0,
+		"seed": 5,
+		"item_pool": [{"name": "inline_seed", "weight": 1.0, "limit": 1}],
+		"item_pool_asset_path": item_pool_path,
+	})
+	HexGenerationGraph.add_node(graph, "rule_items", "item_generation", {
+		"placement_method": "adjacency_rules",
+		"item_name": "asset_rule",
+		"probability_rules": {"default": 0.0, "rules": []},
+		"rules_asset_path": rules_path,
+	})
+	HexGenerationGraph.add_node(graph, "result", "result")
+	HexGenerationGraph.add_edge(graph, "terrain", "seed_items", "domain", "out", "floor")
+	HexGenerationGraph.add_edge(graph, "terrain", "rule_items", "domain", "out", "floor")
+	HexGenerationGraph.add_edge(graph, "terrain", "result", "in_0")
+	HexGenerationGraph.add_edge(graph, "seed_items", "result", "in_1")
+	HexGenerationGraph.add_edge(graph, "rule_items", "result", "in_2")
+
+	var report = HexGenerationGraphRunner.run_with_report(graph, {"seed": 16})
+	_assert_true(bool(report["ok"]), "GQM-16 reference asset graph runs")
+	_assert_eq((report.get("warnings", []) as Array).size(), 0, "GQM-16 valid asset references do not warn")
+	var cache = report["cache"] as Dictionary
+	var terrain = cache["terrain"] as HexMapData
+	var seed_overlay = cache["seed_items"] as HexOverlayData
+	var rule_overlay = cache["rule_items"] as HexOverlayData
+	_assert_true(terrain.walls.size() <= 1, "GQM-16 distribution_asset_path has priority over inline distribution values")
+	_assert_eq(seed_overlay.item_keys(), ["asset_seed"], "GQM-16 item_pool_asset_path replaces inline item pool")
+	_assert_eq(seed_overlay.item_cells("asset_seed").size(), terrain.floor_cells().size(), "GQM-16 referenced item pool places through weighted generator")
+	_assert_eq(rule_overlay.item_cells("asset_rule").size(), terrain.floor_cells().size(), "GQM-16 rules_asset_path replaces inline probability rules")
+
+
+func _test_reference_asset_resolution_falls_back_with_warnings() -> void:
+	var graph = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(graph, "terrain", "terrain_generation", {
+		"base_mode": "shape",
+		"shape": "square",
+		"size": 3,
+		"wall_method": "markov_mesh",
+		"wall_probability": 0.0,
+		"distribution_mode": "custom",
+		"custom_distribution": _zero_custom_distribution(),
+		"distribution_asset_path": "res://missing_gqm16_distribution.tres",
+		"connectivity_method": "none",
+	})
+	HexGenerationGraph.add_node(graph, "seed_items", "item_generation", {
+		"placement_method": "weighted",
+		"placement_probability": 1.0,
+		"seed": 7,
+		"item_pool": [{"name": "inline_seed", "weight": 1.0, "limit": 1}],
+		"item_pool_asset_path": "res://missing_gqm16_item_pool.tres",
+	})
+	HexGenerationGraph.add_node(graph, "rule_items", "item_generation", {
+		"placement_method": "adjacency_rules",
+		"item_name": "inline_rule",
+		"probability_rules": {"default": 0.0, "rules": []},
+		"rules_asset_path": "res://missing_gqm16_rules.tres",
+	})
+	HexGenerationGraph.add_node(graph, "result", "result")
+	HexGenerationGraph.add_edge(graph, "terrain", "seed_items", "domain", "out", "floor")
+	HexGenerationGraph.add_edge(graph, "terrain", "rule_items", "domain", "out", "floor")
+	HexGenerationGraph.add_edge(graph, "terrain", "result", "in_0")
+	HexGenerationGraph.add_edge(graph, "seed_items", "result", "in_1")
+	HexGenerationGraph.add_edge(graph, "rule_items", "result", "in_2")
+
+	var report = HexGenerationGraphRunner.run_with_report(graph, {"seed": 17})
+	_assert_true(bool(report["ok"]), "GQM-16 missing references fall back to inline graph values")
+	_assert_true(_has_warning(report, "distribution_asset_path", "asset_reference_unresolved"), "GQM-16 missing distribution reference is warned")
+	_assert_true(_has_warning(report, "item_pool_asset_path", "asset_reference_unresolved"), "GQM-16 missing item pool reference is warned")
+	_assert_true(_has_warning(report, "rules_asset_path", "asset_reference_unresolved"), "GQM-16 missing rules reference is warned")
+	_assert_true(_warnings_mention_inline_fallback(report), "GQM-16 reference warnings explicitly mention inline fallback")
+	var cache = report["cache"] as Dictionary
+	var terrain = cache["terrain"] as HexMapData
+	var seed_overlay = cache["seed_items"] as HexOverlayData
+	var rule_overlay = cache["rule_items"] as HexOverlayData
+	_assert_true(terrain.walls.size() <= 1, "GQM-16 missing distribution path uses inline custom distribution")
+	_assert_eq(seed_overlay.item_keys(), ["inline_seed"], "GQM-16 missing item pool path uses inline item pool")
+	_assert_eq(rule_overlay.item_cells("inline_rule").size(), 0, "GQM-16 missing rules path uses inline rules")
+
+
 func _test_consolidated_param_schema_enumerates_all_methods() -> void:
 	var schema_source := FileAccess.get_file_as_string("res://addons/hex_map_kit/generation/hex_generation_param_schema.gd")
 	_assert_false(schema_source.contains("editor/"), "GQM-03 schema stays out of editor imports")
@@ -1048,6 +1151,81 @@ func _sorted_dict_keys(values: Dictionary) -> Array:
 
 func _cell(q: int, r: int):
 	return HexVector.apply_basis(q, 0, r)
+
+
+func _zero_custom_distribution() -> Dictionary:
+	return {
+		"0": [0.0],
+		"1": [0.0, 0.0],
+		"2": [0.0, 0.0, 0.0, 0.0],
+		"3": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+	}
+
+
+func _full_custom_distribution() -> Dictionary:
+	return {
+		"0": [8.0],
+		"1": [8.0, 8.0],
+		"2": [8.0, 8.0, 8.0, 8.0],
+		"3": [8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0],
+	}
+
+
+func _save_wall_distribution_resource(file_name: String, weights: Dictionary) -> String:
+	var resource := HexWallDistributionResource.new()
+	resource.display_name = file_name.get_basename()
+	resource.weights_by_count = weights.duplicate(true)
+	var path := _test_resource_path(file_name)
+	_assert_eq(ResourceSaver.save(resource, path), OK, "GQM-16 wall distribution resource saves")
+	return path
+
+
+func _save_item_pool_resource(file_name: String, entries: Array) -> String:
+	var resource := HexItemPoolResource.new()
+	resource.display_name = file_name.get_basename()
+	resource.entries = entries.duplicate(true)
+	var path := _test_resource_path(file_name)
+	_assert_eq(ResourceSaver.save(resource, path), OK, "GQM-16 item pool resource saves")
+	return path
+
+
+func _save_adjacency_rule_resource(file_name: String, rules_text: String) -> String:
+	var resource := HexAdjacencyRuleSet.new()
+	resource.display_name = file_name.get_basename()
+	resource.rules_text = rules_text
+	var path := _test_resource_path(file_name)
+	_assert_eq(ResourceSaver.save(resource, path), OK, "GQM-16 adjacency rule resource saves")
+	return path
+
+
+func _test_resource_path(file_name: String) -> String:
+	var run_id = OS.get_environment("HEX_MAP_TEST_RUN_ID")
+	if run_id == "":
+		run_id = "manual"
+	var path = "res://.godot_user/test-runs/%s/test_generation_graph/%s" % [run_id, file_name]
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
+	return path
+
+
+func _has_warning(report: Dictionary, param_key: String, code: String) -> bool:
+	for raw_warning in report.get("warnings", []) as Array:
+		if not raw_warning is Dictionary:
+			continue
+		var warning := raw_warning as Dictionary
+		if String(warning.get("param", "")) == param_key and String(warning.get("code", "")) == code:
+			return true
+	return false
+
+
+func _warnings_mention_inline_fallback(report: Dictionary) -> bool:
+	var count := 0
+	for raw_warning in report.get("warnings", []) as Array:
+		if not raw_warning is Dictionary:
+			continue
+		var message := String((raw_warning as Dictionary).get("message", ""))
+		if message.find("Falling back to inline values") >= 0:
+			count += 1
+	return count >= 3
 
 
 func _has_error(validation: Dictionary, code: String) -> bool:
