@@ -16,8 +16,8 @@ Status 運用: `docs/process/QUEUE_OPERATION_RULES.md`。Proof は `PROOF_LOG.md
 | id | status | deps | deliverable | target files | acceptance |
 |---|---|---|---|---|---|
 | `GQM-10_UNTYPED_CANVAS_AND_ADAPTATION_ROWS` | `COMPLETE` | `GQM-01` | canvas を統合 4 ノード・全 port type 0・一色に。type id 割当/valid pair 管理/型別色を削除。`connection_request` で adaptation 既定値確定 + 循環拒否（`_is_node_hover_valid` でも drag 中抑制）。input 行に adaptation dropdown（`floor ▾`/`cells ▾`/`item(key)`）を slot 行 Control として内蔵 | `hex_map_build_graph_canvas.gd`, `tests/test_build_graph_canvas.gd` | S: 任意 node 出力→任意 input が editor で接続でき、循環だけ拒否される。adaptation が edge に保存され run に反映。既存 canvas test を統合ノードへ書き換え。`./tools/test.sh` green |
-| `GQM-11_CONSOLIDATED_NODE_INTERNAL_UI` | `BACKLOG` | `GQM-03`, `GQM-10` | ノード内 cascade を schema から描画（Terrain Generation: 台紙⇔壁⇔distribution⇔通路⇔toric、Item Generation: method⇔criteria⇔method別 field）。titlebar に node 名編集 + criteria 資産 chip（RESOURCE_MODEL §4 文法で editor window へ）。method 変更で子要素が名称ごと morph | canvas / inspector / criteria windows | S: 旧 inspector の `_param_*` match 群が消え schema 駆動になる。morph の editor test + 実描画キャプチャ。`./tools/test.sh` green |
-| `GQM-12_RESULT_STACK_AND_PROMOTE` | `BACKLOG` | `GQM-10` | Result node = substrate 自動判別行（未使用 terrain の明示）+ overlay 行（接続順・並べ替え・write policy）+ 層ごと promote。stack panel 表示 | canvas / build_screen / promote | S: 基本形で terrain+overlay の promote が層単位で機能。未使用 terrain 表示。実描画キャプチャ + test |
+| `GQM-11_CONSOLIDATED_NODE_INTERNAL_UI` | `READY` | `GQM-03`, `GQM-10` | ノード内 cascade を schema から描画（Terrain Generation: 台紙⇔壁⇔distribution⇔通路⇔toric、Item Generation: method⇔criteria⇔method別 field）。titlebar に node 名編集 + criteria 資産 chip（RESOURCE_MODEL §4 文法で editor window へ）。method 変更で子要素が名称ごと morph。**GQM-10 視覚検証の引き継ぎ: selection 入力の adaptation 表示が `none` となり passthrough であることが読めない——表示を「そのまま (selection)」等へ明瞭化 or dropdown 非表示** | canvas / inspector / criteria windows | S: 旧 inspector の `_param_*` match 群が消え schema 駆動になる。morph の editor test + 実描画キャプチャ。`./tools/test.sh` green |
+| `GQM-12_RESULT_STACK_AND_PROMOTE` | `READY` | `GQM-10` | Result node = substrate 自動判別行（未使用 terrain の明示）+ overlay 行（接続順・並べ替え・write policy）+ 層ごと promote。stack panel 表示 | canvas / build_screen / promote | S: 基本形で terrain+overlay の promote が層単位で機能。未使用 terrain 表示。実描画キャプチャ + test |
 
 ## Phase G3: 導線と資産 UX
 
@@ -25,7 +25,7 @@ Status 運用: `docs/process/QUEUE_OPERATION_RULES.md`。Proof は `PROOF_LOG.md
 |---|---|---|---|---|---|
 | `GQM-13_HEADER_SWEEP_TEMPLATE_GENERATE_UNIFY` | `BACKLOG` | `GQM-11` | Batch N / Seed randomize / Shape randomize / Profile 行 / Generate(Simple) 撤去。Template ▾（bundled graph preset。**基本形 template を筆頭**）。Load Graph / Overwrite selected を graph 資産 operation（§4 文法）へ移設。Generate 一本化（全系譜実行→出力投影。fallback 概念の削除） | build_screen / preset / workspace | S: Build 上部 = Template / Generate / Apply / Revert / status のみ。基本形 template 1 操作で 7 node graph が立ち即 Generate 可能。実描画キャプチャ |
 | `GQM-14_RESULT_RESOURCE_SAVE_SWITCH` | `BACKLOG` | `GQM-12`, `GQM-02` | 生成結果の名前付き保存（**出力 data 込み**・park 系 field 不使用）→ リスト → 即時切替（再生成なし）→ promote 導線 | adapter / build_screen / tests | S: 保存→切替→promote が data 込みで即時。リスト表示（thumbnail なし） |
-| `GQM-15_LEGACY_GRAPH_LOAD_NORMALIZATION` | `BACKLOG` | `GQM-01`, `GQM-10` | graph resource 読込時の legacy→統合 正規化（Q-DEP-2 (a)）を editor 導線に接続 | graph load 経路 | S: 既存 .tres graph が読込→統合表示→同一出力 |
+| `GQM-15_LEGACY_GRAPH_LOAD_NORMALIZATION` | `READY` | `GQM-01`, `GQM-10` | graph resource 読込時の legacy→統合 正規化（Q-DEP-2 (a)）を editor 導線に接続 | graph load 経路 | S: 既存 .tres graph が読込→統合表示→同一出力 |
 
 ## Phase G4: 完全性
 

@@ -110,3 +110,15 @@ proof:
     - `tests/test_build_graph_canvas.gd`
     - `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
     - `docs/plan/2026-07-02_GRAPH_QUALITY_MANAGEMENT_UX_REDESIGN/IMPLEMENTATION_QUEUE.md`
+
+### GQM-10_VISUAL_VERIFICATION_2026-07-03（orchestrator 実施）
+
+proof:
+  method:
+    - 非 headless Godot + `tools/probe_gqm10_canvas_visual.gd`（基本形 7 node / 9 edge を canvas API で構築し実描画キャプチャ）
+  capture:
+    - `.godot_user/visual-verification/GQM-10/basic_form_consolidated_canvas.png`
+  verified:
+    - 統合4ノードの構築・一色 edge・adaptation dropdown（terrain→floor / overlay→cells）・可変入力行（空き行1つ方式）・Result 行の substrate / overlay 0 / unused 解決・循環拒否（"Connection would create a cycle."）・run ok
+  finding:
+    - selection 入力の adaptation 表示が `none` で passthrough の意味が読めない → GQM-11 の deliverable に引き継ぎ済み
