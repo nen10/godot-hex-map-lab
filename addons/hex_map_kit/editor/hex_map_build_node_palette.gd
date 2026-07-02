@@ -94,31 +94,13 @@ func _add_group(group: Dictionary) -> void:
 func _palette_groups() -> Array[Dictionary]:
 	return [
 		{
-			"id": "anchor",
-			"label": "Anchor",
+			"id": "consolidated",
+			"label": "Add",
 			"entries": [
-				{"id": "source_terrain", "label": "Source Terrain", "node_type": HexGenerationNodeTypesScript.NODE_SOURCE, "params": {"kind": "context", "source_key": "document_terrain", "output_type": "terrain"}, "tooltip": "Add typed Source node that outputs terrain."},
-				{"id": "source_overlay", "label": "Source Overlay", "node_type": HexGenerationNodeTypesScript.NODE_SOURCE, "params": {"kind": "context", "source_key": "document_overlay", "output_type": "overlay"}, "tooltip": "Add typed Source node that outputs overlay."},
-				{"label": "Shape", "node_type": HexGenerationNodeTypesScript.NODE_SHAPE},
+				{"label": "Terrain Generation", "node_type": HexGenerationNodeTypesScript.NODE_TERRAIN_GENERATION},
+				{"label": "Item Generation", "node_type": HexGenerationNodeTypesScript.NODE_ITEM_GENERATION},
+				{"label": "Set Operation", "node_type": HexGenerationNodeTypesScript.NODE_SET_OPERATION},
 				{"label": "Result", "node_type": HexGenerationNodeTypesScript.NODE_RESULT},
-			],
-		},
-		{
-			"id": "build",
-			"label": "Build",
-			"entries": [
-				{"label": "Wall Field", "node_type": HexGenerationNodeTypesScript.NODE_WALL_FIELD},
-				{"label": "Connectivity", "node_type": HexGenerationNodeTypesScript.NODE_CONNECTIVITY},
-				{"label": "Item Generator", "node_type": HexGenerationNodeTypesScript.NODE_ITEM_GENERATOR},
-			],
-		},
-		{
-			"id": "select",
-			"label": "Select",
-			"entries": [
-				{"label": "Terrain Filter", "node_type": HexGenerationNodeTypesScript.NODE_TERRAIN_FILTER},
-				{"label": "Overlay Filter", "node_type": HexGenerationNodeTypesScript.NODE_OVERLAY_FILTER},
-				{"label": "Selection Operator", "node_type": HexGenerationNodeTypesScript.NODE_SET_OPERATION},
 			],
 		},
 	]

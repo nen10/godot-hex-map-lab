@@ -10,39 +10,22 @@ const HexGenerationGraphScript = preload("res://addons/hex_map_kit/generation/he
 const HexGenerationGraphRunnerScript = preload("res://addons/hex_map_kit/generation/hex_generation_graph_runner.gd")
 const HexGenerationNodeTypesScript = preload("res://addons/hex_map_kit/generation/hex_generation_node_types.gd")
 const HexGenerationPortsScript = preload("res://addons/hex_map_kit/generation/hex_generation_ports.gd")
+const HexGenerationAdaptationScript = preload("res://addons/hex_map_kit/generation/hex_generation_adaptation.gd")
+const HexGenerationParamSchemaScript = preload("res://addons/hex_map_kit/generation/hex_generation_param_schema.gd")
 const HexMapPreviewThumbnailScript = preload("res://addons/hex_map_kit/editor/hex_map_preview_thumbnail.gd")
 const HexMapDataScript = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
 const HexOverlayDataScript = preload("res://addons/hex_map_kit/core/hex_overlay_data.gd")
 const HexVectorScript = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 
-const NODE_TYPE_ORDER := [
-	HexGenerationNodeTypesScript.NODE_SOURCE,
-	HexGenerationNodeTypesScript.NODE_SHAPE,
-	HexGenerationNodeTypesScript.NODE_WALL_FIELD,
-	HexGenerationNodeTypesScript.NODE_CONNECTIVITY,
-	HexGenerationNodeTypesScript.NODE_TERRAIN_FILTER,
-	HexGenerationNodeTypesScript.NODE_OVERLAY_FILTER,
-	HexGenerationNodeTypesScript.NODE_SET_OPERATION,
-	HexGenerationNodeTypesScript.NODE_ITEM_GENERATOR,
-	HexGenerationNodeTypesScript.NODE_COMPOSE,
-	HexGenerationNodeTypesScript.NODE_RESULT,
-]
-
-const SLOT_TYPES := {
-	HexGenerationPortsScript.TERRAIN: 1,
-	HexGenerationPortsScript.SELECTION: 2,
-	HexGenerationPortsScript.OVERLAY: 3,
-	HexGenerationPortsScript.RESULT: 4,
-}
-
-const SLOT_COLORS := {
-	HexGenerationPortsScript.TERRAIN: Color(0.38, 0.62, 0.82),
-	HexGenerationPortsScript.SELECTION: Color(0.94, 0.72, 0.32),
-	HexGenerationPortsScript.OVERLAY: Color(0.66, 0.48, 0.78),
-	HexGenerationPortsScript.RESULT: Color(0.46, 0.78, 0.58),
-}
+const UNTYPED_PORT_TYPE := 0
+const UNTYPED_PORT_COLOR := Color(0.58, 0.68, 0.72)
+const ADAPTATION_ITEM_PREFIX := "item:"
+const ADAPTATION_OPTION_NONE := "__none__"
+const ADAPTATION_OPTION_ITEM := "__item__"
 
 const NODE_TITLES := {
+	HexGenerationNodeTypesScript.NODE_TERRAIN_GENERATION: "Terrain Generation",
+	HexGenerationNodeTypesScript.NODE_ITEM_GENERATION: "Item Generation",
 	HexGenerationNodeTypesScript.NODE_SOURCE: "Source",
 	HexGenerationNodeTypesScript.NODE_SHAPE: "Shape",
 	HexGenerationNodeTypesScript.NODE_WALL_FIELD: "Wall Field",
@@ -167,9 +150,13 @@ func _remove_graph_node(node_id: String) -> bool:
 	var graph_node := _graph_node(node_id)
 	if graph_node == null:
 		return false
+	var affected_targets: Array[String] = []
 	for i in range(_connections.size() - 1, -1, -1):
 		var conn := _connections[i] as Dictionary
 		if String(conn.get("from_node", "")) == node_id or String(conn.get("to_node", "")) == node_id:
+			var target_id := String(conn.get("to_node", ""))
+			if target_id != "" and target_id != node_id and not affected_targets.has(target_id):
+				affected_targets.append(target_id)
 			disconnect_node(
 				String(conn.get("from_node", "")),
 				int(conn.get("from_port", -1)),
@@ -188,6 +175,9 @@ func _remove_graph_node(node_id: String) -> bool:
 		if String(nid) != node_id:
 			new_order.append(String(nid))
 	_node_order = new_order
+	for target_id in affected_targets:
+		_compact_variadic_input_connections(target_id)
+	_sync_graph_edit_from_connection_model()
 	_last_status = "Removed node %s." % node_id
 	_mark_dirty_all()
 	return true
@@ -218,39 +208,12 @@ func add_graph_node(node_type: String, position: Vector2 = Vector2.ZERO, node_id
 	graph_node.set_meta("hex_generation_node_type", node_type)
 	graph_node.set_meta("hex_generation_params", params)
 	graph_node.set_meta("hex_generation_resource_refs", {})
-
-	var input_names := _input_names_for_type(node_type)
-	var output_type := _output_type_for_node_meta(node_type, graph_node.get_meta("hex_generation_params", {}))
-	var row_count = max(input_names.size(), 1 if output_type != "" else 0)
 	graph_node.set_meta("hex_generation_input_slots", {})
 	graph_node.set_meta("hex_generation_output_slots", {})
-	for row_index in range(row_count):
-		var input_name := String(input_names[row_index]) if row_index < input_names.size() else ""
-		var label := Label.new()
-		label.text = _slot_row_text(input_name, output_type if row_index == 0 else "")
-		label.clip_text = false
-		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		label.custom_minimum_size = Vector2(192, 0)
-		label.add_theme_font_size_override("font_size", 18)
-		graph_node.add_child(label)
-		var has_left := input_name != ""
-		var left_type := _input_slot_type_id(node_type, input_name)
-		var left_color := _color_for_accepts(node_type, input_name)
-		var has_right := row_index == 0 and output_type != ""
-		var right_type := _slot_type_id(output_type)
-		var right_color := _color_for_port_type(output_type)
-		graph_node.set_slot(row_index, has_left, left_type, left_color, has_right, right_type, right_color)
-		if has_left:
-			var input_slots: Dictionary = graph_node.get_meta("hex_generation_input_slots", {})
-			input_slots[row_index] = input_name
-			graph_node.set_meta("hex_generation_input_slots", input_slots)
-		if has_right:
-			var output_slots: Dictionary = graph_node.get_meta("hex_generation_output_slots", {})
-			output_slots[row_index] = HexGenerationNodeTypesScript.PORT_OUT
-			graph_node.set_meta("hex_generation_output_slots", output_slots)
 
 	add_child(graph_node)
 	_node_order.append(actual_id)
+	_rebuild_graph_node_rows(actual_id)
 	if _selected_node_id == "":
 		select_graph_node(actual_id)
 	_last_status = "Added %s." % graph_node.title
@@ -283,7 +246,7 @@ func clear_graph() -> void:
 	selected_graph_node_changed.emit("")
 
 
-func request_connection(from_node: String, from_port: int, to_node: String, to_port: int) -> Dictionary:
+func request_connection(from_node: String, from_port: int, to_node: String, to_port: int, adaptation_override: String = "") -> Dictionary:
 	var validation := validate_connection(from_node, from_port, to_node, to_port)
 	if not bool(validation.get("ok", false)):
 		_last_rejected_connection = validation.duplicate(true)
@@ -292,7 +255,9 @@ func request_connection(from_node: String, from_port: int, to_node: String, to_p
 		return validation
 	if _has_connection(from_node, from_port, to_node, to_port):
 		return validation
-	connect_node(from_node, from_port, to_node, to_port)
+	var adaptation := String(validation.get("adaptation", ""))
+	if adaptation_override.strip_edges() != "":
+		adaptation = adaptation_override.strip_edges()
 	_connections.append({
 		"from_node": from_node,
 		"from_port": from_port,
@@ -301,7 +266,10 @@ func request_connection(from_node: String, from_port: int, to_node: String, to_p
 		"from_port_name": HexGenerationNodeTypesScript.PORT_OUT,
 		"to_port_name": _input_name_for_slot(to_node, to_port),
 		"port_type": validation.get("port_type", ""),
+		"adaptation": adaptation,
 	})
+	_clear_forced_input_port(to_node, _input_name_for_slot(to_node, to_port))
+	_sync_graph_edit_from_connection_model()
 	_last_status = "Connected %s to %s.%s." % [
 		from_node,
 		to_node,
@@ -323,12 +291,18 @@ func validate_connection(from_node: String, from_port: int, to_node: String, to_
 	var to_port_name := _input_name_for_slot(to_node, to_port)
 	if to_port_name == "":
 		return _connection_result(false, "Target slot is not an input port.")
+	if _input_slot_has_connection(to_node, to_port) and not _has_connection(from_node, from_port, to_node, to_port):
+		return _connection_result(false, "Input %s.%s already has a connection." % [to_node, to_port_name])
+	if _would_create_cycle(from_node, to_node):
+		return _connection_result(false, "Connection would create a cycle.")
 	var from_node_dict := node_dictionary(from_node)
 	var output_type := HexGenerationNodeTypesScript.output_type_for_node(from_node_dict)
 	var to_node_type := String(to_graph_node.get_meta("hex_generation_node_type", ""))
 	var input_def := HexGenerationNodeTypesScript.input_definition(to_node_type, to_port_name)
 	if input_def.is_empty():
 		return _connection_result(false, "Unknown input port %s." % to_port_name)
+	if HexGenerationNodeTypesScript.is_consolidated_type(to_node_type):
+		return _connection_result(true, "", output_type, _default_adaptation_for_output_type(output_type, to_node_type))
 	if not HexGenerationPortsScript.compatible(output_type, input_def.get("accepts", [])):
 		return _connection_result(
 			false,
@@ -405,7 +379,8 @@ func delete_edge(from_node: String, from_port: int, to_node: String, to_port: in
 			break
 	if not deleted:
 		return false
-	disconnect_node(StringName(from_node), from_port, StringName(to_node), to_port)
+	_compact_variadic_input_connections(to_node_id)
+	_sync_graph_edit_from_connection_model()
 	_selected_edge.clear()
 	_update_selected_connection_highlight()
 	_last_status = "Deleted edge %s -> %s." % [from_node, to_node]
@@ -479,7 +454,8 @@ func build_graph_model() -> Dictionary:
 			String(connection.get("from_node", "")),
 			String(connection.get("to_node", "")),
 			String(connection.get("to_port_name", "")),
-			String(connection.get("from_port_name", HexGenerationNodeTypesScript.PORT_OUT))
+			String(connection.get("from_port_name", HexGenerationNodeTypesScript.PORT_OUT)),
+			String(connection.get("adaptation", ""))
 		)
 	return graph
 
@@ -518,10 +494,11 @@ func restore_graph_model(graph: Dictionary, preferred_selected_node_id: String =
 		var from_node := String(edge.get("from_node", ""))
 		var to_node := String(edge.get("to_node", ""))
 		var from_slot := _slot_for_output_name(from_node, String(edge.get("from_port", HexGenerationNodeTypesScript.PORT_OUT)))
+		_ensure_input_row_for_port(to_node, String(edge.get("to_port", "")))
 		var to_slot := _slot_for_input_name(to_node, String(edge.get("to_port", "")))
 		if from_slot < 0 or to_slot < 0:
 			continue
-		var connection := request_connection(from_node, from_slot, to_node, to_slot)
+		var connection := request_connection(from_node, from_slot, to_node, to_slot, String(edge.get("adaptation", "")))
 		if bool(connection.get("ok", false)):
 			connection_count += 1
 
@@ -584,6 +561,7 @@ func complete_graph_run(report: Dictionary, run_context: Dictionary = {}) -> Dic
 		_last_status = _first_error_message(report)
 	_clear_progress_highlight()
 	_update_last_preview_for_selected_node()
+	_sync_graph_edit_from_connection_model()
 	graph_run_completed.emit(_last_run_report.duplicate(true))
 	graph_changed.emit()
 	return _last_run_report.duplicate(true)
@@ -623,7 +601,10 @@ func canvas_snapshot() -> Dictionary:
 		"status_text": _last_status,
 		"last_rejected_connection": _last_rejected_connection.duplicate(true),
 		"dominant_surface": true,
+		"untyped_port_type": UNTYPED_PORT_TYPE,
 		"port_type_colors": _port_color_snapshot(),
+		"adaptation_rows": _adaptation_rows_snapshot(),
+		"result_rows": _result_rows_snapshot(),
 		"run_state": run_state_snapshot(),
 	}
 
@@ -698,6 +679,8 @@ static func _title_for_node(node_type: String, params: Dictionary) -> String:
 
 
 static func default_params_for_type(node_type: String) -> Dictionary:
+	if HexGenerationNodeTypesScript.is_consolidated_type(node_type):
+		return HexGenerationParamSchemaScript.default_params(node_type)
 	match node_type:
 		HexGenerationNodeTypesScript.NODE_SOURCE:
 			return {
@@ -776,7 +759,8 @@ func _on_disconnection_request(from_node: StringName, from_port: int, to_node: S
 				and int(connection.get("to_port", -1)) == to_port:
 			_connections.remove_at(index)
 			break
-	disconnect_node(from_node, from_port, to_node, to_port)
+	_compact_variadic_input_connections(String(to_node))
+	_sync_graph_edit_from_connection_model()
 	if not _selected_edge.is_empty() and _same_connection_slots(_selected_edge, String(from_node), from_port, String(to_node), to_port):
 		_selected_edge.clear()
 		_update_selected_connection_highlight()
@@ -791,16 +775,160 @@ func _graph_node(node_id: String) -> GraphNode:
 	return get_node_or_null(NodePath(node_id)) as GraphNode
 
 
-func _input_names_for_type(node_type: String) -> Array:
-	if node_type == HexGenerationNodeTypesScript.NODE_RESULT:
-		var result: Array = [HexGenerationNodeTypesScript.RESULT_TERRAIN_PORT]
-		result.append_array(HexGenerationNodeTypesScript.result_overlay_port_names())
-		return result
+func _rebuild_graph_node_rows(node_id: String) -> void:
+	var graph_node := _graph_node(node_id)
+	if graph_node == null:
+		return
+	_clear_graph_node_rows(graph_node)
+	var node_type := String(graph_node.get_meta("hex_generation_node_type", ""))
+	var params := graph_node.get_meta("hex_generation_params", {}) as Dictionary
+	var input_names := _input_names_for_node(node_id)
+	var output_type := _output_type_for_node_meta(node_type, params)
+	var row_count = max(input_names.size(), 1 if output_type != "" else 0)
+	graph_node.set_meta("hex_generation_input_slots", {})
+	graph_node.set_meta("hex_generation_output_slots", {})
+	for row_index in range(row_count):
+		var input_name := String(input_names[row_index]) if row_index < input_names.size() else ""
+		var row := _slot_row_control(node_id, input_name, output_type if row_index == 0 else "")
+		graph_node.add_child(row)
+		var has_left := input_name != ""
+		var has_right := row_index == 0 and output_type != ""
+		graph_node.set_slot(
+			row_index,
+			has_left,
+			UNTYPED_PORT_TYPE,
+			UNTYPED_PORT_COLOR,
+			has_right,
+			UNTYPED_PORT_TYPE,
+			UNTYPED_PORT_COLOR
+		)
+		if has_left:
+			var input_slots: Dictionary = graph_node.get_meta("hex_generation_input_slots", {})
+			input_slots[row_index] = input_name
+			graph_node.set_meta("hex_generation_input_slots", input_slots)
+		if has_right:
+			var output_slots: Dictionary = graph_node.get_meta("hex_generation_output_slots", {})
+			output_slots[row_index] = HexGenerationNodeTypesScript.PORT_OUT
+			graph_node.set_meta("hex_generation_output_slots", output_slots)
+
+
+func _clear_graph_node_rows(graph_node: GraphNode) -> void:
+	if graph_node.has_method("clear_all_slots"):
+		graph_node.call("clear_all_slots")
+	for index in range(graph_node.get_child_count() - 1, -1, -1):
+		var child := graph_node.get_child(index)
+		graph_node.remove_child(child)
+		child.queue_free()
+
+
+func _input_names_for_node(node_id: String) -> Array:
+	var graph_node := _graph_node(node_id)
+	if graph_node == null:
+		return []
+	var node_type := String(graph_node.get_meta("hex_generation_node_type", ""))
+	if _node_uses_dynamic_input_rows(node_type):
+		return _dynamic_input_names_for_node(node_id, node_type)
 	var result: Array = []
 	for port_name in HexGenerationNodeTypesScript.input_definitions(node_type).keys():
 		result.append(String(port_name))
 	result.sort()
 	return result
+
+
+func _dynamic_input_names_for_node(node_id: String, node_type: String) -> Array:
+	var result: Array = []
+	for port_name in _connected_input_port_names(node_id):
+		if not result.has(port_name):
+			result.append(port_name)
+	for forced_name in _forced_input_port_names(node_id):
+		if HexGenerationNodeTypesScript.input_definition(node_type, forced_name).is_empty():
+			continue
+		if not result.has(forced_name):
+			result.append(forced_name)
+	result.sort_custom(func(a, b): return _input_port_sort_key(String(a)) < _input_port_sort_key(String(b)))
+	var empty_name := _next_empty_variadic_input_name(result)
+	if empty_name != "" and not result.has(empty_name):
+		result.append(empty_name)
+	return result
+
+
+func _node_uses_dynamic_input_rows(node_type: String) -> bool:
+	return node_type == HexGenerationNodeTypesScript.NODE_SET_OPERATION \
+		or node_type == HexGenerationNodeTypesScript.NODE_RESULT
+
+
+func _connected_input_port_names(node_id: String) -> Array[String]:
+	var result: Array[String] = []
+	for connection in _connections:
+		var connection_dict := connection as Dictionary
+		if String(connection_dict.get("to_node", "")) != node_id:
+			continue
+		var port_name := String(connection_dict.get("to_port_name", connection_dict.get("to_port", "")))
+		if port_name != "" and not result.has(port_name):
+			result.append(port_name)
+	return result
+
+
+func _forced_input_port_names(node_id: String) -> Array[String]:
+	var graph_node := _graph_node(node_id)
+	if graph_node == null:
+		return []
+	var forced = graph_node.get_meta("hex_generation_forced_input_ports", [])
+	var result: Array[String] = []
+	if forced is Array:
+		for value in forced:
+			var text := String(value)
+			if text != "" and not result.has(text):
+				result.append(text)
+	return result
+
+
+func _next_empty_variadic_input_name(existing_names: Array) -> String:
+	var index := 0
+	while existing_names.has("in_%d" % index):
+		index += 1
+	return "in_%d" % index
+
+
+func _input_port_sort_key(port_name: String) -> int:
+	if port_name.begins_with("in_"):
+		return int(port_name.substr(3))
+	match port_name:
+		HexGenerationNodeTypesScript.RESULT_TERRAIN_PORT:
+			return 10000
+		"a":
+			return 10001
+		"b":
+			return 10002
+		_:
+			if HexGenerationNodeTypesScript.is_result_overlay_port(port_name):
+				return 11000 + int(port_name.substr(HexGenerationNodeTypesScript.RESULT_OVERLAY_PORT_PREFIX.length()))
+	return 20000
+
+
+func _slot_row_control(node_id: String, input_name: String, output_type: String) -> Control:
+	var row := HBoxContainer.new()
+	row.name = "Slot %s %s" % [node_id, input_name if input_name != "" else "out"]
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_theme_constant_override("separation", 8)
+	var label := Label.new()
+	label.text = _slot_row_text(input_name, output_type)
+	label.clip_text = false
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.custom_minimum_size = Vector2(96, 0)
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.add_theme_font_size_override("font_size", 18)
+	row.add_child(label)
+	if input_name != "" and _uses_adaptation_control(node_id, input_name):
+		_add_adaptation_controls(row, node_id, input_name)
+	if input_name != "" and _node_type_for_id(node_id) == HexGenerationNodeTypesScript.NODE_RESULT:
+		var resolution := Label.new()
+		resolution.name = "ResultResolution %s %s" % [node_id, input_name]
+		resolution.text = _result_resolution_text(node_id, input_name)
+		resolution.custom_minimum_size = Vector2(88, 0)
+		resolution.add_theme_font_size_override("font_size", 16)
+		row.add_child(resolution)
+	return row
 
 
 func _input_name_for_slot(node_id: String, slot: int) -> String:
@@ -841,26 +969,6 @@ func _slot_for_output_name(node_id: String, output_name: String) -> int:
 	return -1
 
 
-func _input_slot_type_id(node_type: String, input_name: String) -> int:
-	var input_def := HexGenerationNodeTypesScript.input_definition(node_type, input_name)
-	var accepts := HexGenerationPortsScript.normalize_accepts(input_def.get("accepts", []))
-	return _slot_type_id(String(accepts[0])) if not accepts.is_empty() else 0
-
-
-func _slot_type_id(port_type: String) -> int:
-	return int(SLOT_TYPES.get(port_type, 0))
-
-
-func _color_for_accepts(node_type: String, input_name: String) -> Color:
-	var input_def := HexGenerationNodeTypesScript.input_definition(node_type, input_name)
-	var accepts := HexGenerationPortsScript.normalize_accepts(input_def.get("accepts", []))
-	return _color_for_port_type(String(accepts[0])) if not accepts.is_empty() else Color(0.5, 0.5, 0.5)
-
-
-func _color_for_port_type(port_type: String) -> Color:
-	return SLOT_COLORS.get(port_type, Color(0.5, 0.5, 0.5))
-
-
 func _output_type_for_node_meta(node_type: String, params: Dictionary) -> String:
 	return HexGenerationNodeTypesScript.output_type_for_node({
 		"type": node_type,
@@ -874,6 +982,293 @@ func _slot_row_text(input_name: String, output_type: String) -> String:
 	if input_name != "":
 		return input_name
 	return output_type
+
+
+func _node_type_for_id(node_id: String) -> String:
+	var graph_node := _graph_node(node_id)
+	if graph_node == null:
+		return ""
+	return String(graph_node.get_meta("hex_generation_node_type", ""))
+
+
+func _uses_adaptation_control(node_id: String, input_name: String) -> bool:
+	var node_type := _node_type_for_id(node_id)
+	if node_type == HexGenerationNodeTypesScript.NODE_RESULT:
+		return false
+	if node_type == HexGenerationNodeTypesScript.NODE_TERRAIN_GENERATION:
+		return input_name == "terminals"
+	if node_type == HexGenerationNodeTypesScript.NODE_ITEM_GENERATION:
+		return input_name == "domain"
+	if node_type == HexGenerationNodeTypesScript.NODE_SET_OPERATION:
+		return true
+	return false
+
+
+func _add_adaptation_controls(row: HBoxContainer, node_id: String, input_name: String) -> void:
+	var edge := _connection_for_input_name(node_id, input_name)
+	var connected := not edge.is_empty()
+	var adaptation := String(edge.get("adaptation", "")) if connected else ""
+	var option := OptionButton.new()
+	option.name = "Adaptation %s %s" % [node_id, input_name]
+	option.custom_minimum_size = Vector2(112, 0)
+	option.disabled = not connected
+	option.tooltip_text = "Input adaptation"
+	_add_adaptation_option(option, "none", ADAPTATION_OPTION_NONE)
+	_add_adaptation_option(option, "floor", HexGenerationAdaptationScript.ADAPT_FLOOR)
+	_add_adaptation_option(option, "wall", HexGenerationAdaptationScript.ADAPT_WALL)
+	_add_adaptation_option(option, "any", HexGenerationAdaptationScript.ADAPT_ANY)
+	_add_adaptation_option(option, "cells", HexGenerationAdaptationScript.ADAPT_CELLS)
+	_add_adaptation_option(option, "item(key)", ADAPTATION_OPTION_ITEM)
+	var selected_index := _adaptation_option_index(option, adaptation)
+	option.select(selected_index)
+	row.add_child(option)
+	var key_edit := LineEdit.new()
+	key_edit.name = "Adaptation Key %s %s" % [node_id, input_name]
+	key_edit.custom_minimum_size = Vector2(84, 0)
+	key_edit.text = _item_key_from_adaptation(adaptation)
+	key_edit.placeholder_text = "key"
+	key_edit.visible = _adaptation_is_item(adaptation)
+	key_edit.editable = connected
+	row.add_child(key_edit)
+	option.item_selected.connect(_on_adaptation_option_selected.bind(node_id, input_name, option, key_edit))
+	key_edit.text_changed.connect(_on_adaptation_key_changed.bind(node_id, input_name))
+
+
+func _add_adaptation_option(option: OptionButton, label: String, value: String) -> void:
+	var index := option.item_count
+	option.add_item(label)
+	option.set_item_metadata(index, value)
+
+
+func _adaptation_option_index(option: OptionButton, adaptation: String) -> int:
+	var normalized := adaptation.strip_edges()
+	if _adaptation_is_item(normalized):
+		normalized = ADAPTATION_OPTION_ITEM
+	elif normalized == "":
+		normalized = ADAPTATION_OPTION_NONE
+	for index in range(option.item_count):
+		if String(option.get_item_metadata(index)) == normalized:
+			return index
+	return 0
+
+
+func _adaptation_is_item(adaptation: String) -> bool:
+	var normalized := adaptation.strip_edges()
+	return normalized.begins_with(ADAPTATION_ITEM_PREFIX) or (normalized.begins_with("item(") and normalized.ends_with(")"))
+
+
+func _item_key_from_adaptation(adaptation: String) -> String:
+	var normalized := adaptation.strip_edges()
+	if normalized.begins_with(ADAPTATION_ITEM_PREFIX):
+		return normalized.substr(ADAPTATION_ITEM_PREFIX.length())
+	if normalized.begins_with("item(") and normalized.ends_with(")"):
+		return normalized.substr(5, normalized.length() - 6)
+	return "item"
+
+
+func _on_adaptation_option_selected(
+	index: int,
+	node_id: String,
+	input_name: String,
+	option: OptionButton,
+	key_edit: LineEdit
+) -> void:
+	var value := String(option.get_item_metadata(index))
+	if value == ADAPTATION_OPTION_NONE:
+		value = ""
+	elif value == ADAPTATION_OPTION_ITEM:
+		value = "%s%s" % [ADAPTATION_ITEM_PREFIX, _non_empty_item_key(key_edit.text)]
+	key_edit.visible = value.begins_with(ADAPTATION_ITEM_PREFIX)
+	set_connection_adaptation(node_id, input_name, value)
+
+
+func _on_adaptation_key_changed(text: String, node_id: String, input_name: String) -> void:
+	set_connection_adaptation(node_id, input_name, "%s%s" % [ADAPTATION_ITEM_PREFIX, _non_empty_item_key(text)])
+
+
+func _non_empty_item_key(text: String) -> String:
+	var value := text.strip_edges()
+	return "item" if value == "" else value
+
+
+func set_connection_adaptation(node_id: String, input_name: String, adaptation: String) -> bool:
+	for index in range(_connections.size()):
+		var connection := _connections[index] as Dictionary
+		if String(connection.get("to_node", "")) == node_id \
+				and String(connection.get("to_port_name", "")) == input_name:
+			connection["adaptation"] = adaptation.strip_edges()
+			if not _selected_edge.is_empty() and _same_connection_slots(
+				connection,
+				String(_selected_edge.get("from_node", "")),
+				int(_selected_edge.get("from_port", -1)),
+				String(_selected_edge.get("to_node", "")),
+				int(_selected_edge.get("to_port", -1))
+			):
+				_selected_edge = connection.duplicate(true)
+			_last_status = "Updated %s.%s adaptation." % [node_id, input_name]
+			_mark_dirty_from_node(node_id)
+			graph_changed.emit()
+			return true
+	return false
+
+
+func connection_adaptation(node_id: String, input_name: String) -> String:
+	var edge := _connection_for_input_name(node_id, input_name)
+	return String(edge.get("adaptation", ""))
+
+
+func _connection_for_input_name(node_id: String, input_name: String) -> Dictionary:
+	for connection in _connections:
+		var connection_dict := connection as Dictionary
+		if String(connection_dict.get("to_node", "")) == node_id \
+				and String(connection_dict.get("to_port_name", "")) == input_name:
+			return connection_dict
+	return {}
+
+
+func _result_resolution_text(node_id: String, input_name: String) -> String:
+	if _connection_for_input_name(node_id, input_name).is_empty():
+		return "unused"
+	var cache = _last_run_report.get("cache", {}) as Dictionary
+	var result_value = cache.get(node_id, null)
+	if not result_value is Object:
+		return "unused"
+	var metadata_value = (result_value as Object).get("metadata")
+	if not metadata_value is Dictionary:
+		return "unused"
+	var metadata := metadata_value as Dictionary
+	for entry in metadata.get("terrain_inputs", []) as Array:
+		var data := entry as Dictionary
+		if String(data.get("port", "")) == input_name:
+			return String(data.get("role", "unused"))
+	for entry in metadata.get("overlay_inputs", []) as Array:
+		var data := entry as Dictionary
+		if String(data.get("port", "")) == input_name:
+			return "overlay %d" % int(data.get("overlay_index", 0))
+	for entry in metadata.get("unused_inputs", []) as Array:
+		var data := entry as Dictionary
+		if String(data.get("port", "")) == input_name:
+			return "unused"
+	return "unused"
+
+
+func _sync_graph_edit_from_connection_model() -> void:
+	_disconnect_visible_connections()
+	for node_id in _node_order:
+		_rebuild_graph_node_rows(String(node_id))
+	_refresh_all_connection_slot_indices()
+	_connect_visible_connections()
+	_update_selected_connection_highlight()
+
+
+func _disconnect_visible_connections() -> void:
+	for raw_connection in get_connection_list():
+		var connection := raw_connection as Dictionary
+		var from_node := String(connection.get("from_node", connection.get("from", "")))
+		var to_node := String(connection.get("to_node", connection.get("to", "")))
+		var from_port := int(connection.get("from_port", -1))
+		var to_port := int(connection.get("to_port", -1))
+		if from_node == "" or to_node == "" or from_port < 0 or to_port < 0:
+			continue
+		disconnect_node(StringName(from_node), from_port, StringName(to_node), to_port)
+
+
+func _connect_visible_connections() -> void:
+	for connection in _connections:
+		var connection_dict := connection as Dictionary
+		var from_node := String(connection_dict.get("from_node", ""))
+		var to_node := String(connection_dict.get("to_node", ""))
+		var from_port := int(connection_dict.get("from_port", -1))
+		var to_port := int(connection_dict.get("to_port", -1))
+		if from_node == "" or to_node == "" or from_port < 0 or to_port < 0:
+			continue
+		connect_node(StringName(from_node), from_port, StringName(to_node), to_port)
+
+
+func _refresh_all_connection_slot_indices() -> void:
+	for index in range(_connections.size()):
+		var connection := _connections[index] as Dictionary
+		connection["from_port"] = _slot_for_output_name(
+			String(connection.get("from_node", "")),
+			String(connection.get("from_port_name", HexGenerationNodeTypesScript.PORT_OUT))
+		)
+		connection["to_port"] = _slot_for_input_name(
+			String(connection.get("to_node", "")),
+			String(connection.get("to_port_name", ""))
+		)
+
+
+func _compact_variadic_input_connections(node_id: String) -> void:
+	var node_type := _node_type_for_id(node_id)
+	if not _node_uses_dynamic_input_rows(node_type):
+		return
+	var next_index := 0
+	for connection in _connections:
+		var connection_dict := connection as Dictionary
+		if String(connection_dict.get("to_node", "")) != node_id:
+			continue
+		var port_name := String(connection_dict.get("to_port_name", ""))
+		if not port_name.begins_with("in_"):
+			continue
+		connection_dict["to_port_name"] = "in_%d" % next_index
+		next_index += 1
+
+
+func _ensure_input_row_for_port(node_id: String, input_name: String) -> void:
+	if input_name == "" or _slot_for_input_name(node_id, input_name) >= 0:
+		return
+	var graph_node := _graph_node(node_id)
+	if graph_node == null:
+		return
+	var node_type := String(graph_node.get_meta("hex_generation_node_type", ""))
+	if HexGenerationNodeTypesScript.input_definition(node_type, input_name).is_empty():
+		return
+	var forced := _forced_input_port_names(node_id)
+	if not forced.has(input_name):
+		forced.append(input_name)
+	graph_node.set_meta("hex_generation_forced_input_ports", forced)
+	_rebuild_graph_node_rows(node_id)
+
+
+func _clear_forced_input_port(node_id: String, input_name: String) -> void:
+	var graph_node := _graph_node(node_id)
+	if graph_node == null:
+		return
+	var forced := _forced_input_port_names(node_id)
+	if not forced.has(input_name):
+		return
+	forced.erase(input_name)
+	graph_node.set_meta("hex_generation_forced_input_ports", forced)
+
+
+func _input_slot_has_connection(node_id: String, slot: int) -> bool:
+	for connection in _connections:
+		var connection_dict := connection as Dictionary
+		if String(connection_dict.get("to_node", "")) == node_id and int(connection_dict.get("to_port", -1)) == slot:
+			return true
+	return false
+
+
+func _would_create_cycle(from_node: String, to_node: String) -> bool:
+	if from_node == to_node:
+		return true
+	return HexGenerationGraphScript.would_create_cycle(build_graph_model(), from_node, to_node)
+
+
+func _default_adaptation_for_output_type(output_type: String, target_node_type: String) -> String:
+	if target_node_type == HexGenerationNodeTypesScript.NODE_RESULT:
+		return ""
+	match output_type:
+		HexGenerationPortsScript.TERRAIN:
+			return HexGenerationAdaptationScript.ADAPT_FLOOR
+		HexGenerationPortsScript.OVERLAY:
+			return HexGenerationAdaptationScript.ADAPT_CELLS
+		_:
+			return ""
+
+
+func _is_node_hover_valid(from_node: StringName, from_port: int, to_node: StringName, to_port: int) -> bool:
+	return bool(validate_connection(String(from_node), from_port, String(to_node), to_port).get("ok", false))
 
 
 func _has_connection(from_node: String, from_port: int, to_node: String, to_port: int) -> bool:
@@ -935,11 +1330,12 @@ func _set_connection_selected(connection: Dictionary, selected: bool) -> void:
 	set_connection_activity(from_node, int(connection.get("from_port", -1)), to_node, int(connection.get("to_port", -1)), 1.0 if selected else 0.0)
 
 
-func _connection_result(ok: bool, reason: String, port_type: String = "") -> Dictionary:
+func _connection_result(ok: bool, reason: String, port_type: String = "", adaptation: String = "") -> Dictionary:
 	return {
 		"ok": ok,
 		"reason": reason,
 		"port_type": port_type,
+		"adaptation": adaptation,
 	}
 
 
@@ -1052,11 +1448,47 @@ func build_default_vertical_slice_chain() -> PackedStringArray:
 
 func _port_color_snapshot() -> Dictionary:
 	return {
-		HexGenerationPortsScript.TERRAIN: _color_for_port_type(HexGenerationPortsScript.TERRAIN).to_html(false),
-		HexGenerationPortsScript.SELECTION: _color_for_port_type(HexGenerationPortsScript.SELECTION).to_html(false),
-		HexGenerationPortsScript.OVERLAY: _color_for_port_type(HexGenerationPortsScript.OVERLAY).to_html(false),
-		HexGenerationPortsScript.RESULT: _color_for_port_type(HexGenerationPortsScript.RESULT).to_html(false),
+		"untyped": UNTYPED_PORT_COLOR.to_html(false),
 	}
+
+
+func _adaptation_rows_snapshot() -> Array[Dictionary]:
+	var rows: Array[Dictionary] = []
+	for node_id in _node_order:
+		for input_name in _input_names_for_node(String(node_id)):
+			if not _uses_adaptation_control(String(node_id), String(input_name)):
+				continue
+			var edge := _connection_for_input_name(String(node_id), String(input_name))
+			rows.append({
+				"node_id": String(node_id),
+				"input": String(input_name),
+				"connected": not edge.is_empty(),
+				"adaptation": String(edge.get("adaptation", "")),
+				"control_present": _find_adaptation_option(String(node_id), String(input_name)) != null,
+			})
+	return rows
+
+
+func _result_rows_snapshot() -> Array[Dictionary]:
+	var rows: Array[Dictionary] = []
+	for node_id in _node_order:
+		if _node_type_for_id(String(node_id)) != HexGenerationNodeTypesScript.NODE_RESULT:
+			continue
+		for input_name in _input_names_for_node(String(node_id)):
+			rows.append({
+				"node_id": String(node_id),
+				"input": String(input_name),
+				"connected": not _connection_for_input_name(String(node_id), String(input_name)).is_empty(),
+				"resolution": _result_resolution_text(String(node_id), String(input_name)),
+			})
+	return rows
+
+
+func _find_adaptation_option(node_id: String, input_name: String) -> OptionButton:
+	var graph_node := _graph_node(node_id)
+	if graph_node == null:
+		return null
+	return graph_node.find_child("Adaptation %s %s" % [node_id, input_name], true, false) as OptionButton
 
 
 func _mark_dirty_all() -> void:

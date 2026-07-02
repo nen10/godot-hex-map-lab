@@ -85,3 +85,28 @@ proof:
   notes:
     - GQM-01/02 の self-review 命名は orchestrator 契約書の指定ミスを gate 規約（完全 task id 形式）へ是正
     - GQM-01 の commit は sandbox gitdir 制約により orchestrator 代行
+
+### GQM-10_UNTYPED_CANVAS_AND_ADAPTATION_ROWS
+
+proof:
+  review: `docs/review/autopilot/GQM-10_UNTYPED_CANVAS_AND_ADAPTATION_ROWS_SELF_REVIEW_2026-07-03.md`
+  execution:
+    - `docs/review/autopilot/GQM-10_UNTYPED_CANVAS_AND_ADAPTATION_ROWS_SELF_REVIEW_2026-07-03.md`
+  implementation:
+    - Build graph canvas ports now render with a single untyped GraphEdit port type id `0` and one shared color for consolidated and legacy nodes.
+    - `connection_request` is centralized in the canvas: cycle rejection uses `HexGenerationGraph.would_create_cycle`, consolidated inputs accept any producer with default edge adaptation, legacy inputs still use `HexGenerationPorts.compatible`, and one input keeps one connection.
+    - Consolidated input rows embed adaptation controls for terrain/item/set inputs, persist the selected edge adaptation in the graph model, and feed the next graph run.
+    - `set_operation` and `result` keep one empty variadic input row; connected rows are compacted after disconnection.
+    - Result rows display runner resolution labels (`substrate`, `overlay N`, `unused`) from the last run report.
+    - The Add Node row exposes only Terrain Generation / Item Generation / Set Operation / Result and creates nodes from `HexGenerationParamSchema.default_params()`.
+  tests:
+    - `res://tests/test_build_graph_canvas.gd` covers consolidated editor connections, cycle rejection, adaptation persistence/run effect, untyped ports, consolidated Add buttons, and legacy incompatible rejection.
+    - `res://tests/test_build_screen_full.gd` passed in the standard suite with the updated consolidated canvas behavior.
+    - `./tools/test.sh` exit `0`; run id `20260703-070921-58547`.
+    - UI metric report `.godot_user/ui-metrics/20260703-070921-58547/workspace_layout_metrics.md`: P0 `0`, P1 `0`.
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_build_graph_canvas.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_node_palette.gd`
+    - `tests/test_build_graph_canvas.gd`
+    - `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+    - `docs/plan/2026-07-02_GRAPH_QUALITY_MANAGEMENT_UX_REDESIGN/IMPLEMENTATION_QUEUE.md`

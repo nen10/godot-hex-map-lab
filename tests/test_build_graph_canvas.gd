@@ -1,6 +1,7 @@
 extends "res://tests/test_editor_plugin_test_base.gd"
 
 const HexGenerationNodeTypes = preload("res://addons/hex_map_kit/generation/hex_generation_node_types.gd")
+const HexGenerationParamSchema = preload("res://addons/hex_map_kit/generation/hex_generation_param_schema.gd")
 
 
 func _init() -> void:
@@ -9,12 +10,13 @@ func _init() -> void:
 
 func _run() -> void:
 	await _test_build_screen_opens_on_graph_canvas()
-	await _test_canvas_rejects_type_mismatched_connection()
-	await _test_result_canvas_exposes_numbered_overlay_ports()
+	await _test_consolidated_editor_connections_and_result_rows()
+	await _test_canvas_rejects_cycles()
+	await _test_adaptation_dropdown_persists_and_changes_run_output()
+	await _test_canvas_uses_untyped_ports_and_legacy_rejection()
 	await _test_canvas_builds_model_and_runs_three_node_preview()
 	await _test_run_state_caches_and_marks_dirty_downstream()
 	await _test_edge_selection_and_delete_updates_graph_state()
-	await _test_typed_filter_nodes_match_editor_connection_types()
 	await _test_run_state_reports_failure_node()
 	await _test_build_screen_generate_is_primary_and_batch_secondary()
 	await _test_build_screen_generate_opens_popup_progress()
@@ -42,49 +44,130 @@ func _test_build_screen_opens_on_graph_canvas() -> void:
 	await process_frame
 
 
-func _test_canvas_rejects_type_mismatched_connection() -> void:
+func _test_consolidated_editor_connections_and_result_rows() -> void:
 	var canvas = HexMapBuildGraphCanvas.new()
 	root.add_child(canvas)
 	await process_frame
 
-	var shape = canvas.add_graph_node(HexGenerationNodeTypes.NODE_SHAPE, Vector2.ZERO, "shape")
-	var item = canvas.add_graph_node(HexGenerationNodeTypes.NODE_ITEM_GENERATOR, Vector2(200, 0), "items")
-	var result = canvas.request_connection(shape, 0, item, 0)
-	_assert_true(not bool(result["ok"]), "GRAPH-11 canvas rejects terrain->selection mismatch")
-	_assert_eq(int(canvas.canvas_snapshot()["connection_count"]), 0, "GRAPH-11 rejected connection is not kept")
-	_assert_true(String(result["reason"]).contains("Cannot connect"), "GRAPH-11 rejected connection explains type")
+	var terrain = canvas.add_graph_node(HexGenerationNodeTypes.NODE_TERRAIN_GENERATION, Vector2.ZERO, "terrain")
+	var items = canvas.add_graph_node(HexGenerationNodeTypes.NODE_ITEM_GENERATION, Vector2(220, 0), "items")
+	var union = canvas.add_graph_node(HexGenerationNodeTypes.NODE_SET_OPERATION, Vector2(440, 0), "union")
+	var result = canvas.add_graph_node(HexGenerationNodeTypes.NODE_RESULT, Vector2(660, 0), "result")
+	_assert_true(bool(canvas.request_connection(terrain, 0, items, canvas._slot_for_input_name(items, "domain"))["ok"]), "GQM-10 terrain_generation connects to item_generation.domain through canvas")
+	_assert_true(bool(canvas.request_connection(items, 0, union, canvas._slot_for_input_name(union, "in_0"))["ok"]), "GQM-10 item_generation connects to set_operation.in_0 through canvas")
+	_assert_true(canvas._slot_for_input_name(union, "in_1") >= 0, "GQM-10 set_operation grows a new empty input after connection")
+	_assert_true(bool(canvas.request_connection(terrain, 0, union, canvas._slot_for_input_name(union, "in_1"))["ok"]), "GQM-10 terrain_generation connects to the next set_operation input")
+	_assert_true(canvas._slot_for_input_name(union, "in_2") >= 0, "GQM-10 set_operation keeps one empty input row")
+	_assert_true(bool(canvas.request_connection(terrain, 0, result, canvas._slot_for_input_name(result, "in_0"))["ok"]), "GQM-10 terrain_generation connects to result input")
+	_assert_true(bool(canvas.request_connection(items, 0, result, canvas._slot_for_input_name(result, "in_1"))["ok"]), "GQM-10 item_generation connects to result input")
+	_assert_true(bool(canvas.request_connection(union, 0, result, canvas._slot_for_input_name(result, "in_2"))["ok"]), "GQM-10 set_operation connects to result input")
+	_assert_true(canvas._slot_for_input_name(result, "in_3") >= 0, "GQM-10 result keeps one empty input row")
+
+	var report = canvas.run_graph()
+	_assert_true(bool(report["ok"]), "GQM-10 consolidated editor graph runs")
+	var rows := _rows_by_input(canvas.canvas_snapshot()["result_rows"] as Array)
+	_assert_eq(String((rows["in_0"] as Dictionary)["resolution"]), "substrate", "GQM-10 result row resolves terrain as substrate")
+	_assert_eq(String((rows["in_1"] as Dictionary)["resolution"]), "overlay 0", "GQM-10 result row resolves item output as overlay 0")
+	_assert_eq(String((rows["in_2"] as Dictionary)["resolution"]), "unused", "GQM-10 result row resolves selection output as unused")
 
 	canvas.queue_free()
 	await process_frame
 
 
-func _test_result_canvas_exposes_numbered_overlay_ports() -> void:
+func _test_canvas_rejects_cycles() -> void:
 	var canvas = HexMapBuildGraphCanvas.new()
 	root.add_child(canvas)
 	await process_frame
 
-	var shape = canvas.add_graph_node(HexGenerationNodeTypes.NODE_SHAPE, Vector2.ZERO, "shape")
-	var filter = canvas.add_graph_node(HexGenerationNodeTypes.NODE_REGION_FILTER, Vector2(220, 0), "filter")
-	var items_a = canvas.add_graph_node(HexGenerationNodeTypes.NODE_ITEM_GENERATOR, Vector2(440, 0), "items_a")
-	var items_b = canvas.add_graph_node(HexGenerationNodeTypes.NODE_ITEM_GENERATOR, Vector2(660, 0), "items_b")
-	var result = canvas.add_graph_node(HexGenerationNodeTypes.NODE_RESULT, Vector2(880, 0), "result")
-	_assert_true(bool(canvas.request_connection(shape, 0, filter, 0)["ok"]), "REPAIR-11 canvas connects terrain into filter")
-	_assert_true(bool(canvas.request_connection(filter, 0, items_a, 0)["ok"]), "REPAIR-11 canvas connects filter into first item generator")
-	_assert_true(bool(canvas.request_connection(filter, 0, items_b, 0)["ok"]), "REPAIR-11 canvas connects filter into second item generator")
-	_assert_true(bool(canvas.request_connection(shape, 0, result, 0)["ok"]), "REPAIR-11 canvas connects terrain into Result.terrain")
-	_assert_true(bool(canvas.request_connection(items_a, 0, result, 1)["ok"]), "REPAIR-11 canvas connects overlay into Result.overlay_0")
-	_assert_true(bool(canvas.request_connection(items_b, 0, result, 2)["ok"]), "REPAIR-11 canvas connects overlay into Result.overlay_1")
+	var terrain = canvas.add_graph_node(HexGenerationNodeTypes.NODE_TERRAIN_GENERATION, Vector2.ZERO, "terrain")
+	var items = canvas.add_graph_node(HexGenerationNodeTypes.NODE_ITEM_GENERATION, Vector2(220, 0), "items")
+	var union = canvas.add_graph_node(HexGenerationNodeTypes.NODE_SET_OPERATION, Vector2(440, 0), "union")
+	_assert_true(bool(canvas.request_connection(terrain, 0, items, canvas._slot_for_input_name(items, "domain"))["ok"]), "GQM-10 setup terrain->items")
+	_assert_true(bool(canvas.request_connection(items, 0, union, canvas._slot_for_input_name(union, "in_0"))["ok"]), "GQM-10 setup items->set")
+	var rejected = canvas.request_connection(union, 0, terrain, canvas._slot_for_input_name(terrain, "terminals"))
+	_assert_true(not bool(rejected["ok"]), "GQM-10 canvas rejects a cycle-forming connection")
+	_assert_true(String(rejected["reason"]).contains("cycle"), "GQM-10 cycle rejection explains the reason")
+	_assert_eq(int(canvas.canvas_snapshot()["connection_count"]), 2, "GQM-10 rejected cycle connection is not kept")
+
+	canvas.queue_free()
+	await process_frame
+
+
+func _test_adaptation_dropdown_persists_and_changes_run_output() -> void:
+	var canvas = HexMapBuildGraphCanvas.new()
+	root.add_child(canvas)
+	await process_frame
+
+	var terrain_params = HexGenerationParamSchema.default_params(HexGenerationNodeTypes.NODE_TERRAIN_GENERATION)
+	terrain_params["base_mode"] = "shape"
+	terrain_params["shape"] = "rectangle"
+	terrain_params["width"] = 2
+	terrain_params["height"] = 1
+	terrain_params["wall_method"] = "random_probability"
+	terrain_params["wall_probability"] = 1.0
+	terrain_params["wall_seed"] = 5
+	var item_params = HexGenerationParamSchema.default_params(HexGenerationNodeTypes.NODE_ITEM_GENERATION)
+	item_params["placement_method"] = "weighted"
+	item_params["placement_probability"] = 1.0
+	item_params["item_pool"] = [{"name": "spawn", "weight": 1.0}]
+	var terrain = canvas.add_graph_node(HexGenerationNodeTypes.NODE_TERRAIN_GENERATION, Vector2.ZERO, "terrain", terrain_params)
+	var items = canvas.add_graph_node(HexGenerationNodeTypes.NODE_ITEM_GENERATION, Vector2(220, 0), "items", item_params)
+	var result = canvas.add_graph_node(HexGenerationNodeTypes.NODE_RESULT, Vector2(440, 0), "result")
+
+	var connected = canvas.request_connection(terrain, 0, items, canvas._slot_for_input_name(items, "domain"))
+	_assert_true(bool(connected["ok"]), "GQM-10 terrain->item_generation.domain connects")
+	_assert_eq(String(canvas.connection_adaptation(items, "domain")), "floor", "GQM-10 terrain producer defaults domain adaptation to floor")
+	_assert_true(bool(canvas.request_connection(items, 0, result, canvas._slot_for_input_name(result, "in_0"))["ok"]), "GQM-10 item output connects to result")
+
+	var floor_report = canvas.run_graph()
+	_assert_true(bool(floor_report["ok"]), "GQM-10 floor-adapted graph runs")
+	var floor_overlay = (floor_report["cache"] as Dictionary)["items"] as HexOverlayData
+	_assert_eq(floor_overlay.item_cells("spawn").size(), 0, "GQM-10 floor adaptation sees no cells when all terrain cells are walls")
+
+	var option = (canvas._graph_node(items) as GraphNode).find_child("Adaptation items domain", true, false) as OptionButton
+	_assert_true(option is OptionButton, "GQM-10 adaptation OptionButton is embedded in the input row")
+	var wall_index := _option_index_by_metadata(option, "wall")
+	_assert_true(wall_index >= 0, "GQM-10 adaptation dropdown contains wall")
+	option.select(wall_index)
+	option.emit_signal("item_selected", wall_index)
+	await process_frame
 
 	var graph = canvas.build_graph_model()
-	var ports: Array = []
-	for edge in graph.get("edges", []) as Array:
-		var edge_dict = edge as Dictionary
-		if String(edge_dict.get("to_node", "")) == "result":
-			ports.append(String(edge_dict.get("to_port", "")))
-	ports.sort()
-	_assert_eq(ports, ["overlay_0", "overlay_1", "terrain"], "REPAIR-11 canvas stores numbered Result input port names")
-	var validation = canvas.validate_graph_model()
-	_assert_true(bool(validation.get("ok", false)), "REPAIR-11 canvas graph with numbered Result overlays validates")
+	var domain_edge := _edge_to(graph, "items", "domain")
+	_assert_eq(String(domain_edge.get("adaptation", "")), "wall", "GQM-10 dropdown change persists adaptation on the graph edge")
+	var wall_report = canvas.run_graph()
+	_assert_true(bool(wall_report["ok"]), "GQM-10 wall-adapted graph runs")
+	var wall_overlay = (wall_report["cache"] as Dictionary)["items"] as HexOverlayData
+	_assert_eq(wall_overlay.item_cells("spawn").size(), 2, "GQM-10 wall adaptation changes the placement target for the next run")
+
+	canvas.queue_free()
+	await process_frame
+
+
+func _test_canvas_uses_untyped_ports_and_legacy_rejection() -> void:
+	var canvas = HexMapBuildGraphCanvas.new()
+	root.add_child(canvas)
+	await process_frame
+
+	var terrain = canvas.add_graph_node(HexGenerationNodeTypes.NODE_TERRAIN_GENERATION, Vector2.ZERO, "terrain")
+	var items = canvas.add_graph_node(HexGenerationNodeTypes.NODE_ITEM_GENERATION, Vector2(220, 0), "items")
+	var shape = canvas.add_graph_node(HexGenerationNodeTypes.NODE_SHAPE, Vector2(440, 0), "shape")
+	var legacy_items = canvas.add_graph_node(HexGenerationNodeTypes.NODE_ITEM_GENERATOR, Vector2(660, 0), "legacy_items")
+	_assert_true(bool(canvas.request_connection(terrain, 0, items, canvas._slot_for_input_name(items, "domain"))["ok"]), "GQM-10 consolidated target accepts untyped terrain output")
+	var rejected = canvas.request_connection(shape, 0, legacy_items, canvas._slot_for_input_name(legacy_items, "scope"))
+	_assert_true(not bool(rejected["ok"]), "GQM-10 legacy incompatible shape->item_generator.scope remains rejected")
+	_assert_true(String(rejected["reason"]).contains("Cannot connect"), "GQM-10 legacy rejection still uses logical port compatibility")
+
+	var terrain_node = canvas._graph_node(terrain) as GraphNode
+	var items_node = canvas._graph_node(items) as GraphNode
+	var shape_node = canvas._graph_node(shape) as GraphNode
+	var legacy_node = canvas._graph_node(legacy_items) as GraphNode
+	_assert_eq(terrain_node.get_output_port_type(0), 0, "GQM-10 consolidated output port type is untyped")
+	_assert_eq(items_node.get_input_port_type(0), 0, "GQM-10 consolidated input port type is untyped")
+	_assert_eq(shape_node.get_output_port_type(0), 0, "GQM-10 legacy output port type is also untyped")
+	_assert_eq(legacy_node.get_input_port_type(0), 0, "GQM-10 legacy input port type is also untyped")
+	var colors = canvas.canvas_snapshot()["port_type_colors"] as Dictionary
+	_assert_eq(colors.keys().size(), 1, "GQM-10 canvas exposes a single untyped port color")
 
 	canvas.queue_free()
 	await process_frame
@@ -100,7 +183,7 @@ func _test_canvas_builds_model_and_runs_three_node_preview() -> void:
 	var screen_snapshot = screen.build_screen_snapshot()
 	_assert_true(bool(report["ok"]), "GRAPH-11 Build screen runs Shape->Wall->Connectivity")
 	_assert_eq(int(canvas_snapshot["node_count"]), 3, "GRAPH-11 three graph nodes are present")
-	_assert_eq(int(canvas_snapshot["connection_count"]), 2, "GRAPH-11 two typed edges are present")
+	_assert_eq(int(canvas_snapshot["connection_count"]), 2, "GRAPH-11 two graph edges are present")
 	_assert_true(bool(screen_snapshot["preview_available"]), "GRAPH-11 selected node output preview is available")
 	_assert_eq(String((screen_snapshot["preview"] as Dictionary)["source_kind"]), HexMapPreviewThumbnail.SOURCE_MAP_DATA, "GRAPH-11 preview uses map data")
 	_assert_true(bool(screen_snapshot["three_node_chain_ready"]), "GRAPH-11 screen snapshot marks the three-node chain ready")
@@ -186,40 +269,6 @@ func _test_edge_selection_and_delete_updates_graph_state() -> void:
 
 func _test_run_state_reports_failure_node() -> void:
 	await _test_run_state_reports_failure_node_impl()
-
-
-func _test_typed_filter_nodes_match_editor_connection_types() -> void:
-	var canvas = HexMapBuildGraphCanvas.new()
-	root.add_child(canvas)
-	await process_frame
-
-	var shape = canvas.add_graph_node(HexGenerationNodeTypes.NODE_SHAPE, Vector2.ZERO, "shape")
-	var terrain_filter = canvas.add_graph_node(HexGenerationNodeTypes.NODE_TERRAIN_FILTER, Vector2(220, 0), "terrain_filter")
-	var item_generator = canvas.add_graph_node(HexGenerationNodeTypes.NODE_ITEM_GENERATOR, Vector2(440, 0), "items")
-	var overlay_filter = canvas.add_graph_node(HexGenerationNodeTypes.NODE_OVERLAY_FILTER, Vector2(660, 0), "overlay_filter")
-
-	_assert_true(bool(canvas.request_connection(shape, 0, terrain_filter, 0)["ok"]), "REPAIR-16 terrain output connects to Terrain Filter")
-	_assert_true(bool(canvas.request_connection(terrain_filter, 0, item_generator, 0)["ok"]), "REPAIR-16 selection output connects to Item Generator")
-	_assert_true(bool(canvas.request_connection(item_generator, 0, overlay_filter, 0)["ok"]), "REPAIR-16 overlay output connects to Overlay Filter")
-	_assert_true(not bool(canvas.validate_connection(item_generator, 0, terrain_filter, 0)["ok"]), "REPAIR-16 overlay output is not valid for Terrain Filter")
-	_assert_true(not bool(canvas.validate_connection(shape, 0, overlay_filter, 0)["ok"]), "REPAIR-16 terrain output is not valid for Overlay Filter")
-
-	var item_node = canvas.get_node(NodePath(item_generator)) as GraphNode
-	var overlay_filter_node = canvas.get_node(NodePath(overlay_filter)) as GraphNode
-	var shape_node = canvas.get_node(NodePath(shape)) as GraphNode
-	var terrain_filter_node = canvas.get_node(NodePath(terrain_filter)) as GraphNode
-	# GraphEdit allows a drag connection only when port type ids match (default implicit equal-type rule).
-	var overlay_out := item_node.get_output_port_type(0)
-	var terrain_out := shape_node.get_output_port_type(0)
-	var overlay_filter_in := overlay_filter_node.get_input_port_type(0)
-	var terrain_filter_in := terrain_filter_node.get_input_port_type(0)
-	_assert_eq(overlay_out, overlay_filter_in, "REPAIR-16 overlay output port type matches Overlay Filter input port type (editor-connectable)")
-	_assert_eq(terrain_out, terrain_filter_in, "REPAIR-16 terrain output port type matches Terrain Filter input port type (editor-connectable)")
-	_assert_true(overlay_out != terrain_filter_in, "REPAIR-16 overlay output port type does not match Terrain Filter input (editor blocks the drag)")
-	_assert_true(terrain_out != overlay_filter_in, "REPAIR-16 terrain output port type does not match Overlay Filter input (editor blocks the drag)")
-
-	canvas.queue_free()
-	await process_frame
 
 
 func _test_run_state_reports_failure_node_impl() -> void:
@@ -323,11 +372,22 @@ func _test_palette_and_inspector_reflect_graph_contract() -> void:
 
 	var palette_snapshot = screen.node_palette().palette_snapshot()
 	_assert_eq(String(palette_snapshot["layout"]), "bottom_grouped_row", "REPAIR-13A Add Node row is grouped below the graph")
-	_assert_eq(int(palette_snapshot["button_count"]), 10, "REPAIR-13A Add Node row exposes typed Source and role buttons")
-	_assert_true((palette_snapshot["group_ids"] as PackedStringArray).has("anchor"), "REPAIR-13A Add Node row has Anchor group")
-	_assert_true((palette_snapshot["group_ids"] as PackedStringArray).has("build"), "REPAIR-13A Add Node row has Build group")
-	_assert_true((palette_snapshot["group_ids"] as PackedStringArray).has("select"), "REPAIR-13A Add Node row has Select group")
+	_assert_eq(int(palette_snapshot["button_count"]), 4, "GQM-10 Add Node row exposes only the consolidated four node types")
+	_assert_true((palette_snapshot["group_ids"] as PackedStringArray).has("consolidated"), "GQM-10 Add Node row has consolidated group")
+	var palette_types = palette_snapshot["node_types"] as PackedStringArray
+	_assert_true(palette_types.has(HexGenerationNodeTypes.NODE_TERRAIN_GENERATION), "GQM-10 Add Node row has Terrain Generation")
+	_assert_true(palette_types.has(HexGenerationNodeTypes.NODE_ITEM_GENERATION), "GQM-10 Add Node row has Item Generation")
+	_assert_true(palette_types.has(HexGenerationNodeTypes.NODE_SET_OPERATION), "GQM-10 Add Node row has Set Operation")
+	_assert_true(palette_types.has(HexGenerationNodeTypes.NODE_RESULT), "GQM-10 Add Node row has Result")
 	_assert_true(not bool(palette_snapshot["compose_primary"]), "REPAIR-13A Compose is not in the primary Add Node row")
+
+	screen.node_palette().request_node_type(HexGenerationNodeTypes.NODE_TERRAIN_GENERATION)
+	await process_frame
+	var palette_node_id := screen.graph_canvas().selected_node_id()
+	var palette_params := screen.graph_canvas().node_params(palette_node_id)
+	var schema_defaults := HexGenerationParamSchema.default_params(HexGenerationNodeTypes.NODE_TERRAIN_GENERATION)
+	_assert_eq(String(screen.graph_canvas().selected_node_dictionary().get("type", "")), HexGenerationNodeTypes.NODE_TERRAIN_GENERATION, "GQM-10 Terrain Generation button creates a consolidated node")
+	_assert_eq(String(palette_params.get("base_mode", "")), String(schema_defaults.get("base_mode", "")), "GQM-10 palette node uses schema default params")
 
 	var canvas = screen.graph_canvas()
 	var shape = canvas.add_graph_node(HexGenerationNodeTypes.NODE_SHAPE, Vector2.ZERO, "shape")
@@ -349,17 +409,6 @@ func _test_palette_and_inspector_reflect_graph_contract() -> void:
 	inspector = screen.node_inspector().inspector_snapshot()
 	_assert_true(bool(inspector["resource_ref_binding_present"]), "GRAPH-11 inspector exposes Resource ref binding for Source")
 	_assert_true((inspector["resource_ref_fields"] as PackedStringArray).has("document"), "GRAPH-11 Source inspector exposes document Resource ref")
-
-	screen._on_palette_node_template_requested(HexGenerationNodeTypes.NODE_SOURCE, {
-		"kind": "context",
-		"source_key": "document_overlay",
-		"output_type": "overlay",
-	})
-	var typed_source_id := canvas.selected_node_id()
-	var typed_params := canvas.node_params(typed_source_id)
-	_assert_eq(String(typed_params.get("output_type", "")), "overlay", "REPAIR-13A Source Overlay button creates typed Source params")
-	_assert_eq(canvas.selected_output_type(), "overlay", "REPAIR-13A Source Overlay output type matches connection validation")
-	_assert_true(String((canvas._graph_node(typed_source_id) as GraphNode).title).contains("Source Overlay"), "REPAIR-13A Source node title exposes output type")
 
 	var wall = canvas.add_graph_node(HexGenerationNodeTypes.NODE_WALL_FIELD, Vector2(400, 0), "wall_for_distribution")
 	canvas.set_node_params(wall, {"wall_method": "markov_mesh", "distribution_mode": "custom"})
@@ -428,6 +477,29 @@ func _test_markov_reference_panels_align_to_plus_q_generation() -> void:
 
 	inspector.queue_free()
 	await process_frame
+
+
+func _rows_by_input(rows: Array) -> Dictionary:
+	var result := {}
+	for row in rows:
+		var row_dict := row as Dictionary
+		result[String(row_dict.get("input", ""))] = row_dict
+	return result
+
+
+func _option_index_by_metadata(option: OptionButton, metadata: String) -> int:
+	for index in range(option.item_count):
+		if String(option.get_item_metadata(index)) == metadata:
+			return index
+	return -1
+
+
+func _edge_to(graph: Dictionary, to_node: String, to_port: String) -> Dictionary:
+	for edge in graph.get("edges", []) as Array:
+		var edge_dict := edge as Dictionary
+		if String(edge_dict.get("to_node", "")) == to_node and String(edge_dict.get("to_port", "")) == to_port:
+			return edge_dict
+	return {}
 
 
 class GraphCancelRecorder:
