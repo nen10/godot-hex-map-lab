@@ -13,6 +13,7 @@ func _run() -> void:
 	_test_overlay_promote_creates_generated_layer_and_preserves_manual_layer()
 	_test_object_promote_replaces_generated_objects_and_preserves_manual_object()
 	_test_terrain_promote_save_load_roundtrip()
+	_test_result_write_policy_composes_overlay_stack()
 	await _test_build_screen_vertical_slice_promotes_overlay()
 	await _test_build_context_bootstrap_selected_graphless_layer()
 	await _test_build_graph_node_params_flush_to_embedded_resource()
@@ -22,6 +23,7 @@ func _run() -> void:
 	await _test_top_generate_uses_selected_graphless_layer_for_viewport_preview()
 	await _test_top_generate_apply_revert_preview_contract()
 	await _test_result_preview_promotes_multiple_overlays_as_separate_layers()
+	await _test_result_row_promote_writes_document_layers()
 	_finish("res://tests/test_generation_promote.gd")
 
 
@@ -117,6 +119,19 @@ func _test_terrain_promote_save_load_roundtrip() -> void:
 	_assert_eq(loaded.terrain_layers[1].map.to_map_data().cells.size(), 4, "GRAPH-12 loaded generated terrain keeps cells")
 
 
+func _test_result_write_policy_composes_overlay_stack() -> void:
+	var merge_result = HexGenerationGraphRunner.run(_policy_result_graph("add_item"))["result"]
+	_assert_eq(_stack_items_at(merge_result, HexVector.zero()), ["Shop", "Treasure"], "GQM-12 add_item keeps both stacked item keys")
+
+	var replace_result = HexGenerationGraphRunner.run(_policy_result_graph("replace_item"))["result"]
+	_assert_eq(_stack_items_at(replace_result, HexVector.zero()), ["Shop"], "GQM-12 replace_item replaces previous item at the incoming cell")
+	_assert_eq(String(((replace_result.metadata["overlay_inputs"] as Array)[1] as Dictionary)["write_policy"]), "replace_item", "GQM-12 Result metadata records row write policy")
+
+	var add_replace_result = HexGenerationGraphRunner.run(_policy_result_graph("add_replace"))["result"]
+	_assert_eq(_stack_items_at(add_replace_result, HexVector.zero()), ["Treasure"], "GQM-12 add_replace preserves occupied cells")
+	_assert_eq(_stack_items_at(add_replace_result, HexVector.q_axis()), ["Shop"], "GQM-12 add_replace adds incoming items on empty stack cells")
+
+
 func _test_build_screen_vertical_slice_promotes_overlay() -> void:
 	var context = HexMapWorkspaceAssetContext.new()
 	context.set_level_document(HexMapDocumentResource.new())
@@ -129,7 +144,14 @@ func _test_build_screen_vertical_slice_promotes_overlay() -> void:
 	_assert_true(bool(report["ok"]), "GRAPH-12 Build screen runs Shape->Wall->Connectivity->Filter->Item->Result")
 	var snapshot = screen.build_screen_snapshot()
 	_assert_true(bool(snapshot["preview_available"]), "GRAPH-12 item output preview is available before promote")
-	_assert_true(bool(snapshot["promote_available"]), "GRAPH-12 promote is available for selected generated output")
+	_assert_true(not bool(snapshot["promote_available"]), "GQM-12 selected Result uses row Promote instead of duplicate inspector Promote")
+	var canvas_snapshot = snapshot["canvas"] as Dictionary
+	var result_rows := _rows_by_input(canvas_snapshot["result_rows"] as Array)
+	_assert_true(bool((result_rows["in_1"] as Dictionary)["promotable"]), "GQM-12 Result overlay row is promotable")
+	screen.graph_canvas().select_graph_node("weighted_items")
+	await process_frame
+	snapshot = screen.build_screen_snapshot()
+	_assert_true(bool(snapshot["promote_available"]), "GRAPH-12 promote is available after selecting generated item output")
 	screen.graph_canvas().select_graph_node("connectivity")
 	var promote_terrain = screen.promote_selected_output("terrain")
 	_assert_true(bool(promote_terrain["ok"]), "GRAPH-12 Build screen promotes connectivity output as terrain")
@@ -485,6 +507,70 @@ func _test_result_preview_promotes_multiple_overlays_as_separate_layers() -> voi
 	await process_frame
 
 
+func _test_result_row_promote_writes_document_layers() -> void:
+	var screen = HexMapBuildScreen.new()
+	root.add_child(screen)
+	await process_frame
+	var scene_root = Node2D.new()
+	root.add_child(scene_root)
+	var selected_layer = HexTileMapLayer.new()
+	selected_layer.name = "ResultRowPromoteLayer"
+	scene_root.add_child(selected_layer)
+	await process_frame
+	screen.ensure_graph_context_for_hex_tile_map_layer(selected_layer, {"run": false})
+	screen.graph_canvas().restore_graph_model(_two_overlay_result_graph(), "result")
+	var run_report = screen.run_graph()
+	_assert_true(bool(run_report["ok"]), "GQM-12 Result row promote graph runs")
+
+	var terrain_promote = screen.promote_result_row("result", "terrain")
+	_assert_true(bool(terrain_promote["ok"]), "GQM-12 substrate row promotes to terrain layer")
+	var terrain_layers = _generated_terrain_layers(selected_layer.level_document_resource)
+	_assert_eq(terrain_layers.size(), 1, "GQM-12 substrate row writes one generated terrain layer")
+	_assert_eq(String((terrain_layers[0].metadata as Dictionary).get("result_port", "")), "terrain", "GQM-12 terrain row metadata records source port")
+
+	var overlay_promote = screen.promote_result_row("result", "overlay_1")
+	_assert_true(bool(overlay_promote["ok"]), "GQM-12 overlay row promotes to overlay layer")
+	var generated_layers = _generated_overlay_layers(selected_layer.level_document_resource)
+	_assert_eq(generated_layers.size(), 1, "GQM-12 single row promote writes one generated overlay layer")
+	_assert_eq(String(generated_layers[0].layer_id), "generated_overlay_1", "GQM-12 row promote uses overlay index layer id")
+	_assert_eq(String((generated_layers[0].metadata as Dictionary).get("result_port", "")), "overlay_1", "GQM-12 overlay row metadata records source port")
+	_assert_true(generated_layers[0].overlay.to_overlay_data().item_cells("loot").size() > 0, "GQM-12 promoted row keeps selected overlay data")
+
+	overlay_promote = screen.promote_result_row("result", "overlay_1")
+	_assert_true(bool(overlay_promote["ok"]), "GQM-12 repeated row promote succeeds")
+	_assert_eq(_generated_overlay_layers(selected_layer.level_document_resource).size(), 1, "GQM-12 repeated row promote replaces the same generated row layer")
+
+	scene_root.queue_free()
+	screen.queue_free()
+	await process_frame
+
+
+func _policy_result_graph(write_policy: String) -> Dictionary:
+	var graph = HexGenerationGraph.new_graph()
+	var cells := [HexVector.zero(), HexVector.q_axis()]
+	var base_overlay = HexOverlayData.from_cells(cells, {
+		"Treasure": [HexVector.zero()],
+	})
+	var incoming_overlay = HexOverlayData.from_cells(cells, {
+		"Shop": [HexVector.zero(), HexVector.q_axis()],
+	})
+	HexGenerationGraph.add_node(graph, "base_overlay", "source", {
+		"kind": "provided",
+		"output_type": "overlay",
+		"data": base_overlay,
+	})
+	HexGenerationGraph.add_node(graph, "incoming_overlay", "source", {
+		"kind": "provided",
+		"output_type": "overlay",
+		"data": incoming_overlay,
+	})
+	HexGenerationGraph.add_node(graph, "result", "result")
+	HexGenerationGraph.add_edge(graph, "base_overlay", "result", "overlay_0")
+	var incoming_edge = HexGenerationGraph.add_edge(graph, "incoming_overlay", "result", "overlay_1")
+	incoming_edge["write_policy"] = write_policy
+	return graph
+
+
 func _two_overlay_result_graph() -> Dictionary:
 	var graph = HexGenerationGraph.new_graph()
 	HexGenerationGraph.add_node(graph, "shape", "shape", {
@@ -566,6 +652,34 @@ func _generated_terrain_cell_count(document: HexMapDocumentResource) -> int:
 	return total
 
 
+func _generated_terrain_layers(document: HexMapDocumentResource) -> Array:
+	var result: Array = []
+	if document == null:
+		return result
+	for layer in document.terrain_layers:
+		if layer == null:
+			continue
+		var metadata = layer.get("metadata")
+		if metadata is Dictionary and String((metadata as Dictionary).get("writable_source", "")) == "generated":
+			result.append(layer)
+	return result
+
+
+func _stack_items_at(result_resource, cell: HexVector) -> Array:
+	if result_resource == null:
+		return []
+	var metadata = result_resource.get("metadata")
+	if not metadata is Dictionary:
+		return []
+	var cells = (metadata as Dictionary).get("overlay_stack_cells", []) as Array
+	var cell_key := cell.key()
+	for entry in cells:
+		var entry_dict := entry as Dictionary
+		if String(entry_dict.get("cell_key", "")) == cell_key:
+			return (entry_dict.get("items", []) as Array).duplicate()
+	return []
+
+
 func _generated_overlay_layers(document: HexMapDocumentResource) -> Array:
 	var result: Array = []
 	if document == null:
@@ -576,6 +690,14 @@ func _generated_overlay_layers(document: HexMapDocumentResource) -> Array:
 		var metadata = layer.get("metadata")
 		if metadata is Dictionary and String((metadata as Dictionary).get("writable_source", "")) == "generated":
 			result.append(layer)
+	return result
+
+
+func _rows_by_input(rows: Array) -> Dictionary:
+	var result := {}
+	for row in rows:
+		var row_dict := row as Dictionary
+		result[String(row_dict.get("input", ""))] = row_dict
 	return result
 
 

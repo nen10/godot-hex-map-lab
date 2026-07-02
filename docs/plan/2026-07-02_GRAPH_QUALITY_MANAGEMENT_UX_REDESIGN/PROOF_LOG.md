@@ -196,3 +196,37 @@ proof:
     - 並行 merge の意味的衝突（GQM-16 の `distribution_asset_path` 追加 × GQM-11 chip の先頭 entry 依存）を orchestrator が修理し、統合 `./tools/test.sh` exit 0 を確認
   findings:
     - 磨き込み3点を `GQM-18_CRITERIA_CHIP_POLISH` として queue 化
+
+### GQM-12_RESULT_STACK_AND_PROMOTE
+
+proof:
+  review: `docs/review/autopilot/GQM-12_RESULT_STACK_AND_PROMOTE_SELF_REVIEW_2026-07-03.md`
+  execution:
+    - `docs/review/autopilot/GQM-12_RESULT_STACK_AND_PROMOTE_SELF_REVIEW_2026-07-03.md`
+  docs:
+    - `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+  implementation:
+    - Result slot rows expose substrate/unused/overlay resolution, tooltip reasons, overlay row ordering controls, write-policy controls, and per-row Promote.
+    - Result graph edges carry `write_policy`; Result run metadata records ordered overlay inputs and a policy-composed stack signature while preserving the legacy first-overlay `overlay_map` contract.
+    - Build screen routes Result row Promote through `HexGenerationPromote`, and the selected-Result inspector Promote action is disabled in favor of the row-level path.
+  tests:
+    - focused `res://tests/test_build_graph_canvas.gd` (exit 0)
+    - focused `res://tests/test_generation_promote.gd` (exit 0)
+    - focused `res://tests/test_generation_graph.gd` (exit 0; compatibility repair for legacy `overlay_map`)
+    - `./tools/test.sh` (exit 0; run id `20260703-081215-16972`)
+    - UI metric report `.godot_user/ui-metrics/20260703-081215-16972/workspace_layout_metrics.md`: P0 `0`, P1 `0`
+  acceptance:
+    - Overlay row reorder updates graph edge order and Result run overlay input order.
+    - Row write policy (`add_item`, `replace_item`, `add_replace`) changes the policy-composed Result stack signature.
+    - Substrate and overlay Result rows promote to generated document terrain/overlay layers with row metadata and stable replacement behavior.
+    - Extra terrain remains an unused, non-blocking row with tooltip reason that the first terrain is the substrate.
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_build_graph_canvas.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_node_inspector.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_screen.gd`
+    - `addons/hex_map_kit/generation/hex_generation_node_types.gd`
+    - `addons/hex_map_kit/generation/hex_generation_promote.gd`
+    - `tests/test_build_graph_canvas.gd`
+    - `tests/test_generation_promote.gd`
+    - `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+    - `docs/plan/2026-07-02_GRAPH_QUALITY_MANAGEMENT_UX_REDESIGN/IMPLEMENTATION_QUEUE.md`

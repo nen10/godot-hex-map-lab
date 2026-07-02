@@ -81,10 +81,13 @@ static func _promote_terrain(data: HexMapDataScript, document: HexMapDocumentRes
 
 
 static func _promote_overlay(data: HexOverlayDataScript, document: HexMapDocumentResourceScript, options: Dictionary) -> Dictionary:
+	var layer_id := String(options.get("layer_id", "generated_overlay"))
 	if not bool(options.get("preserve_existing_generated", false)):
 		_remove_generated_resources(document.overlay_layers, ROLE_OVERLAY)
+	else:
+		_remove_generated_resource_by_layer_id(document.overlay_layers, ROLE_OVERLAY, layer_id)
 	var layer := HexMapDocumentOverlayLayerResourceScript.new()
-	layer.layer_id = String(options.get("layer_id", "generated_overlay"))
+	layer.layer_id = layer_id
 	layer.display_name = String(options.get("display_name", "Generated Overlay"))
 	layer.role = ROLE_OVERLAY
 	layer.item_key = ""
@@ -135,6 +138,17 @@ static func _remove_generated_resources(resources: Array, role: String) -> void:
 			resources.remove_at(index)
 
 
+static func _remove_generated_resource_by_layer_id(resources: Array, role: String, layer_id: String) -> void:
+	if layer_id == "":
+		return
+	for index in range(resources.size() - 1, -1, -1):
+		var resource = resources[index]
+		if not _is_generated_resource(resource, role):
+			continue
+		if resource is Resource and String((resource as Resource).get("layer_id")) == layer_id:
+			resources.remove_at(index)
+
+
 static func _is_generated_resource(resource, role: String) -> bool:
 	if not resource is Resource:
 		return false
@@ -153,7 +167,7 @@ static func _metadata(role: String, options: Dictionary) -> Dictionary:
 		"writable_source": WRITABLE_SOURCE_GENERATED,
 		"graph_node_id": String(options.get("graph_node_id", "")),
 	}
-	for key in ["overlay_index", "result_port", "result_overlay_count"]:
+	for key in ["overlay_index", "result_port", "result_overlay_count", "result_row_kind", "write_policy"]:
 		if options.has(key):
 			result[key] = options[key]
 	return result

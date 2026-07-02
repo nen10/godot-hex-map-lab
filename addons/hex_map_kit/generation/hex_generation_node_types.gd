@@ -637,6 +637,7 @@ static func _run_result(inputs: Dictionary, params: Dictionary, context: Diction
 	var terrain_inputs: Array = []
 	var unused_inputs: Array = []
 	var substrate_set := false
+	var stacked_overlay = null
 	var ordered_inputs := _ordered_result_inputs(inputs, context)
 	for input_entry in ordered_inputs:
 		var port_name := String((input_entry as Dictionary).get("port", ""))
@@ -665,18 +666,29 @@ static func _run_result(inputs: Dictionary, params: Dictionary, context: Diction
 				})
 		elif value is HexOverlayDataScript:
 			var overlay_data := value as HexOverlayDataScript
+			var write_policy := _result_write_policy_for_port(
+				params,
+				port_name,
+				String((input_entry as Dictionary).get("write_policy", ""))
+			)
 			var overlay_index: int = result.overlay_maps.size()
 			result.overlay_maps.append(HexOverlayResourceScript.from_overlay_data(overlay_data, orientation_val))
+			if stacked_overlay == null:
+				stacked_overlay = overlay_data.duplicate_data()
+			else:
+				_apply_result_overlay_policy(stacked_overlay, overlay_data, write_policy)
 			overlay_sources.append({
 				"port": port_name,
 				"from_node": from_node,
 				"data": overlay_data,
+				"write_policy": write_policy,
 			})
 			overlay_inputs.append({
 				"port": port_name,
 				"from_node": from_node,
 				"overlay_index": overlay_index,
 				"present": true,
+				"write_policy": write_policy,
 				"item_count": _overlay_data_item_count(overlay_data),
 			})
 		else:
@@ -687,6 +699,8 @@ static func _run_result(inputs: Dictionary, params: Dictionary, context: Diction
 		"terrain_inputs": terrain_inputs,
 		"overlay_inputs": overlay_inputs,
 		"overlay_count": result.overlay_maps.size(),
+		"overlay_stack_item_count": _overlay_data_item_count(stacked_overlay) if stacked_overlay != null else 0,
+		"overlay_stack_cells": _overlay_stack_cells(stacked_overlay) if stacked_overlay != null else [],
 		"unused_inputs": unused_inputs,
 		"overlay_conflicts": _overlay_conflicts(overlay_sources),
 	}
@@ -708,6 +722,7 @@ static func _ordered_result_inputs(inputs: Dictionary, context: Dictionary) -> A
 			result.append({
 				"port": port_name,
 				"from_node": String(edge_dict.get("from_node", "")),
+				"write_policy": String(edge_dict.get("write_policy", "")),
 				"value": inputs[port_name],
 			})
 		return result
@@ -717,9 +732,40 @@ static func _ordered_result_inputs(inputs: Dictionary, context: Dictionary) -> A
 		result.append({
 			"port": String(port_name),
 			"from_node": "",
+			"write_policy": "",
 			"value": inputs[port_name],
 		})
 	return result
+
+
+static func _result_write_policy_for_port(params: Dictionary, port_name: String, edge_policy: String = "") -> String:
+	var normalized_edge := _normalize_result_write_policy(edge_policy)
+	if edge_policy.strip_edges() != "":
+		return normalized_edge
+	var policies = params.get("result_write_policies", {})
+	if policies is Dictionary:
+		return _normalize_result_write_policy(String((policies as Dictionary).get(port_name, HexOverlayDataScript.APPLY_ADD_ITEM)))
+	return HexOverlayDataScript.APPLY_ADD_ITEM
+
+
+static func _normalize_result_write_policy(write_policy: String) -> String:
+	match write_policy.strip_edges():
+		"replace_item":
+			return "replace_item"
+		"add_replace":
+			return "add_replace"
+		_:
+			return HexOverlayDataScript.APPLY_ADD_ITEM
+
+
+static func _apply_result_overlay_policy(base: HexOverlayDataScript, incoming: HexOverlayDataScript, write_policy: String) -> void:
+	match _normalize_result_write_policy(write_policy):
+		"replace_item":
+			base.apply_overlay(incoming, HexOverlayDataScript.APPLY_ADD_ITEM, HexOverlayDataScript.EXISTING_REPLACE)
+		"add_replace":
+			base.apply_overlay(incoming, HexOverlayDataScript.APPLY_ADD_ITEM, HexOverlayDataScript.EXISTING_SKIP)
+		_:
+			base.apply_overlay(incoming, HexOverlayDataScript.APPLY_ADD_ITEM, HexOverlayDataScript.EXISTING_MERGE)
 
 
 static func _unused_result_input(port_name: String, from_node: String, producer_kind: String, reason: String) -> Dictionary:
@@ -736,6 +782,31 @@ static func _overlay_data_item_count(data: HexOverlayDataScript) -> int:
 	for item_key in data.item_keys():
 		count += data.item_cells(String(item_key)).size()
 	return count
+
+
+static func _overlay_stack_cells(data: HexOverlayDataScript) -> Array:
+	var by_cell := {}
+	for item_key in data.item_keys():
+		var item_text := String(item_key)
+		for cell in data.item_cells(item_text):
+			var cell_key := String(cell.key())
+			if not by_cell.has(cell_key):
+				by_cell[cell_key] = {
+					"cell_key": cell_key,
+					"items": [],
+				}
+			var entry = by_cell[cell_key] as Dictionary
+			var items = entry.get("items", []) as Array
+			if not items.has(item_text):
+				items.append(item_text)
+			items.sort()
+			entry["items"] = items
+	var result: Array = []
+	var keys := by_cell.keys()
+	keys.sort()
+	for key in keys:
+		result.append((by_cell[key] as Dictionary).duplicate(true))
+	return result
 
 
 static func _overlay_conflicts(overlay_sources: Array) -> Array:
