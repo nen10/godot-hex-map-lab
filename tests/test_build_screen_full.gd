@@ -2,6 +2,8 @@ extends "res://tests/test_editor_plugin_test_base.gd"
 
 const HexGenerationPreset = preload("res://addons/hex_map_kit/generation/hex_generation_preset.gd")
 const HexGenerationGraph = preload("res://addons/hex_map_kit/generation/hex_generation_graph.gd")
+const HexGenerationGraphRunner = preload("res://addons/hex_map_kit/generation/hex_generation_graph_runner.gd")
+const HexGenerationNodeTypes = preload("res://addons/hex_map_kit/generation/hex_generation_node_types.gd")
 
 
 func _init() -> void:
@@ -29,22 +31,22 @@ func _test_preset_factory_maps_generation_profile_to_three_node_graph() -> void:
 	var graph: Dictionary = HexGenerationPreset.from_profile(profile)
 	var validation: Dictionary = HexGenerationGraph.validate(graph)
 	_assert_true(bool(validation["ok"]), "SCREEN-30 preset graph validates")
-	_assert_eq((graph["nodes"] as Dictionary).size(), 4, "SCREEN-30 preset graph has shape, wall, connectivity, result")
-	_assert_eq((graph["edges"] as Array).size(), 3, "SCREEN-30 preset graph connects through Result")
-	var shape = (graph["nodes"] as Dictionary)["shape"] as Dictionary
-	var walls = (graph["nodes"] as Dictionary)["walls"] as Dictionary
-	var connect = (graph["nodes"] as Dictionary)["connectivity"] as Dictionary
+	_assert_eq((graph["nodes"] as Dictionary).size(), 2, "GQM-15 preset graph has Terrain Generation and Result")
+	_assert_eq((graph["edges"] as Array).size(), 1, "GQM-15 preset graph connects consolidated terrain to Result")
+	var terrain = (graph["nodes"] as Dictionary)["terrain"] as Dictionary
 	var result = (graph["nodes"] as Dictionary)["result"] as Dictionary
-	_assert_eq(String(shape["type"]), "shape", "SCREEN-30 shape node is present")
-	_assert_eq(String(result["type"]), "result", "SCREEN-30 Result node is present")
-	_assert_eq(String((shape["params"] as Dictionary)["shape"]), "hexagon", "SCREEN-30 profile shape reaches graph params")
-	_assert_eq(int((shape["params"] as Dictionary)["radius"]), 5, "SCREEN-30 profile radius reaches graph params")
-	_assert_eq(float((walls["params"] as Dictionary)["wall_probability"]), 0.37, "SCREEN-30 profile wall probability reaches graph params")
-	_assert_eq(int((walls["params"] as Dictionary)["seed"]), 42, "SCREEN-30 profile seed reaches wall graph params")
-	_assert_eq(String((connect["params"] as Dictionary)["method"]), "sparse", "SCREEN-30 profile connectivity reaches graph params")
+	_assert_eq(String(terrain["type"]), HexGenerationNodeTypes.NODE_TERRAIN_GENERATION, "GQM-15 Simple preset uses consolidated terrain")
+	_assert_eq(String(result["type"]), HexGenerationNodeTypes.NODE_RESULT, "GQM-15 Simple preset keeps Result node")
+	_assert_true(_all_nodes_are_consolidated(graph), "GQM-15 Simple preset contains only consolidated node types")
+	_assert_eq(String((terrain["params"] as Dictionary)["shape"]), "hexagon", "SCREEN-30 profile shape reaches graph params")
+	_assert_eq(int((terrain["params"] as Dictionary)["radius"]), 5, "SCREEN-30 profile radius reaches graph params")
+	_assert_eq(float((terrain["params"] as Dictionary)["wall_probability"]), 0.37, "SCREEN-30 profile wall probability reaches graph params")
+	_assert_eq(int((terrain["params"] as Dictionary)["wall_seed"]), 42, "SCREEN-30 profile seed reaches wall graph params")
+	_assert_eq(String((terrain["params"] as Dictionary)["connectivity_method"]), "sparse", "SCREEN-30 profile connectivity reaches graph params")
 	var promote_targets = HexGenerationPreset.promote_targets_for_profile(profile)
 	_assert_eq(String((promote_targets[0] as Dictionary)["node_id"]), "result", "SCREEN-30 preset promote target is Result")
 	_assert_eq(String((promote_targets[0] as Dictionary)["role"]), "result", "SCREEN-30 preset promote role is Result")
+	_assert_simple_preset_matches_legacy_chain(graph, _legacy_simple_profile_graph(profile), "GQM-15 Simple preset output matches legacy chain")
 
 
 func _test_build_screen_simple_profile_opens_graph_and_promotes_terrain() -> void:
@@ -96,14 +98,14 @@ func _test_build_screen_simple_profile_opens_graph_and_promotes_terrain() -> voi
 	_assert_true(bool(snapshot["last_run_visible"]), "SCREEN-30 last run state is visible")
 	_assert_viewport_projection_ok(snapshot, "SCREEN-30 direct Simple graph projects to viewport")
 
-	screen.graph_canvas().set_node_params("walls", {
-		"wall_probability": 0.12,
-		"seed": 9,
-	})
+	var terrain_params := screen.graph_canvas().node_params("terrain")
+	terrain_params["wall_probability"] = 0.12
+	terrain_params["wall_seed"] = 9
+	screen.graph_canvas().set_node_params("terrain", terrain_params)
 	snapshot = screen.build_screen_snapshot()
 	var dirty_ids = snapshot["dirty_node_ids"] as PackedStringArray
-	_assert_true(dirty_ids.has("walls"), "SCREEN-30 graph edit marks preset wall node dirty")
-	_assert_true(dirty_ids.has("connectivity"), "SCREEN-30 graph edit marks downstream preset node dirty")
+	_assert_true(dirty_ids.has("terrain"), "SCREEN-30 graph edit marks preset terrain node dirty")
+	_assert_true(dirty_ids.has("result"), "SCREEN-30 graph edit marks downstream Result node dirty")
 	var rerun = screen.run_graph()
 	_assert_true(bool(rerun["ok"]), "SCREEN-30 edited preset graph reruns through the graph path")
 
@@ -180,6 +182,81 @@ func _test_simple_profile_without_project_profile_uses_default_graph() -> void:
 
 	screen.queue_free()
 	await process_frame
+
+
+func _legacy_simple_profile_graph(profile: HexGenerationProfileResource) -> Dictionary:
+	var graph := HexGenerationGraph.new_graph()
+	var shape_id := String(profile.shape_id)
+	match shape_id:
+		"hexagon":
+			HexGenerationGraph.add_node(graph, "shape", "shape", {
+				"shape": "hexagon",
+				"radius": max(0, int(profile.radius)),
+			})
+		"square":
+			HexGenerationGraph.add_node(graph, "shape", "shape", {
+				"shape": "square",
+				"size": max(1, int(profile.radius)),
+			})
+		"rectangle", _:
+			HexGenerationGraph.add_node(graph, "shape", "shape", {
+				"shape": "rectangle",
+				"width": max(1, int(profile.width)),
+				"height": max(1, int(profile.height)),
+			})
+	HexGenerationGraph.add_node(graph, "walls", "wall_field", {
+		"wall_probability": clampf(float(profile.wall_probability), 0.0, 1.0),
+		"seed": int(profile.default_seed),
+	})
+	HexGenerationGraph.add_node(graph, "connectivity", "connectivity", {
+		"method": String(profile.connectivity_mode),
+		"seed": int(profile.default_seed) + 101,
+	})
+	HexGenerationGraph.add_node(graph, "result", "result", {
+		"orientation": 0,
+	})
+	HexGenerationGraph.add_edge(graph, "shape", "walls", "in")
+	HexGenerationGraph.add_edge(graph, "walls", "connectivity", "in")
+	HexGenerationGraph.add_edge(graph, "connectivity", "result", "terrain")
+	return graph
+
+
+func _assert_simple_preset_matches_legacy_chain(consolidated: Dictionary, legacy: Dictionary, message: String) -> void:
+	var consolidated_report := HexGenerationGraphRunner.run_with_report(consolidated)
+	var legacy_report := HexGenerationGraphRunner.run_with_report(legacy)
+	_assert_true(bool(consolidated_report.get("ok", false)), "%s: consolidated graph runs" % message)
+	_assert_true(bool(legacy_report.get("ok", false)), "%s: legacy graph runs" % message)
+	if not bool(consolidated_report.get("ok", false)) or not bool(legacy_report.get("ok", false)):
+		return
+	var consolidated_result = (consolidated_report["cache"] as Dictionary).get("result", null)
+	var legacy_result = (legacy_report["cache"] as Dictionary).get("result", null)
+	_assert_eq(_result_signature(consolidated_result), _result_signature(legacy_result), message)
+
+
+func _all_nodes_are_consolidated(graph: Dictionary) -> bool:
+	for node in (graph.get("nodes", {}) as Dictionary).values():
+		if not HexGenerationNodeTypes.is_consolidated_type(String((node as Dictionary).get("type", ""))):
+			return false
+	return true
+
+
+func _result_signature(result) -> String:
+	if not result is HexGenerationResultResource:
+		return "<missing-result>"
+	var result_resource := result as HexGenerationResultResource
+	if result_resource.primary_map == null:
+		return "<missing-primary>"
+	return _map_signature(result_resource.primary_map.to_map_data())
+
+
+func _map_signature(data) -> String:
+	if not data is HexMapData:
+		return "<missing-map>"
+	return "%s|%s|%d" % [
+		str(HexMapData.sorted_keys(data.cells)),
+		str(HexMapData.sorted_keys(data.walls)),
+		int(data.cyclic_size),
+	]
 
 
 func _wait_for_workspace_preview_pending(workspace: HexMapWorkspace, message: String) -> void:

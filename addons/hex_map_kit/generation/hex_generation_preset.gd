@@ -5,9 +5,7 @@ extends RefCounted
 const HexGenerationGraphScript = preload("res://addons/hex_map_kit/generation/hex_generation_graph.gd")
 const HexGenerationNodeTypesScript = preload("res://addons/hex_map_kit/generation/hex_generation_node_types.gd")
 
-const NODE_SHAPE := "shape"
-const NODE_WALLS := "walls"
-const NODE_CONNECTIVITY := "connectivity"
+const NODE_TERRAIN := "terrain"
 const NODE_RESULT := "result"
 const PROMOTE_ROLE_RESULT := "result"
 
@@ -17,27 +15,9 @@ static func from_profile(profile_res = null) -> Dictionary:
 	var graph := HexGenerationGraphScript.new_graph()
 	HexGenerationGraphScript.add_node(
 		graph,
-		NODE_SHAPE,
-		HexGenerationNodeTypesScript.NODE_SHAPE,
-		_shape_params(options)
-	)
-	HexGenerationGraphScript.add_node(
-		graph,
-		NODE_WALLS,
-		HexGenerationNodeTypesScript.NODE_WALL_FIELD,
-		{
-			"wall_probability": clampf(float(options.get("wall_probability", 0.18)), 0.0, 1.0),
-			"seed": int(options.get("seed", 0)),
-		}
-	)
-	HexGenerationGraphScript.add_node(
-		graph,
-		NODE_CONNECTIVITY,
-		HexGenerationNodeTypesScript.NODE_CONNECTIVITY,
-		{
-			"method": String(options.get("connectivity_mode", "dense")),
-			"seed": int(options.get("seed", 0)) + 101,
-		}
+		NODE_TERRAIN,
+		HexGenerationNodeTypesScript.NODE_TERRAIN_GENERATION,
+		_terrain_params(options)
 	)
 	HexGenerationGraphScript.add_node(
 		graph,
@@ -47,9 +27,7 @@ static func from_profile(profile_res = null) -> Dictionary:
 			"orientation": 0,
 		}
 	)
-	HexGenerationGraphScript.add_edge(graph, NODE_SHAPE, NODE_WALLS, "in")
-	HexGenerationGraphScript.add_edge(graph, NODE_WALLS, NODE_CONNECTIVITY, "in")
-	HexGenerationGraphScript.add_edge(graph, NODE_CONNECTIVITY, NODE_RESULT, "terrain")
+	HexGenerationGraphScript.add_edge(graph, NODE_TERRAIN, NODE_RESULT, "in_0")
 	return graph
 
 
@@ -110,3 +88,14 @@ static func _shape_params(options: Dictionary) -> Dictionary:
 				"width": max(1, int(options.get("width", 8))),
 				"height": max(1, int(options.get("height", 6))),
 			}
+
+
+static func _terrain_params(options: Dictionary) -> Dictionary:
+	var params := _shape_params(options)
+	params["base_mode"] = "shape"
+	params["wall_method"] = "random_probability"
+	params["wall_probability"] = clampf(float(options.get("wall_probability", 0.18)), 0.0, 1.0)
+	params["wall_seed"] = int(options.get("seed", 0))
+	params["connectivity_method"] = String(options.get("connectivity_mode", "dense"))
+	params["connectivity_seed"] = int(options.get("seed", 0)) + 101
+	return params

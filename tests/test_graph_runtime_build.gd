@@ -27,6 +27,7 @@ func _run() -> void:
 	_test_saved_embed_graph_builds_without_external_reference()
 	_test_reference_semantics_path_resolves_runtime_context()
 	_test_unresolved_semantics_returns_error()
+	_test_runtime_build_normalizes_legacy_graph_resource()
 	_test_runtime_parity_inline_consolidated_graph()
 	_test_runtime_parity_reference_asset_consolidated_graph()
 	_test_runtime_path_has_no_editor_import()
@@ -102,6 +103,27 @@ func _test_unresolved_semantics_returns_error() -> void:
 	_assert_eq(String((result["errors"] as Array)[0]["code"]), "semantics_unresolved", "RUNTIME-50 unresolved semantics is reported as an error")
 
 
+func _test_runtime_build_normalizes_legacy_graph_resource() -> void:
+	var resource := _legacy_runtime_result_graph_resource()
+	var legacy_graph := resource.to_dict()
+	var legacy_report := HexGenerationGraphRunner.run_with_report(legacy_graph, {"seed": 93})
+	var runtime_result := HexMapGraphBuilder.build(resource, {"seed": 93})
+	_assert_true(bool(legacy_report.get("ok", false)), "GQM-15 direct legacy runtime graph runs")
+	_assert_true(bool(runtime_result.get("ok", false)), "GQM-15 runtime Map Build accepts legacy graph resource")
+	var normalization_report := runtime_result.get("normalization_report", {}) as Dictionary
+	_assert_true(bool(normalization_report.get("normalized", false)), "GQM-15 runtime result reports legacy normalization")
+	_assert_true(String(runtime_result.get("status_text", "")).contains("normalized"), "GQM-15 runtime status mentions normalization")
+	if bool(legacy_report.get("ok", false)) and bool(runtime_result.get("ok", false)):
+		var legacy_result = (legacy_report["cache"] as Dictionary).get("result", null) as HexGenerationResultResource
+		_assert_true(legacy_result is HexGenerationResultResource, "GQM-15 legacy runtime graph produces Result resource")
+		if legacy_result is HexGenerationResultResource and legacy_result.primary_map != null:
+			_assert_eq(
+				_map_signature(runtime_result.get("map_data", null)),
+				_map_signature(legacy_result.primary_map.to_map_data()),
+				"GQM-15 runtime normalized terrain matches direct legacy Result substrate"
+			)
+
+
 func _test_runtime_parity_inline_consolidated_graph() -> void:
 	var resource := _consolidated_runtime_parity_graph_resource(false)
 	_assert_runtime_parity(resource, 91, "GQM-16 inline/embed consolidated graph")
@@ -156,6 +178,34 @@ func _random_wall_graph_resource() -> HexGenerationGraphResource:
 	resource.ownership_semantics = "embed"
 	resource.semantics_snapshot = {"embed": true}
 	resource.promote_targets = [{"node_id": "walls", "role": "terrain"}]
+	return resource
+
+
+func _legacy_runtime_result_graph_resource() -> HexGenerationGraphResource:
+	var graph := HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(graph, "shape", "shape", {
+		"shape": "rectangle",
+		"width": 6,
+		"height": 4,
+	})
+	HexGenerationGraph.add_node(graph, "walls", "wall_field", {
+		"wall_method": "random_probability",
+		"wall_probability": 0.0,
+		"seed": 31,
+	})
+	HexGenerationGraph.add_node(graph, "connect", "connectivity", {
+		"method": "dense",
+		"seed": 37,
+	})
+	HexGenerationGraph.add_node(graph, "result", "result")
+	HexGenerationGraph.add_edge(graph, "shape", "walls", "in")
+	HexGenerationGraph.add_edge(graph, "walls", "connect", "in")
+	HexGenerationGraph.add_edge(graph, "connect", "result", "terrain")
+	var resource := HexGenerationGraphResource.from_dict(graph)
+	resource.graph_id = "gqm15_legacy_runtime_graph"
+	resource.ownership_semantics = "embed"
+	resource.semantics_snapshot = {"embed": true}
+	resource.promote_targets = [{"node_id": "connect", "role": "terrain"}]
 	return resource
 
 

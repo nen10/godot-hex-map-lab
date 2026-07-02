@@ -15,6 +15,7 @@ const HexGenerationPresetScript = preload("res://addons/hex_map_kit/generation/h
 const HexGenerationPromoteScript = preload("res://addons/hex_map_kit/generation/hex_generation_promote.gd")
 const HexGenerationNodeTypesScript = preload("res://addons/hex_map_kit/generation/hex_generation_node_types.gd")
 const HexGenerationGraphRunnerScript = preload("res://addons/hex_map_kit/generation/hex_generation_graph_runner.gd")
+const HexGenerationGraphNormalizerScript = preload("res://addons/hex_map_kit/generation/hex_generation_graph_normalizer.gd")
 const HexGenerationPortsScript = preload("res://addons/hex_map_kit/generation/hex_generation_ports.gd")
 const HexGenerationGraphResourceScript = preload("res://addons/hex_map_kit/adapter/hex_generation_graph_resource.gd")
 const HexTileMapLayerScript = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
@@ -340,6 +341,7 @@ func run_simple_profile_graph(options: Dictionary = {}) -> Dictionary:
 	var profile_id := _profile_id(profile)
 	var profile_display_name := _profile_display_name(profile)
 	var canvas_snapshot := _canvas.canvas_snapshot()
+	var preset_visible := int(canvas_snapshot.get("node_count", 0)) >= 2 and int(canvas_snapshot.get("connection_count", 0)) >= 1
 	var graph_resource = _store_current_canvas_graph_on_context_layer(promote_role) if bool(restore_report.get("ok", false)) else null
 	_last_simple_generate_result = {
 		"ok": bool(restore_report.get("ok", false)) and bool(run_report.get("ok", false)),
@@ -349,7 +351,7 @@ func run_simple_profile_graph(options: Dictionary = {}) -> Dictionary:
 		"uses_project_resource": profile != null,
 		"graph_node_count": int(canvas_snapshot.get("node_count", 0)),
 		"graph_connection_count": int(canvas_snapshot.get("connection_count", 0)),
-		"preset_graph_visible_in_canvas": int(canvas_snapshot.get("node_count", 0)) >= 3 and int(canvas_snapshot.get("connection_count", 0)) >= 2,
+		"preset_graph_visible_in_canvas": preset_visible,
 		"selected_node_id": _canvas.selected_node_id(),
 		"promote_target_role": promote_role,
 		"graph_resource": graph_resource,
@@ -408,6 +410,7 @@ func ensure_graph_context_for_hex_tile_map_layer(
 
 	var created_graph := false
 	var restore_report := {}
+	var normalization_report := {}
 	if layer.generation_graph_resource == null:
 		_canvas.build_default_vertical_slice_chain()
 		var graph_resource = HexGenerationGraphResourceScript.from_dict(_canvas.build_graph_model())
@@ -430,10 +433,13 @@ func ensure_graph_context_for_hex_tile_map_layer(
 			"selected_node_id": _canvas.selected_node_id(),
 		}
 	else:
+		var prepared := _graph_model_for_editor_load(layer.generation_graph_resource, options)
+		normalization_report = prepared.get("normalization_report", {}) as Dictionary
 		restore_report = _canvas.restore_graph_model(
-			layer.generation_graph_resource.to_graph_model(),
+			prepared.get("graph", {}) as Dictionary,
 			String(options.get("selected_node_id", "weighted_items"))
 		)
+		restore_report["normalization_report"] = normalization_report
 
 	var run_report := {}
 	if bool(options.get("run", true)):
@@ -450,7 +456,8 @@ func ensure_graph_context_for_hex_tile_map_layer(
 		"document": layer.level_document_resource,
 		"restore_report": restore_report,
 		"run_report": run_report,
-		"status_text": "Build graph context ready.",
+		"normalization_report": normalization_report,
+		"status_text": _graph_load_status_text("Build graph context ready.", normalization_report),
 	}
 	if _status_label != null:
 		_status_label.text = String(_last_build_context_result["status_text"])
@@ -467,26 +474,33 @@ func load_graph_resource(graph_resource: HexGenerationGraphResourceScript, optio
 		_last_graph_load_result = _graph_load_result(false, "Choose a Generation Graph resource.")
 		return _last_graph_load_result.duplicate(true)
 
+	var prepared := _graph_model_for_editor_load(graph_resource, options)
+	var normalization_report := prepared.get("normalization_report", {}) as Dictionary
 	var restore_report := _canvas.restore_graph_model(
-		graph_resource.to_graph_model(),
+		prepared.get("graph", {}) as Dictionary,
 		String(options.get("selected_node_id", "weighted_items"))
 	)
+	restore_report["normalization_report"] = normalization_report
 	var run_report := {}
 	if bool(options.get("run", false)):
 		run_report = run_graph()
 	else:
 		_refresh_selected_node()
+	var blocked_reason := "" if bool(restore_report.get("ok", false)) else String(restore_report.get("reason", "Graph resource could not be restored."))
+	var status_text := _graph_load_status_text("Graph loaded: %s" % graph_resource.graph_id, normalization_report) if bool(restore_report.get("ok", false)) else blocked_reason
 	_last_graph_load_result = {
 		"ok": bool(restore_report.get("ok", false)),
-		"blocked_reason": "" if bool(restore_report.get("ok", false)) else String(restore_report.get("reason", "Graph resource could not be restored.")),
+		"blocked_reason": blocked_reason,
 		"graph_resource": graph_resource,
 		"graph_id": graph_resource.graph_id,
 		"restore_report": restore_report,
 		"run_report": run_report,
+		"normalization_report": normalization_report,
 		"overwrite_selected": _overwrite_selected_check != null and _overwrite_selected_check.button_pressed,
+		"status_text": status_text,
 	}
 	if _status_label != null:
-		_status_label.text = "Graph loaded: %s" % graph_resource.graph_id if bool(_last_graph_load_result["ok"]) else String(_last_graph_load_result["blocked_reason"])
+		_status_label.text = status_text
 	_refresh_context()
 	_refresh_selected_node()
 	return _last_graph_load_result.duplicate(true)
@@ -1277,6 +1291,27 @@ func _current_graph_settings() -> Dictionary:
 	}
 
 
+func _graph_model_for_editor_load(graph_resource: HexGenerationGraphResourceScript, options: Dictionary = {}) -> Dictionary:
+	var normalized := HexGenerationGraphNormalizerScript.normalize_graph_for_load(graph_resource.to_graph_model())
+	var report := normalized.get("report", {}) as Dictionary
+	var external_report = options.get("normalization_report", {})
+	if not bool(report.get("normalized", false)) and external_report is Dictionary:
+		var external_dict := external_report as Dictionary
+		if bool(external_dict.get("normalized", false)):
+			report = external_dict.duplicate(true)
+	return {
+		"graph": normalized.get("graph", {}) as Dictionary,
+		"normalization_report": report,
+	}
+
+
+func _graph_load_status_text(default_text: String, normalization_report: Dictionary) -> String:
+	var text := String(normalization_report.get("status_text", "")).strip_edges()
+	if bool(normalization_report.get("normalized", false)) and text != "":
+		return text
+	return default_text
+
+
 func _graph_load_result(ok: bool, reason: String) -> Dictionary:
 	return {
 		"ok": ok,
@@ -1285,7 +1320,9 @@ func _graph_load_result(ok: bool, reason: String) -> Dictionary:
 		"graph_id": "",
 		"restore_report": {},
 		"run_report": {},
+		"normalization_report": {},
 		"overwrite_selected": _overwrite_selected_check != null and _overwrite_selected_check.button_pressed,
+		"status_text": reason,
 	}
 
 
