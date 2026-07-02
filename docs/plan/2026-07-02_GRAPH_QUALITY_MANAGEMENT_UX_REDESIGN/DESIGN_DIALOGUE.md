@@ -192,3 +192,20 @@ criteria 種別ごとの現状（2026-07-03 コード裏取り）は非対称で
 1. **Q-R2-1（resource model の骨子）**: R2-2-2 を別紙 `RESOURCE_MODEL.md` として起こす。対象は adjacency rules / markov distribution / item pool / graph / 生成結果 の 5 種で、規約は「置き場所・命名・sample/production 分離・preset root・embed vs reference・共通操作文法（Preset dropdown + Save/Load）」。**この骨子で書き始めて良いか。他に資産化したい criteria はあるか。** ->資産化はこのままで良いが、設定項目及びassetごとの、生成方式決定のためのノードグラフ内での核依存関係がUX動線としてUIにわかりやすく反映される必要があり、一つの項目を設定したときに、他の項目が連動して変わる上階繊維モデルによる管理機能が旧Generateタブから十分に引き継がれておらず、ユーザーに暗黙知を必要とする設定変更作業を過剰に要求した状態に現状なっているため、このこと含めて(schema 中央化と並んで)明確さを与えられるように改善する必要がある。
 2. **Q-R2-2（batch 系の撤去）**: Batch N / Seed randomize / Shape randomize を UI から完全撤去し、`GENERATION_GRAPH_MODEL.md` §5 の「半オプション（N 生成）」判断を上書きして良いか（runner の複数 run 能力自体は headless に残る）。-> それで進める。この機能自体は実需要後に設計すれば十分であり、開発上の理念に関与しないため先回りした提供は不要。
 3. **Q-R2-3（生成結果 resource の保存内容）**: (a) graph snapshot + seed のみ（軽い・切替時に再生成が走る）/ (b) 出力 data 込み（切替が即時・大マップの再生成コストを回避・file は重い）。**切替の即時性を優先するなら (b) 推奨**（thumbnail 否定の理由「大サイズ生成コスト」と整合）。-> (b)で進める
+
+---
+
+# Round 3 (2026-07-03) — 確定記録と成果物
+
+round 2 への回答により以下を確定し、反映した:
+
+| 確定事項 | 反映先 |
+|---|---|
+| 資産化 5 種の骨子で進める + **依存連動（状態遷移）モデルの継承**を中核要求に追加（設定・asset の核依存関係を UX 動線に反映し、一項目の設定で他項目が連動更新。暗黙知の要求を解消。schema 中央化と並置） | `RESOURCE_MODEL.md` §0-4/§5（連動モデル）+ `REPAIR-21` acceptance 拡張 |
+| Batch N / Seed randomize / Shape randomize は UI から完全撤去（実需要後に設計で十分。理念に関与しない先回り提供は不要） | `GENERATION_GRAPH_MODEL.md` §5 上書き注記 |
+| 生成結果 resource は (b) 出力 data 込み | `RESOURCE_MODEL.md` §2/§6 |
+| REPAIR-22 廃止（default 常時有効原則として REPAIR-21 へ吸収） | queue: `SUPERSEDED` |
+| REPAIR-23 最後尾降格 | queue: `BACKLOG` + 選択禁止注記 |
+| 一般原則「その画面で設定を変更できない項目は表示する意味がない」（R2-4 Context chips 回答） | `RESOURCE_MODEL.md` §5.3（由来 chip は操作可能要素として設計） |
+
+**round 3 の成果物**: `RESOURCE_MODEL.md`（draft round 1）。未決は同 §8 の Q-RM-1〜3（project asset root / 昇格導線 / result file サイズ表示）。確定後に実装スライス（同 §7）を queue 化する。

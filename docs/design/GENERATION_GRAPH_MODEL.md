@@ -68,7 +68,8 @@
 ## 5. Run UX（G2）
 
 - **頭出し（primary action）= Generate（N=1）**。最初の体験は「param を変えて Generate、結果を見る」。
-- **降格配置（下方）**: 生成枚数 `N`（数値入力, **default 1**）/ seed randomize / shape randomize。`N>1` + randomize で「一貫基準の束」を得る——**半オプション**（初手の体験にしない）。
+- ~~**降格配置（下方）**: 生成枚数 `N`（数値入力, **default 1**）/ seed randomize / shape randomize。`N>1` + randomize で「一貫基準の束」を得る——**半オプション**（初手の体験にしない）。~~
+  **上書き (2026-07-03)**: Batch N / seed randomize / shape randomize は **UI から撤去**。本製品は「1 回の生成で理想のマップが出る」ことをアルゴリズムと生成フローで保証するコンセプトであり、多数生成→比較は原理的に不要（半オプションとしても提供しない）。runner の複数 run 能力は headless に残す。実需要が観測された場合にのみ再設計する。判断記録: `docs/plan/2026-07-02_GRAPH_QUALITY_MANAGEMENT_UX_REDESIGN/DESIGN_DIALOGUE.md` R2-6 Q-R2-2。
 - 理由: 生成は重い。最初から N 枚生成は初手候補にしない。
 - **Run model**: DAG をトポロジ順に実行、中間 output を cache、上流変更で dirty 伝播。
 
