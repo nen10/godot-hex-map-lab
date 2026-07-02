@@ -37,7 +37,8 @@ static func add_edge(
 	from_node: String,
 	to_node: String,
 	to_port: String,
-	from_port: String = HexGenerationNodeTypesScript.PORT_OUT
+	from_port: String = HexGenerationNodeTypesScript.PORT_OUT,
+	adaptation: String = ""
 ) -> Dictionary:
 	_ensure_graph_shape(graph)
 	var edge = {
@@ -46,8 +47,23 @@ static func add_edge(
 		"to_node": to_node,
 		"to_port": to_port,
 	}
+	if adaptation != "":
+		edge["adaptation"] = adaptation
 	graph["edges"].append(edge)
 	return edge
+
+
+static func would_create_cycle(graph: Dictionary, from_node: String, to_node: String) -> bool:
+	_ensure_graph_shape(graph)
+	var probe := graph.duplicate(true)
+	_ensure_graph_shape(probe)
+	probe["edges"].append({
+		"from_node": from_node,
+		"from_port": HexGenerationNodeTypesScript.PORT_OUT,
+		"to_node": to_node,
+		"to_port": "__cycle_probe__",
+	})
+	return not bool(topological_order(probe).get("ok", false))
 
 
 static func validate(graph: Dictionary) -> Dictionary:
@@ -87,7 +103,9 @@ static func validate(graph: Dictionary) -> Dictionary:
 			errors.append(_error("unknown_input_port", to_node, edge, "Unknown input port '%s'." % to_port))
 			continue
 		var output_type = HexGenerationNodeTypesScript.output_type_for_node(nodes[from_node])
-		if not HexGenerationPortsScript.compatible(output_type, input_def.get("accepts", [])):
+		var untyped_input := bool(input_def.get("untyped", false)) \
+			or HexGenerationNodeTypesScript.is_consolidated_type(to_type)
+		if not untyped_input and not HexGenerationPortsScript.compatible(output_type, input_def.get("accepts", [])):
 			errors.append(_error(
 				"type_mismatch",
 				to_node,
@@ -120,6 +138,13 @@ static func validate(graph: Dictionary) -> Dictionary:
 			var input_def: Dictionary = HexGenerationNodeTypesScript.input_definition(node_type, String(port_name))
 			if bool(input_def.get("required", true)) and not incoming_by_node[node_id].has(port_name):
 				errors.append(_error("missing_required_input", node_id, {}, "Node '%s' requires input port '%s'." % [node_id, port_name]))
+		if node_type == HexGenerationNodeTypesScript.NODE_SET_OPERATION and incoming_by_node[node_id].size() < 2:
+			errors.append(_error(
+				"missing_required_input",
+				node_id,
+				{},
+				"Set Operation node '%s' requires at least two inputs." % node_id
+			))
 
 	var topo = topological_order(graph)
 	if not bool(topo.get("ok", false)):
