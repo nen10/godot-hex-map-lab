@@ -1467,7 +1467,10 @@ func _test_workspace_tab_purpose_empty_states_route_to_project_actions() -> void
 	_assert_true(resource_actions.has("Select a HexTileMap node"), "INFO-71 Resources next action points to node selection")
 	var work_snapshots := snapshots.duplicate()
 	work_snapshots["Build"] = workspace.generation_screen_snapshot()
-	var work_tab_names := PackedStringArray(["Build", "Paint", "Catalog", "Layers", "Validate", "QA", "Export"])
+	var build_snapshot = work_snapshots["Build"] as Dictionary
+	_assert_true(not bool(build_snapshot.get("context_chips_visible", true)), "GQM-13 Build removes header context chips")
+	_assert_eq(_context_chip_texts(build_snapshot).size(), 0, "GQM-13 Build context chip text is absent")
+	var work_tab_names := PackedStringArray(["Paint", "Catalog", "Layers", "Validate", "QA", "Export"])
 	for work_tab_name in work_tab_names:
 		var work_snapshot = work_snapshots[work_tab_name] as Dictionary
 		var chip_texts := _context_chip_texts(work_snapshot)

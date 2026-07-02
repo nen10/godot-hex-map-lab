@@ -4,6 +4,7 @@ extends Resource
 
 const HexGenerationGraph = preload("res://addons/hex_map_kit/generation/hex_generation_graph.gd")
 
+@export var display_name := ""
 @export var graph_id := "build_graph"
 @export var ownership_semantics := "embed"
 @export_file("*.tres") var semantics_reference_path := ""

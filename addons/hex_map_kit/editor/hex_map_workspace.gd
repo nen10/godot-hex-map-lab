@@ -100,7 +100,6 @@ var _resources_save_all_button: Button
 var _missing_unique_resources_save_directory := ""
 var _build_screen: HexMapBuildScreen
 var _generation_dock: HexMapGenDock
-var _pending_graph_load_overwrite := false
 var _last_graph_load_result: Dictionary = {}
 var _edit_tool: HexMapEditTool
 var _sample_settings_panel: HexMapSampleSettingsPanel
@@ -320,11 +319,10 @@ func generation_screen_snapshot() -> Dictionary:
 		build_snapshot["component_ids"] = tab_component_ids(HexMapWorkspaceComponentRegistry.TAB_GENERATE)
 		build_snapshot["asset_slot_ids"] = tab_asset_slot_ids(HexMapWorkspaceComponentRegistry.TAB_GENERATE)
 		build_snapshot["purpose_text"] = "Build a generation graph and inspect node outputs."
-		var build_context_chips := _work_tab_context_chips(HexMapWorkspaceComponentRegistry.TAB_GENERATE)
-		build_snapshot["context_chips"] = build_context_chips
-		build_snapshot["context_chips_visible"] = true
-		build_snapshot["context_chips_text"] = _join_text(build_context_chips, " ")
-		build_snapshot["context_chips_detail_target"] = HexMapWorkspaceComponentRegistry.TAB_DOCUMENT
+		build_snapshot["context_chips"] = []
+		build_snapshot["context_chips_visible"] = false
+		build_snapshot["context_chips_text"] = ""
+		build_snapshot["context_chips_detail_target"] = ""
 		build_snapshot["global_map_chip_duplicated"] = false
 		build_snapshot["resource_row_primary"] = false
 		build_snapshot["empty_state"] = _tab_empty_state(
@@ -332,7 +330,7 @@ func generation_screen_snapshot() -> Dictionary:
 			"Build a generation graph and inspect node outputs.",
 			"",
 			PackedStringArray(),
-			"Build is the generation graph work surface. Simple generation remains a secondary entry."
+			"Build is the generation graph work surface."
 		)
 		build_snapshot["empty_state_text"] = ""
 		build_snapshot["empty_state_visible"] = false
@@ -5846,7 +5844,6 @@ func _mount_generation_panel() -> void:
 	_build_screen.set_build_context_provider(Callable(self, "_provide_build_context_for_screen"))
 	_build_screen.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_build_screen.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_build_screen.load_graph_requested.connect(_on_build_load_graph_requested)
 	_build_screen.build_context_requested.connect(_on_build_context_requested)
 	(page as Control).add_child(_build_screen)
 	_register_tab_component(HexMapWorkspaceComponentRegistry.TAB_GENERATE, "build_graph_screen", _build_screen)
@@ -5909,22 +5906,6 @@ func _refresh_export_destination_panel() -> void:
 		_export_run_button.tooltip_text = _export_run_button_tooltip(context, destination_context)
 
 
-func _popup_generation_graph_dialog(overwrite_selected: bool) -> bool:
-	if not Engine.is_editor_hint():
-		return false
-	_pending_graph_load_overwrite = overwrite_selected
-	var dialog := HexMapEditorPathSelector.new_dialog(
-		EditorFileDialog.FILE_MODE_OPEN_FILE,
-		HexMapEditorPathSelector.TRES_FILTERS
-	)
-	dialog.file_selected.connect(_on_generation_graph_file_selected)
-	return HexMapEditorPathSelector.popup_dialog(dialog)
-
-
-func _on_build_load_graph_requested(overwrite_selected: bool) -> void:
-	_popup_generation_graph_dialog(overwrite_selected)
-
-
 func _on_build_context_requested() -> void:
 	ensure_build_graph_context("workspace.build_screen.generate")
 
@@ -5932,14 +5913,6 @@ func _on_build_context_requested() -> void:
 func _provide_build_context_for_screen(options: Dictionary = {}) -> Dictionary:
 	var reason := String(options.get("reason", "workspace.build_screen.generate"))
 	return ensure_build_graph_context(reason, options)
-
-
-func _on_generation_graph_file_selected(path: String) -> void:
-	load_generation_graph_path(
-		path,
-		_pending_graph_load_overwrite,
-		"workspace.build_screen.load_graph"
-	)
 
 
 func _popup_export_destination_dialog() -> bool:

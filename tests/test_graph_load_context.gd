@@ -10,7 +10,7 @@ func _init() -> void:
 
 
 func _run() -> void:
-	await _test_build_screen_load_graph_controls_are_non_destructive_by_default()
+	await _test_build_screen_graph_asset_operations_replace_load_graph_controls()
 	await _test_legacy_sample_graph_load_normalizes_canvas_and_preserves_output()
 	await _test_load_graph_default_creates_new_selected_layer_with_embed_copy()
 	await _test_load_graph_overwrite_preserves_manual_layers()
@@ -18,16 +18,18 @@ func _run() -> void:
 	_finish("res://tests/test_graph_load_context.gd")
 
 
-func _test_build_screen_load_graph_controls_are_non_destructive_by_default() -> void:
+func _test_build_screen_graph_asset_operations_replace_load_graph_controls() -> void:
 	var screen = HexMapBuildScreen.new()
 	root.add_child(screen)
 	await process_frame
 
 	var snapshot = screen.build_screen_snapshot()
-	_assert_true(bool(snapshot["load_graph_button_present"]), "RUNTIME-51 Build screen exposes Load Graph action")
-	_assert_true(bool(snapshot["overwrite_selected_graph_check_present"]), "RUNTIME-51 Build screen exposes overwrite opt-in")
-	_assert_true(not bool(snapshot["overwrite_selected_graph_default"]), "RUNTIME-51 overwrite selected is off by default")
-	_assert_true(not bool(snapshot["overwrite_selected_graph"]), "RUNTIME-51 overwrite selected starts unchecked")
+	_assert_true(bool(snapshot["template_dropdown_present"]), "GQM-13 Build screen exposes Template dropdown")
+	_assert_true(bool(snapshot["load_button_present"]), "GQM-13 Build screen exposes graph asset Load action")
+	_assert_true(bool(snapshot["save_as_button_present"]), "GQM-13 Build screen exposes graph asset Save as action")
+	_assert_true(not bool(snapshot["load_graph_button_present"]), "GQM-13 old Load Graph action is removed")
+	_assert_true(not bool(snapshot["overwrite_selected_graph_check_present"]), "GQM-13 old overwrite opt-in is removed")
+	_assert_true(not bool(snapshot["overwrite_selected_graph"]), "GQM-13 overwrite selected no longer has header state")
 
 	screen.queue_free()
 	await process_frame

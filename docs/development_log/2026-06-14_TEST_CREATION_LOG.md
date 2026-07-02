@@ -37,11 +37,11 @@
 - `tests/test_graph_runtime_build.gd`
   - Generation Graph Resource の runtime build API、seed 再現性、embed/reference semantics、editor 非依存、HexTileMapLayer 適用
 - `tests/test_graph_load_context.gd`
-  - Generation Graph Resource の editor load context ownership、新規 node embed 復元、overwrite generated 層置換、手動層保持
+  - Generation Graph Resource の editor load context ownership、新規 node embed 復元、overwrite generated 層置換、手動層保持、Build header の graph asset operation 化
 - `tests/test_build_graph_canvas.gd`
-  - Build tab graph canvas、untyped port / consolidated connection acceptance、legacy logical rejection、adaptation row persistence、Result stack row resolution / overlay reorder / row-control snapshot、GraphEdit→Dictionary model同期、3-node chain preview、run cache/dirty/failure state、failure/progress node highlight、Generate popup progress、palette/inspector contract
+  - Build tab graph canvas、untyped port / consolidated connection acceptance、legacy logical rejection、adaptation row persistence、Result stack row resolution / overlay reorder / row-control snapshot、GraphEdit→Dictionary model同期、3-node chain preview、run cache/dirty/failure state、failure/progress node highlight、Generate popup progress、Template/Save as/Load header contract、palette/inspector contract
 - `tests/test_build_screen_full.gd`
-  - Build tab Simple/Profile entry、Profile→preset graph、canvas 一体化、terrain promote、graph-less selected layer の UI button bootstrap、Simple Generate の viewport projection / Apply-Revert pending state
+  - Build tab Template dropdown、旧 Profile/Simple/Batch/Load Graph/Overwrite/context chip 撤去、基本形 template Generate、Save as→Load round-trip、profile 無し graphless selected layer の primary Generate bootstrap / Apply-Revert pending state
 - `tests/test_generation_promote.gd`
   - Generation Graph output の Document promote、generated層置換、manual層保持、overlay/object/terrain role、Result write policy stack composition、Result row substrate/overlay promote、save/load roundtrip、Build screen vertical slice、Build context bootstrap、top Generate の new/selected HexTileMapLayer viewport projection、Apply/Revert preview contract
 - `tests/test_hex_adapter.gd`

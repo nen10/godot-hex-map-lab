@@ -1,0 +1,181 @@
+[gd_resource type="Resource" script_class="HexGenerationGraphResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/hex_map_kit/adapter/hex_generation_graph_resource.gd" id="1_basic_graph"]
+
+[resource]
+script = ExtResource("1_basic_graph")
+display_name = "基本形"
+graph_id = "basic_template"
+ownership_semantics = "embed"
+nodes = [{
+"id": "domain_items",
+"params": {
+"display_name": "domain_items",
+"operation": "intersection"
+},
+"resource_refs": {},
+"type": "set_operation"
+}, {
+"id": "items",
+"params": {
+"display_name": "items",
+"item_pool": [{
+"display_name": "Item",
+"limit": 1,
+"name": "item",
+"weight": 1.0
+}],
+"placement_method": "weighted",
+"placement_probability": 1.0,
+"seed": 401,
+"source_mode": "result_substrate_floor"
+},
+"resource_refs": {},
+"type": "item_generation"
+}, {
+"id": "mask_1",
+"params": {
+"display_name": "mask_1",
+"operation": "union"
+},
+"resource_refs": {},
+"type": "set_operation"
+}, {
+"id": "pattern_b",
+"params": {
+"base_mode": "shape",
+"connectivity_method": "none",
+"display_name": "pattern_b",
+"height": 8,
+"shape": "rectangle",
+"toric_passage": false,
+"wall_method": "random_probability",
+"wall_probability": 0.32,
+"wall_seed": 211,
+"width": 12
+},
+"resource_refs": {},
+"type": "terrain_generation"
+}, {
+"id": "result",
+"params": {
+"display_name": "result",
+"orientation": 0
+},
+"resource_refs": {},
+"type": "result"
+}, {
+"id": "seeds_a",
+"params": {
+"display_name": "seeds_a",
+"item_pool": [{
+"display_name": "Seed A",
+"limit": 1,
+"name": "seed_a",
+"weight": 1.0
+}],
+"placement_method": "weighted",
+"placement_probability": 0.35,
+"seed": 301,
+"source_mode": "result_substrate_floor"
+},
+"resource_refs": {},
+"type": "item_generation"
+}, {
+"id": "seeds_b",
+"params": {
+"display_name": "seeds_b",
+"item_pool": [{
+"display_name": "Seed B",
+"limit": 1,
+"name": "seed_b",
+"weight": 1.0
+}],
+"placement_method": "weighted",
+"placement_probability": 0.25,
+"seed": 307,
+"source_mode": "result_substrate_floor"
+},
+"resource_refs": {},
+"type": "item_generation"
+}, {
+"id": "terrain",
+"params": {
+"base_mode": "shape",
+"connectivity_method": "dense",
+"connectivity_seed": 41,
+"display_name": "terrain",
+"height": 8,
+"shape": "rectangle",
+"toric_passage": false,
+"wall_method": "random_probability",
+"wall_probability": 0.18,
+"wall_seed": 17,
+"width": 12
+},
+"resource_refs": {},
+"type": "terrain_generation"
+}]
+edges = [{
+"adaptation": "floor",
+"from_node": "pattern_b",
+"from_port": "out",
+"to_node": "seeds_a",
+"to_port": "domain"
+}, {
+"adaptation": "floor",
+"from_node": "pattern_b",
+"from_port": "out",
+"to_node": "seeds_b",
+"to_port": "domain"
+}, {
+"adaptation": "cells",
+"from_node": "seeds_a",
+"from_port": "out",
+"to_node": "mask_1",
+"to_port": "in_0"
+}, {
+"adaptation": "cells",
+"from_node": "seeds_b",
+"from_port": "out",
+"to_node": "mask_1",
+"to_port": "in_1"
+}, {
+"adaptation": "floor",
+"from_node": "terrain",
+"from_port": "out",
+"to_node": "domain_items",
+"to_port": "in_0"
+}, {
+"from_node": "mask_1",
+"from_port": "out",
+"to_node": "domain_items",
+"to_port": "in_1"
+}, {
+"from_node": "domain_items",
+"from_port": "out",
+"to_node": "items",
+"to_port": "domain"
+}, {
+"from_node": "terrain",
+"from_port": "out",
+"to_node": "result",
+"to_port": "in_0"
+}, {
+"from_node": "items",
+"from_port": "out",
+"to_node": "result",
+"to_port": "in_1"
+}]
+promote_targets = [{
+"node_id": "result",
+"role": "result"
+}]
+graph_settings = {
+"orientation": 0,
+"seed": 0
+}
+semantics_snapshot = {
+"template": true,
+"template_id": "basic"
+}

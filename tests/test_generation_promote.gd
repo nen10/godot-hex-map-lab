@@ -192,10 +192,10 @@ func _test_build_context_bootstrap_selected_graphless_layer() -> void:
 	var snapshot = workspace.generation_screen_snapshot()
 	_assert_true(bool(snapshot["build_context_ready"]), "GRAPH-12A Build snapshot records ready context")
 	_assert_true(bool(snapshot["preview_available"]), "GRAPH-12A Build preview is available after bootstrap run")
-	workspace.build_screen().graph_canvas().select_graph_node("weighted_items")
-	var promote = workspace.build_screen().promote_selected_output("overlay")
+	workspace.build_screen().graph_canvas().select_graph_node("terrain")
+	var promote = workspace.build_screen().promote_selected_output("terrain")
 	_assert_true(bool(promote["ok"]), "GRAPH-12A promoted output after bootstrap")
-	_assert_true(selected_layer.level_document_resource.overlay_layers.size() > 0, "GRAPH-12A promoted overlay writes to selected document")
+	_assert_true(selected_layer.level_document_resource.terrain_layers.size() > 0, "GRAPH-12A promoted terrain writes to selected document")
 
 	scene_root.queue_free()
 	workspace.queue_free()
@@ -217,23 +217,23 @@ func _test_build_graph_node_params_flush_to_embedded_resource() -> void:
 	var result = workspace.ensure_build_graph_context("test.repair13.param_flush")
 	_assert_true(bool(result["ok"]), "REPAIR-13 param flush creates build context")
 	var screen = workspace.build_screen()
-	var params := screen.graph_canvas().node_params("shape")
+	var params := screen.graph_canvas().node_params("terrain")
 	params["width"] = 9
 	params["height"] = 3
-	screen._on_inspector_params_changed("shape", params)
+	screen._on_inspector_params_changed("terrain", params)
 
 	var resource = selected_layer.generation_graph_resource as HexGenerationGraphResource
 	_assert_true(resource is HexGenerationGraphResource, "REPAIR-13 param flush keeps embedded graph resource")
 	var model = resource.to_graph_model()
-	var shape_node = ((model["nodes"] as Dictionary)["shape"] as Dictionary)
-	var persisted_params = shape_node["params"] as Dictionary
-	_assert_eq(int(persisted_params.get("width", 0)), 9, "REPAIR-13 Shape width flushes to graph resource before Generate")
-	_assert_eq(int(persisted_params.get("height", 0)), 3, "REPAIR-13 Shape height flushes to graph resource before Generate")
+	var terrain_node = ((model["nodes"] as Dictionary)["terrain"] as Dictionary)
+	var persisted_params = terrain_node["params"] as Dictionary
+	_assert_eq(int(persisted_params.get("width", 0)), 9, "REPAIR-13 Terrain width flushes to graph resource before Generate")
+	_assert_eq(int(persisted_params.get("height", 0)), 3, "REPAIR-13 Terrain height flushes to graph resource before Generate")
 
-	screen.graph_canvas().restore_graph_model(resource.to_graph_model(), "shape")
-	var restored_params := screen.graph_canvas().node_params("shape")
-	_assert_eq(int(restored_params.get("width", 0)), 9, "REPAIR-13 restored canvas keeps flushed Shape width")
-	_assert_eq(int(restored_params.get("height", 0)), 3, "REPAIR-13 restored canvas keeps flushed Shape height")
+	screen.graph_canvas().restore_graph_model(resource.to_graph_model(), "terrain")
+	var restored_params := screen.graph_canvas().node_params("terrain")
+	_assert_eq(int(restored_params.get("width", 0)), 9, "REPAIR-13 restored canvas keeps flushed Terrain width")
+	_assert_eq(int(restored_params.get("height", 0)), 3, "REPAIR-13 restored canvas keeps flushed Terrain height")
 
 	scene_root.queue_free()
 	workspace.queue_free()
@@ -316,7 +316,7 @@ func _test_top_generate_creates_layer_and_projects_viewport_preview() -> void:
 	_assert_true(String(selected_layer.name).begins_with("BuildHexMapLayer"), "Generate-created layer uses BuildHexMapLayer naming")
 	_assert_true(selected_layer.level_document_resource is HexMapDocumentResource, "Generate-created layer owns a Level Document")
 	_assert_true(selected_layer.generation_graph_resource is HexGenerationGraphResource, "Generate-created layer owns an embedded graph")
-	_assert_true(selected_layer.level_document_resource.overlay_layers.size() > 0, "Generate-created Result preview writes generated overlay to the document")
+	_assert_true(selected_layer.level_document_resource.terrain_layers.size() > 0, "Generate-created Result preview writes generated terrain to the document")
 	_assert_true(selected_layer.display_used_cell_count() > 0, "Generate projects the result to the selected viewport layer")
 
 	var snapshot = workspace.generation_screen_snapshot()
@@ -371,7 +371,7 @@ func _test_top_generate_uses_selected_graphless_layer_for_viewport_preview() -> 
 	_assert_eq(workspace.editor_session_state().current_selected_hex_tile_map_layer(), selected_layer, "Generate keeps the selected HexTileMapLayer as target")
 	_assert_true(selected_layer.level_document_resource is HexMapDocumentResource, "Generate attaches a document to selected graphless layer")
 	_assert_true(selected_layer.generation_graph_resource is HexGenerationGraphResource, "Generate attaches graph resource to selected graphless layer")
-	_assert_true(selected_layer.level_document_resource.overlay_layers.size() > 0, "Selected layer Generate Result writes generated overlay to the document")
+	_assert_true(selected_layer.level_document_resource.terrain_layers.size() > 0, "Selected layer Generate Result writes generated terrain to the document")
 	_assert_true(selected_layer.display_used_cell_count() > 0, "Generate projects to the selected graphless layer viewport display")
 	var snapshot = workspace.generation_screen_snapshot()
 	_assert_top_generate_timing_phases(snapshot, "Selected layer Generate records measured phase timings")

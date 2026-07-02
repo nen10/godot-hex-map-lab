@@ -21,7 +21,7 @@ func _run() -> void:
 	await _test_run_state_caches_and_marks_dirty_downstream()
 	await _test_edge_selection_and_delete_updates_graph_state()
 	await _test_run_state_reports_failure_node()
-	await _test_build_screen_generate_is_primary_and_batch_secondary()
+	await _test_build_screen_generate_is_primary_and_header_unified()
 	await _test_build_screen_generate_opens_popup_progress()
 	await _test_build_screen_cancel_passes_interrupt_options()
 	await _test_palette_and_inspector_reflect_graph_contract()
@@ -40,7 +40,7 @@ func _test_build_screen_opens_on_graph_canvas() -> void:
 	_assert_true(bool(snapshot["canvas_is_dominant"]), "GRAPH-11 graph canvas is the dominant work surface")
 	_assert_true(not bool(snapshot["resource_row_primary"]), "GRAPH-11 resources are not the primary row")
 	_assert_true(bool(snapshot["generate_button_present"]), "GRAPH-11 Build screen exposes Generate primary action")
-	_assert_true(bool(snapshot["commit_actions_below_canvas"]), "REPAIR-10 Apply/Revert actions are below the graph canvas")
+	_assert_true(bool(snapshot["commit_actions_in_header"]), "GQM-13 Apply/Revert actions are in the Build header")
 	_assert_true(int(snapshot["canvas_minimum_height"]) >= 420, "REPAIR-10 Build graph canvas has dominant minimum height")
 
 	screen.queue_free()
@@ -411,19 +411,23 @@ func _test_run_state_reports_failure_node_impl() -> void:
 	await process_frame
 
 
-func _test_build_screen_generate_is_primary_and_batch_secondary() -> void:
+func _test_build_screen_generate_is_primary_and_header_unified() -> void:
 	var screen = HexMapBuildScreen.new()
 	root.add_child(screen)
 	await process_frame
 
 	var snapshot = screen.build_screen_snapshot()
 	_assert_eq(String(snapshot["primary_action"]), "Generate", "GRAPH-13 primary action remains Generate")
+	_assert_true(bool(snapshot["template_dropdown_present"]), "GQM-13 Template dropdown is present")
+	_assert_true(bool(snapshot["save_as_button_present"]), "GQM-13 Save as action is present")
+	_assert_true(bool(snapshot["load_button_present"]), "GQM-13 Load action is present")
 	_assert_true(bool(snapshot["cancel_button_present"]), "GRAPH-13 cancel control is present for busy runs")
 	_assert_true(not bool(snapshot["cancel_available"]), "GRAPH-13 cancel is unavailable while idle")
 	_assert_eq(int(snapshot["primary_generate_count"]), 1, "GRAPH-13 primary Generate means N=1")
 	_assert_eq(int(snapshot["generate_default_count"]), 1, "GRAPH-13 default run count is one")
-	_assert_true(bool(snapshot["batch_controls_secondary"]), "GRAPH-13 N/randomize controls are secondary")
-	_assert_true(bool(snapshot["commit_actions_below_canvas"]), "REPAIR-10 batch and commit controls share the lower graph action row")
+	_assert_true(not bool(snapshot["batch_controls_secondary"]), "GQM-13 N/randomize controls are removed")
+	_assert_true(bool(snapshot["commit_actions_in_header"]), "GQM-13 Apply/Revert are header actions")
+	_assert_true(not bool(snapshot["commit_actions_below_canvas"]), "GQM-13 Apply/Revert are no longer below the canvas")
 	_assert_eq(int(snapshot["batch_count"]), 1, "GRAPH-13 batch count defaults to one")
 	_assert_true(not bool(snapshot["seed_randomize"]), "GRAPH-13 seed randomize defaults off")
 	_assert_true(not bool(snapshot["shape_randomize"]), "GRAPH-13 shape randomize defaults off")

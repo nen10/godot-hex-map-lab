@@ -1,0 +1,52 @@
+[gd_resource type="Resource" script_class="HexGenerationGraphResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/hex_map_kit/adapter/hex_generation_graph_resource.gd" id="1_simple_graph"]
+
+[resource]
+script = ExtResource("1_simple_graph")
+display_name = "Simple"
+graph_id = "simple_template"
+ownership_semantics = "embed"
+nodes = [{
+"id": "result",
+"params": {
+"display_name": "result",
+"orientation": 0
+},
+"resource_refs": {},
+"type": "result"
+}, {
+"id": "terrain",
+"params": {
+"base_mode": "shape",
+"connectivity_method": "dense",
+"connectivity_seed": 101,
+"display_name": "terrain",
+"height": 6,
+"shape": "rectangle",
+"wall_method": "random_probability",
+"wall_probability": 0.18,
+"wall_seed": 0,
+"width": 8
+},
+"resource_refs": {},
+"type": "terrain_generation"
+}]
+edges = [{
+"from_node": "terrain",
+"from_port": "out",
+"to_node": "result",
+"to_port": "in_0"
+}]
+promote_targets = [{
+"node_id": "result",
+"role": "result"
+}]
+graph_settings = {
+"orientation": 0,
+"seed": 0
+}
+semantics_snapshot = {
+"template": true,
+"template_id": "simple"
+}

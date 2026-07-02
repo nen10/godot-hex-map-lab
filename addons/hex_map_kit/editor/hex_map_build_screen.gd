@@ -4,10 +4,10 @@ extends VBoxContainer
 
 signal graph_generated(report: Dictionary)
 signal promote_requested(node_id: String, role: String)
-signal load_graph_requested(overwrite_selected: bool)
 signal build_context_requested
 
 const HexMapWorkspaceAssetContextScript = preload("res://addons/hex_map_kit/editor/hex_map_workspace_asset_context.gd")
+const HexMapAssetLibraryScript = preload("res://addons/hex_map_kit/editor/hex_map_asset_library.gd")
 const HexMapBuildGraphCanvasScript = preload("res://addons/hex_map_kit/editor/hex_map_build_graph_canvas.gd")
 const HexMapBuildNodePaletteScript = preload("res://addons/hex_map_kit/editor/hex_map_build_node_palette.gd")
 const HexMapBuildNodeInspectorScript = preload("res://addons/hex_map_kit/editor/hex_map_build_node_inspector.gd")
@@ -34,18 +34,19 @@ const RUN_PROGRESS_APPLY_START := 0.84
 const RUN_PROGRESS_APPLY_END := 0.99
 const RUN_PROGRESS_APPLY_CHUNK_SIZE := 256
 const RUN_PROGRESS_INITIAL_VISIBLE_SEC := 0.12
+const GRAPH_ASSET_KIND := "graphs"
 
 var _workspace_asset_context: HexMapWorkspaceAssetContextScript = null
-var _context_label: Label
-var _load_graph_button: Button
-var _overwrite_selected_check: CheckBox
-var _profile_option: OptionButton
-var _simple_generate_button: Button
+var _template_option: OptionButton
+var _save_as_button: Button
+var _load_template_button: Button
+var _template_replace_dialog: ConfirmationDialog
+var _template_save_dialog: ConfirmationDialog
+var _template_save_name_edit: LineEdit
+var _template_entries: Array = []
+var _pending_template_entry: Dictionary = {}
 var _generate_button: Button
 var _cancel_button: Button
-var _run_count_spin: SpinBox
-var _seed_randomize_check: CheckBox
-var _shape_randomize_check: CheckBox
 var _status_label: Label
 var _run_progress_popup: PopupPanel
 var _run_progress_status_label: Label
@@ -65,7 +66,7 @@ var _last_report: Dictionary = {}
 var _last_promote_result: Dictionary = {}
 var _last_build_context_result: Dictionary = {}
 var _last_graph_load_result: Dictionary = {}
-var _last_simple_generate_result: Dictionary = {}
+var _last_graph_save_result: Dictionary = {}
 var _last_viewport_apply_report: Dictionary = {}
 var _context_hex_tile_map_layer: HexTileMapLayerScript = null
 var _build_context_provider: Callable
@@ -308,64 +309,102 @@ func build_vertical_slice_chain_and_preview() -> Dictionary:
 	return run_graph()
 
 
-func run_simple_profile_graph(options: Dictionary = {}) -> Dictionary:
+func template_entries() -> Array:
+	return _template_entries.duplicate(true)
+
+
+func selected_template_entry() -> Dictionary:
+	if _template_option == null or _template_option.selected < 0:
+		return {}
+	return _entry_for_template_index(_template_option.selected)
+
+
+func load_selected_template(options: Dictionary = {}) -> Dictionary:
+	var entry := selected_template_entry()
+	if entry.is_empty():
+		_last_graph_load_result = _graph_load_result(false, "Choose a graph template.")
+		return _last_graph_load_result.duplicate(true)
+	return apply_graph_template_entry(entry, options)
+
+
+func apply_template_by_name(template_name: String, options: Dictionary = {}) -> Dictionary:
+	var target := template_name.strip_edges()
+	for entry in _template_entries:
+		var entry_dict := entry as Dictionary
+		if String(entry_dict.get("name", "")) == target \
+				or String(entry_dict.get("path", "")).get_file().get_basename() == target:
+			return apply_graph_template_entry(entry_dict, options)
+	_last_graph_load_result = _graph_load_result(false, "Graph template not found: %s" % target)
+	return _last_graph_load_result.duplicate(true)
+
+
+func apply_graph_template_entry(entry: Dictionary, options: Dictionary = {}) -> Dictionary:
 	if _canvas == null:
-		_last_simple_generate_result = _simple_generate_result(false, "Build graph canvas is unavailable.")
-		return _last_simple_generate_result.duplicate(true)
+		_last_graph_load_result = _graph_load_result(false, "Build graph canvas is unavailable.")
+		return _last_graph_load_result.duplicate(true)
+	if entry.is_empty():
+		_last_graph_load_result = _graph_load_result(false, "Choose a graph template.")
+		return _last_graph_load_result.duplicate(true)
+	if _template_replace_confirmation_required(options):
+		_pending_template_entry = entry.duplicate(true)
+		_popup_template_replace_dialog(entry)
+		_last_graph_load_result = _graph_load_result(false, "Confirm graph replacement.")
+		_last_graph_load_result["confirmation_required"] = true
+		_last_graph_load_result["template_entry"] = entry.duplicate(true)
+		return _last_graph_load_result.duplicate(true)
+	var path := String(entry.get("path", "")).strip_edges()
+	var resource = HexMapAssetLibraryScript.load(path)
+	if not resource is HexGenerationGraphResourceScript:
+		_last_graph_load_result = _graph_load_result(false, "Selected template is not a Generation Graph resource.")
+		_last_graph_load_result["path"] = path
+		return _last_graph_load_result.duplicate(true)
+	var load_options := options.duplicate(true)
+	if not load_options.has("selected_node_id"):
+		load_options["selected_node_id"] = HexGenerationPresetScript.default_selected_node_id()
+	load_options["run"] = bool(load_options.get("run", false))
+	var result := load_graph_resource(resource as HexGenerationGraphResourceScript, load_options)
+	result["template_entry"] = entry.duplicate(true)
+	result["template_path"] = path
+	result["template_name"] = String(entry.get("name", ""))
+	result["template_source"] = String(entry.get("source", ""))
+	result["confirmation_required"] = false
+	_last_graph_load_result = result.duplicate(true)
+	if bool(result.get("ok", false)):
+		_flush_canvas_graph_to_context_resource("build_screen.graph_template_loaded")
+	return _last_graph_load_result.duplicate(true)
 
-	var profile = _active_generation_profile()
-	var graph := HexGenerationPresetScript.from_profile(profile)
-	var selected_node_id := HexGenerationPresetScript.default_selected_node_id()
-	var promote_role := String(options.get("promote_role", HexGenerationPresetScript.default_promote_role()))
-	var restore_report := _canvas.restore_graph_model(graph, selected_node_id)
-	var run_report := {}
-	var promote_result := {}
-	if bool(restore_report.get("ok", false)):
-		run_report = run_graph({
-			"count": int(options.get("count", 1)),
-			"interrupt_options": options.get("interrupt_options", {}),
-		})
-		if bool(run_report.get("ok", false)) and _workspace_asset_context != null and _workspace_asset_context.level_document != null:
-			_canvas.select_graph_node(selected_node_id)
-			_auto_preview_after_generate()
-			promote_result = _last_promote_result.duplicate(true)
-			if promote_result.is_empty():
-				promote_result = {
-					"ok": _last_viewport_projection_ok(),
-					"written_role": promote_role,
-					"blocked_reason": String(_last_viewport_apply_report.get("blocked_reason", "")),
-				}
-	else:
-		_refresh_selected_node()
 
-	var profile_id := _profile_id(profile)
-	var profile_display_name := _profile_display_name(profile)
-	var canvas_snapshot := _canvas.canvas_snapshot()
-	var preset_visible := int(canvas_snapshot.get("node_count", 0)) >= 2 and int(canvas_snapshot.get("connection_count", 0)) >= 1
-	var graph_resource = _store_current_canvas_graph_on_context_layer(promote_role) if bool(restore_report.get("ok", false)) else null
-	_last_simple_generate_result = {
-		"ok": bool(restore_report.get("ok", false)) and bool(run_report.get("ok", false)),
-		"blocked_reason": "" if bool(restore_report.get("ok", false)) else String(restore_report.get("reason", "Preset graph could not be restored.")),
-		"profile_id": profile_id,
-		"profile_display_name": profile_display_name,
-		"uses_project_resource": profile != null,
-		"graph_node_count": int(canvas_snapshot.get("node_count", 0)),
-		"graph_connection_count": int(canvas_snapshot.get("connection_count", 0)),
-		"preset_graph_visible_in_canvas": preset_visible,
-		"selected_node_id": _canvas.selected_node_id(),
-		"promote_target_role": promote_role,
-		"graph_resource": graph_resource,
-		"context_layer_has_graph_resource": _context_hex_tile_map_layer != null and _context_hex_tile_map_layer.generation_graph_resource != null,
-		"restore_report": restore_report,
-		"run_report": run_report,
-		"promote_result": promote_result,
-		"status_text": "Simple profile graph generated.",
-	}
-	if _status_label != null and bool(_last_simple_generate_result["ok"]):
-		_status_label.text = String(_last_simple_generate_result["status_text"])
-	_refresh_context()
-	_refresh_selected_node()
-	return _last_simple_generate_result.duplicate(true)
+func save_current_graph_as(display_name: String = "") -> Dictionary:
+	if _canvas == null:
+		_last_graph_save_result = _graph_save_result(ERR_UNAVAILABLE, "", "Build graph canvas is unavailable.")
+		return _last_graph_save_result.duplicate(true)
+	var save_name := display_name.strip_edges()
+	if save_name == "":
+		save_name = _default_graph_save_name()
+	var resource = HexGenerationGraphResourceScript.from_dict(_canvas_graph_model_with_current_settings())
+	resource.display_name = save_name
+	resource.graph_id = save_name.to_snake_case()
+	resource.resource_name = save_name
+	resource.ownership_semantics = "reference"
+	resource.semantics_reference_path = HexMapAssetLibraryScript.project_path_for_name(GRAPH_ASSET_KIND, save_name)
+	resource.promote_targets = HexGenerationPresetScript.promote_targets_for_profile(null)
+	var save_result := HexMapAssetLibraryScript.save(resource, GRAPH_ASSET_KIND, save_name)
+	var error := int(save_result.get("error", ERR_CANT_CREATE))
+	var path := String(save_result.get("path", ""))
+	_last_graph_save_result = _graph_save_result(
+		error,
+		path,
+		"Graph saved: %s" % save_name if error == OK else "Graph could not be saved."
+	)
+	_last_graph_save_result["resource"] = resource
+	_last_graph_save_result["entry"] = save_result.get("entry", {})
+	if error == OK:
+		if _context_hex_tile_map_layer != null and is_instance_valid(_context_hex_tile_map_layer):
+			_context_hex_tile_map_layer.generation_graph_resource = resource
+		_refresh_template_options(path)
+		if _status_label != null:
+			_status_label.text = String(_last_graph_save_result["status_text"])
+	return _last_graph_save_result.duplicate(true)
 
 
 func ensure_graph_context_for_hex_tile_map_layer(
@@ -412,18 +451,14 @@ func ensure_graph_context_for_hex_tile_map_layer(
 	var restore_report := {}
 	var normalization_report := {}
 	if layer.generation_graph_resource == null:
-		_canvas.build_default_vertical_slice_chain()
-		var graph_resource = HexGenerationGraphResourceScript.from_dict(_canvas.build_graph_model())
+		var graph := HexGenerationPresetScript.simple_template_graph()
+		restore_report = _canvas.restore_graph_model(graph, HexGenerationPresetScript.default_selected_node_id())
+		var graph_resource = HexGenerationGraphResourceScript.from_dict(graph)
+		graph_resource.display_name = "%s Build Graph" % _resource_prefix_from_node(layer.name)
 		graph_resource.graph_id = "%s_build_graph" % _resource_prefix_from_node(layer.name).to_snake_case()
 		graph_resource.resource_name = "%s Build Graph" % _resource_prefix_from_node(layer.name)
 		layer.generation_graph_resource = graph_resource
 		created_graph = true
-		restore_report = {
-			"ok": true,
-			"node_count": int(_canvas.canvas_snapshot().get("node_count", 0)),
-			"connection_count": int(_canvas.canvas_snapshot().get("connection_count", 0)),
-			"selected_node_id": _canvas.selected_node_id(),
-		}
 	elif bool(options.get("preserve_current_canvas", false)) and same_context_layer and int(_canvas.canvas_snapshot().get("node_count", 0)) > 0:
 		restore_report = {
 			"ok": true,
@@ -496,7 +531,7 @@ func load_graph_resource(graph_resource: HexGenerationGraphResourceScript, optio
 		"restore_report": restore_report,
 		"run_report": run_report,
 		"normalization_report": normalization_report,
-		"overwrite_selected": _overwrite_selected_check != null and _overwrite_selected_check.button_pressed,
+		"overwrite_selected": false,
 		"status_text": status_text,
 	}
 	if _status_label != null:
@@ -610,21 +645,29 @@ func build_screen_snapshot() -> Dictionary:
 		"canvas_is_dominant": true,
 		"resource_row_primary": false,
 		"primary_action": "Generate",
-		"load_graph_button_present": _load_graph_button != null,
-		"overwrite_selected_graph_check_present": _overwrite_selected_check != null,
-		"overwrite_selected_graph": _overwrite_selected_check != null and _overwrite_selected_check.button_pressed,
+		"header_controls": PackedStringArray(["Template", "Save as...", "Load...", "Generate", "Apply", "Revert", "status"]),
+		"template_dropdown_present": _template_option != null,
+		"template_option_count": _template_option.item_count if _template_option != null else 0,
+		"template_selected": _selected_template_label(),
+		"template_entries": _template_entries.duplicate(true),
+		"template_basic_first": not _template_entries.is_empty() and String((_template_entries[0] as Dictionary).get("name", "")) == "基本形",
+		"save_as_button_present": _save_as_button != null,
+		"load_button_present": _load_template_button != null,
+		"load_graph_button_present": false,
+		"overwrite_selected_graph_check_present": false,
+		"overwrite_selected_graph": false,
 		"overwrite_selected_graph_default": false,
 		"last_graph_load": _last_graph_load_result.duplicate(true),
-		"simple_profile_bar_present": _profile_option != null and _simple_generate_button != null,
-		"simple_profile_option_present": _profile_option != null,
-		"simple_generate_button_present": _simple_generate_button != null,
-		"simple_profile_selected": _selected_profile_label(),
-		"simple_profile_uses_project_resource": _active_generation_profile() != null,
-		"simple_generate_result": _last_simple_generate_result.duplicate(true),
-		"simple_and_graph_same_model": bool(_last_simple_generate_result.get("preset_graph_visible_in_canvas", false)) \
-			and int(canvas_snapshot.get("node_count", 0)) == int(_last_simple_generate_result.get("graph_node_count", -1)),
-		"preset_graph_visible_in_canvas": bool(_last_simple_generate_result.get("preset_graph_visible_in_canvas", false)),
-		"promote_target_role": String(_last_simple_generate_result.get("promote_target_role", HexGenerationPresetScript.default_promote_role())),
+		"last_graph_save": _last_graph_save_result.duplicate(true),
+		"simple_profile_bar_present": false,
+		"simple_profile_option_present": false,
+		"simple_generate_button_present": false,
+		"simple_profile_selected": "",
+		"simple_profile_uses_project_resource": false,
+		"simple_generate_result": {},
+		"simple_and_graph_same_model": false,
+		"preset_graph_visible_in_canvas": int(canvas_snapshot.get("node_count", 0)) > 0,
+		"promote_target_role": HexGenerationPresetScript.default_promote_role(),
 		"dirty_status_visible": true,
 		"last_run_visible": true,
 		"generate_button_present": _generate_button != null,
@@ -643,15 +686,15 @@ func build_screen_snapshot() -> Dictionary:
 		"last_cancelled": bool(run_state.get("cancelled", false)),
 		"primary_generate_count": 1,
 		"generate_default_count": 1,
-		"batch_controls_secondary": true,
-		"batch_count": _run_count_value(),
-		"seed_randomize": _seed_randomize_check != null and _seed_randomize_check.button_pressed,
-		"shape_randomize": _shape_randomize_check != null and _shape_randomize_check.button_pressed,
+		"batch_controls_secondary": false,
+		"batch_count": 1,
+		"seed_randomize": false,
+		"shape_randomize": false,
 		"status_text": _status_label.text if _status_label != null else "",
-		"context_text": _context_label.text if _context_label != null else "",
-		"context_chips": _build_context_chips(),
-		"context_chips_visible": _context_label != null,
-		"context_chips_text": _context_label.text if _context_label != null else "",
+		"context_text": "",
+		"context_chips": [],
+		"context_chips_visible": false,
+		"context_chips_text": "",
 		"global_map_chip_duplicated": false,
 		"canvas": canvas_snapshot,
 		"run_state": run_state,
@@ -670,7 +713,8 @@ func build_screen_snapshot() -> Dictionary:
 		"viewport_preview_cell_count": _viewport_preview_cell_count(),
 		"viewport_apply_report": _last_viewport_apply_report.duplicate(true),
 		"viewport_projection_status": String(_last_viewport_apply_report.get("projection_status", "not_projected")),
-		"commit_actions_below_canvas": true,
+		"commit_actions_below_canvas": false,
+		"commit_actions_in_header": _apply_button != null and _revert_button != null,
 		"canvas_minimum_height": int(_canvas.custom_minimum_size.y) if _canvas != null else 0,
 		"three_node_chain_ready": int(canvas_snapshot.get("node_count", 0)) >= 3 and int(canvas_snapshot.get("connection_count", 0)) >= 2,
 		"graph_chain_runs": bool(_last_report.get("ok", false)),
@@ -704,51 +748,57 @@ func _build_ui() -> void:
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	var top_row := HBoxContainer.new()
-	top_row.name = "Build Context Strip"
+	top_row.name = "Build Header"
 	top_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_context_label = Label.new()
-	_context_label.name = "Build Context Chips"
-	_context_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_context_label.clip_text = true
-	top_row.add_child(_context_label)
-	_load_graph_button = Button.new()
-	_load_graph_button.name = "Build Load Graph Button"
-	_load_graph_button.text = "Load Graph"
-	_style_compact_control(_load_graph_button)
-	_load_graph_button.pressed.connect(_on_load_graph_pressed)
-	top_row.add_child(_load_graph_button)
-	_overwrite_selected_check = CheckBox.new()
-	_overwrite_selected_check.name = "Build Overwrite Selected Graph"
-	_overwrite_selected_check.text = "Overwrite selected"
-	_overwrite_selected_check.button_pressed = false
-	_style_compact_control(_overwrite_selected_check)
-	top_row.add_child(_overwrite_selected_check)
+	_template_option = OptionButton.new()
+	_template_option.name = "Build Template Dropdown"
+	_template_option.custom_minimum_size = Vector2(190, 0)
+	_template_option.tooltip_text = "Template"
+	_template_option.item_selected.connect(_on_template_item_selected)
+	top_row.add_child(_template_option)
+	_save_as_button = Button.new()
+	_save_as_button.name = "Build Save Graph As Button"
+	_save_as_button.text = "Save as..."
+	_style_compact_control(_save_as_button)
+	_save_as_button.pressed.connect(_on_save_as_pressed)
+	top_row.add_child(_save_as_button)
+	_load_template_button = Button.new()
+	_load_template_button.name = "Build Load Asset Button"
+	_load_template_button.text = "Load..."
+	_style_compact_control(_load_template_button)
+	_load_template_button.pressed.connect(_on_load_template_pressed)
+	top_row.add_child(_load_template_button)
+	var header_spacer := Control.new()
+	header_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top_row.add_child(header_spacer)
 	_generate_button = Button.new()
 	_generate_button.name = "Build Generate Button"
 	_generate_button.text = "Generate"
 	_style_compact_control(_generate_button)
 	_generate_button.pressed.connect(_on_generate_pressed)
 	top_row.add_child(_generate_button)
+	_apply_button = Button.new()
+	_apply_button.name = "Build Apply Button"
+	_apply_button.text = "Apply"
+	_apply_button.disabled = true
+	_style_compact_control(_apply_button)
+	_apply_button.pressed.connect(_on_apply_pressed)
+	top_row.add_child(_apply_button)
+	_revert_button = Button.new()
+	_revert_button.name = "Build Revert Button"
+	_revert_button.text = "Revert"
+	_revert_button.disabled = true
+	_style_compact_control(_revert_button)
+	_revert_button.pressed.connect(_on_revert_pressed)
+	top_row.add_child(_revert_button)
+	_status_label = Label.new()
+	_status_label.name = "Build Graph Status"
+	_status_label.custom_minimum_size = Vector2(220, 0)
+	_status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_status_label.clip_text = true
+	_status_label.tooltip_text = "Build graph status"
+	top_row.add_child(_status_label)
 	add_child(top_row)
-
-	var simple_row := HBoxContainer.new()
-	simple_row.name = "Build Simple Profile Bar"
-	simple_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var profile_label := Label.new()
-	profile_label.name = "Build Simple Profile Label"
-	profile_label.text = "Profile"
-	simple_row.add_child(profile_label)
-	_profile_option = OptionButton.new()
-	_profile_option.name = "Build Simple Profile Option"
-	_profile_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	simple_row.add_child(_profile_option)
-	_simple_generate_button = Button.new()
-	_simple_generate_button.name = "Build Simple Generate Button"
-	_simple_generate_button.text = "Generate (Simple)"
-	_style_compact_control(_simple_generate_button)
-	_simple_generate_button.pressed.connect(_on_simple_generate_pressed)
-	simple_row.add_child(_simple_generate_button)
-	add_child(simple_row)
 
 	var split := HSplitContainer.new()
 	split.name = "Build Work Surface"
@@ -769,49 +819,11 @@ func _build_ui() -> void:
 	split.add_child(canvas_area)
 
 	var action_row := HBoxContainer.new()
-	action_row.name = "Build Graph Actions"
+	action_row.name = "Build Graph Edit Actions"
 	action_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var batch_label := Label.new()
-	batch_label.name = "Build Batch Label"
-	batch_label.text = "Batch"
-	batch_label.add_theme_font_size_override("font_size", 18)
-	action_row.add_child(batch_label)
-	_run_count_spin = SpinBox.new()
-	_run_count_spin.name = "Build Batch Count"
-	_run_count_spin.min_value = 1
-	_run_count_spin.max_value = 32
-	_run_count_spin.step = 1
-	_run_count_spin.value = 1
-	_run_count_spin.custom_minimum_size = Vector2(72, 0)
-	_style_compact_control(_run_count_spin)
-	action_row.add_child(_run_count_spin)
-	_seed_randomize_check = CheckBox.new()
-	_seed_randomize_check.name = "Build Seed Randomize"
-	_seed_randomize_check.text = "Seed"
-	_style_compact_control(_seed_randomize_check)
-	action_row.add_child(_seed_randomize_check)
-	_shape_randomize_check = CheckBox.new()
-	_shape_randomize_check.name = "Build Shape Randomize"
-	_shape_randomize_check.text = "Shape"
-	_style_compact_control(_shape_randomize_check)
-	action_row.add_child(_shape_randomize_check)
 	var action_spacer := Control.new()
 	action_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	action_row.add_child(action_spacer)
-	_apply_button = Button.new()
-	_apply_button.name = "Build Apply Button"
-	_apply_button.text = "Apply"
-	_apply_button.disabled = true
-	_style_compact_control(_apply_button)
-	_apply_button.pressed.connect(_on_apply_pressed)
-	action_row.add_child(_apply_button)
-	_revert_button = Button.new()
-	_revert_button.name = "Build Revert Button"
-	_revert_button.text = "Revert"
-	_revert_button.disabled = true
-	_style_compact_control(_revert_button)
-	_revert_button.pressed.connect(_on_revert_pressed)
-	action_row.add_child(_revert_button)
 	var _remove_button := Button.new()
 	_remove_button.name = "Build Remove Button"
 	_remove_button.text = "Remove"
@@ -833,12 +845,9 @@ func _build_ui() -> void:
 	_inspector.custom_minimum_size = Vector2(0, 150)
 	_inspector.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	add_child(_inspector)
-
-	_status_label = Label.new()
-	_status_label.name = "Build Graph Status"
-	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	add_child(_status_label)
 	_build_run_progress_popup()
+	_build_template_replace_dialog()
+	_build_template_save_dialog()
 
 	_palette.node_type_requested.connect(_on_palette_node_type_requested)
 	_palette.node_template_requested.connect(_on_palette_node_template_requested)
@@ -908,6 +917,32 @@ func _build_run_progress_popup() -> void:
 	root_box.add_child(action_row)
 
 
+func _build_template_replace_dialog() -> void:
+	_template_replace_dialog = ConfirmationDialog.new()
+	_template_replace_dialog.name = "Build Template Replace Dialog"
+	_template_replace_dialog.title = "Replace Graph"
+	_template_replace_dialog.ok_button_text = "Replace"
+	_template_replace_dialog.dialog_text = "Replace the current graph?"
+	_template_replace_dialog.confirmed.connect(_on_template_replace_confirmed)
+	add_child(_template_replace_dialog)
+
+
+func _build_template_save_dialog() -> void:
+	_template_save_dialog = ConfirmationDialog.new()
+	_template_save_dialog.name = "Build Graph Save As Dialog"
+	_template_save_dialog.title = "Save Graph"
+	_template_save_dialog.ok_button_text = "Save"
+	var root := VBoxContainer.new()
+	root.name = "Build Graph Save As Content"
+	_template_save_name_edit = LineEdit.new()
+	_template_save_name_edit.name = "Build Graph Save As Name"
+	_template_save_name_edit.placeholder_text = "Graph name"
+	root.add_child(_template_save_name_edit)
+	_template_save_dialog.add_child(root)
+	_template_save_dialog.confirmed.connect(_on_save_as_confirmed)
+	add_child(_template_save_dialog)
+
+
 func _run_context() -> Dictionary:
 	var result := {}
 	if _workspace_asset_context == null:
@@ -936,8 +971,6 @@ func _update_run_controls() -> void:
 	if _generate_button != null:
 		_generate_button.text = "Generating" if _run_busy else "Generate"
 		_generate_button.disabled = _run_busy
-	if _simple_generate_button != null:
-		_simple_generate_button.disabled = _run_busy
 	if _cancel_button != null:
 		_cancel_button.disabled = not _run_busy
 
@@ -1183,78 +1216,50 @@ func _hide_run_progress_popup_if_current(hide_token: int) -> void:
 
 
 func _refresh_context() -> void:
-	if _context_label == null:
+	_refresh_template_options()
+
+
+func _refresh_template_options(preferred_path: String = "") -> void:
+	if _template_option == null:
 		return
-	var chips := PackedStringArray()
-	for chip in _build_context_chips():
-		var chip_data := chip as Dictionary
-		chips.append("%s: %s" % [String(chip_data.get("label", "")), String(chip_data.get("value", ""))])
-	_context_label.text = "( %s )" % " ) ( ".join(chips)
-	_refresh_profile_options()
-
-
-func _build_context_chips() -> Array[Dictionary]:
-	var catalog_ready := _workspace_asset_context != null and _workspace_asset_context.tile_catalog != null
-	var graph_ready := _context_hex_tile_map_layer != null and _context_hex_tile_map_layer.generation_graph_resource != null
-	return [
-		{
-			"id": "catalog",
-			"label": "Catalog",
-			"value": "linked" if catalog_ready else "choose",
-			"ready": catalog_ready,
-		},
-		{
-			"id": "target",
-			"label": "Target",
-			"value": "generated terrain",
-			"ready": true,
-		},
-		{
-			"id": "graph",
-			"label": "Graph",
-			"value": "ready" if graph_ready else "new",
-			"ready": graph_ready,
-		},
-	]
-
-
-func _refresh_profile_options() -> void:
-	if _profile_option == null:
+	var current_path := preferred_path.strip_edges()
+	if current_path == "" and _template_option.selected >= 0 and _template_option.selected < _template_entries.size():
+		current_path = String((_template_entries[_template_option.selected] as Dictionary).get("path", ""))
+	_template_entries = HexMapAssetLibraryScript.list(GRAPH_ASSET_KIND)
+	_template_entries.sort_custom(func(a, b):
+		var rank_a := _template_entry_rank(a as Dictionary)
+		var rank_b := _template_entry_rank(b as Dictionary)
+		if rank_a != rank_b:
+			return rank_a < rank_b
+		var name_compare := String((a as Dictionary).get("name", "")).casecmp_to(String((b as Dictionary).get("name", "")))
+		if name_compare != 0:
+			return name_compare < 0
+		return String((a as Dictionary).get("path", "")).casecmp_to(String((b as Dictionary).get("path", ""))) < 0
+	)
+	_template_option.clear()
+	for index in range(_template_entries.size()):
+		var entry := _template_entries[index] as Dictionary
+		var source := String(entry.get("source", ""))
+		var name := String(entry.get("name", ""))
+		_template_option.add_item("%s [%s]" % [name, source], index)
+		_template_option.set_item_metadata(index, entry)
+	if _template_entries.is_empty():
+		_template_option.add_item("No graph templates", 0)
+		_template_option.disabled = true
+		if _load_template_button != null:
+			_load_template_button.disabled = true
 		return
-	var current_id := -1
-	if _profile_option.item_count > 0:
-		current_id = _profile_option.get_selected_id()
-	_profile_option.clear()
-	var profile = _active_generation_profile()
-	_profile_option.add_item(_profile_display_name(profile), 0)
-	_profile_option.set_item_metadata(0, profile)
-	_profile_option.select(0 if current_id < 0 else 0)
+	_template_option.disabled = false
+	if _load_template_button != null:
+		_load_template_button.disabled = false
+	_select_template_path(current_path)
 
 
-func _active_generation_profile():
-	if _workspace_asset_context == null:
-		return null
-	return _workspace_asset_context.generation_profile
-
-
-func _selected_profile_label() -> String:
-	if _profile_option == null or _profile_option.item_count == 0:
+func _selected_template_label() -> String:
+	var entry := selected_template_entry()
+	if entry.is_empty():
 		return ""
-	return _profile_option.get_item_text(_profile_option.selected)
-
-
-func _profile_id(profile) -> String:
-	if profile == null:
-		return "default_profile"
-	var value = profile.get("profile_id") if profile is Resource else ""
-	return String(value) if String(value) != "" else "project_generation"
-
-
-func _profile_display_name(profile) -> String:
-	if profile == null:
-		return "Default Profile"
-	var value = profile.get("display_name") if profile is Resource else ""
-	return String(value) if String(value) != "" else _profile_id(profile)
+	return String(entry.get("name", ""))
 
 
 func _build_context_result(ok: bool, reason: String) -> Dictionary:
@@ -1267,47 +1272,65 @@ func _build_context_result(ok: bool, reason: String) -> Dictionary:
 	}
 
 
-func _simple_generate_result(ok: bool, reason: String) -> Dictionary:
+func _template_entry_rank(entry: Dictionary) -> int:
+	var name := String(entry.get("name", ""))
+	var path := String(entry.get("path", ""))
+	if name == "基本形" or path.ends_with("/basic.tres"):
+		return 0
+	if name == "Simple" or path.ends_with("/simple.tres"):
+		return 1
+	return 10
+
+
+func _select_template_path(path: String) -> void:
+	if _template_option == null or _template_entries.is_empty():
+		return
+	var target := path.strip_edges()
+	var selected_index := 0
+	if target != "":
+		for index in range(_template_entries.size()):
+			if String((_template_entries[index] as Dictionary).get("path", "")) == target:
+				selected_index = index
+				break
+	_template_option.select(selected_index)
+
+
+func _entry_for_template_index(index: int) -> Dictionary:
+	if index < 0 or index >= _template_entries.size():
+		return {}
+	return (_template_entries[index] as Dictionary).duplicate(true)
+
+
+func _template_replace_confirmation_required(options: Dictionary) -> bool:
+	if bool(options.get("confirm_replace", false)) or bool(options.get("force", false)):
+		return false
+	if _canvas == null:
+		return false
+	return int((_canvas.canvas_snapshot() as Dictionary).get("node_count", 0)) > 0
+
+
+func _popup_template_replace_dialog(entry: Dictionary) -> void:
+	if _template_replace_dialog == null:
+		return
+	_template_replace_dialog.dialog_text = "Replace the current graph with %s?" % String(entry.get("name", "this template"))
+	if is_inside_tree():
+		_template_replace_dialog.popup_centered()
+
+
+func _default_graph_save_name() -> String:
+	if _context_hex_tile_map_layer != null and is_instance_valid(_context_hex_tile_map_layer):
+		return "%s Build Graph" % _resource_prefix_from_node(_context_hex_tile_map_layer.name)
+	return "Build Graph"
+
+
+func _graph_save_result(error: int, path: String, status_text: String) -> Dictionary:
 	return {
-		"ok": ok,
-		"blocked_reason": reason,
-		"profile_id": "",
-		"profile_display_name": "",
-		"uses_project_resource": false,
-		"graph_node_count": 0,
-		"graph_connection_count": 0,
-		"preset_graph_visible_in_canvas": false,
-		"selected_node_id": "",
-		"promote_target_role": HexGenerationPresetScript.default_promote_role(),
-		"graph_resource": null,
-		"context_layer_has_graph_resource": false,
-		"restore_report": {},
-		"run_report": {},
-		"promote_result": {},
-		"status_text": reason,
+		"ok": error == OK,
+		"error": error,
+		"path": path,
+		"source": HexMapAssetLibraryScript.SOURCE_PROJECT if error == OK else "",
+		"status_text": status_text,
 	}
-
-
-func _store_current_canvas_graph_on_context_layer(promote_role: String):
-	if _context_hex_tile_map_layer == null or _canvas == null:
-		return null
-	var graph_resource = _context_hex_tile_map_layer.generation_graph_resource
-	if graph_resource == null:
-		graph_resource = HexGenerationGraphResourceScript.new()
-		graph_resource.graph_id = "%s_simple_build_graph" % _resource_prefix_from_node(_context_hex_tile_map_layer.name).to_snake_case()
-		graph_resource.resource_name = "%s Simple Build Graph" % _resource_prefix_from_node(_context_hex_tile_map_layer.name)
-	graph_resource.ownership_semantics = "embed"
-	graph_resource.semantics_reference_path = ""
-	graph_resource.set_from_dict(_canvas_graph_model_with_current_settings())
-	graph_resource.promote_targets = HexGenerationPresetScript.promote_targets_for_profile(_active_generation_profile())
-	if not (graph_resource.semantics_snapshot is Dictionary):
-		graph_resource.semantics_snapshot = {}
-	graph_resource.semantics_snapshot = {
-		"embed": true,
-		"promote_target_role": promote_role,
-	}
-	_context_hex_tile_map_layer.generation_graph_resource = graph_resource
-	return graph_resource
 
 
 func _flush_canvas_graph_to_context_resource(reason: String = "build_screen.graph_edit"):
@@ -1379,7 +1402,7 @@ func _graph_load_result(ok: bool, reason: String) -> Dictionary:
 		"restore_report": {},
 		"run_report": {},
 		"normalization_report": {},
-		"overwrite_selected": _overwrite_selected_check != null and _overwrite_selected_check.button_pressed,
+		"overwrite_selected": false,
 		"status_text": reason,
 	}
 
@@ -1397,7 +1420,7 @@ func _resource_prefix_from_node(node_name: String) -> String:
 
 
 func _run_count_value() -> int:
-	return max(1, int(_run_count_spin.value if _run_count_spin != null else 1))
+	return 1
 
 
 func _refresh_selected_node() -> void:
@@ -1532,55 +1555,35 @@ func _begin_generate_button_run() -> void:
 	_start_async_graph_run({"count": 1}, true)
 
 
-func _on_simple_generate_pressed() -> void:
-	_begin_simple_generate_button_run()
+func _on_template_item_selected(index: int) -> void:
+	apply_graph_template_entry(_entry_for_template_index(index))
 
 
-func _begin_simple_generate_button_run() -> void:
-	if not _begin_async_graph_run_ui("Preparing profile", "Opening Build generation progress"):
+func _on_load_template_pressed() -> void:
+	load_selected_template()
+
+
+func _on_template_replace_confirmed() -> void:
+	var entry := _pending_template_entry.duplicate(true)
+	_pending_template_entry.clear()
+	if entry.is_empty():
 		return
-	await _wait_for_run_progress_popup_presented()
-	var context_start := Time.get_ticks_usec()
-	var context_result := _ensure_build_context_for_generate(
-		"build_screen.simple_generate",
-		{
-			"preserve_current_canvas": true,
-			"defer_snapshots": true,
-			"defer_context_ui_refresh": true,
-		}
-	)
-	_record_run_phase_timing("context_prepare", context_start)
-	if _build_context_provider.is_valid() and not bool(context_result.get("ok", false)):
-		_run_busy = false
-		_update_run_controls()
-		if _status_label != null:
-			_status_label.text = String(context_result.get("blocked_reason", "Build context is unavailable."))
-		_set_run_progress_popup(0.0, "Failed", String(context_result.get("blocked_reason", "Build context is unavailable.")))
-		_finish_run_progress_popup("Failed")
+	apply_graph_template_entry(entry, {"confirm_replace": true})
+
+
+func _on_save_as_pressed() -> void:
+	if _template_save_dialog == null or _template_save_name_edit == null:
+		save_current_graph_as()
 		return
-	_set_run_progress_popup(0.01, "Preparing graph", "Building simple profile graph")
+	_template_save_name_edit.text = _default_graph_save_name()
 	if is_inside_tree():
-		await get_tree().process_frame
-	if _cancel_requested_thread_safe():
-		_run_busy = false
-		_update_run_controls()
-		_finish_run_progress_popup("Cancelled")
-		return
-	var simple_start := Time.get_ticks_usec()
-	var result := run_simple_profile_graph({"count": 1})
-	_record_run_phase_timing("simple_profile_total", simple_start)
-	if _cancel_requested_thread_safe():
-		_run_busy = false
-		_update_run_controls()
-		_finish_run_progress_popup("Cancelled")
-		return
-	_run_busy = false
-	_update_run_controls()
-	_finish_run_progress_popup("Ready" if bool(result.get("ok", false)) else "Failed")
+		_template_save_dialog.popup_centered()
+	else:
+		save_current_graph_as(_template_save_name_edit.text)
 
 
-func _on_load_graph_pressed() -> void:
-	load_graph_requested.emit(_overwrite_selected_check != null and _overwrite_selected_check.button_pressed)
+func _on_save_as_confirmed() -> void:
+	save_current_graph_as(_template_save_name_edit.text if _template_save_name_edit != null else "")
 
 
 func _on_cancel_pressed() -> void:
