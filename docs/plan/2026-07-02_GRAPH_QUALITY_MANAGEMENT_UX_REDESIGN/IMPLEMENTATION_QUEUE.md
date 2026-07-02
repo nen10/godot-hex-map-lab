@@ -23,8 +23,8 @@ Status 運用: `docs/process/QUEUE_OPERATION_RULES.md`。Proof は `PROOF_LOG.md
 
 | id | status | deps | deliverable | target files | acceptance |
 |---|---|---|---|---|---|
-| `GQM-13_HEADER_SWEEP_TEMPLATE_GENERATE_UNIFY` | `BACKLOG` | `GQM-11` | Batch N / Seed randomize / Shape randomize / Profile 行 / Generate(Simple) 撤去。Template ▾（bundled graph preset。**基本形 template を筆頭**）。Load Graph / Overwrite selected を graph 資産 operation（§4 文法）へ移設。Generate 一本化（全系譜実行→出力投影。fallback 概念の削除） | build_screen / preset / workspace | S: Build 上部 = Template / Generate / Apply / Revert / status のみ。基本形 template 1 操作で 7 node graph が立ち即 Generate 可能。実描画キャプチャ |
-| `GQM-14_RESULT_RESOURCE_SAVE_SWITCH` | `BACKLOG` | `GQM-12`, `GQM-02` | 生成結果の名前付き保存（**出力 data 込み**・park 系 field 不使用）→ リスト → 即時切替（再生成なし）→ promote 導線 | adapter / build_screen / tests | S: 保存→切替→promote が data 込みで即時。リスト表示（thumbnail なし） |
+| `GQM-13_HEADER_SWEEP_TEMPLATE_GENERATE_UNIFY` | `READY` | `GQM-11` | Batch N / Seed randomize / Shape randomize / Profile 行 / Generate(Simple) 撤去。Template ▾（bundled graph preset。**基本形 template を筆頭**）。Load Graph / Overwrite selected を graph 資産 operation（§4 文法）へ移設。Generate 一本化（全系譜実行→出力投影。fallback 概念の削除） | build_screen / preset / workspace | S: Build 上部 = Template / Generate / Apply / Revert / status のみ。基本形 template 1 操作で 7 node graph が立ち即 Generate 可能。実描画キャプチャ |
+| `GQM-14_RESULT_RESOURCE_SAVE_SWITCH` | `READY` | `GQM-12`, `GQM-02` | 生成結果の名前付き保存（**出力 data 込み**・park 系 field 不使用）→ リスト → 即時切替（再生成なし）→ promote 導線 | adapter / build_screen / tests | S: 保存→切替→promote が data 込みで即時。リスト表示（thumbnail なし） |
 | `GQM-15_LEGACY_GRAPH_LOAD_NORMALIZATION` | `COMPLETE` | `GQM-01`, `GQM-10` | graph resource 読込時の legacy→統合 正規化（Q-DEP-2 (a)）を editor 導線に接続 | graph load 経路 | S: 既存 .tres graph が読込→統合表示→同一出力 |
 
 ## Phase G4: 完全性
@@ -32,7 +32,7 @@ Status 運用: `docs/process/QUEUE_OPERATION_RULES.md`。Proof は `PROOF_LOG.md
 | id | status | deps | deliverable | target files | acceptance |
 |---|---|---|---|---|---|
 | `GQM-16_RUNTIME_PARITY_WITH_REFERENCE_ASSETS` | `COMPLETE` | `GQM-01`, `GQM-02` | runtime Map Build が統合 graph + **reference 資産の解決**込みで editor と同一 seed 同一結果（V6） | runtime build + tests | S: reference/embed 双方で parity test green |
-| `GQM-18_CRITERIA_CHIP_POLISH` | `BACKLOG` | `GQM-11` | GQM-11 視覚検証の所見3点の磨き込み: (1) `*_asset_path` の raw LineEdit 行を inspector から隠し、資産の参照/保存は titlebar chip（Save as / Load / inline へ戻す）へ一本化（path text を UX にしない方針）。(2) 未接続 input 行の adaptation 表示「そのまま (selection)」を空行表現（例: 未接続）に分離。(3) titlebar の node 名 field の幅確保。 | inspector / criteria_ui / canvas | S: 実描画キャプチャで3点の解消を確認。E: chip が資産操作の単一導線になり、path 文字列は UI に露出しない。 |
+| `GQM-18_CRITERIA_CHIP_POLISH` | `READY` | `GQM-11` | GQM-11 視覚検証の所見3点の磨き込み: (1) `*_asset_path` の raw LineEdit 行を inspector から隠し、資産の参照/保存は titlebar chip（Save as / Load / inline へ戻す）へ一本化（path text を UX にしない方針）。(2) 未接続 input 行の adaptation 表示「そのまま (selection)」を空行表現（例: 未接続）に分離。(3) titlebar の node 名 field の幅確保。(4) Result の空き変則行の「unused」表示を未接続表現に分離（GQM-12 視覚検証所見）。 | inspector / criteria_ui / canvas | S: 実描画キャプチャで3点の解消を確認。E: chip が資産操作の単一導線になり、path 文字列は UI に露出しない。 |
 | `GQM-17_CRITERIA_WINDOW_DOD` | `BACKLOG` | `GQM-11` | V8: criteria window の完成定義「各パラメータが不快感なく UI に反映」を DoD 化し実描画キャプチャで判定 | windows + captures | S: capture 一式 + DoD チェックリスト |
 
 ## Current pointer

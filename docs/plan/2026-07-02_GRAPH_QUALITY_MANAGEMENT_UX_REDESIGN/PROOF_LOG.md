@@ -258,3 +258,15 @@ proof:
     - `tests/test_generation_promote.gd`
     - `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
     - `docs/plan/2026-07-02_GRAPH_QUALITY_MANAGEMENT_UX_REDESIGN/IMPLEMENTATION_QUEUE.md`
+
+### GQM-12_VISUAL_VERIFICATION_2026-07-03（orchestrator 実施）
+
+proof:
+  method:
+    - 非 headless Godot + `tools/probe_gqm12_result_visual.gd`
+  capture:
+    - `.godot_user/visual-verification/GQM-12/result_stack_rows.png`
+  verified:
+    - Result 行の substrate/overlay N 解決・Up/Down 並べ替え（先頭/末尾の正しい無効化）・write policy dropdown・行 Promote・run ok
+  finding:
+    - 空き変則行の「unused」表示は未接続表現へ分離 → GQM-18 に追記済み
