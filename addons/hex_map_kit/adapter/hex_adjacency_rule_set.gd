@@ -69,7 +69,7 @@ func to_probability_rules() -> Dictionary:
 # Build a rule set resource from the Adjacency Rules window dictionary, which has
 # the shape { "default": float, "rules": [ { "directions": Array, "probability": float } ] }.
 static func from_dialog_dict(value: Dictionary, name: String = "") -> HexAdjacencyRuleSet:
-	var resource := HexAdjacencyRuleSet.new()
+	var resource = load("res://addons/hex_map_kit/adapter/hex_adjacency_rule_set.gd").new()
 	resource.display_name = name
 	resource.default_probability = clampf(float(value.get("default", 0.0)), 0.0, 1.0)
 	resource.patterns = _normalize_patterns(value.get("rules", []))
