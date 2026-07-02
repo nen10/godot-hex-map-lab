@@ -180,3 +180,19 @@ proof:
     - `tests/test_editor_generation.gd`
     - `tests/test_build_graph_canvas.gd`
     - `docs/plan/2026-07-02_GRAPH_QUALITY_MANAGEMENT_UX_REDESIGN/IMPLEMENTATION_QUEUE.md`
+
+### GQM-11_VISUAL_VERIFICATION_2026-07-03（orchestrator 実施）
+
+proof:
+  method:
+    - 非 headless Godot + `tools/probe_gqm11_ui_visual.gd`（canvas+inspector 並置・morph 前後キャプチャ）
+  capture:
+    - `.godot_user/visual-verification/GQM-11/terrain_schema_inspector_and_chips.png`
+    - `.godot_user/visual-verification/GQM-11/item_generation_weighted_before_morph.png`
+    - `.godot_user/visual-verification/GQM-11/item_generation_adjacency_after_morph.png`
+  verified:
+    - schema 駆動 inspector（Terrain Generation の全 cascade 同居）・label_by_mode（markov 時 "Initial Probability"）・titlebar chip の preset 名解決（`dist: Maze`）・placement_method 変更での即時 morph と chip 名称変化（`rules: inline`）・Q-DEP-9 連動 default の可視化（Domain Source: Result Terrain Floor）・selection adaptation の「そのまま (selection)」表示
+  integration_repair:
+    - 並行 merge の意味的衝突（GQM-16 の `distribution_asset_path` 追加 × GQM-11 chip の先頭 entry 依存）を orchestrator が修理し、統合 `./tools/test.sh` exit 0 を確認
+  findings:
+    - 磨き込み3点を `GQM-18_CRITERIA_CHIP_POLISH` として queue 化
