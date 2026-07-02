@@ -112,12 +112,16 @@ static func run(graph: Dictionary, context: Dictionary = {}) -> Dictionary:
 
 
 static func run_with_report(graph: Dictionary, context: Dictionary = {}) -> Dictionary:
+	var warnings: Array = []
+	var run_context := context.duplicate(false)
+	run_context["__warnings"] = warnings
 	var validation = HexGenerationGraphScript.validate(graph)
 	if not bool(validation.get("ok", false)):
 		return {
 			"ok": false,
 			"cancelled": false,
 			"errors": validation.get("errors", []),
+			"warnings": warnings,
 			"cache": {},
 			"partial_cache": {},
 			"recomputed_node_ids": PackedStringArray(),
@@ -130,28 +134,29 @@ static func run_with_report(graph: Dictionary, context: Dictionary = {}) -> Dict
 			"ok": false,
 			"cancelled": false,
 			"errors": [],
+			"warnings": warnings,
 			"cache": {},
 			"partial_cache": {},
 			"recomputed_node_ids": PackedStringArray(),
 			"reused_node_ids": PackedStringArray(),
 		}
 
-	var previous_cache = context.get("previous_cache", {}) as Dictionary
-	var dirty_set := _dirty_set(context.get("dirty_node_ids", []))
+	var previous_cache = run_context.get("previous_cache", {}) as Dictionary
+	var dirty_set := _dirty_set(run_context.get("dirty_node_ids", []))
 	var cache := {}
 	var incoming = HexGenerationGraphScript.incoming_edges_by_node(graph)
 	var recomputed_node_ids := PackedStringArray()
 	var reused_node_ids := PackedStringArray()
 	var recomputed_set := {}
 	var order: Array = _execution_order(graph, topo["order"])
-	var interrupt_options = context.get("interrupt_options", {}) as Dictionary
-	var progress_plan := _progress_plan(graph, order, context)
+	var interrupt_options = run_context.get("interrupt_options", {}) as Dictionary
+	var progress_plan := _progress_plan(graph, order, run_context)
 	for order_index in range(order.size()):
 		var node_id = String(order[order_index])
 		var node: Dictionary = graph["nodes"][node_id]
 		var progress_range := _progress_range_for_node(progress_plan, node_id)
 		if _cancel_requested(interrupt_options, node, node_id, order_index, order.size(), progress_range):
-			return _cancelled_report(node_id, cache, previous_cache, recomputed_node_ids, reused_node_ids)
+			return _cancelled_report(node_id, cache, previous_cache, recomputed_node_ids, reused_node_ids, warnings)
 		var inputs := {}
 		var upstream_changed := false
 		for port_name in incoming[node_id].keys():
@@ -175,13 +180,13 @@ static func run_with_report(graph: Dictionary, context: Dictionary = {}) -> Dict
 				order.size(),
 				progress_range
 			)
-			var node_context := _node_context(context, graph, cache, node_id)
+			var node_context := _node_context(run_context, graph, cache, node_id)
 			cache[node_id] = HexGenerationNodeTypesScript.run_node(node, inputs, node_context)
 			_restore_progress_callback(interrupt_options, original_progress_callback, relay != null)
 			recomputed_node_ids.append(node_id)
 			recomputed_set[node_id] = true
 			if bool(interrupt_options.get("cancelled", false)):
-				return _cancelled_report(node_id, cache, previous_cache, recomputed_node_ids, reused_node_ids)
+				return _cancelled_report(node_id, cache, previous_cache, recomputed_node_ids, reused_node_ids, warnings)
 			_emit_progress(interrupt_options, "graph_node_complete", node, node_id, order_index + 1, order.size(), progress_range)
 		else:
 			cache[node_id] = previous_cache[node_id]
@@ -192,6 +197,7 @@ static func run_with_report(graph: Dictionary, context: Dictionary = {}) -> Dict
 		"ok": true,
 		"cancelled": false,
 		"errors": [],
+		"warnings": warnings,
 		"cache": cache,
 		"partial_cache": {},
 		"recomputed_node_ids": recomputed_node_ids,
@@ -837,7 +843,8 @@ static func _cancelled_report(
 	partial_cache: Dictionary,
 	previous_cache: Dictionary,
 	recomputed_node_ids: PackedStringArray,
-	reused_node_ids: PackedStringArray
+	reused_node_ids: PackedStringArray,
+	warnings: Array = []
 ) -> Dictionary:
 	return {
 		"ok": false,
@@ -848,6 +855,7 @@ static func _cancelled_report(
 			"edge": {},
 			"message": "Graph run cancelled at node '%s'." % node_id,
 		}],
+		"warnings": warnings.duplicate(true),
 		"cache": previous_cache.duplicate(true),
 		"partial_cache": partial_cache.duplicate(true),
 		"recomputed_node_ids": recomputed_node_ids.duplicate(),

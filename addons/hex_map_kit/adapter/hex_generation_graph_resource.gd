@@ -53,7 +53,8 @@ func to_dict() -> Dictionary:
 			String(edge.get("from_node", "")),
 			String(edge.get("to_node", "")),
 			String(edge.get("to_port", "")),
-			String(edge.get("from_port", "out"))
+			String(edge.get("from_port", "out")),
+			String(edge.get("adaptation", ""))
 		)
 	return _normalized_graph(result)
 
@@ -138,12 +139,16 @@ static func _normalized_edges(value) -> Array:
 		var to_port := String(edge.get("to_port", "")).strip_edges()
 		if from_node == "" or to_node == "" or to_port == "":
 			continue
-		result.append({
+		var normalized := {
 			"from_node": from_node,
 			"from_port": String(edge.get("from_port", "out")),
 			"to_node": to_node,
 			"to_port": to_port,
-		})
+		}
+		var adaptation := String(edge.get("adaptation", "")).strip_edges()
+		if adaptation != "":
+			normalized["adaptation"] = adaptation
+		result.append(normalized)
 	return result
 
 

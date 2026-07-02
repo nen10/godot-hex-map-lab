@@ -61,6 +61,7 @@ static func build(graph_res, options: Dictionary = {}) -> Dictionary:
 	return {
 		"ok": true,
 		"errors": [],
+		"warnings": report.get("warnings", []),
 		"graph_id": graph_resource.graph_id,
 		"semantics_source": String(semantics_result.get("source", "")),
 		"map_data": promoted.get("map_data", null),
@@ -268,6 +269,7 @@ static func _failure(errors: Array, graph: Dictionary, report: Dictionary, seman
 	return {
 		"ok": false,
 		"errors": errors,
+		"warnings": report.get("warnings", []) if report is Dictionary else [],
 		"graph_id": "",
 		"semantics_source": semantics_source,
 		"map_data": null,

@@ -31,7 +31,7 @@ Status 運用: `docs/process/QUEUE_OPERATION_RULES.md`。Proof は `PROOF_LOG.md
 
 | id | status | deps | deliverable | target files | acceptance |
 |---|---|---|---|---|---|
-| `GQM-16_RUNTIME_PARITY_WITH_REFERENCE_ASSETS` | `READY` | `GQM-01`, `GQM-02` | runtime Map Build が統合 graph + **reference 資産の解決**込みで editor と同一 seed 同一結果（V6） | runtime build + tests | S: reference/embed 双方で parity test green |
+| `GQM-16_RUNTIME_PARITY_WITH_REFERENCE_ASSETS` | `COMPLETE` | `GQM-01`, `GQM-02` | runtime Map Build が統合 graph + **reference 資産の解決**込みで editor と同一 seed 同一結果（V6） | runtime build + tests | S: reference/embed 双方で parity test green |
 | `GQM-17_CRITERIA_WINDOW_DOD` | `BACKLOG` | `GQM-11` | V8: criteria window の完成定義「各パラメータが不快感なく UI に反映」を DoD 化し実描画キャプチャで判定 | windows + captures | S: capture 一式 + DoD チェックリスト |
 
 ## Current pointer
