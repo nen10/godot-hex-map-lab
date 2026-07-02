@@ -196,3 +196,31 @@ proof:
     - 並行 merge の意味的衝突（GQM-16 の `distribution_asset_path` 追加 × GQM-11 chip の先頭 entry 依存）を orchestrator が修理し、統合 `./tools/test.sh` exit 0 を確認
   findings:
     - 磨き込み3点を `GQM-18_CRITERIA_CHIP_POLISH` として queue 化
+
+### GQM-15_LEGACY_GRAPH_LOAD_NORMALIZATION
+
+proof:
+  review: `docs/review/autopilot/GQM-15_LEGACY_GRAPH_LOAD_NORMALIZATION_SELF_REVIEW_2026-07-03.md`
+  execution:
+    - `docs/review/autopilot/GQM-15_LEGACY_GRAPH_LOAD_NORMALIZATION_SELF_REVIEW_2026-07-03.md`
+  tests:
+    - focused `res://tests/test_graph_load_context.gd` (exit 0)
+    - focused `res://tests/test_graph_runtime_build.gd` (exit 0)
+    - focused `res://tests/test_build_screen_full.gd` (exit 0)
+    - `./tools/test.sh` (exit 0; run id `20260703-080151-6308`)
+    - UI metric report `.godot_user/ui-metrics/20260703-080151-6308/workspace_layout_metrics.md`: P0 `0`, P1 `0`
+  acceptance:
+    - `HexGenerationGraphNormalizer.normalize_graph_for_load()` detects legacy non-consolidated node types, normalizes the graph once, and returns an explicit `normalization_report` with before/after counts and status text.
+    - Build screen graph resource load and selected-layer context restore pass normalized dictionaries to the canvas; `tests/test_graph_load_context.gd` verifies a legacy sample resource loads into consolidated node types only and matches direct legacy Result output.
+    - Runtime Map Build normalizes legacy graph resources before validation/run/promote; `tests/test_graph_runtime_build.gd` verifies same-seed terrain parity against direct legacy execution.
+    - `HexGenerationPreset.from_profile()` emits the Simple profile as consolidated `terrain_generation -> result`; `tests/test_build_screen_full.gd` verifies consolidated node types and legacy-chain output parity.
+  major files:
+    - `addons/hex_map_kit/generation/hex_generation_graph_normalizer.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_screen.gd`
+    - `addons/hex_map_kit/editor/hex_map_graph_instantiator.gd`
+    - `addons/hex_map_kit/generation/hex_map_graph_builder.gd`
+    - `addons/hex_map_kit/generation/hex_generation_preset.gd`
+    - `addons/hex_map_kit/generation/hex_generation_node_types.gd`
+    - `tests/test_graph_load_context.gd`
+    - `tests/test_graph_runtime_build.gd`
+    - `tests/test_build_screen_full.gd`

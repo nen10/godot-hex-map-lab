@@ -3,6 +3,7 @@ class_name HexMapGraphInstantiator
 extends RefCounted
 
 const HexGenerationGraphResourceScript = preload("res://addons/hex_map_kit/adapter/hex_generation_graph_resource.gd")
+const HexGenerationGraphNormalizerScript = preload("res://addons/hex_map_kit/generation/hex_generation_graph_normalizer.gd")
 const HexTileMapLayerScript = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 const HexMapDocumentAdapterScript = preload("res://addons/hex_map_kit/adapter/hex_map_document_adapter.gd")
 const HexMapDocumentResourceScript = preload("res://addons/hex_map_kit/adapter/hex_map_document_resource.gd")
@@ -19,6 +20,7 @@ static func instantiate_new_layer(graph_resource, parent: Node, options: Diction
 		return _result(false, "new_layer", "A scene parent is required for graph load.")
 
 	var graph_copy := duplicate_graph_for_embed(graph_resource)
+	var normalization_report := _normalization_report_for_resource(graph_resource)
 	var layer := HexTileMapLayerScript.new()
 	layer.name = _unique_child_name(parent, String(options.get("base_name", "LoadedGraphHexMapLayer")))
 	parent.add_child(layer)
@@ -49,6 +51,8 @@ static func instantiate_new_layer(graph_resource, parent: Node, options: Diction
 		"copied_graph": graph_copy != graph_resource,
 		"copied_semantics": true,
 		"single_context_owner": true,
+		"normalization_report": normalization_report,
+		"status_text": _graph_load_status_text("Graph loaded into a new layer.", normalization_report),
 	}
 
 
@@ -58,6 +62,7 @@ static func overwrite_selected_layer(graph_resource, layer: HexTileMapLayerScrip
 	if layer == null:
 		return _result(false, "overwrite", "Overwrite requires a selected HexTileMapLayer.")
 
+	var normalization_report := _normalization_report_for_resource(graph_resource)
 	var incoming_document = embedded_document(graph_resource)
 	var merge_report := {
 		"assigned_document": false,
@@ -88,6 +93,8 @@ static func overwrite_selected_layer(graph_resource, layer: HexTileMapLayerScrip
 		"layer_stack": layer.layer_stack_resource,
 		"merge_report": merge_report,
 		"single_context_owner": true,
+		"normalization_report": normalization_report,
+		"status_text": _graph_load_status_text("Graph loaded into the selected layer.", normalization_report),
 	}
 
 
@@ -201,4 +208,20 @@ static func _result(ok: bool, mode: String, reason: String) -> Dictionary:
 		"overwrote_selected": false,
 		"layer": null,
 		"single_context_owner": false,
+		"normalization_report": {},
+		"status_text": reason,
 	}
+
+
+static func _normalization_report_for_resource(graph_resource: HexGenerationGraphResourceScript) -> Dictionary:
+	if graph_resource == null:
+		return {}
+	var normalized := HexGenerationGraphNormalizerScript.normalize_graph_for_load(graph_resource.to_dict())
+	return (normalized.get("report", {}) as Dictionary).duplicate(true)
+
+
+static func _graph_load_status_text(default_text: String, normalization_report: Dictionary) -> String:
+	var text := String(normalization_report.get("status_text", "")).strip_edges()
+	if bool(normalization_report.get("normalized", false)) and text != "":
+		return text
+	return default_text

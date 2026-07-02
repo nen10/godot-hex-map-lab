@@ -4,6 +4,7 @@ extends RefCounted
 
 const HexGenerationGraphScript = preload("res://addons/hex_map_kit/generation/hex_generation_graph.gd")
 const HexGenerationGraphRunnerScript = preload("res://addons/hex_map_kit/generation/hex_generation_graph_runner.gd")
+const HexGenerationGraphNormalizerScript = preload("res://addons/hex_map_kit/generation/hex_generation_graph_normalizer.gd")
 const HexGenerationGraphResourceScript = preload("res://addons/hex_map_kit/adapter/hex_generation_graph_resource.gd")
 const HexMapDataScript = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
 const HexOverlayDataScript = preload("res://addons/hex_map_kit/core/hex_overlay_data.gd")
@@ -27,12 +28,14 @@ static func build(graph_res, options: Dictionary = {}) -> Dictionary:
 		)
 
 	var graph_resource = graph_res as HexGenerationGraphResourceScript
-	var graph := graph_resource.to_dict()
+	var normalized := HexGenerationGraphNormalizerScript.normalize_graph_for_load(graph_resource.to_dict())
+	var graph := normalized.get("graph", {}) as Dictionary
+	var normalization_report := normalized.get("report", {}) as Dictionary
 	var context := _base_context(options)
 	_apply_graph_settings_to_context(context, graph_resource.graph_settings, options)
 	var semantics_result := _resolve_semantics(graph_resource, options)
 	if not bool(semantics_result.get("ok", false)):
-		return _failure(semantics_result.get("errors", []) as Array, graph, {}, String(semantics_result.get("source", "")), {})
+		return _failure(semantics_result.get("errors", []) as Array, graph, {}, String(semantics_result.get("source", "")), {}, normalization_report)
 	_apply_semantics_to_context(context, semantics_result.get("semantics", null))
 	var missing_keys := _missing_required_context_keys(semantics_result.get("semantics", null), context)
 	if not missing_keys.is_empty():
@@ -47,16 +50,17 @@ static func build(graph_res, options: Dictionary = {}) -> Dictionary:
 			graph,
 			{},
 			String(semantics_result.get("source", "")),
-			{}
+			{},
+			normalization_report
 		)
 
 	var report := HexGenerationGraphRunnerScript.run_with_report(graph, context)
 	if not bool(report.get("ok", false)):
-		return _failure(report.get("errors", []) as Array, graph, report, String(semantics_result.get("source", "")), {})
+		return _failure(report.get("errors", []) as Array, graph, report, String(semantics_result.get("source", "")), {}, normalization_report)
 
 	var promoted := _collect_promoted_outputs(graph_resource.promote_targets, graph, report.get("cache", {}) as Dictionary)
 	if not bool(promoted.get("ok", false)):
-		return _failure(promoted.get("errors", []) as Array, graph, report, String(semantics_result.get("source", "")), {})
+		return _failure(promoted.get("errors", []) as Array, graph, report, String(semantics_result.get("source", "")), {}, normalization_report)
 
 	return {
 		"ok": true,
@@ -68,6 +72,8 @@ static func build(graph_res, options: Dictionary = {}) -> Dictionary:
 		"overlays": promoted.get("overlays", []),
 		"cache": report.get("cache", {}),
 		"report": report,
+		"normalization_report": normalization_report,
+		"status_text": _build_status_text("Graph build complete.", normalization_report),
 	}
 
 
@@ -265,7 +271,14 @@ static func _normalize_role(role: String) -> String:
 	return normalized
 
 
-static func _failure(errors: Array, graph: Dictionary, report: Dictionary, semantics_source: String, cache: Dictionary) -> Dictionary:
+static func _failure(
+	errors: Array,
+	graph: Dictionary,
+	report: Dictionary,
+	semantics_source: String,
+	cache: Dictionary,
+	normalization_report: Dictionary = {}
+) -> Dictionary:
 	return {
 		"ok": false,
 		"errors": errors,
@@ -277,6 +290,8 @@ static func _failure(errors: Array, graph: Dictionary, report: Dictionary, seman
 		"cache": cache,
 		"report": report,
 		"graph": graph,
+		"normalization_report": normalization_report,
+		"status_text": _build_status_text("Graph build failed.", normalization_report),
 	}
 
 
@@ -287,3 +302,10 @@ static func _error(code: String, node: String, message: String) -> Dictionary:
 		"edge": {},
 		"message": message,
 	}
+
+
+static func _build_status_text(default_text: String, normalization_report: Dictionary) -> String:
+	var text := String(normalization_report.get("status_text", "")).strip_edges()
+	if bool(normalization_report.get("normalized", false)) and text != "":
+		return text
+	return default_text

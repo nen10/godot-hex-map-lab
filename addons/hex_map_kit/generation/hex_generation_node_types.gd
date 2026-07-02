@@ -272,7 +272,7 @@ static func _run_terrain_generation(inputs: Dictionary, params: Dictionary, cont
 	var terrain
 	var base_mode := String(params.get("base_mode", "shape"))
 	match base_mode:
-		"document_terrain", "map_resource", "result_terrain":
+		"document_terrain", "map_resource", "result_terrain", "context", "provided":
 			terrain = _run_source({}, _source_params_for_base_mode(base_mode, params), context, resource_refs)
 		"shape", _:
 			terrain = _run_shape({}, params, context, resource_refs)
@@ -324,6 +324,10 @@ static func _source_params_for_base_mode(mode: String, params: Dictionary) -> Di
 			result["kind"] = "map_resource"
 		"result_terrain":
 			result["kind"] = "result_terrain"
+		"context":
+			result["kind"] = "context"
+		"provided":
+			result["kind"] = "provided"
 		_:
 			result["kind"] = String(params.get("kind", "provided"))
 	return result

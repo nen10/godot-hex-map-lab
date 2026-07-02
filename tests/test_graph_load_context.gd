@@ -1,6 +1,8 @@
 extends "res://tests/test_editor_plugin_test_base.gd"
 
 const HexGenerationGraph = preload("res://addons/hex_map_kit/generation/hex_generation_graph.gd")
+const HexGenerationGraphRunner = preload("res://addons/hex_map_kit/generation/hex_generation_graph_runner.gd")
+const HexGenerationNodeTypes = preload("res://addons/hex_map_kit/generation/hex_generation_node_types.gd")
 
 
 func _init() -> void:
@@ -9,6 +11,7 @@ func _init() -> void:
 
 func _run() -> void:
 	await _test_build_screen_load_graph_controls_are_non_destructive_by_default()
+	await _test_legacy_sample_graph_load_normalizes_canvas_and_preserves_output()
 	await _test_load_graph_default_creates_new_selected_layer_with_embed_copy()
 	await _test_load_graph_overwrite_preserves_manual_layers()
 	await _test_load_graph_path_uses_same_context_owner_path()
@@ -25,6 +28,45 @@ func _test_build_screen_load_graph_controls_are_non_destructive_by_default() -> 
 	_assert_true(bool(snapshot["overwrite_selected_graph_check_present"]), "RUNTIME-51 Build screen exposes overwrite opt-in")
 	_assert_true(not bool(snapshot["overwrite_selected_graph_default"]), "RUNTIME-51 overwrite selected is off by default")
 	_assert_true(not bool(snapshot["overwrite_selected_graph"]), "RUNTIME-51 overwrite selected starts unchecked")
+
+	screen.queue_free()
+	await process_frame
+
+
+func _test_legacy_sample_graph_load_normalizes_canvas_and_preserves_output() -> void:
+	var legacy_graph := _legacy_sample_graph()
+	var graph_resource := HexGenerationGraphResource.from_dict(legacy_graph)
+	graph_resource.graph_id = "gqm15_legacy_sample_graph"
+	graph_resource.ownership_semantics = "embed"
+	graph_resource.semantics_snapshot = {"embed": true}
+	graph_resource.promote_targets = [{"node_id": "result", "role": "result"}]
+
+	var screen = HexMapBuildScreen.new()
+	root.add_child(screen)
+	await process_frame
+
+	var load_result := screen.load_graph_resource(graph_resource, {"run": true})
+	_assert_true(bool(load_result.get("ok", false)), "GQM-15 legacy graph resource loads")
+	var normalization_report := load_result.get("normalization_report", {}) as Dictionary
+	_assert_true(bool(normalization_report.get("normalized", false)), "GQM-15 load report records legacy normalization")
+	_assert_eq(int(normalization_report.get("before_node_count", 0)), 6, "GQM-15 load report records legacy node count")
+	_assert_eq(int(normalization_report.get("after_node_count", 0)), 3, "GQM-15 load report records consolidated node count")
+	_assert_true(String(load_result.get("status_text", "")).contains("normalized"), "GQM-15 load status mentions normalization")
+	_assert_true(String(screen.build_screen_snapshot().get("status_text", "")).contains("normalized"), "GQM-15 visible Build status mentions normalization")
+
+	var canvas_graph := screen.graph_canvas().build_graph_model()
+	_assert_true(_all_nodes_are_consolidated(canvas_graph), "GQM-15 loaded canvas contains only consolidated node types")
+
+	var legacy_report := HexGenerationGraphRunner.run_with_report(legacy_graph)
+	var loaded_report := load_result.get("run_report", {}) as Dictionary
+	_assert_true(bool(legacy_report.get("ok", false)), "GQM-15 direct legacy sample graph runs")
+	_assert_true(bool(loaded_report.get("ok", false)), "GQM-15 normalized loaded graph runs")
+	if bool(legacy_report.get("ok", false)) and bool(loaded_report.get("ok", false)):
+		_assert_eq(
+			_result_signature((loaded_report["cache"] as Dictionary).get("result", null)),
+			_result_signature((legacy_report["cache"] as Dictionary).get("result", null)),
+			"GQM-15 loaded normalized output matches direct legacy output"
+		)
 
 	screen.queue_free()
 	await process_frame
@@ -137,6 +179,79 @@ func _graph_resource_with_semantics(document: HexMapDocumentResource) -> HexGene
 		graph_resource.semantics_snapshot["document"] = document
 	graph_resource.semantics_snapshot["layer_stack"] = HexLayerStackResource.standard_template()
 	return graph_resource
+
+
+func _legacy_sample_graph() -> Dictionary:
+	var graph := HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(graph, "shape", "shape", {
+		"shape": "rectangle",
+		"width": 5,
+		"height": 4,
+	})
+	HexGenerationGraph.add_node(graph, "walls", "wall_field", {
+		"wall_method": "random_probability",
+		"wall_probability": 0.0,
+		"seed": 17,
+	})
+	HexGenerationGraph.add_node(graph, "connect", "connectivity", {
+		"method": "dense",
+		"seed": 23,
+	})
+	HexGenerationGraph.add_node(graph, "floor_filter", "terrain_filter", {
+		"filter_target": "floor",
+	})
+	HexGenerationGraph.add_node(graph, "items", "item_generator", {
+		"placement_method": "weighted",
+		"placement_probability": 1.0,
+		"seed": 29,
+		"item_pool": [{"name": "gem", "weight": 1.0}],
+	})
+	HexGenerationGraph.add_node(graph, "result", "result")
+	HexGenerationGraph.add_edge(graph, "shape", "walls", "in")
+	HexGenerationGraph.add_edge(graph, "walls", "connect", "in")
+	HexGenerationGraph.add_edge(graph, "connect", "floor_filter", "in")
+	HexGenerationGraph.add_edge(graph, "floor_filter", "items", "scope")
+	HexGenerationGraph.add_edge(graph, "connect", "result", "terrain")
+	HexGenerationGraph.add_edge(graph, "items", "result", "overlay_0")
+	return graph
+
+
+func _all_nodes_are_consolidated(graph: Dictionary) -> bool:
+	for node in (graph.get("nodes", {}) as Dictionary).values():
+		if not HexGenerationNodeTypes.is_consolidated_type(String((node as Dictionary).get("type", ""))):
+			return false
+	return true
+
+
+func _result_signature(result) -> String:
+	if not result is HexGenerationResultResource:
+		return "<missing-result>"
+	var result_resource := result as HexGenerationResultResource
+	if result_resource.primary_map == null:
+		return "<missing-primary>"
+	var overlay_parts: Array = []
+	for overlay_resource in result_resource.overlay_maps:
+		if overlay_resource == null:
+			continue
+		var overlay_data = overlay_resource.to_overlay_data()
+		var item_parts: Array = []
+		for item_key in overlay_data.item_keys():
+			item_parts.append("%s=%s" % [String(item_key), str(HexMapData.sorted_keys(overlay_data.item_cells(String(item_key))))])
+		overlay_parts.append("%s|%s" % [str(HexMapData.sorted_keys(overlay_data.cells)), ";".join(item_parts)])
+	return "%s|%s" % [
+		_map_signature(result_resource.primary_map.to_map_data()),
+		"||".join(overlay_parts),
+	]
+
+
+func _map_signature(data) -> String:
+	if not data is HexMapData:
+		return "<missing-map>"
+	return "%s|%s|%d" % [
+		str(HexMapData.sorted_keys(data.cells)),
+		str(HexMapData.sorted_keys(data.walls)),
+		int(data.cyclic_size),
+	]
 
 
 func _document_with_manual_and_generated(suffix: String) -> HexMapDocumentResource:

@@ -25,7 +25,7 @@ Status 運用: `docs/process/QUEUE_OPERATION_RULES.md`。Proof は `PROOF_LOG.md
 |---|---|---|---|---|---|
 | `GQM-13_HEADER_SWEEP_TEMPLATE_GENERATE_UNIFY` | `BACKLOG` | `GQM-11` | Batch N / Seed randomize / Shape randomize / Profile 行 / Generate(Simple) 撤去。Template ▾（bundled graph preset。**基本形 template を筆頭**）。Load Graph / Overwrite selected を graph 資産 operation（§4 文法）へ移設。Generate 一本化（全系譜実行→出力投影。fallback 概念の削除） | build_screen / preset / workspace | S: Build 上部 = Template / Generate / Apply / Revert / status のみ。基本形 template 1 操作で 7 node graph が立ち即 Generate 可能。実描画キャプチャ |
 | `GQM-14_RESULT_RESOURCE_SAVE_SWITCH` | `BACKLOG` | `GQM-12`, `GQM-02` | 生成結果の名前付き保存（**出力 data 込み**・park 系 field 不使用）→ リスト → 即時切替（再生成なし）→ promote 導線 | adapter / build_screen / tests | S: 保存→切替→promote が data 込みで即時。リスト表示（thumbnail なし） |
-| `GQM-15_LEGACY_GRAPH_LOAD_NORMALIZATION` | `READY` | `GQM-01`, `GQM-10` | graph resource 読込時の legacy→統合 正規化（Q-DEP-2 (a)）を editor 導線に接続 | graph load 経路 | S: 既存 .tres graph が読込→統合表示→同一出力 |
+| `GQM-15_LEGACY_GRAPH_LOAD_NORMALIZATION` | `COMPLETE` | `GQM-01`, `GQM-10` | graph resource 読込時の legacy→統合 正規化（Q-DEP-2 (a)）を editor 導線に接続 | graph load 経路 | S: 既存 .tres graph が読込→統合表示→同一出力 |
 
 ## Phase G4: 完全性
 

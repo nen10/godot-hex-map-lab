@@ -7,6 +7,47 @@ const HexGenerationNodeTypesScript = preload("res://addons/hex_map_kit/generatio
 const HexGenerationPortsScript = preload("res://addons/hex_map_kit/generation/hex_generation_ports.gd")
 
 
+static func normalize_graph_for_load(graph: Dictionary) -> Dictionary:
+	var source := _normalized_input_graph(graph)
+	var legacy_ids := legacy_node_ids(source)
+	var before_node_count := (source.get("nodes", {}) as Dictionary).size()
+	var before_edge_count := (source.get("edges", []) as Array).size()
+	if legacy_ids.is_empty():
+		return {
+			"graph": source,
+			"report": _normalization_report(false, before_node_count, before_node_count, before_edge_count, before_edge_count, legacy_ids),
+		}
+	var normalized := normalize_graph(source)
+	return {
+		"graph": normalized,
+		"report": _normalization_report(
+			true,
+			before_node_count,
+			(normalized.get("nodes", {}) as Dictionary).size(),
+			before_edge_count,
+			(normalized.get("edges", []) as Array).size(),
+			legacy_ids
+		),
+	}
+
+
+static func has_legacy_nodes(graph: Dictionary) -> bool:
+	return not legacy_node_ids(graph).is_empty()
+
+
+static func legacy_node_ids(graph: Dictionary) -> PackedStringArray:
+	var model := _normalized_input_graph(graph)
+	var legacy_types := _legacy_node_type_set()
+	var result := PackedStringArray()
+	var node_ids := (model.get("nodes", {}) as Dictionary).keys()
+	node_ids.sort()
+	for node_id in node_ids:
+		var text_id := String(node_id)
+		if legacy_types.has(_node_type(model, text_id)):
+			result.append(text_id)
+	return result
+
+
 static func normalize_graph(legacy: Dictionary) -> Dictionary:
 	var graph := _normalized_input_graph(legacy)
 	var result := HexGenerationGraphScript.new_graph()
@@ -34,6 +75,49 @@ static func normalize_graph(legacy: Dictionary) -> Dictionary:
 			HexGenerationNodeTypesScript.NODE_RESULT:
 				_ensure_result_node(graph, result, state, text_id)
 	return result
+
+
+static func _normalization_report(
+	normalized: bool,
+	before_node_count: int,
+	after_node_count: int,
+	before_edge_count: int,
+	after_edge_count: int,
+	legacy_ids: PackedStringArray
+) -> Dictionary:
+	return {
+		"normalized": normalized,
+		"legacy_node_ids": legacy_ids,
+		"legacy_node_count": legacy_ids.size(),
+		"before_node_count": before_node_count,
+		"after_node_count": after_node_count,
+		"before_edge_count": before_edge_count,
+		"after_edge_count": after_edge_count,
+		"status_text": _normalization_status_text(normalized, before_node_count, after_node_count),
+	}
+
+
+static func _normalization_status_text(normalized: bool, before_node_count: int, after_node_count: int) -> String:
+	if not normalized:
+		return ""
+	return "Legacy graph normalized to consolidated nodes (%d nodes -> %d nodes)" % [
+		before_node_count,
+		after_node_count,
+	]
+
+
+static func _legacy_node_type_set() -> Dictionary:
+	return {
+		HexGenerationNodeTypesScript.NODE_SOURCE: true,
+		HexGenerationNodeTypesScript.NODE_SHAPE: true,
+		HexGenerationNodeTypesScript.NODE_WALL_FIELD: true,
+		HexGenerationNodeTypesScript.NODE_CONNECTIVITY: true,
+		HexGenerationNodeTypesScript.NODE_REGION_FILTER: true,
+		HexGenerationNodeTypesScript.NODE_TERRAIN_FILTER: true,
+		HexGenerationNodeTypesScript.NODE_OVERLAY_FILTER: true,
+		HexGenerationNodeTypesScript.NODE_ITEM_GENERATOR: true,
+		HexGenerationNodeTypesScript.NODE_COMPOSE: true,
+	}
 
 
 static func _normalized_input_graph(graph: Dictionary) -> Dictionary:
@@ -122,6 +206,10 @@ static func _source_base_params(params: Dictionary) -> Dictionary:
 			result["base_mode"] = "map_resource"
 		"result_terrain":
 			result["base_mode"] = "result_terrain"
+		"context":
+			result["base_mode"] = "context"
+		"provided":
+			result["base_mode"] = "provided"
 		_:
 			result["base_mode"] = "map_resource"
 	return result
