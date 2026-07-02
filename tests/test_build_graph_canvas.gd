@@ -73,9 +73,11 @@ func _test_consolidated_editor_connections_and_result_rows() -> void:
 	var rows := _rows_by_input(canvas.canvas_snapshot()["result_rows"] as Array)
 	_assert_eq(String((rows["in_0"] as Dictionary)["resolution"]), "substrate", "GQM-10 result row resolves terrain as substrate")
 	_assert_eq(String((rows["in_1"] as Dictionary)["resolution"]), "overlay 0", "GQM-10 result row resolves item output as overlay 0")
-	_assert_eq(String((rows["in_2"] as Dictionary)["resolution"]), "unused", "GQM-10 result row resolves selection output as unused")
+	_assert_eq(String((rows["in_2"] as Dictionary)["resolution"]), "unused", "GQM-18 connected selection result row remains unused")
 	_assert_eq(String((rows["in_3"] as Dictionary)["unused_reason"]), "extra_terrain", "GQM-12 extra terrain row records unused reason")
 	_assert_true(String((rows["in_3"] as Dictionary)["tooltip"]).contains("first connected terrain"), "GQM-12 extra terrain tooltip explains substrate selection")
+	_assert_eq(String((rows["in_4"] as Dictionary)["resolution"]), "未接続", "GQM-18 empty Result row has an unconnected label instead of unused")
+	_assert_eq(String((rows["in_4"] as Dictionary)["unused_reason"]), "not_connected", "GQM-18 empty Result row is tracked separately from connected unused rows")
 
 	canvas.queue_free()
 	await process_frame
@@ -222,8 +224,14 @@ func _test_selection_adaptation_display_is_passthrough() -> void:
 	_assert_eq(String(row.get("adaptation", "")), "", "GQM-11 selection passthrough adaptation is stored as empty")
 	_assert_eq(String(row.get("display", "")), "そのまま (selection)", "GQM-11 selection passthrough is displayed clearly")
 	var option = (canvas._graph_node(consumer) as GraphNode).find_child("Adaptation consumer in_0", true, false) as OptionButton
-	_assert_true(option is OptionButton, "GQM-11 selection passthrough keeps an adaptation control")
+	_assert_true(option is OptionButton, "GQM-18 connected selection passthrough keeps an adaptation control")
 	_assert_eq(option.get_item_text(0), "そのまま (selection)", "GQM-11 dropdown first item names passthrough selection instead of none")
+	var empty_row = rows["consumer:in_1"] as Dictionary
+	_assert_true(not bool(empty_row.get("connected", true)), "GQM-18 dynamic empty input row is recorded as unconnected")
+	_assert_eq(String(empty_row.get("display", "")), "未接続", "GQM-18 unconnected input row uses a distinct unconnected label")
+	_assert_true(not bool(empty_row.get("control_present", true)), "GQM-18 unconnected input row hides the adaptation dropdown")
+	var empty_option = (canvas._graph_node(consumer) as GraphNode).find_child("Adaptation consumer in_1", true, false) as OptionButton
+	_assert_true(empty_option == null, "GQM-18 unconnected input row does not mount an adaptation OptionButton")
 
 	canvas.queue_free()
 	await process_frame
@@ -243,13 +251,16 @@ func _test_consolidated_titlebar_criteria_chip_opens_editor() -> void:
 	await process_frame
 
 	var titlebars := screen.graph_canvas().canvas_snapshot()["node_titlebars"] as Dictionary
+	_assert_true(float((titlebars["terrain"] as Dictionary)["display_name_field_min_width"]) >= 220.0, "GQM-18 titlebar node name field reserves enough width")
+	_assert_true(bool((titlebars["terrain"] as Dictionary)["display_name_field_expands"]), "GQM-18 titlebar node name field expands within the titlebar")
 	var chips := ((titlebars["terrain"] as Dictionary)["criteria_chips"] as Array)
 	_assert_true(_chip_labels(chips).has("dist: Maze"), "GQM-11 canvas titlebar chip displays the applied distribution source")
-	var chip_button := (screen.graph_canvas()._graph_node("terrain") as GraphNode).find_child("HexTitlebarCriteriaChip_terrain_distribution", true, false) as Button
-	_assert_true(chip_button is Button, "GQM-11 canvas titlebar mounts a clickable distribution chip")
-	chip_button.pressed.emit()
+	var chip_button := (screen.graph_canvas()._graph_node("terrain") as GraphNode).find_child("HexTitlebarCriteriaChip_terrain_distribution", true, false) as MenuButton
+	_assert_true(chip_button is MenuButton, "GQM-18 canvas titlebar mounts a criteria chip menu")
+	var popup := chip_button.get_popup()
+	popup.id_pressed.emit(_popup_item_id_by_text(popup, "Open editor..."))
 	await process_frame
-	_assert_true(screen.node_inspector().find_child("Markov Distribution Window", true, false) is AcceptDialog, "GQM-11 titlebar distribution chip opens the Markov distribution editor")
+	_assert_true(screen.node_inspector().find_child("Markov Distribution Window", true, false) is AcceptDialog, "GQM-18 titlebar distribution chip menu opens the Markov distribution editor")
 
 	screen.queue_free()
 	await process_frame
@@ -617,6 +628,13 @@ func _option_index_by_metadata(option: OptionButton, metadata: String) -> int:
 	for index in range(option.item_count):
 		if String(option.get_item_metadata(index)) == metadata:
 			return index
+	return -1
+
+
+func _popup_item_id_by_text(popup: PopupMenu, text: String) -> int:
+	for index in range(popup.item_count):
+		if popup.get_item_text(index) == text:
+			return popup.get_item_id(index)
 	return -1
 
 

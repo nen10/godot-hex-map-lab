@@ -233,6 +233,7 @@ static func _terrain_generation_declarations() -> Dictionary:
 		"distribution_asset_path": _entry("distribution_asset_path", "Distribution Asset Path", CONTROL_LINE_EDIT, "", {
 			"visible_when": _is("wall_method", "markov_mesh"),
 			"asset_kind": ASSET_WALL_DISTRIBUTIONS,
+			"hidden": true,
 		}),
 		"distribution_id": _entry("distribution_id", "Distribution", CONTROL_OPTION, 20, {
 			"options": [
@@ -355,6 +356,7 @@ static func _item_generation_declarations() -> Dictionary:
 		"item_pool_asset_path": _entry("item_pool_asset_path", "Item Pool Asset Path", CONTROL_LINE_EDIT, "", {
 			"visible_when": _in("placement_method", ["weighted", "limited"]),
 			"asset_kind": ASSET_ITEM_POOLS,
+			"hidden": true,
 		}),
 		"item_name": _entry("item_name", "Item Name", CONTROL_LINE_EDIT, "item", {
 			"visible_when": _is("placement_method", "adjacency_rules"),
@@ -366,6 +368,7 @@ static func _item_generation_declarations() -> Dictionary:
 		"rules_asset_path": _entry("rules_asset_path", "Rules Asset Path", CONTROL_LINE_EDIT, "", {
 			"visible_when": _is("placement_method", "adjacency_rules"),
 			"asset_kind": ASSET_ADJACENCY_RULES,
+			"hidden": true,
 		}),
 		"neighbor_radius": _entry("neighbor_radius", "Neighbor Radius", CONTROL_SPIN_INT, 1, {
 			"min": 1,
@@ -423,6 +426,7 @@ static func _entry(key: String, label: String, control: String, default_value: V
 		"derived_default": {},
 		"affects": [],
 		"asset_kind": ASSET_NONE,
+		"hidden": false,
 	}
 	for extra_key in extra.keys():
 		var value = extra[extra_key]
