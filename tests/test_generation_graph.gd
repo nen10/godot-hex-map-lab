@@ -14,6 +14,8 @@ const HexGenerationPorts = preload("res://addons/hex_map_kit/generation/hex_gene
 const HexGenerationAdaptation = preload("res://addons/hex_map_kit/generation/hex_generation_adaptation.gd")
 const HexGenerationGraph = preload("res://addons/hex_map_kit/generation/hex_generation_graph.gd")
 const HexGenerationGraphNormalizer = preload("res://addons/hex_map_kit/generation/hex_generation_graph_normalizer.gd")
+const HexGenerationNodeTypes = preload("res://addons/hex_map_kit/generation/hex_generation_node_types.gd")
+const HexGenerationParamSchema = preload("res://addons/hex_map_kit/generation/hex_generation_param_schema.gd")
 const HexGenerationGraphRunner = preload("res://addons/hex_map_kit/generation/hex_generation_graph_runner.gd")
 
 var _failures: Array[String] = []
@@ -47,6 +49,10 @@ func _run() -> void:
 	_test_adaptation_matrix_is_total()
 	_test_would_create_cycle_reports_true_and_false()
 	_test_normalize_graph_preserves_legacy_basic_and_straight_chain()
+	_test_consolidated_param_schema_enumerates_all_methods()
+	_test_schema_default_graphs_are_valid_and_execute()
+	_test_schema_affects_match_effective_schema_changes()
+	_test_schema_defaults_match_generation_node_defaults()
 
 	if _failures.is_empty():
 		print("test_generation_graph.gd: all tests passed")
@@ -596,6 +602,175 @@ func _test_normalize_graph_preserves_legacy_basic_and_straight_chain() -> void:
 	)
 
 
+func _test_consolidated_param_schema_enumerates_all_methods() -> void:
+	var schema_source := FileAccess.get_file_as_string("res://addons/hex_map_kit/generation/hex_generation_param_schema.gd")
+	_assert_false(schema_source.contains("editor/"), "GQM-03 schema stays out of editor imports")
+
+	for node_type in _consolidated_node_types():
+		var declarations = HexGenerationParamSchema.declarations(node_type)
+		_assert_true(not declarations.is_empty(), "GQM-03 declarations exist for %s" % node_type)
+		var defaults = HexGenerationParamSchema.default_params(node_type)
+		var default_schema = HexGenerationParamSchema.schema_for(node_type, defaults)
+		_assert_eq(default_schema.size(), declarations.size(), "GQM-03 default schema lists every declaration for %s" % node_type)
+		_assert_schema_entries_are_well_formed(node_type, default_schema)
+		for params in _schema_enumeration_params(node_type):
+			var effective_schema = HexGenerationParamSchema.schema_for(node_type, params)
+			_assert_eq(_schema_keys(effective_schema), _schema_keys(default_schema), "GQM-03 schema keys stay stable for %s params %s" % [node_type, str(params)])
+			_assert_schema_entries_are_well_formed(node_type, effective_schema)
+
+	_assert_option_values(
+		HexGenerationNodeTypes.NODE_TERRAIN_GENERATION,
+		"base_mode",
+		["shape", "document_terrain", "map_resource", "result_terrain"]
+	)
+	_assert_option_values(
+		HexGenerationNodeTypes.NODE_TERRAIN_GENERATION,
+		"shape",
+		["rectangle", "square", "hexagon"]
+	)
+	_assert_option_values(
+		HexGenerationNodeTypes.NODE_TERRAIN_GENERATION,
+		"wall_method",
+		["none", "random_probability", "markov_mesh"]
+	)
+	_assert_option_values(
+		HexGenerationNodeTypes.NODE_TERRAIN_GENERATION,
+		"connectivity_method",
+		["none", "dense", "sparse", "terminal"]
+	)
+	_assert_option_values(
+		HexGenerationNodeTypes.NODE_ITEM_GENERATION,
+		"source_mode",
+		["result_substrate_floor", "document_overlay"]
+	)
+	_assert_option_values(
+		HexGenerationNodeTypes.NODE_ITEM_GENERATION,
+		"placement_method",
+		["weighted", "limited", "adjacency_rules"]
+	)
+	_assert_option_values(
+		HexGenerationNodeTypes.NODE_SET_OPERATION,
+		"operation",
+		["union", "intersection", "difference"]
+	)
+	_assert_option_values(HexGenerationNodeTypes.NODE_RESULT, "orientation", [0, 1])
+
+	var random_wall_schema = _schema_entry(
+		HexGenerationParamSchema.schema_for(HexGenerationNodeTypes.NODE_TERRAIN_GENERATION, {"wall_method": "random_probability"}),
+		"wall_probability"
+	)
+	var markov_wall_schema = _schema_entry(
+		HexGenerationParamSchema.schema_for(HexGenerationNodeTypes.NODE_TERRAIN_GENERATION, {"wall_method": "markov_mesh"}),
+		"wall_probability"
+	)
+	_assert_eq(String(random_wall_schema.get("label", "")), "Probability / Cell", "GQM-03 random wall label mirrors old evaluator")
+	_assert_eq(String(markov_wall_schema.get("label", "")), "Initial Probability", "GQM-03 Markov wall label mirrors old evaluator")
+
+
+func _test_schema_default_graphs_are_valid_and_execute() -> void:
+	var terrain_defaults = HexGenerationParamSchema.default_params(HexGenerationNodeTypes.NODE_TERRAIN_GENERATION)
+	var item_defaults = HexGenerationParamSchema.default_params(HexGenerationNodeTypes.NODE_ITEM_GENERATION)
+	var set_defaults = HexGenerationParamSchema.default_params(HexGenerationNodeTypes.NODE_SET_OPERATION)
+	var result_defaults = HexGenerationParamSchema.default_params(HexGenerationNodeTypes.NODE_RESULT)
+
+	_assert_true((item_defaults.get("item_pool", []) as Array).size() > 0, "GQM-03 weighted default item pool is not empty")
+	_assert_true((item_defaults.get("probability_rules", {}) as Dictionary).has("default"), "GQM-03 adjacency default probability rules are structured")
+
+	var terrain_graph = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(terrain_graph, "terrain", "terrain_generation", terrain_defaults)
+	var terrain_report = HexGenerationGraphRunner.run_with_report(terrain_graph)
+	_assert_true(bool(terrain_report["ok"]), "GQM-03 default terrain_generation graph validates and runs")
+	var default_terrain = (terrain_report["cache"] as Dictionary)["terrain"] as HexMapData
+	_assert_true(default_terrain.cells.size() > 0, "GQM-03 default terrain_generation produces cells")
+	_assert_true(default_terrain.floor_cells().size() > 0, "GQM-03 default terrain_generation leaves usable floor")
+
+	var minimal_graph = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(minimal_graph, "terrain", "terrain_generation", terrain_defaults)
+	HexGenerationGraph.add_node(minimal_graph, "items", "item_generation", item_defaults)
+	HexGenerationGraph.add_node(minimal_graph, "result", "result", result_defaults)
+	HexGenerationGraph.add_edge(minimal_graph, "terrain", "result", "in_0")
+	HexGenerationGraph.add_edge(minimal_graph, "items", "result", "in_1")
+	var minimal_report = HexGenerationGraphRunner.run_with_report(minimal_graph, {"seed": 31})
+	_assert_true(bool(minimal_report["ok"]), "GQM-03 default terrain+item+result graph validates and runs")
+	var minimal_cache = minimal_report["cache"] as Dictionary
+	var result = minimal_cache["result"] as HexGenerationResultResource
+	var overlay = minimal_cache["items"] as HexOverlayData
+	_assert_true(result.primary_map != null, "GQM-03 default result receives terrain substrate")
+	_assert_eq(result.overlay_maps.size(), 1, "GQM-03 default result receives item overlay")
+	_assert_true(overlay.item_cells("item").size() > 0, "GQM-03 default item_generation places schema item pool entries")
+	_assert_keys_eq(overlay.item_cells("item"), (minimal_cache["terrain"] as HexMapData).floor_cells(), "GQM-03 default item_generation follows Result substrate floor")
+
+	var adjacency_item_defaults = item_defaults.duplicate(true)
+	adjacency_item_defaults["placement_method"] = "adjacency_rules"
+	var adjacency_graph = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(adjacency_graph, "terrain", "terrain_generation", terrain_defaults)
+	HexGenerationGraph.add_node(adjacency_graph, "items", "item_generation", adjacency_item_defaults)
+	HexGenerationGraph.add_node(adjacency_graph, "result", "result", result_defaults)
+	HexGenerationGraph.add_edge(adjacency_graph, "terrain", "result", "in_0")
+	HexGenerationGraph.add_edge(adjacency_graph, "items", "result", "in_1")
+	var adjacency_report = HexGenerationGraphRunner.run_with_report(adjacency_graph, {"seed": 41})
+	_assert_true(bool(adjacency_report["ok"]), "GQM-03 adjacency_rules default graph validates and runs")
+	_assert_true(((adjacency_report["cache"] as Dictionary)["items"] as HexOverlayData).item_keys().has("item"), "GQM-03 adjacency_rules default writes the schema item name")
+
+	var set_graph = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(set_graph, "a", "terrain_generation", terrain_defaults)
+	HexGenerationGraph.add_node(set_graph, "b", "terrain_generation", terrain_defaults)
+	HexGenerationGraph.add_node(set_graph, "union", "set_operation", set_defaults)
+	HexGenerationGraph.add_edge(set_graph, "a", "union", "in_0", "out", "floor")
+	HexGenerationGraph.add_edge(set_graph, "b", "union", "in_1", "out", "floor")
+	var set_report = HexGenerationGraphRunner.run_with_report(set_graph)
+	_assert_true(bool(set_report["ok"]), "GQM-03 default set_operation validates with two inputs")
+	_assert_true(((set_report["cache"] as Dictionary)["union"] as Array).size() > 0, "GQM-03 default set_operation produces a non-empty selection")
+
+
+func _test_schema_affects_match_effective_schema_changes() -> void:
+	for node_type in _consolidated_node_types():
+		var declarations = HexGenerationParamSchema.declarations(node_type)
+		for key in declarations.keys():
+			var declaration = declarations[key] as Dictionary
+			var declared_affects = declaration.get("affects", []) as Array
+			if declared_affects.is_empty():
+				continue
+			var declared_sorted := _sorted_values(declared_affects)
+			for affected_key in declared_sorted:
+				_assert_true(declarations.has(String(affected_key)), "GQM-03 %s.%s affects declared key %s" % [node_type, key, String(affected_key)])
+			var observed := {}
+			for params in _schema_affects_scenarios(node_type):
+				var values = _alternate_values_for_declaration(declaration, params.get(String(key), null))
+				for value in values:
+					var changed_params = (params as Dictionary).duplicate(true)
+					changed_params[String(key)] = value
+					var diff = _schema_diff_keys(
+						HexGenerationParamSchema.schema_for(node_type, params),
+						HexGenerationParamSchema.schema_for(node_type, changed_params)
+					)
+					for diff_key in diff:
+						_assert_true(declared_sorted.has(diff_key), "GQM-03 %s.%s undeclared schema diff %s" % [node_type, key, diff_key])
+						observed[diff_key] = true
+			_assert_eq(_sorted_dict_keys(observed), declared_sorted, "GQM-03 %s.%s affects match schema diffs" % [node_type, key])
+
+
+func _test_schema_defaults_match_generation_node_defaults() -> void:
+	var terrain_defaults = HexGenerationParamSchema.default_params(HexGenerationNodeTypes.NODE_TERRAIN_GENERATION)
+	_assert_eq(terrain_defaults["width"], HexGenerationNodeTypes.DEFAULT_RECTANGLE_WIDTH, "GQM-03 width default matches node type constant")
+	_assert_eq(terrain_defaults["height"], HexGenerationNodeTypes.DEFAULT_RECTANGLE_HEIGHT, "GQM-03 height default matches node type constant")
+	_assert_eq(terrain_defaults["size"], HexGenerationNodeTypes.DEFAULT_SQUARE_SIZE, "GQM-03 square size default matches node type constant")
+	_assert_eq(terrain_defaults["radius"], HexGenerationNodeTypes.DEFAULT_HEXAGON_RADIUS, "GQM-03 hex radius default matches node type constant")
+
+	var implicit_graph = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(implicit_graph, "terrain", "terrain_generation", {})
+	var schema_graph = HexGenerationGraph.new_graph()
+	HexGenerationGraph.add_node(schema_graph, "terrain", "terrain_generation", terrain_defaults)
+	var implicit_terrain = HexGenerationGraphRunner.run(implicit_graph)["terrain"] as HexMapData
+	var schema_terrain = HexGenerationGraphRunner.run(schema_graph)["terrain"] as HexMapData
+	_assert_map_data_eq(schema_terrain, implicit_terrain, "GQM-03 terrain schema defaults match runner defaults")
+
+	var item_defaults = HexGenerationParamSchema.default_params(HexGenerationNodeTypes.NODE_ITEM_GENERATION)
+	_assert_eq(float(item_defaults["placement_probability"]), 1.0, "GQM-03 weighted placement probability matches runner default")
+	_assert_true((item_defaults["item_pool"] as Array).size() > 0, "GQM-03 item pool default overrides empty runner fallback")
+	_assert_true((item_defaults["probability_rules"] as Dictionary).has("default"), "GQM-03 probability rules default mirrors runner default rule")
+
+
 func _legacy_straight_chain_graph() -> Dictionary:
 	var graph = HexGenerationGraph.new_graph()
 	HexGenerationGraph.add_node(graph, "shape", "shape", {"shape": "rectangle", "width": 5, "height": 3})
@@ -725,6 +900,150 @@ func _consolidated_basic_form_graph() -> Dictionary:
 	HexGenerationGraph.add_edge(graph, "items", "result", "in_1")
 	HexGenerationGraph.add_edge(graph, "pattern_b", "result", "in_2")
 	return graph
+
+
+func _consolidated_node_types() -> Array:
+	return [
+		HexGenerationNodeTypes.NODE_TERRAIN_GENERATION,
+		HexGenerationNodeTypes.NODE_ITEM_GENERATION,
+		HexGenerationNodeTypes.NODE_SET_OPERATION,
+		HexGenerationNodeTypes.NODE_RESULT,
+	]
+
+
+func _schema_enumeration_params(node_type: String) -> Array:
+	return _schema_affects_scenarios(node_type)
+
+
+func _schema_affects_scenarios(node_type: String) -> Array:
+	var defaults = HexGenerationParamSchema.default_params(node_type)
+	match node_type:
+		HexGenerationNodeTypes.NODE_TERRAIN_GENERATION:
+			return _cartesian_params(defaults, [
+				{"key": "base_mode", "values": ["shape", "document_terrain", "map_resource", "result_terrain"]},
+				{"key": "shape", "values": ["rectangle", "square", "hexagon"]},
+				{"key": "wall_method", "values": ["none", "random_probability", "markov_mesh"]},
+				{"key": "distribution_mode", "values": ["preset", "custom"]},
+				{"key": "connectivity_method", "values": ["none", "dense", "sparse", "terminal"]},
+			])
+		HexGenerationNodeTypes.NODE_ITEM_GENERATION:
+			return _cartesian_params(defaults, [
+				{"key": "source_mode", "values": ["result_substrate_floor", "document_overlay"]},
+				{"key": "placement_method", "values": ["weighted", "limited", "adjacency_rules"]},
+			])
+		HexGenerationNodeTypes.NODE_SET_OPERATION:
+			return _cartesian_params(defaults, [
+				{"key": "operation", "values": ["union", "intersection", "difference"]},
+			])
+		HexGenerationNodeTypes.NODE_RESULT:
+			return _cartesian_params(defaults, [
+				{"key": "orientation", "values": [0, 1]},
+			])
+		_:
+			return [defaults]
+
+
+func _cartesian_params(defaults: Dictionary, axes: Array) -> Array:
+	var result: Array = [defaults.duplicate(true)]
+	for axis in axes:
+		var axis_dict := axis as Dictionary
+		var next: Array = []
+		for params in result:
+			for value in axis_dict.get("values", []) as Array:
+				var copy = (params as Dictionary).duplicate(true)
+				copy[String(axis_dict.get("key", ""))] = value
+				next.append(copy)
+		result = next
+	return result
+
+
+func _assert_schema_entries_are_well_formed(node_type: String, schema: Array) -> void:
+	for raw_entry in schema:
+		var entry := raw_entry as Dictionary
+		var key := String(entry.get("key", ""))
+		_assert_true(key != "", "GQM-03 %s schema entry has a key" % node_type)
+		_assert_true(String(entry.get("control", "")) != "", "GQM-03 %s.%s declares a control" % [node_type, key])
+		_assert_true(entry.get("options", []) is Array, "GQM-03 %s.%s declares options array" % [node_type, key])
+		_assert_true(entry.has("default"), "GQM-03 %s.%s declares a default" % [node_type, key])
+		_assert_true(entry.get("visible_when", null) is bool, "GQM-03 %s.%s effective visibility is bool" % [node_type, key])
+		_assert_true(entry.has("label"), "GQM-03 %s.%s declares label" % [node_type, key])
+		_assert_true(entry.get("label_by_mode", {}) is Dictionary, "GQM-03 %s.%s declares label_by_mode dictionary" % [node_type, key])
+		_assert_true(entry.get("derived_default", {}) is Dictionary, "GQM-03 %s.%s declares derived_default dictionary" % [node_type, key])
+		_assert_true(entry.get("affects", []) is Array, "GQM-03 %s.%s declares affects array" % [node_type, key])
+		_assert_true(["", "adjacency_rules", "wall_distributions", "item_pools"].has(String(entry.get("asset_kind", ""))), "GQM-03 %s.%s declares allowed asset kind" % [node_type, key])
+		if String(entry.get("control", "")) == "option":
+			_assert_true((entry.get("options", []) as Array).size() > 0, "GQM-03 %s.%s option control has options" % [node_type, key])
+		if ["spin_float", "spin_int"].has(String(entry.get("control", ""))):
+			_assert_true(entry.get("min", null) != null, "GQM-03 %s.%s spin control declares min" % [node_type, key])
+			_assert_true(entry.get("max", null) != null, "GQM-03 %s.%s spin control declares max" % [node_type, key])
+			_assert_true(entry.get("step", null) != null, "GQM-03 %s.%s spin control declares step" % [node_type, key])
+
+
+func _assert_option_values(node_type: String, key: String, expected: Array) -> void:
+	var entry = HexGenerationParamSchema.declarations(node_type).get(key, {}) as Dictionary
+	var actual: Array = []
+	for option in entry.get("options", []) as Array:
+		actual.append((option as Dictionary).get("value", null))
+	_assert_eq(actual, expected, "GQM-03 %s.%s option values" % [node_type, key])
+
+
+func _schema_keys(schema: Array) -> Array:
+	var result: Array = []
+	for entry in schema:
+		result.append(String((entry as Dictionary).get("key", "")))
+	return result
+
+
+func _schema_entry(schema: Array, key: String) -> Dictionary:
+	for entry in schema:
+		var entry_dict := entry as Dictionary
+		if String(entry_dict.get("key", "")) == key:
+			return entry_dict
+	return {}
+
+
+func _alternate_values_for_declaration(declaration: Dictionary, current) -> Array:
+	var result: Array = []
+	match String(declaration.get("control", "")):
+		"option":
+			for option in declaration.get("options", []) as Array:
+				var value = (option as Dictionary).get("value", null)
+				if value != current:
+					result.append(value)
+		"check":
+			result.append(not bool(current))
+		_:
+			pass
+	return result
+
+
+func _schema_diff_keys(before_schema: Array, after_schema: Array) -> Array:
+	var before_by_key := {}
+	for entry in before_schema:
+		before_by_key[String((entry as Dictionary).get("key", ""))] = entry
+	var result: Array = []
+	for entry in after_schema:
+		var key := String((entry as Dictionary).get("key", ""))
+		if before_by_key.get(key, {}) != entry:
+			result.append(key)
+	result.sort()
+	return result
+
+
+func _sorted_values(values: Array) -> Array:
+	var result: Array = []
+	for value in values:
+		result.append(String(value))
+	result.sort()
+	return result
+
+
+func _sorted_dict_keys(values: Dictionary) -> Array:
+	var result: Array = []
+	for key in values.keys():
+		result.append(String(key))
+	result.sort()
+	return result
 
 
 func _cell(q: int, r: int):
