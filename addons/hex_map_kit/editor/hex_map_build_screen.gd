@@ -774,6 +774,7 @@ func _build_ui() -> void:
 	_canvas.selected_graph_node_changed.connect(_on_canvas_selected_node_changed)
 	_canvas.graph_changed.connect(_on_canvas_graph_changed)
 	_canvas.graph_run_completed.connect(_on_canvas_graph_run_completed)
+	_canvas.criteria_asset_chip_pressed.connect(_on_canvas_criteria_asset_chip_pressed)
 	_inspector.node_params_changed.connect(_on_inspector_params_changed)
 	_inspector.promote_requested.connect(_on_inspector_promote_requested)
 	_refresh_context()
@@ -1539,6 +1540,14 @@ func _on_delete_edge_pressed() -> void:
 
 func _on_canvas_graph_run_completed(_report: Dictionary) -> void:
 	_refresh_selected_node()
+
+
+func _on_canvas_criteria_asset_chip_pressed(node_id: String, editor_key: String) -> void:
+	if _canvas != null:
+		_canvas.select_graph_node(node_id)
+	_refresh_selected_node()
+	if _inspector != null:
+		_inspector.open_criteria_editor(editor_key)
 
 
 func _on_inspector_params_changed(node_id: String, params: Dictionary) -> void:

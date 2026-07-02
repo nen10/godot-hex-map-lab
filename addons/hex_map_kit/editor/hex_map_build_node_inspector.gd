@@ -7,10 +7,15 @@ signal promote_requested(node_id: String, role: String)
 
 const HexGenerationNodeTypesScript = preload("res://addons/hex_map_kit/generation/hex_generation_node_types.gd")
 const HexGenerationPortsScript = preload("res://addons/hex_map_kit/generation/hex_generation_ports.gd")
+const HexGenerationParamSchemaScript = preload("res://addons/hex_map_kit/generation/hex_generation_param_schema.gd")
+const HexGenerationCriteriaUiScript = preload("res://addons/hex_map_kit/editor/hex_generation_criteria_ui.gd")
 const HexMapGeneratorScript = preload("res://addons/hex_map_kit/core/hex_map_generator.gd")
 const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const HexAdjacencyRuleSetScript = preload("res://addons/hex_map_kit/adapter/hex_adjacency_rule_set.gd")
 const HexAdjacencyRulePresetsScript = preload("res://addons/hex_map_kit/editor/hex_adjacency_rule_presets.gd")
+const HexWallDistributionResourceScript = preload("res://addons/hex_map_kit/adapter/hex_wall_distribution_resource.gd")
+const HexItemPoolResourceScript = preload("res://addons/hex_map_kit/adapter/hex_item_pool_resource.gd")
+const HexMapAssetLibraryScript = preload("res://addons/hex_map_kit/editor/hex_map_asset_library.gd")
 const HexCellButtonPanel = preload("res://addons/hex_map_kit/editor/hex_cell_button_panel.gd")
 const HexMapEditorPathSelectorScript = preload("res://addons/hex_map_kit/editor/hex_map_editor_path_selector.gd")
 
@@ -45,6 +50,9 @@ var _preview_available := false
 var _promote_enabled := false
 var _connection_warnings: Array[Dictionary] = []
 var _effective_flat_top := true
+var _titlebar_row: HBoxContainer
+var _display_name_edit: LineEdit
+var _criteria_chip_row: HBoxContainer
 var _header_label: Label
 var _warning_label: Label
 var _params_container: VBoxContainer
@@ -52,6 +60,7 @@ var _param_controls: Dictionary = {}
 var _resource_ref_label: Label
 var _promote_button: Button
 var _role_option: OptionButton
+var _last_schema_signature := ""
 
 
 func _ready() -> void:
@@ -88,8 +97,11 @@ func set_param(key: String, value: Variant) -> void:
 		return
 	_params[key] = value
 	_ensure_params_for_changed_value(key, value)
-	_refresh_param_controls()
-	if key == "placement_method":
+	if HexGenerationNodeTypesScript.is_consolidated_type(_node_type):
+		_refresh_ui()
+	else:
+		_refresh_param_controls()
+	if key == "placement_method" and _param_controls.has("item_pool"):
 		_refresh_item_pool_editor_rows()
 	node_params_changed.emit(_node_id, _params.duplicate(true))
 
@@ -111,9 +123,13 @@ func inspector_snapshot() -> Dictionary:
 		"component": "HexMapBuildNodeInspector",
 		"node_id": _node_id,
 		"node_type": _node_type,
-		"param_fields": PackedStringArray(_param_keys_for_type(_node_type)),
+		"param_fields": PackedStringArray(_field_keys_for_type(_node_type)),
+		"visible_param_fields": PackedStringArray(_visible_field_keys_for_type(_node_type, _params)),
+		"param_labels": _field_labels_for_type(_node_type, _params),
 		"param_values": _params.duplicate(true),
 		"resource_ref_fields": PackedStringArray(_resource_ref_fields_for_type(_node_type)),
+		"criteria_chips": HexGenerationCriteriaUiScript.chip_states(_node_type, _params),
+		"display_name": _display_name_for_current_node(),
 		"selected_output_type": _output_type,
 		"preview_available": _preview_available,
 		"promote_button_present": _promote_button != null,
@@ -128,9 +144,29 @@ func _build_ui() -> void:
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 
+	_titlebar_row = HBoxContainer.new()
+	_titlebar_row.name = "Selected Node Titlebar"
+	_titlebar_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	add_child(_titlebar_row)
+
 	_header_label = Label.new()
 	_header_label.name = "Selected Node Header"
-	add_child(_header_label)
+	_header_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_titlebar_row.add_child(_header_label)
+
+	_display_name_edit = LineEdit.new()
+	_display_name_edit.name = "Selected Node Display Name"
+	_display_name_edit.custom_minimum_size = Vector2(180, 0)
+	_display_name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_display_name_edit.text_submitted.connect(func(_text: String):
+		_commit_display_name_edit()
+	)
+	_display_name_edit.focus_exited.connect(_commit_display_name_edit)
+	_titlebar_row.add_child(_display_name_edit)
+
+	_criteria_chip_row = HBoxContainer.new()
+	_criteria_chip_row.name = "Selected Node Criteria Chips"
+	_titlebar_row.add_child(_criteria_chip_row)
 
 	_warning_label = Label.new()
 	_warning_label.name = "Node Connection Warnings"
@@ -165,18 +201,26 @@ func _refresh_ui() -> void:
 		return
 	if _node_id == "":
 		_header_label.text = "No node selected"
+		_display_name_edit.visible = false
+		_clear_criteria_chips()
 		_warning_label.text = ""
 		_warning_label.visible = false
 		_clear_param_controls()
 		_resource_ref_label.text = ""
 		_promote_button.disabled = true
 		_last_built_node_id = ""
+		_last_schema_signature = ""
 		return
 	_header_label.text = "%s | Output: %s" % [_node_id, _output_type if _output_type != "" else "none"]
+	_display_name_edit.visible = HexGenerationNodeTypesScript.is_consolidated_type(_node_type)
+	_display_name_edit.text = _display_name_for_current_node()
+	_refresh_criteria_chips()
 	_refresh_warnings()
-	if _node_id != _last_built_node_id:
+	var schema_signature := _schema_signature_for_current_state()
+	if _node_id != _last_built_node_id or schema_signature != _last_schema_signature:
 		_build_param_controls()
 		_last_built_node_id = _node_id
+		_last_schema_signature = schema_signature
 	_refresh_param_controls()
 	var refs := _resource_ref_fields_for_type(_node_type)
 	_resource_ref_label.text = "Resource refs: %s" % (", ".join(refs) if not refs.is_empty() else "none")
@@ -199,6 +243,87 @@ func _refresh_warnings() -> void:
 		_warning_label.visible = true
 
 
+func _display_name_for_current_node() -> String:
+	var display_name := String(_params.get("display_name", "")).strip_edges()
+	if display_name != "":
+		return display_name
+	if _node_id != "":
+		return _default_display_name_for_node_type(_node_type)
+	return ""
+
+
+func _default_display_name_for_node_type(node_type: String) -> String:
+	match node_type:
+		HexGenerationNodeTypesScript.NODE_TERRAIN_GENERATION:
+			return "Terrain Generation"
+		HexGenerationNodeTypesScript.NODE_ITEM_GENERATION:
+			return "Item Generation"
+		HexGenerationNodeTypesScript.NODE_SET_OPERATION:
+			return "Set Operation"
+		HexGenerationNodeTypesScript.NODE_RESULT:
+			return "Result"
+	return node_type.capitalize()
+
+
+func _commit_display_name_edit() -> void:
+	if _node_id == "" or _display_name_edit == null or not HexGenerationNodeTypesScript.is_consolidated_type(_node_type):
+		return
+	var next_name := _display_name_edit.text.strip_edges()
+	var current := String(_params.get("display_name", "")).strip_edges()
+	if next_name == current:
+		return
+	_params["display_name"] = next_name
+	node_params_changed.emit(_node_id, _params.duplicate(true))
+
+
+func _refresh_criteria_chips() -> void:
+	if _criteria_chip_row == null:
+		return
+	_clear_criteria_chips()
+	for state in HexGenerationCriteriaUiScript.chip_states(_node_type, _params):
+		var chip := Button.new()
+		chip.name = "CriteriaChip_%s" % String((state as Dictionary).get("editor_key", "asset"))
+		chip.text = String((state as Dictionary).get("label", "asset: inline"))
+		chip.tooltip_text = "Open criteria editor"
+		chip.pressed.connect(func():
+			open_criteria_editor(String((state as Dictionary).get("editor_key", "")))
+		)
+		_criteria_chip_row.add_child(chip)
+	_criteria_chip_row.visible = _criteria_chip_row.get_child_count() > 0
+
+
+func _clear_criteria_chips() -> void:
+	if _criteria_chip_row == null:
+		return
+	for child in _criteria_chip_row.get_children():
+		_criteria_chip_row.remove_child(child)
+		child.queue_free()
+
+
+func open_criteria_editor(editor_key: String) -> void:
+	match editor_key:
+		HexGenerationCriteriaUiScript.EDITOR_DISTRIBUTION:
+			_open_markov_distribution_dialog(null)
+		HexGenerationCriteriaUiScript.EDITOR_RULES:
+			_open_adjacency_rules_dialog(null)
+		HexGenerationCriteriaUiScript.EDITOR_ITEM_POOL:
+			_open_item_pool_dialog()
+
+
+func _schema_signature_for_current_state() -> String:
+	if not HexGenerationNodeTypesScript.is_consolidated_type(_node_type):
+		return ""
+	var parts: Array[String] = []
+	for entry in HexGenerationParamSchemaScript.schema_for(_node_type, _params):
+		parts.append("%s:%s:%s:%s" % [
+			String(entry.get("key", "")),
+			String(entry.get("control", "")),
+			String(entry.get("label", "")),
+			"1" if bool(entry.get("visible_when", true)) else "0",
+		])
+	return "|".join(parts)
+
+
 func _clear_param_controls() -> void:
 	for child in _params_container.get_children():
 		_params_container.remove_child(child)
@@ -208,13 +333,15 @@ func _clear_param_controls() -> void:
 
 func _build_param_controls() -> void:
 	_clear_param_controls()
-	var keys := _param_keys_for_type(_node_type)
-	var visibility := _param_visibility_for_type(_node_type, _params)
-	for key in keys:
+	var entries := _field_entries_for_type(_node_type, _params)
+	for entry in entries:
+		var key := String((entry as Dictionary).get("key", ""))
+		if key == "":
+			continue
 		var row := HBoxContainer.new()
 		row.name = "ParamRow_%s" % key
 		var label := Label.new()
-		label.text = key
+		label.text = String((entry as Dictionary).get("label", key))
 		label.custom_minimum_size = Vector2(120, 0)
 		row.add_child(label)
 		var control
@@ -227,21 +354,21 @@ func _build_param_controls() -> void:
 		elif key == "probability_rules":
 			control = _build_adjacency_rules_editor()
 		else:
-			control = _create_param_control(key, _params.get(key, _param_default(key, _node_type)))
+			control = _create_param_control(entry as Dictionary, _params.get(key, _field_default(entry as Dictionary)))
 		_params_container.add_child(row)
 		if control != null:
 			if key == "item_pool":
 				_params_container.add_child(control)
-				control.visible = bool(visibility.get(key, true))
+				control.visible = bool((entry as Dictionary).get("visible_when", true))
 			else:
 				row.add_child(control)
 			_param_controls[key] = {"row": row, "control": control}
 		
-		row.visible = bool(visibility.get(key, true))
+		row.visible = bool((entry as Dictionary).get("visible_when", true))
 
 
 func _refresh_param_controls() -> void:
-	var visibility := _param_visibility_for_type(_node_type, _params)
+	var visibility := _field_visibility_for_type(_node_type, _params)
 	for key in _param_controls.keys():
 		var entry = _param_controls[key] as Dictionary
 		var row = entry.get("row", null) as Control
@@ -253,14 +380,15 @@ func _refresh_param_controls() -> void:
 				control.visible = bool(visibility.get(key, true))
 
 
-func _create_param_control(key: String, current_value) -> Control:
-	match _param_control_type(_node_type, key):
+func _create_param_control(entry: Dictionary, current_value) -> Control:
+	var key := String(entry.get("key", ""))
+	match String(entry.get("control", "")):
 		"option":
-			return _build_option_control(key, current_value)
+			return _build_option_control(key, current_value, entry.get("options", []) as Array)
 		"spin_float":
-			return _build_spin_float_control(key, current_value)
+			return _build_spin_float_control(key, current_value, entry)
 		"spin_int":
-			return _build_spin_int_control(key, current_value)
+			return _build_spin_int_control(key, current_value, entry)
 		"check":
 			return _build_check_control(key, current_value)
 		"line_edit":
@@ -269,15 +397,14 @@ func _create_param_control(key: String, current_value) -> Control:
 			return null
 
 
-func _build_option_control(key: String, current_value) -> OptionButton:
-	var options := _param_options(_node_type, key)
+func _build_option_control(key: String, current_value, options: Array) -> OptionButton:
 	var control := OptionButton.new()
 	var selected_index := -1
 	for i in options.size():
 		var opt = options[i] as Dictionary
 		control.add_item(String(opt.get("label", "")))
 		control.set_item_metadata(i, opt.get("value", ""))
-		if String(opt.get("value", "")) == str(current_value):
+		if _values_equal(opt.get("value", ""), current_value):
 			selected_index = i
 	if selected_index >= 0:
 		control.select(selected_index)
@@ -291,11 +418,11 @@ func _build_option_control(key: String, current_value) -> OptionButton:
 	return control
 
 
-func _build_spin_float_control(key: String, current_value) -> SpinBox:
+func _build_spin_float_control(key: String, current_value, entry: Dictionary) -> SpinBox:
 	var control := SpinBox.new()
-	control.step = float(_param_step(_node_type, key, 0.05))
-	control.min_value = float(_param_min(_node_type, key, 0.0))
-	control.max_value = float(_param_max(_node_type, key, 1.0))
+	control.step = float(entry.get("step", 0.05))
+	control.min_value = float(entry.get("min", 0.0))
+	control.max_value = float(entry.get("max", 1.0))
 	control.value = clampf(float(current_value), float(control.min_value), float(control.max_value))
 	control.value_changed.connect(func(v: float):
 		set_param(key, v)
@@ -303,11 +430,11 @@ func _build_spin_float_control(key: String, current_value) -> SpinBox:
 	return control
 
 
-func _build_spin_int_control(key: String, current_value) -> SpinBox:
+func _build_spin_int_control(key: String, current_value, entry: Dictionary) -> SpinBox:
 	var control := SpinBox.new()
-	control.step = float(_param_step(_node_type, key, 1))
-	control.min_value = float(_param_min(_node_type, key, 0))
-	control.max_value = float(_param_max(_node_type, key, 999999))
+	control.step = float(entry.get("step", 1))
+	control.min_value = float(entry.get("min", 0))
+	control.max_value = float(entry.get("max", 999999))
 	control.value = clampi(int(current_value), int(control.min_value), int(control.max_value))
 	control.value_changed.connect(func(v: float):
 		set_param(key, int(v))
@@ -568,6 +695,199 @@ func _build_markov_distribution_editor() -> HBoxContainer:
 	row.add_child(button)
 	return row
 
+
+func _open_item_pool_dialog() -> void:
+	var dialog := AcceptDialog.new()
+	dialog.name = "Item Pool Editor Window"
+	dialog.title = "Item Pool"
+	var body := VBoxContainer.new()
+	var status := Label.new()
+	status.name = "ItemPoolAssetStatus"
+	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var apply_loaded := func(resource, path: String):
+		if resource is HexItemPoolResourceScript:
+			_params["item_pool"] = (resource as HexItemPoolResourceScript).entries.duplicate(true)
+			_params[HexGenerationCriteriaUiScript.PATH_ITEM_POOL] = path
+			_refresh_criteria_chips()
+			if _node_id != "":
+				node_params_changed.emit(_node_id, _params.duplicate(true))
+		else:
+			status.text = "Could not load item pool."
+	var current_resource := func():
+		return _item_pool_resource_from_params()
+	body.add_child(_build_criteria_asset_operation_row(
+		HexGenerationCriteriaUiScript.EDITOR_ITEM_POOL,
+		status,
+		apply_loaded,
+		current_resource
+	))
+	var editor := _build_item_pool_editor()
+	body.add_child(editor)
+	body.add_child(status)
+	dialog.add_child(body)
+	dialog.confirmed.connect(func():
+		if _node_id != "":
+			node_params_changed.emit(_node_id, _params.duplicate(true))
+		dialog.queue_free()
+	)
+	dialog.canceled.connect(func():
+		dialog.queue_free()
+	)
+	add_child(dialog)
+	dialog.popup_centered(Vector2i(520, 420))
+
+
+func _build_criteria_asset_operation_row(
+	editor_key: String,
+	status_label: Label,
+	apply_loaded: Callable,
+	current_resource: Callable
+) -> VBoxContainer:
+	var box := VBoxContainer.new()
+	box.name = "CriteriaAssetOperations_%s" % editor_key
+	var select_row := HBoxContainer.new()
+	var label := Label.new()
+	label.text = "Preset"
+	label.custom_minimum_size = Vector2(120, 0)
+	select_row.add_child(label)
+	var option := OptionButton.new()
+	option.name = "CriteriaAssetOption_%s" % editor_key
+	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	select_row.add_child(option)
+	box.add_child(select_row)
+	var action_row := HBoxContainer.new()
+	var spacer := Control.new()
+	spacer.custom_minimum_size = Vector2(120, 0)
+	action_row.add_child(spacer)
+	var paths: Array[String] = []
+	var refresh_options := func():
+		paths.clear()
+		option.clear()
+		option.add_item("Inline")
+		option.set_item_metadata(0, "")
+		paths.append("")
+		var asset_kind := HexGenerationCriteriaUiScript.asset_kind_for_editor(editor_key)
+		for asset in HexMapAssetLibraryScript.list(asset_kind):
+			var asset_dict := asset as Dictionary
+			var source := String(asset_dict.get("source", ""))
+			var display := String(asset_dict.get("name", ""))
+			var path := String(asset_dict.get("path", ""))
+			if source != "":
+				display = "%s [%s]" % [display, source]
+			option.add_item(display)
+			option.set_item_metadata(option.item_count - 1, path)
+			paths.append(path)
+		var current_path := String(_params.get(HexGenerationCriteriaUiScript.path_key_for_editor(editor_key), ""))
+		var selected := 0
+		for index in range(paths.size()):
+			if paths[index] == current_path:
+				selected = index
+				break
+		option.select(selected)
+	refresh_options.call()
+	var load_button := Button.new()
+	load_button.name = "CriteriaAssetLoad_%s" % editor_key
+	load_button.text = "Load"
+	load_button.pressed.connect(func():
+		var selected := option.selected
+		if selected < 0:
+			return
+		var path := String(option.get_item_metadata(selected))
+		if path == "":
+			_params[HexGenerationCriteriaUiScript.path_key_for_editor(editor_key)] = ""
+			status_label.text = "Using inline criteria."
+			_refresh_criteria_chips()
+			if _node_id != "":
+				node_params_changed.emit(_node_id, _params.duplicate(true))
+			return
+		var resource = HexMapAssetLibraryScript.load(path)
+		apply_loaded.call(resource, path)
+		status_label.text = "Loaded: %s" % HexMapAssetLibraryScript.display_name_for(resource, path) if resource != null else "Load failed."
+	)
+	action_row.add_child(load_button)
+	var save_button := Button.new()
+	save_button.name = "CriteriaAssetSaveAs_%s" % editor_key
+	save_button.text = "Save as"
+	save_button.pressed.connect(func():
+		var resource = current_resource.call()
+		if not resource is Resource:
+			status_label.text = "Nothing to save."
+			return
+		var save_result := HexMapAssetLibraryScript.save(resource as Resource, HexGenerationCriteriaUiScript.asset_kind_for_editor(editor_key), _criteria_asset_save_name(editor_key))
+		var error := int(save_result.get("error", FAILED))
+		if error != OK:
+			status_label.text = "Save failed (%d)." % error
+			return
+		_params[HexGenerationCriteriaUiScript.path_key_for_editor(editor_key)] = String(save_result.get("path", ""))
+		_scan_editor_filesystem()
+		refresh_options.call()
+		_refresh_criteria_chips()
+		if _node_id != "":
+			node_params_changed.emit(_node_id, _params.duplicate(true))
+		status_label.text = "Saved: %s" % String((save_result.get("entry", {}) as Dictionary).get("name", _criteria_asset_save_name(editor_key)))
+	)
+	action_row.add_child(save_button)
+	var duplicate_button := Button.new()
+	duplicate_button.name = "CriteriaAssetDuplicate_%s" % editor_key
+	duplicate_button.text = "Duplicate"
+	duplicate_button.pressed.connect(func():
+		var selected := option.selected
+		if selected < 0:
+			return
+		var path := String(option.get_item_metadata(selected))
+		if path == "":
+			status_label.text = "No asset selected."
+			return
+		var duplicate_result := HexMapAssetLibraryScript.duplicate_to_project(path, HexGenerationCriteriaUiScript.asset_kind_for_editor(editor_key), _criteria_asset_save_name(editor_key))
+		var error := int(duplicate_result.get("error", FAILED))
+		if error != OK:
+			status_label.text = "Duplicate failed (%d)." % error
+			return
+		_params[HexGenerationCriteriaUiScript.path_key_for_editor(editor_key)] = String(duplicate_result.get("path", ""))
+		_scan_editor_filesystem()
+		refresh_options.call()
+		_refresh_criteria_chips()
+		if _node_id != "":
+			node_params_changed.emit(_node_id, _params.duplicate(true))
+		status_label.text = "Duplicated: %s" % String((duplicate_result.get("entry", {}) as Dictionary).get("name", _criteria_asset_save_name(editor_key)))
+	)
+	action_row.add_child(duplicate_button)
+	var inline_button := Button.new()
+	inline_button.name = "CriteriaAssetInline_%s" % editor_key
+	inline_button.text = "Inline"
+	inline_button.pressed.connect(func():
+		_params[HexGenerationCriteriaUiScript.path_key_for_editor(editor_key)] = ""
+		option.select(0)
+		_refresh_criteria_chips()
+		if _node_id != "":
+			node_params_changed.emit(_node_id, _params.duplicate(true))
+		status_label.text = "Using inline criteria."
+	)
+	action_row.add_child(inline_button)
+	box.add_child(action_row)
+	return box
+
+
+func _criteria_asset_save_name(editor_key: String) -> String:
+	var display_name := _display_name_for_current_node().strip_edges()
+	if display_name == "":
+		display_name = _node_id
+	match editor_key:
+		HexGenerationCriteriaUiScript.EDITOR_DISTRIBUTION:
+			return "%s Distribution" % display_name
+		HexGenerationCriteriaUiScript.EDITOR_RULES:
+			return "%s Rules" % display_name
+		HexGenerationCriteriaUiScript.EDITOR_ITEM_POOL:
+			return "%s Pool" % display_name
+	return "%s Criteria" % display_name
+
+
+func _item_pool_resource_from_params() -> HexItemPoolResourceScript:
+	var resource := HexItemPoolResourceScript.new()
+	resource.display_name = _criteria_asset_save_name(HexGenerationCriteriaUiScript.EDITOR_ITEM_POOL)
+	resource.entries = _params.get("item_pool", [])
+	return resource
+
 func _build_row_by_refcount(refcount: int, weights: Array) -> Dictionary:
 	var row_box := HBoxContainer.new()
 	row_box.add_theme_constant_override("separation", 16)
@@ -644,8 +964,32 @@ func _open_markov_distribution_dialog(summary_label: Label = null) -> void:
 	var help := Label.new()
 	help.text = "Set wall probability weight (0..8). Blue > marks the fixed generation step; 0/1/2 are the reference bit order."
 	body.add_child(help)
-	var current := _markov_distribution_values_by_count()
+	var status := Label.new()
+	status.name = "MarkovDistributionAssetStatus"
+	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var spins_by_count := {}
+	var apply_loaded := func(resource, path: String):
+		if resource is HexWallDistributionResourceScript:
+			_params["custom_distribution"] = (resource as HexWallDistributionResourceScript).weights_by_count.duplicate(true)
+			_params["distribution_mode"] = "custom"
+			_params[HexGenerationCriteriaUiScript.PATH_DISTRIBUTION] = path
+			_apply_markov_values_to_spins(spins_by_count)
+			if summary_label != null:
+				summary_label.text = "custom distribution: configured"
+			_refresh_criteria_chips()
+			if _node_id != "":
+				node_params_changed.emit(_node_id, _params.duplicate(true))
+		else:
+			status.text = "Could not load distribution."
+	var current_resource := func():
+		return _wall_distribution_resource_from_params()
+	body.add_child(_build_criteria_asset_operation_row(
+		HexGenerationCriteriaUiScript.EDITOR_DISTRIBUTION,
+		status,
+		apply_loaded,
+		current_resource
+	))
+	var current := _markov_distribution_values_by_count()
 
 	var row_0 := _build_row_by_refcount(0, current["0"] as Array)
 	var row_1 := _build_row_by_refcount(1, current["1"] as Array)
@@ -668,6 +1012,7 @@ func _open_markov_distribution_dialog(summary_label: Label = null) -> void:
 	spins_by_count["1"] = row_1["spins"]
 	spins_by_count["2"] = row_2["spins"]
 	spins_by_count["3"] = row_3["spins"]
+	body.add_child(status)
 
 	dialog.add_child(body)
 	dialog.confirmed.connect(func():
@@ -690,6 +1035,27 @@ func _open_markov_distribution_dialog(summary_label: Label = null) -> void:
 	)
 	add_child(dialog)
 	dialog.popup_centered(Vector2i(760, 620))
+
+
+func _apply_markov_values_to_spins(spins_by_count: Dictionary) -> void:
+	var values := _markov_distribution_values_by_count()
+	for count in [0, 1, 2, 3]:
+		var key := str(count)
+		if not spins_by_count.has(key):
+			continue
+		var count_values: Array = values.get(key, [])
+		var spins: Array = spins_by_count[key]
+		for index in range(min(spins.size(), count_values.size())):
+			var spin := spins[index] as SpinBox
+			if spin != null:
+				spin.value = clampf(float(count_values[index]), 0.0, 8.0)
+
+
+func _wall_distribution_resource_from_params() -> HexWallDistributionResourceScript:
+	var resource := HexWallDistributionResourceScript.new()
+	resource.display_name = _criteria_asset_save_name(HexGenerationCriteriaUiScript.EDITOR_DISTRIBUTION)
+	resource.weights_by_count = _markov_distribution_values_by_count().duplicate(true)
+	return resource
 
 
 func _markov_distribution_values_by_count() -> Dictionary:
@@ -902,7 +1268,7 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 	var refresh_presets := func():
 		preset_paths.clear()
 		preset_option.clear()
-		var presets := HexAdjacencyRulePresetsScript.list_presets()
+		var presets := HexMapAssetLibraryScript.list(HexGenerationParamSchemaScript.ASSET_ADJACENCY_RULES)
 		if presets.is_empty():
 			preset_option.add_item("(no saved presets)")
 			preset_option.set_item_disabled(0, true)
@@ -954,7 +1320,7 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 			status_label.text = "Could not load adjacency rule set."
 			push_error("Could not load adjacency rule set: %s" % source_path)
 			return
-		name_edit.text = HexAdjacencyRulePresetsScript.display_name_for(rule_set, source_path)
+		name_edit.text = HexMapAssetLibraryScript.display_name_for(rule_set, source_path)
 		default_spin.value = clampf(float(rule_set.default_probability), 0.0, 1.0)
 		patterns.clear()
 		var next_patterns: Array = (rule_set.to_dialog_dict().get("rules", []) as Array).duplicate(true)
@@ -962,13 +1328,17 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 			next_patterns.append({"directions": [], "probability": 0.5})
 		patterns.append_array(next_patterns)
 		rebuild.call()
+		_params[HexGenerationCriteriaUiScript.PATH_RULES] = source_path
+		_refresh_criteria_chips()
+		if _node_id != "":
+			node_params_changed.emit(_node_id, _params.duplicate(true))
 		status_label.text = "Loaded: %s" % name_edit.text
 	var save_rule_set_to_path := func(path: String):
 		var rule_set = current_rule_set.call()
 		if rule_set.display_name.strip_edges() == "":
 			rule_set.display_name = path.get_file().get_basename().capitalize()
 			name_edit.text = rule_set.display_name
-		var save_result := HexAdjacencyRulePresetsScript.save_with_result(rule_set, path)
+		var save_result := HexMapAssetLibraryScript.save(rule_set, HexGenerationParamSchemaScript.ASSET_ADJACENCY_RULES, path)
 		var error := int(save_result.get("error", FAILED))
 		var saved_path := String(save_result.get("path", path))
 		if error != OK:
@@ -981,8 +1351,12 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 			if String(preset_paths[index]) == saved_path:
 				preset_option.select(index)
 				break
+		_params[HexGenerationCriteriaUiScript.PATH_RULES] = saved_path
+		_refresh_criteria_chips()
+		if _node_id != "":
+			node_params_changed.emit(_node_id, _params.duplicate(true))
 		var saved_rule_count := (rule_set.to_dialog_dict().get("rules", []) as Array).size()
-		status_label.text = "Saved preset \"%s\" (%d patterns) → %s" % [rule_set.display_name, saved_rule_count, saved_path]
+		status_label.text = "Saved preset \"%s\" (%d patterns) -> %s" % [rule_set.display_name, saved_rule_count, saved_path]
 	var load_file_button := Button.new()
 	load_file_button.name = "LoadAdjacencyRuleSetFile"
 	load_file_button.text = "Load File..."
@@ -995,7 +1369,7 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 			status_label.text = "File dialogs are only available in the editor."
 			return
 		file_dialog.file_selected.connect(func(path: String):
-			apply_rule_set_to_window.call(HexAdjacencyRulePresetsScript.load(path), path)
+			apply_rule_set_to_window.call(HexMapAssetLibraryScript.load(path), path)
 		)
 		HexMapEditorPathSelectorScript.popup_dialog(file_dialog)
 	)
@@ -1011,7 +1385,7 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 		if path == "":
 			status_label.text = "No preset selected."
 			return
-		apply_rule_set_to_window.call(HexAdjacencyRulePresetsScript.load(path), path)
+		apply_rule_set_to_window.call(HexMapAssetLibraryScript.load(path), path)
 	)
 	# Selecting a preset from the dropdown loads it into the window immediately,
 	# so "read a saved rule set into the editor" is a single intentional click.
@@ -1023,7 +1397,7 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 		var path := String(preset_paths[index])
 		if path == "":
 			return
-		apply_rule_set_to_window.call(HexAdjacencyRulePresetsScript.load(path), path)
+		apply_rule_set_to_window.call(HexMapAssetLibraryScript.load(path), path)
 	)
 	preset_actions_row.add_child(load_preset_button)
 	var duplicate_preset_button := Button.new()
@@ -1041,7 +1415,7 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 		var display_name := name_edit.text.strip_edges()
 		if display_name == "":
 			display_name = source_path.get_file().get_basename().capitalize()
-		var duplicate_result := HexAdjacencyRulePresetsScript.duplicate_to_project(source_path, display_name)
+		var duplicate_result := HexMapAssetLibraryScript.duplicate_to_project(source_path, HexGenerationParamSchemaScript.ASSET_ADJACENCY_RULES, display_name)
 		var duplicate_error := int(duplicate_result.get("error", FAILED))
 		var duplicate_path := String(duplicate_result.get("path", ""))
 		if duplicate_error != OK:
@@ -1054,6 +1428,10 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 			if String(preset_paths[index]) == duplicate_path:
 				preset_option.select(index)
 				break
+		_params[HexGenerationCriteriaUiScript.PATH_RULES] = duplicate_path
+		_refresh_criteria_chips()
+		if _node_id != "":
+			node_params_changed.emit(_node_id, _params.duplicate(true))
 		status_label.text = "Duplicated to project: %s" % duplicate_path
 	)
 	preset_actions_row.add_child(duplicate_preset_button)
@@ -1487,9 +1865,75 @@ func _hex_direction_short_label(direction: HexVector) -> String:
 	return "?"
 
 
-func _param_control_type(node_type: String, key: String) -> String:
+func _field_entries_for_type(node_type: String, params: Dictionary) -> Array[Dictionary]:
+	if HexGenerationNodeTypesScript.is_consolidated_type(node_type):
+		return HexGenerationParamSchemaScript.schema_for(node_type, params)
+	var result: Array[Dictionary] = []
+	var visibility := _legacy_field_visibility_for_type(node_type, params)
+	for key in _legacy_field_keys_for_type(node_type):
+		var entry := _legacy_field_entry(node_type, String(key))
+		entry["visible_when"] = bool(visibility.get(String(key), true))
+		result.append(entry)
+	return result
+
+
+func _field_keys_for_type(node_type: String) -> Array:
+	var result: Array = []
+	for entry in _field_entries_for_type(node_type, _params):
+		result.append(String((entry as Dictionary).get("key", "")))
+	return result
+
+
+func _visible_field_keys_for_type(node_type: String, params: Dictionary) -> Array:
+	var result: Array = []
+	for entry in _field_entries_for_type(node_type, params):
+		if bool((entry as Dictionary).get("visible_when", true)):
+			result.append(String((entry as Dictionary).get("key", "")))
+	return result
+
+
+func _field_labels_for_type(node_type: String, params: Dictionary) -> Dictionary:
+	var result := {}
+	for entry in _field_entries_for_type(node_type, params):
+		result[String((entry as Dictionary).get("key", ""))] = String((entry as Dictionary).get("label", ""))
+	return result
+
+
+func _field_visibility_for_type(node_type: String, params: Dictionary) -> Dictionary:
+	var result := {}
+	for entry in _field_entries_for_type(node_type, params):
+		result[String((entry as Dictionary).get("key", ""))] = bool((entry as Dictionary).get("visible_when", true))
+	return result
+
+
+func _field_default(entry: Dictionary) -> Variant:
+	var value = entry.get("default", null)
+	return value.duplicate(true) if value is Array or value is Dictionary else value
+
+
+func _values_equal(a, b) -> bool:
+	if typeof(a) == typeof(b):
+		return a == b
+	return str(a) == str(b)
+
+
+func _legacy_field_entry(node_type: String, key: String) -> Dictionary:
+	return {
+		"key": key,
+		"control": _legacy_control_type(node_type, key),
+		"options": _legacy_options(node_type, key),
+		"min": _legacy_min(key, 0.0),
+		"max": _legacy_max(key, 999999.0),
+		"step": _legacy_step(key, 1.0),
+		"default": _legacy_default(key),
+		"label": key,
+		"visible_when": true,
+	}
+
+
+func _legacy_control_type(node_type: String, key: String) -> String:
 	match key:
-		"shape", "method", "wall_method", "filter_target", "placement_method", "kind", "write_policy", "existing_policy", "op", "output_type", "distribution_id", "distribution_mode", "operation", "orientation":
+		"shape", "method", "wall_method", "filter_target", "placement_method", "kind", "write_policy", "existing_policy", "op", "output_type", "distribution_id", "distribution_mode":
 			return "option"
 		"wall_probability", "placement_probability":
 			return "spin_float"
@@ -1497,13 +1941,13 @@ func _param_control_type(node_type: String, key: String) -> String:
 			return "spin_int"
 		"toric_passage", "include_generated_reference":
 			return "check"
-		"source_key", "item_key", "item_name", "selectors", "probability_rules":
+		"source_key", "item_key", "item_name", "selectors":
 			return "line_edit"
 		_:
 			return ""
 
 
-func _param_options(node_type: String, key: String) -> Array[Dictionary]:
+func _legacy_options(node_type: String, key: String) -> Array[Dictionary]:
 	match key:
 		"shape":
 			return [
@@ -1525,9 +1969,7 @@ func _param_options(node_type: String, key: String) -> Array[Dictionary]:
 			]
 		"filter_target":
 			if node_type == HexGenerationNodeTypesScript.NODE_OVERLAY_FILTER:
-				return [
-					{"label": "Item Key", "value": "item_key"},
-				]
+				return [{"label": "Item Key", "value": "item_key"}]
 			if node_type == HexGenerationNodeTypesScript.NODE_TERRAIN_FILTER:
 				return [
 					{"label": "Floor", "value": "floor"},
@@ -1568,54 +2010,35 @@ func _param_options(node_type: String, key: String) -> Array[Dictionary]:
 				{"label": "Merge", "value": "merge"},
 				{"label": "Overwrite", "value": "overwrite"},
 			]
+		"output_type":
+			return [
+				{"label": "Terrain", "value": "terrain"},
+				{"label": "Overlay", "value": "overlay"},
+			]
 		"distribution_id":
 			return [
-				{"label": "Ilands", "value": "11"},
-				{"label": "Maze", "value": "20"},
-				{"label": "Discrete", "value": "24"},
+				{"label": "Ilands", "value": 11},
+				{"label": "Maze", "value": 20},
+				{"label": "Discrete", "value": 24},
 			]
 		"distribution_mode":
 			return [
 				{"label": "Preset", "value": "preset"},
 				{"label": "Custom", "value": "custom"},
 			]
-		"op":
-			return [
-				{"label": "OR", "value": "or"},
-				{"label": "AND", "value": "and"},
-				{"label": "NOT", "value": "not"},
-			]
-		"output_type":
-			return [
-				{"label": "Terrain", "value": "terrain"},
-				{"label": "Overlay", "value": "overlay"},
-			]
-		"orientation":
-			return [
-				{"label": "Flat Top", "value": "0"},
-				{"label": "Pointy Top", "value": "1"},
-			]
-		"operation":
-			return [
-				{"label": "Union (A ∪ B)", "value": "union"},
-				{"label": "Intersection (A ∩ B)", "value": "intersection"},
-				{"label": "Difference (A \\ B)", "value": "difference"},
-			]
-		_:
-			return []
+	return []
 
 
-func _param_min(_node_type: String, key: String, fallback: float) -> float:
+func _legacy_min(key: String, fallback: float) -> float:
 	match key:
 		"wall_probability", "placement_probability":
 			return 0.0
 		"width", "height", "size", "radius":
 			return 1.0
-		_:
-			return fallback
+	return fallback
 
 
-func _param_max(_node_type: String, key: String, fallback: float) -> float:
+func _legacy_max(key: String, fallback: float) -> float:
 	match key:
 		"wall_probability", "placement_probability":
 			return 1.0
@@ -1625,21 +2048,19 @@ func _param_max(_node_type: String, key: String, fallback: float) -> float:
 			return 128.0
 		"seed":
 			return 999999.0
-		_:
-			return fallback
+	return fallback
 
 
-func _param_step(_node_type: String, key: String, fallback: float) -> float:
+func _legacy_step(key: String, fallback: float) -> float:
 	match key:
 		"wall_probability", "placement_probability":
 			return 0.05
 		"width", "height", "size", "radius", "seed", "neighbor_radius":
 			return 1.0
-		_:
-			return fallback
+	return fallback
 
 
-func _param_default(key: String, node_type: String) -> Variant:
+func _legacy_default(key: String) -> Variant:
 	match key:
 		"shape":
 			return "rectangle"
@@ -1657,8 +2078,6 @@ func _param_default(key: String, node_type: String) -> Variant:
 			return "item"
 		"wall_probability":
 			return 0.3
-		"distribution_id":
-			return 20
 		"wall_method":
 			return "random_probability"
 		"filter_target":
@@ -1667,16 +2086,10 @@ func _param_default(key: String, node_type: String) -> Variant:
 			return "weighted"
 		"placement_probability":
 			return 0.5
-		"probability_rules":
-			return "default=0.5"
 		"neighbor_radius":
 			return 1
 		"include_generated_reference":
 			return false
-		"operation":
-			return "union"
-		"orientation":
-			return 0
 		"kind":
 			return "provided"
 		"output_type":
@@ -1687,11 +2100,10 @@ func _param_default(key: String, node_type: String) -> Variant:
 			return "merge"
 		"op":
 			return "or"
-		_:
-			return ""
+	return ""
 
 
-func _param_visibility_for_type(node_type: String, params: Dictionary) -> Dictionary:
+func _legacy_field_visibility_for_type(node_type: String, params: Dictionary) -> Dictionary:
 	var result := {}
 	match node_type:
 		HexGenerationNodeTypesScript.NODE_SHAPE:
@@ -1724,7 +2136,7 @@ func _param_visibility_for_type(node_type: String, params: Dictionary) -> Dictio
 	return result
 
 
-func _param_keys_for_type(node_type: String) -> Array:
+func _legacy_field_keys_for_type(node_type: String) -> Array:
 	match node_type:
 		HexGenerationNodeTypesScript.NODE_SOURCE:
 			return ["kind", "source_key", "output_type"]
@@ -1740,14 +2152,13 @@ func _param_keys_for_type(node_type: String) -> Array:
 			return ["placement_method", "placement_probability", "item_name", "item_pool", "probability_rules", "neighbor_radius", "include_generated_reference", "seed"]
 		HexGenerationNodeTypesScript.NODE_COMPOSE:
 			return ["write_policy", "existing_policy"]
-		HexGenerationNodeTypesScript.NODE_SET_OPERATION:
-			return ["operation"]
-		HexGenerationNodeTypesScript.NODE_RESULT:
-			return ["orientation"]
 	return []
 
 
 func _ensure_params_for_changed_value(key: String, value: Variant) -> void:
+	if HexGenerationNodeTypesScript.is_consolidated_type(_node_type):
+		_apply_schema_derived_defaults(key, value)
+		return
 	if _node_type != HexGenerationNodeTypesScript.NODE_SHAPE or key != "shape":
 		return
 	match String(value):
@@ -1762,6 +2173,22 @@ func _ensure_params_for_changed_value(key: String, value: Variant) -> void:
 				_params["width"] = HexGenerationNodeTypesScript.DEFAULT_RECTANGLE_WIDTH
 			if not _params.has("height"):
 				_params["height"] = HexGenerationNodeTypesScript.DEFAULT_RECTANGLE_HEIGHT
+
+
+func _apply_schema_derived_defaults(key: String, value: Variant) -> void:
+	var declarations := HexGenerationParamSchemaScript.declarations(_node_type)
+	var declaration = declarations.get(key, {})
+	if not declaration is Dictionary:
+		return
+	var derived_default = (declaration as Dictionary).get("derived_default", {})
+	if not derived_default is Dictionary or not (derived_default as Dictionary).has(value):
+		return
+	var derived_values = (derived_default as Dictionary)[value]
+	if not derived_values is Dictionary:
+		return
+	for derived_key in (derived_values as Dictionary).keys():
+		var derived_value = (derived_values as Dictionary)[derived_key]
+		_params[derived_key] = derived_value.duplicate(true) if derived_value is Array or derived_value is Dictionary else derived_value
 
 
 func _resource_ref_fields_for_type(node_type: String) -> Array:

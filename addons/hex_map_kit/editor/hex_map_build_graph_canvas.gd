@@ -5,6 +5,7 @@ extends GraphEdit
 signal graph_changed
 signal selected_graph_node_changed(node_id: String)
 signal graph_run_completed(report: Dictionary)
+signal criteria_asset_chip_pressed(node_id: String, editor_key: String)
 
 const HexGenerationGraphScript = preload("res://addons/hex_map_kit/generation/hex_generation_graph.gd")
 const HexGenerationGraphRunnerScript = preload("res://addons/hex_map_kit/generation/hex_generation_graph_runner.gd")
@@ -12,6 +13,7 @@ const HexGenerationNodeTypesScript = preload("res://addons/hex_map_kit/generatio
 const HexGenerationPortsScript = preload("res://addons/hex_map_kit/generation/hex_generation_ports.gd")
 const HexGenerationAdaptationScript = preload("res://addons/hex_map_kit/generation/hex_generation_adaptation.gd")
 const HexGenerationParamSchemaScript = preload("res://addons/hex_map_kit/generation/hex_generation_param_schema.gd")
+const HexGenerationCriteriaUiScript = preload("res://addons/hex_map_kit/editor/hex_generation_criteria_ui.gd")
 const HexMapPreviewThumbnailScript = preload("res://addons/hex_map_kit/editor/hex_map_preview_thumbnail.gd")
 const HexMapDataScript = preload("res://addons/hex_map_kit/core/hex_map_data.gd")
 const HexOverlayDataScript = preload("res://addons/hex_map_kit/core/hex_overlay_data.gd")
@@ -212,6 +214,7 @@ func add_graph_node(node_type: String, position: Vector2 = Vector2.ZERO, node_id
 	graph_node.set_meta("hex_generation_output_slots", {})
 
 	add_child(graph_node)
+	_configure_graph_node_titlebar(graph_node, actual_id, node_type, params)
 	_node_order.append(actual_id)
 	_rebuild_graph_node_rows(actual_id)
 	if _selected_node_id == "":
@@ -420,6 +423,7 @@ func set_node_params(node_id: String, params: Dictionary) -> void:
 		return
 	graph_node.set_meta("hex_generation_params", params.duplicate(true))
 	graph_node.title = _title_for_node(String(graph_node.get_meta("hex_generation_node_type", "")), params)
+	_configure_graph_node_titlebar(graph_node, node_id, String(graph_node.get_meta("hex_generation_node_type", "")), params)
 	_last_status = "Updated %s parameters." % node_id
 	_mark_dirty_from_node(node_id)
 	graph_changed.emit()
@@ -605,6 +609,7 @@ func canvas_snapshot() -> Dictionary:
 		"port_type_colors": _port_color_snapshot(),
 		"adaptation_rows": _adaptation_rows_snapshot(),
 		"result_rows": _result_rows_snapshot(),
+		"node_titlebars": _node_titlebars_snapshot(),
 		"run_state": run_state_snapshot(),
 	}
 
@@ -669,6 +674,9 @@ static func title_for_node_type(node_type: String) -> String:
 
 
 static func _title_for_node(node_type: String, params: Dictionary) -> String:
+	var display_name := String(params.get("display_name", "")).strip_edges()
+	if display_name != "":
+		return display_name
 	if node_type == HexGenerationNodeTypesScript.NODE_SOURCE:
 		var output_type := String(params.get("output_type", HexGenerationPortsScript.TERRAIN))
 		if output_type == HexGenerationPortsScript.OVERLAY:
@@ -744,6 +752,60 @@ static func default_params_for_type(node_type: String) -> Dictionary:
 				"orientation": 0,
 			}
 	return {}
+
+
+func _configure_graph_node_titlebar(graph_node: GraphNode, node_id: String, node_type: String, params: Dictionary) -> void:
+	if graph_node == null or not graph_node.has_method("get_titlebar_hbox"):
+		return
+	var titlebar = graph_node.call("get_titlebar_hbox") as HBoxContainer
+	if titlebar == null:
+		return
+	for child in titlebar.get_children():
+		if String(child.name).begins_with("HexTitlebar"):
+			titlebar.remove_child(child)
+			child.queue_free()
+	if not HexGenerationNodeTypesScript.is_consolidated_type(node_type):
+		return
+	var edit := LineEdit.new()
+	edit.name = "HexTitlebarDisplayName_%s" % node_id
+	edit.custom_minimum_size = Vector2(128, 0)
+	edit.text = _title_for_node(node_type, params)
+	edit.tooltip_text = "Node display name"
+	edit.text_submitted.connect(func(_text: String):
+		_commit_titlebar_display_name(node_id, edit.text)
+	)
+	edit.focus_exited.connect(func():
+		_commit_titlebar_display_name(node_id, edit.text)
+	)
+	titlebar.add_child(edit)
+	for state in HexGenerationCriteriaUiScript.chip_states(node_type, params):
+		var chip := Button.new()
+		chip.name = "HexTitlebarCriteriaChip_%s_%s" % [node_id, String((state as Dictionary).get("editor_key", ""))]
+		chip.text = String((state as Dictionary).get("label", "asset: inline"))
+		chip.tooltip_text = "Open criteria editor"
+		chip.pressed.connect(func():
+			select_graph_node(node_id)
+			criteria_asset_chip_pressed.emit(node_id, String((state as Dictionary).get("editor_key", "")))
+		)
+		titlebar.add_child(chip)
+
+
+func _commit_titlebar_display_name(node_id: String, display_name: String) -> void:
+	var graph_node := _graph_node(node_id)
+	if graph_node == null:
+		return
+	var params := (graph_node.get_meta("hex_generation_params", {}) as Dictionary).duplicate(true)
+	var next_name := display_name.strip_edges()
+	if String(params.get("display_name", "")).strip_edges() == next_name:
+		return
+	params["display_name"] = next_name
+	graph_node.set_meta("hex_generation_params", params)
+	graph_node.title = _title_for_node(String(graph_node.get_meta("hex_generation_node_type", "")), params)
+	_last_status = "Updated %s display name." % node_id
+	_mark_dirty_from_node(node_id)
+	graph_changed.emit()
+	if _selected_node_id == node_id:
+		selected_graph_node_changed.emit(node_id)
 
 
 func _on_connection_request(from_node: StringName, from_port: int, to_node: StringName, to_port: int) -> void:
@@ -1013,7 +1075,7 @@ func _add_adaptation_controls(row: HBoxContainer, node_id: String, input_name: S
 	option.custom_minimum_size = Vector2(112, 0)
 	option.disabled = not connected
 	option.tooltip_text = "Input adaptation"
-	_add_adaptation_option(option, "none", ADAPTATION_OPTION_NONE)
+	_add_adaptation_option(option, _adaptation_display_text(""), ADAPTATION_OPTION_NONE)
 	_add_adaptation_option(option, "floor", HexGenerationAdaptationScript.ADAPT_FLOOR)
 	_add_adaptation_option(option, "wall", HexGenerationAdaptationScript.ADAPT_WALL)
 	_add_adaptation_option(option, "any", HexGenerationAdaptationScript.ADAPT_ANY)
@@ -1038,6 +1100,13 @@ func _add_adaptation_option(option: OptionButton, label: String, value: String) 
 	var index := option.item_count
 	option.add_item(label)
 	option.set_item_metadata(index, value)
+
+
+func _adaptation_display_text(adaptation: String) -> String:
+	var normalized := adaptation.strip_edges()
+	if normalized == "" or normalized == ADAPTATION_OPTION_NONE:
+		return "そのまま (selection)"
+	return normalized
 
 
 func _adaptation_option_index(option: OptionButton, adaptation: String) -> int:
@@ -1464,9 +1533,25 @@ func _adaptation_rows_snapshot() -> Array[Dictionary]:
 				"input": String(input_name),
 				"connected": not edge.is_empty(),
 				"adaptation": String(edge.get("adaptation", "")),
+				"display": _adaptation_display_text(String(edge.get("adaptation", ""))),
 				"control_present": _find_adaptation_option(String(node_id), String(input_name)) != null,
 			})
 	return rows
+
+
+func _node_titlebars_snapshot() -> Dictionary:
+	var result := {}
+	for node_id in _node_order:
+		var node := node_dictionary(String(node_id))
+		if node.is_empty():
+			continue
+		var params := node.get("params", {}) as Dictionary
+		result[String(node_id)] = {
+			"title": _title_for_node(String(node.get("type", "")), params),
+			"display_name": String(params.get("display_name", "")),
+			"criteria_chips": HexGenerationCriteriaUiScript.chip_states(String(node.get("type", "")), params),
+		}
+	return result
 
 
 func _result_rows_snapshot() -> Array[Dictionary]:
