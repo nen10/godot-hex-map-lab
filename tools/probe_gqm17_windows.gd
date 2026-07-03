@@ -1,6 +1,7 @@
 extends SceneTree
 
 const Inspector = preload("res://addons/hex_map_kit/editor/hex_map_build_node_inspector.gd")
+const HexVector = preload("res://addons/hex_map_kit/core/hex_vector.gd")
 const NT = preload("res://addons/hex_map_kit/generation/hex_generation_node_types.gd")
 const Schema = preload("res://addons/hex_map_kit/generation/hex_generation_param_schema.gd")
 
@@ -20,6 +21,49 @@ func _capture(name: String) -> void:
 	print("saved %s" % name)
 
 
+func _collect_spinboxes(root: Node) -> Array:
+	var result: Array = []
+	_collect_spinboxes_into(root, result)
+	return result
+
+
+func _collect_spinboxes_into(root: Node, result: Array) -> void:
+	if root is SpinBox:
+		result.append(root)
+	for child in root.get_children():
+		_collect_spinboxes_into(child, result)
+
+
+func _verify_markov_weight_spins(window: Node) -> bool:
+	var spins := _collect_spinboxes(window)
+	print("markov weight spin count: %d" % spins.size())
+	if spins.is_empty():
+		push_error("GQM-17 Markov probe found no weight SpinBox controls.")
+		return false
+
+	var ok := true
+	for index in range(spins.size()):
+		var spin := spins[index] as SpinBox
+		print(
+			"markov weight spin[%d]: min=%.1f max=%.1f step=%.1f value=%.1f"
+			% [index, spin.min_value, spin.max_value, spin.step, spin.value]
+		)
+		if spin.min_value > 0.0 or spin.max_value < 8.0:
+			ok = false
+
+	var first_spin := spins[0] as SpinBox
+	first_spin.value = 8.0
+	print(
+		"markov weight spin[0] after set-to-8: value=%.1f"
+		% first_spin.value
+	)
+	if first_spin.value < 8.0:
+		ok = false
+	if not ok:
+		push_error("GQM-17 Markov weight spin range does not cover 0.0..8.0.")
+	return ok
+
+
 func _run() -> void:
 	get_root().size = Vector2i(1200, 860)
 
@@ -35,7 +79,16 @@ func _run() -> void:
 	await _capture("markov_window_consolidated")
 	var mw = insp_m.find_child("Markov Distribution Window", true, false)
 	if mw != null:
+		var markov_weight_range_ok := _verify_markov_weight_spins(mw)
+		await _capture("markov_window_weight_8_probe")
+		if not markov_weight_range_ok:
+			quit(1)
+			return
 		mw.queue_free()
+	else:
+		push_error("GQM-17 Markov probe could not find the Markov Distribution Window.")
+		quit(1)
+		return
 	insp_m.queue_free()
 	await process_frame
 
@@ -44,9 +97,13 @@ func _run() -> void:
 	await process_frame
 	var item_params = Schema.default_params(NT.NODE_ITEM_GENERATION)
 	item_params["placement_method"] = "adjacency_rules"
+	var adjacency_directions := HexVector.directions()
+	var first_rule_directions := [adjacency_directions[0].key(), adjacency_directions[1].key()]
+	var second_rule_directions := [adjacency_directions[2].key()]
+	print("adjacency probe rule directions: %s / %s" % [str(first_rule_directions), str(second_rule_directions)])
 	item_params["probability_rules"] = {"default": 0.1, "rules": [
-		{"directions": ["1,-1,0", "1,0,-1"], "probability": 0.8},
-		{"directions": ["0,1,-1"], "probability": 0.3},
+		{"directions": first_rule_directions, "probability": 0.8},
+		{"directions": second_rule_directions, "probability": 0.3},
 	]}
 	insp_a.inspect_node({"id": "items", "type": NT.NODE_ITEM_GENERATION, "params": item_params, "resource_refs": {}}, "overlay")
 	await process_frame

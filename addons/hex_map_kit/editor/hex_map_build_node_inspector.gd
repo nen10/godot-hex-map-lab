@@ -35,7 +35,7 @@ const ADJACENCY_PATTERN_HOVER_TINT_WEIGHT := 0.6
 const ADJACENCY_PATTERN_CARD_SIZE := Vector2i(120, 168)
 const ADJACENCY_PATTERN_GAP := 6
 # How many cards the window tries to show per row when it first opens.
-const ADJACENCY_RULES_DEFAULT_COLUMNS := 10
+const ADJACENCY_RULES_DEFAULT_COLUMNS := 5
 # Extra space added to the initial size for window chrome, the scroll bar, and
 # the header/footer controls. Only affects the size on open, not the min size.
 const ADJACENCY_RULES_DEFAULT_CHROME := Vector2i(60, 380)
@@ -1291,6 +1291,8 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 	name_edit.name = "AdjacencyRuleSetName"
 	name_edit.text = _adjacency_rule_set_name()
 	name_edit.placeholder_text = "Rule set name"
+	name_edit.custom_minimum_size = Vector2(260, 0)
+	name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body.add_child(_labeled_control("Rule set name", name_edit))
 	var patterns: Array = _adjacency_patterns()
 	var default_spin := SpinBox.new()
@@ -1588,8 +1590,8 @@ func _open_adjacency_rules_dialog(summary_label: Label = null) -> void:
 
 func _adjacency_rules_dialog_size() -> Vector2i:
 	return Vector2i(
-		_adjacency_pattern_row_width(ADJACENCY_RULES_DEFAULT_COLUMNS) + ADJACENCY_RULES_DEFAULT_CHROME.x + 600,
-		(ADJACENCY_PATTERN_CARD_SIZE.y + ADJACENCY_RULES_DEFAULT_CHROME.y) * 2 + 40
+		_adjacency_pattern_row_width(ADJACENCY_RULES_DEFAULT_COLUMNS) + ADJACENCY_RULES_DEFAULT_CHROME.x + 180,
+		ADJACENCY_PATTERN_CARD_SIZE.y + ADJACENCY_RULES_DEFAULT_CHROME.y + 220
 	)
 
 

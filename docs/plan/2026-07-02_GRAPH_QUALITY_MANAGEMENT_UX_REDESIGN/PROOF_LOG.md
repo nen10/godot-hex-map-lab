@@ -385,3 +385,37 @@ proof:
     - `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
     - `docs/plan/2026-07-02_GRAPH_QUALITY_MANAGEMENT_UX_REDESIGN/GQM-14_RESULT_RESOURCE_SAVE_SWITCH/`
     - `docs/review/autopilot/GQM-14_RESULT_RESOURCE_SAVE_SWITCH_SELF_REVIEW_2026-07-03.md`
+
+### GQM-17_CRITERIA_WINDOW_DOD
+
+proof:
+  review: `docs/review/autopilot/GQM-17_CRITERIA_WINDOW_DOD_SELF_REVIEW_2026-07-03.md`
+  plan: `docs/plan/2026-07-02_GRAPH_QUALITY_MANAGEMENT_UX_REDESIGN/GQM-17_CRITERIA_WINDOW_DOD/`
+  execution:
+    - `docs/review/autopilot/GQM-17_CRITERIA_WINDOW_DOD_SELF_REVIEW_2026-07-03.md`
+  implementation:
+    - GQM-17 probe now builds Adjacency direction proof data from `HexVector.directions()` / `HexVector.key()` instead of handwritten q,r,s-order strings.
+    - Markov proof treats the `1.0` observation as a possible max-range defect and logs all weight SpinBoxes as `min=0.0 max=8.0 step=0.5`.
+    - Markov product semantics remain `0.0..8.0` float weights; no integer-only conversion was made.
+    - Adjacency window opens at a smaller 5-card initial layout and the rule-set name field has usable width.
+  visual_probe:
+    - `/Applications/Godot.app/Contents/MacOS/Godot --path . --script res://tools/probe_gqm17_windows.gd` exit `0`
+    - `.godot_user/visual-verification/GQM-17/markov_window_consolidated.png`
+    - `.godot_user/visual-verification/GQM-17/markov_window_weight_8_probe.png`
+    - `.godot_user/visual-verification/GQM-17/adjacency_window_consolidated.png`
+    - `.godot_user/visual-verification/GQM-17/item_pool_limited_rows.png`
+    - `.godot_user/visual-verification/GQM-17/item_pool_weighted_after_switch.png`
+  tests:
+    - `git diff --check` exit `0`
+    - `./tools/test.sh` exit `0`; run id `20260703-162138-52536`
+    - UI metric report `.godot_user/ui-metrics/20260703-162138-52536/workspace_layout_metrics.md`: P0 `0`, P1 `0`
+  acceptance:
+    - Markov weight controls visibly accept `8.0` and log all 15 weight SpinBoxes with max `8.0`.
+    - Adjacency rules render black reference toggles and component labels when fed product-derived q,s,r keys.
+    - Adjacency rule-set name and initial layout are usable in the 1200x860 verification viewport.
+    - Item Pool limited/weighted rows and `pool: inline` chip remain stable across placement-method morph.
+  major files:
+    - `addons/hex_map_kit/editor/hex_map_build_node_inspector.gd`
+    - `tools/probe_gqm17_windows.gd`
+    - `docs/plan/2026-07-02_GRAPH_QUALITY_MANAGEMENT_UX_REDESIGN/GQM-17_CRITERIA_WINDOW_DOD/`
+    - `docs/review/autopilot/GQM-17_CRITERIA_WINDOW_DOD_SELF_REVIEW_2026-07-03.md`
