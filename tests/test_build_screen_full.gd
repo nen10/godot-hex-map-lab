@@ -16,6 +16,7 @@ func _run() -> void:
 	await _test_build_header_sweeps_old_controls_and_lists_templates()
 	await _test_basic_template_applies_and_generates()
 	await _test_graph_save_as_load_roundtrip()
+	await _test_result_save_lists_project_result_without_thumbnail()
 	await _test_workspace_generate_bootstraps_graphless_selected_layer_without_profile()
 	_finish("res://tests/test_build_screen_full.gd")
 
@@ -136,6 +137,62 @@ func _test_graph_save_as_load_roundtrip() -> void:
 	var loaded_canvas = (screen.build_screen_snapshot()["canvas"] as Dictionary)
 	_assert_true(int(loaded_canvas["node_count"]) >= 7, "GQM-13 loaded project graph restores Basic node count")
 	_assert_eq(int(loaded_canvas["connection_count"]), 9, "GQM-13 loaded project graph restores Basic edge count")
+
+	screen.queue_free()
+	await process_frame
+	ProjectSettings.set_setting(HexMapAssetLibrary.ASSET_ROOT_SETTING, previous_setting)
+
+
+func _test_result_save_lists_project_result_without_thumbnail() -> void:
+	var had_setting := ProjectSettings.has_setting(HexMapAssetLibrary.ASSET_ROOT_SETTING)
+	var previous_setting = ProjectSettings.get_setting(HexMapAssetLibrary.ASSET_ROOT_SETTING) if had_setting else HexMapAssetLibrary.DEFAULT_ASSET_ROOT
+	var asset_root := _test_resource_dir("gqm14_result_asset_root")
+	ProjectSettings.set_setting(HexMapAssetLibrary.ASSET_ROOT_SETTING, asset_root)
+
+	var screen = HexMapBuildScreen.new()
+	root.add_child(screen)
+	await process_frame
+
+	_assert_true(bool(screen.apply_template_by_name("基本形", {"confirm_replace": true})["ok"]), "GQM-14 result save starts from Basic template")
+	var report = screen.run_graph()
+	_assert_true(bool(report["ok"]), "GQM-14 result save has generated Result output")
+	var before_save = screen.build_screen_snapshot()
+	_assert_true(bool(before_save["save_result_button_present"]), "GQM-14 Save result action is mounted")
+	_assert_true(bool(before_save["save_result_available"]), "GQM-14 Save result enables after Generate")
+	_assert_true(bool(before_save["result_dropdown_present"]), "GQM-14 Results dropdown is mounted")
+	_assert_eq(int(before_save["header_control_count"]), 7, "GQM-14 header keeps seven logical groups")
+
+	var save_result = screen.save_current_result_as("GQM14 Saved Result")
+	var save_path := String(save_result.get("path", ""))
+	_assert_eq(int(save_result.get("error", FAILED)), OK, "GQM-14 Save result stores project result")
+	_assert_true(save_path.begins_with("%s/results/" % asset_root), "GQM-14 Save result writes to project results layer")
+	var loaded = HexMapAssetLibrary.load(save_path)
+	_assert_true(loaded is HexGenerationResultResource, "GQM-14 saved result reloads as HexGenerationResultResource")
+	var saved_result := loaded as HexGenerationResultResource
+	var limited := saved_result.field_limited_snapshot()
+	_assert_eq(String(limited["result_id"]), "gqm_14_saved_result", "GQM-14 saved result records result_id")
+	_assert_true(bool(limited["primary_map_present"]), "GQM-14 saved result stores substrate data")
+	_assert_true(int(limited["overlay_maps_count"]) > 0, "GQM-14 saved result stores overlay data")
+	_assert_true((limited["generation_snapshot_keys"] as Array).has("graph"), "GQM-14 saved result stores graph snapshot")
+	_assert_true((limited["metadata_keys"] as Array).has("display_name"), "GQM-14 saved result stores name in metadata")
+	_assert_eq(String(limited["park_status"]), "", "GQM-14 saved result does not write status")
+	_assert_eq(bool(limited["park_overlay_mode"]), false, "GQM-14 saved result does not write overlay_mode")
+	_assert_eq(float(limited["park_score"]), 0.0, "GQM-14 saved result does not write score")
+	_assert_true(not bool(limited["park_candidate_document_present"]), "GQM-14 saved result does not write candidate_document")
+	_assert_true(not bool(limited["park_validation_result_present"]), "GQM-14 saved result does not write validation_result")
+	_assert_true(bool(limited["park_validation_summary_empty"]), "GQM-14 saved result leaves validation_summary empty")
+	_assert_true(bool(limited["park_source_snapshot_empty"]), "GQM-14 saved result leaves source_snapshot empty")
+	_assert_true(bool(limited["park_score_row_empty"]), "GQM-14 saved result leaves score_row empty")
+	_assert_true(bool(limited["park_preview_empty"]), "GQM-14 saved result leaves preview empty")
+
+	var snapshot = screen.build_screen_snapshot()
+	_assert_eq(String(snapshot["result_selected"]), "GQM14 Saved Result", "GQM-14 Results dropdown lists saved result by name")
+	_assert_eq(int(snapshot["result_option_count"]), 1, "GQM-14 Results dropdown lists project result")
+	_assert_true(not bool(snapshot["result_thumbnail_present"]), "GQM-14 Results list has no thumbnail surface")
+	var entries = snapshot["result_entries"] as Array
+	_assert_eq(entries.size(), 1, "GQM-14 result entries contain saved project result")
+	_assert_eq(String((entries[0] as Dictionary).get("source", "")), HexMapAssetLibrary.SOURCE_PROJECT, "GQM-14 result list uses project source")
+	_assert_true(not (entries[0] as Dictionary).has("preview"), "GQM-14 result list entry does not include preview payload")
 
 	screen.queue_free()
 	await process_frame

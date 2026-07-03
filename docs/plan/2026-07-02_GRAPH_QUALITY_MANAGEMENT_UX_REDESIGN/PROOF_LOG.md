@@ -354,3 +354,34 @@ proof:
     - header 最終形（Template[bundled 基本形/Simple] / Save as / Load / Generate / Apply / Revert / status）・撤去対象（Batch/randomize/Profile/Simple/Load Graph/Overwrite/context chips）の消滅・Add 行の統合4型化・基本形 template 適用と Generate 成功（8 node outputs）・「未接続」と「そのまま (selection)」の分離・titlebar 幅確保
   orchestrator_fix:
     - 読込時のノード配置が単純横並びで重なっていたため、restore_graph_model に**トポロジ深さの段組みレイアウト**（`_restore_layout_depths`、列=最長経路深さ・行=同深さ内順）を実装。canvas/load/screen テスト green を確認
+
+### GQM-14_RESULT_RESOURCE_SAVE_SWITCH
+
+proof:
+  review: `docs/review/autopilot/GQM-14_RESULT_RESOURCE_SAVE_SWITCH_SELF_REVIEW_2026-07-03.md`
+  plan: `docs/plan/2026-07-02_GRAPH_QUALITY_MANAGEMENT_UX_REDESIGN/GQM-14_RESULT_RESOURCE_SAVE_SWITCH/`
+  execution:
+    - `docs/review/autopilot/GQM-14_RESULT_RESOURCE_SAVE_SWITCH_SELF_REVIEW_2026-07-03.md`
+  docs:
+    - `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+  implementation:
+    - `HexGenerationResultResource.from_generated_output()` creates data-included saved results from the latest generated Result output.
+    - Build screen exposes `Save result...` and a project-only `Results` dropdown; saved result entries are names only, with no thumbnail or score surface.
+    - Saved result switching promotes stored terrain/overlay data into the preview document and viewport without calling the graph runner.
+    - Apply/Revert stays on the existing preview contract, and saved-result load records `graph_rerun == false`.
+  tests:
+    - focused `res://tests/test_build_screen_full.gd` (exit 0)
+    - focused `res://tests/test_generation_promote.gd` (exit 0)
+    - `./tools/test.sh` (exit 0; run id `20260703-153404-98439`)
+    - UI metric report `.godot_user/ui-metrics/20260703-153404-98439/workspace_layout_metrics.md`: P0 `0`, P1 `0`
+  acceptance:
+    - `tests/test_build_screen_full.gd` verifies project `results/` save, data-included fields, park fields left blank/default, Results list display, and no thumbnail payload.
+    - `tests/test_generation_promote.gd` verifies saved result load does not increment graph run count, projects saved data immediately, writes generated terrain/overlay layers through the Result promote path, and supports Revert/Apply.
+  major files:
+    - `addons/hex_map_kit/adapter/hex_generation_result_resource.gd`
+    - `addons/hex_map_kit/editor/hex_map_build_screen.gd`
+    - `tests/test_build_screen_full.gd`
+    - `tests/test_generation_promote.gd`
+    - `docs/development_log/2026-06-14_TEST_CREATION_LOG.md`
+    - `docs/plan/2026-07-02_GRAPH_QUALITY_MANAGEMENT_UX_REDESIGN/GQM-14_RESULT_RESOURCE_SAVE_SWITCH/`
+    - `docs/review/autopilot/GQM-14_RESULT_RESOURCE_SAVE_SWITCH_SELF_REVIEW_2026-07-03.md`

@@ -1,5 +1,6 @@
 extends "res://tests/test_editor_plugin_test_base.gd"
 
+const HexMapAssetLibrary = preload("res://addons/hex_map_kit/editor/hex_map_asset_library.gd")
 const HexGenerationGraph = preload("res://addons/hex_map_kit/generation/hex_generation_graph.gd")
 const HexGenerationGraphRunner = preload("res://addons/hex_map_kit/generation/hex_generation_graph_runner.gd")
 
@@ -24,6 +25,7 @@ func _run() -> void:
 	await _test_top_generate_apply_revert_preview_contract()
 	await _test_result_preview_promotes_multiple_overlays_as_separate_layers()
 	await _test_result_row_promote_writes_document_layers()
+	await _test_saved_result_switches_without_rerun_and_uses_promote_path()
 	_finish("res://tests/test_generation_promote.gd")
 
 
@@ -543,6 +545,76 @@ func _test_result_row_promote_writes_document_layers() -> void:
 	scene_root.queue_free()
 	screen.queue_free()
 	await process_frame
+
+
+func _test_saved_result_switches_without_rerun_and_uses_promote_path() -> void:
+	var had_setting := ProjectSettings.has_setting(HexMapAssetLibrary.ASSET_ROOT_SETTING)
+	var previous_setting = ProjectSettings.get_setting(HexMapAssetLibrary.ASSET_ROOT_SETTING) if had_setting else HexMapAssetLibrary.DEFAULT_ASSET_ROOT
+	var asset_root := _test_resource_dir("gqm14_switch_result_asset_root")
+	ProjectSettings.set_setting(HexMapAssetLibrary.ASSET_ROOT_SETTING, asset_root)
+
+	var screen = HexMapBuildScreen.new()
+	root.add_child(screen)
+	await process_frame
+	var scene_root = Node2D.new()
+	root.add_child(scene_root)
+	var selected_layer = HexTileMapLayer.new()
+	selected_layer.name = "SavedResultSwitchLayer"
+	scene_root.add_child(selected_layer)
+	await process_frame
+	screen.ensure_graph_context_for_hex_tile_map_layer(selected_layer, {"run": false})
+	screen.graph_canvas().restore_graph_model(_two_overlay_result_graph(), "result")
+	var run_report = screen.run_graph()
+	_assert_true(bool(run_report["ok"]), "GQM-14 saved result source graph runs")
+	var save_result = screen.save_current_result_as("GQM14 Switch Result")
+	var save_path := String(save_result.get("path", ""))
+	_assert_eq(int(save_result.get("error", FAILED)), OK, "GQM-14 saved result writes")
+	var saved = HexMapAssetLibrary.load(save_path)
+	_assert_true(saved is HexGenerationResultResource, "GQM-14 saved result reloads")
+	var saved_result := saved as HexGenerationResultResource
+	_assert_true(saved_result.primary_map != null, "GQM-14 saved result includes terrain data")
+	_assert_eq(saved_result.overlay_maps.size(), 2, "GQM-14 saved result includes overlay stack data")
+	var saved_cell_count: int = saved_result.primary_map.to_map_data().cells.size()
+
+	screen.graph_canvas().restore_graph_model(HexGenerationGraph.new_graph(), "")
+	var before_load = screen.build_screen_snapshot()
+	var before_run_count := int(before_load["graph_run_count"])
+	var load_result = screen.load_selected_result()
+	_assert_true(bool(load_result["ok"]), "GQM-14 saved result loads into preview")
+	_assert_true(not bool(load_result["graph_rerun"]), "GQM-14 saved result switch does not rerun graph")
+	_assert_eq(int(load_result["graph_run_count_before"]), before_run_count, "GQM-14 load records pre-load graph run count")
+	_assert_eq(int(load_result["graph_run_count_after"]), before_run_count, "GQM-14 load leaves graph run count unchanged")
+	var snapshot = screen.build_screen_snapshot()
+	_assert_eq(String(snapshot["preview_commit_state"]), "preview_pending", "GQM-14 saved result switch is an Apply/Revert pending preview")
+	_assert_viewport_projection_ok(snapshot, "GQM-14 saved result switch projects to viewport")
+	_assert_true(bool((snapshot["promote_result"] as Dictionary)["ok"]), "GQM-14 saved result switch uses promote path")
+	_assert_eq(_generated_terrain_cell_count(selected_layer.level_document_resource), saved_cell_count, "GQM-14 saved result terrain data reaches document")
+	_assert_eq(_generated_overlay_layers(selected_layer.level_document_resource).size(), 2, "GQM-14 saved result overlays reach document")
+	_assert_eq(String(((snapshot["last_result_load"] as Dictionary)["promote_result"] as Dictionary).get("written_role", "")), "result", "GQM-14 saved result load promotes a result bundle")
+
+	var apply_button = screen.find_child("Build Apply Button", true, false) as Button
+	var revert_button = screen.find_child("Build Revert Button", true, false) as Button
+	_assert_true(apply_button is Button and not apply_button.disabled, "GQM-14 Apply is enabled after saved result switch")
+	_assert_true(revert_button is Button and not revert_button.disabled, "GQM-14 Revert is enabled after saved result switch")
+	revert_button.emit_signal("pressed")
+	await process_frame
+	_assert_eq(String(screen.build_screen_snapshot()["preview_commit_state"]), "reverted", "GQM-14 saved result Revert restores previous document")
+	_assert_eq(_generated_terrain_layers(selected_layer.level_document_resource).size(), 0, "GQM-14 Revert removes saved result terrain preview")
+	_assert_eq(_generated_overlay_layers(selected_layer.level_document_resource).size(), 0, "GQM-14 Revert removes saved result overlay preview")
+
+	load_result = screen.load_selected_result()
+	_assert_true(bool(load_result["ok"]), "GQM-14 saved result can be loaded again after Revert")
+	apply_button.emit_signal("pressed")
+	await process_frame
+	snapshot = screen.build_screen_snapshot()
+	_assert_eq(String(snapshot["preview_commit_state"]), "applied", "GQM-14 Apply commits saved result preview")
+	_assert_eq(_generated_terrain_cell_count(selected_layer.level_document_resource), saved_cell_count, "GQM-14 Apply keeps saved result terrain")
+	_assert_eq(_generated_overlay_layers(selected_layer.level_document_resource).size(), 2, "GQM-14 Apply keeps saved result overlays")
+
+	scene_root.queue_free()
+	screen.queue_free()
+	await process_frame
+	ProjectSettings.set_setting(HexMapAssetLibrary.ASSET_ROOT_SETTING, previous_setting)
 
 
 func _policy_result_graph(write_policy: String) -> Dictionary:

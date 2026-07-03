@@ -18,6 +18,7 @@ const HexGenerationGraphRunnerScript = preload("res://addons/hex_map_kit/generat
 const HexGenerationGraphNormalizerScript = preload("res://addons/hex_map_kit/generation/hex_generation_graph_normalizer.gd")
 const HexGenerationPortsScript = preload("res://addons/hex_map_kit/generation/hex_generation_ports.gd")
 const HexGenerationGraphResourceScript = preload("res://addons/hex_map_kit/adapter/hex_generation_graph_resource.gd")
+const HexGenerationResultResourceScript = preload("res://addons/hex_map_kit/adapter/hex_generation_result_resource.gd")
 const HexTileMapLayerScript = preload("res://addons/hex_map_kit/adapter/hex_tile_map_layer.gd")
 const HexMapTileAdapterScript = preload("res://addons/hex_map_kit/adapter/hex_map_tile_adapter.gd")
 const HexLayerStackResourceScript = preload("res://addons/hex_map_kit/adapter/hex_layer_stack_resource.gd")
@@ -35,15 +36,21 @@ const RUN_PROGRESS_APPLY_END := 0.99
 const RUN_PROGRESS_APPLY_CHUNK_SIZE := 256
 const RUN_PROGRESS_INITIAL_VISIBLE_SEC := 0.12
 const GRAPH_ASSET_KIND := "graphs"
+const RESULT_ASSET_KIND := "results"
 
 var _workspace_asset_context: HexMapWorkspaceAssetContextScript = null
 var _template_option: OptionButton
 var _save_as_button: Button
 var _load_template_button: Button
+var _result_option: OptionButton
+var _save_result_button: Button
 var _template_replace_dialog: ConfirmationDialog
 var _template_save_dialog: ConfirmationDialog
 var _template_save_name_edit: LineEdit
+var _result_save_dialog: ConfirmationDialog
+var _result_save_name_edit: LineEdit
 var _template_entries: Array = []
+var _result_entries: Array = []
 var _pending_template_entry: Dictionary = {}
 var _generate_button: Button
 var _cancel_button: Button
@@ -67,6 +74,8 @@ var _last_promote_result: Dictionary = {}
 var _last_build_context_result: Dictionary = {}
 var _last_graph_load_result: Dictionary = {}
 var _last_graph_save_result: Dictionary = {}
+var _last_result_save_result: Dictionary = {}
+var _last_result_load_result: Dictionary = {}
 var _last_viewport_apply_report: Dictionary = {}
 var _context_hex_tile_map_layer: HexTileMapLayerScript = null
 var _build_context_provider: Callable
@@ -78,6 +87,7 @@ var _run_progress_node_context: Dictionary = {}
 var _run_progress_popup_hide_token := 0
 var _run_progress_popup_request_usec := 0
 var _run_phase_timings: Dictionary = {}
+var _graph_run_count := 0
 var _async_graph_thread: Thread = null
 var _async_graph_mutex := Mutex.new()
 var _async_graph_run_id := 0
@@ -283,6 +293,7 @@ func _complete_async_graph_run(run_id: int) -> void:
 
 
 func _finalize_graph_run(report: Dictionary, options: Dictionary = {}) -> Dictionary:
+	_graph_run_count += 1
 	_last_report = report.duplicate(true)
 	_refresh_selected_node()
 	if _status_label != null:
@@ -296,6 +307,7 @@ func _finalize_graph_run(report: Dictionary, options: Dictionary = {}) -> Dictio
 	_last_report["requested_count"] = int(options.get("count", _run_count_value()))
 	_last_report["primary_generate"] = true
 	graph_generated.emit(_last_report.duplicate(true))
+	_update_result_controls()
 	return _last_report.duplicate(true)
 
 
@@ -405,6 +417,139 @@ func save_current_graph_as(display_name: String = "") -> Dictionary:
 		if _status_label != null:
 			_status_label.text = String(_last_graph_save_result["status_text"])
 	return _last_graph_save_result.duplicate(true)
+
+
+func result_entries() -> Array:
+	return _result_entries.duplicate(true)
+
+
+func selected_result_entry() -> Dictionary:
+	if _result_option == null or _result_option.selected < 0:
+		return {}
+	return _entry_for_result_index(_result_option.selected)
+
+
+func save_current_result_as(display_name: String = "") -> Dictionary:
+	if _canvas == null:
+		_last_result_save_result = _result_save_result(ERR_UNAVAILABLE, "", "Build graph canvas is unavailable.")
+		return _last_result_save_result.duplicate(true)
+	var latest := _latest_result_output()
+	var output = latest.get("output", null)
+	if not output is HexGenerationResultResourceScript:
+		_last_result_save_result = _result_save_result(ERR_UNAVAILABLE, "", "Generate a Result node output before saving a result.")
+		if _status_label != null:
+			_status_label.text = String(_last_result_save_result["status_text"])
+		return _last_result_save_result.duplicate(true)
+	var save_name := display_name.strip_edges()
+	if save_name == "":
+		save_name = _default_result_save_name()
+	var result_id := save_name.to_snake_case()
+	var metadata := {
+		"display_name": save_name,
+		"source": "build_screen",
+		"result_node_id": String(latest.get("node_id", "")),
+		"graph_run_count": _graph_run_count,
+	}
+	var resource = HexGenerationResultResourceScript.from_generated_output(
+		output,
+		{
+			"result_id": result_id,
+			"seed": int(_current_graph_settings().get("seed", 0)),
+			"generation_snapshot": _result_generation_snapshot(String(latest.get("node_id", ""))),
+			"metadata": metadata,
+		}
+	)
+	resource.resource_name = save_name
+	var save_result := HexMapAssetLibraryScript.save(resource, RESULT_ASSET_KIND, save_name)
+	var error := int(save_result.get("error", ERR_CANT_CREATE))
+	var path := String(save_result.get("path", ""))
+	_last_result_save_result = _result_save_result(
+		error,
+		path,
+		"Result saved: %s" % save_name if error == OK else "Result could not be saved."
+	)
+	_last_result_save_result["resource"] = resource
+	_last_result_save_result["entry"] = _result_entry_from_save_result(save_result, resource, save_name)
+	if error == OK:
+		_refresh_result_options(path)
+		if _status_label != null:
+			_status_label.text = String(_last_result_save_result["status_text"])
+	_update_result_controls()
+	return _last_result_save_result.duplicate(true)
+
+
+func load_selected_result() -> Dictionary:
+	var entry := selected_result_entry()
+	if entry.is_empty():
+		_last_result_load_result = _result_load_result(false, "Choose a saved result.")
+		return _last_result_load_result.duplicate(true)
+	return load_result_entry(entry)
+
+
+func load_result_entry(entry: Dictionary) -> Dictionary:
+	if entry.is_empty():
+		_last_result_load_result = _result_load_result(false, "Choose a saved result.")
+		return _last_result_load_result.duplicate(true)
+	var path := String(entry.get("path", "")).strip_edges()
+	var resource = HexMapAssetLibraryScript.load(path)
+	if not resource is HexGenerationResultResourceScript:
+		_last_result_load_result = _result_load_result(false, "Selected asset is not a saved generation result.")
+		_last_result_load_result["path"] = path
+		return _last_result_load_result.duplicate(true)
+	var result := preview_result_resource(resource as HexGenerationResultResourceScript, {
+		"path": path,
+		"name": String(entry.get("name", "")),
+	})
+	_last_result_load_result = result.duplicate(true)
+	return _last_result_load_result.duplicate(true)
+
+
+func preview_result_resource(resource: HexGenerationResultResourceScript, options: Dictionary = {}) -> Dictionary:
+	if resource == null:
+		_last_result_load_result = _result_load_result(false, "Choose a saved generation result.")
+		return _last_result_load_result.duplicate(true)
+	var context_result := _ensure_build_context_for_generate(
+		"build_screen.load_result",
+		{
+			"preserve_current_canvas": true,
+			"defer_snapshots": true,
+			"defer_context_ui_refresh": true,
+		}
+	)
+	if _build_context_provider.is_valid() and not bool(context_result.get("ok", false)):
+		_last_result_load_result = _result_load_result(false, String(context_result.get("blocked_reason", "Build context is unavailable.")))
+		return _last_result_load_result.duplicate(true)
+	if _workspace_asset_context == null or _workspace_asset_context.level_document == null:
+		_last_result_load_result = _result_load_result(false, "Choose a Level Document before loading a saved result.")
+		return _last_result_load_result.duplicate(true)
+	if _context_hex_tile_map_layer == null or not is_instance_valid(_context_hex_tile_map_layer):
+		_last_result_load_result = _result_load_result(false, "Choose a viewport layer before loading a saved result.")
+		return _last_result_load_result.duplicate(true)
+	var before_run_count := _graph_run_count
+	_snapshot_document_for_revert()
+	var promoted := _promote_result_output(resource, String(options.get("name", "saved_result")).to_snake_case(), {})
+	if promoted:
+		_commit_viewport_preview("saved result")
+	var status_text := "Saved result loaded: %s" % String(options.get("name", resource.result_id)) if promoted else String(_last_promote_result.get("blocked_reason", "Saved result has no promotable data."))
+	_last_result_load_result = {
+		"ok": promoted and _last_viewport_projection_ok(),
+		"blocked_reason": "" if promoted and _last_viewport_projection_ok() else status_text,
+		"path": String(options.get("path", "")),
+		"name": String(options.get("name", resource.result_id)),
+		"result_id": resource.result_id,
+		"resource": resource,
+		"graph_run_count_before": before_run_count,
+		"graph_run_count_after": _graph_run_count,
+		"graph_rerun": _graph_run_count != before_run_count,
+		"promote_result": _last_promote_result.duplicate(true),
+		"viewport_apply_report": _last_viewport_apply_report.duplicate(true),
+		"preview_commit_state": _preview_commit_state,
+		"status_text": status_text,
+	}
+	if _status_label != null:
+		_status_label.text = status_text
+	_update_result_controls()
+	return _last_result_load_result.duplicate(true)
 
 
 func ensure_graph_context_for_hex_tile_map_layer(
@@ -645,7 +790,8 @@ func build_screen_snapshot() -> Dictionary:
 		"canvas_is_dominant": true,
 		"resource_row_primary": false,
 		"primary_action": "Generate",
-		"header_controls": PackedStringArray(["Template", "Save as...", "Load...", "Generate", "Apply", "Revert", "status"]),
+		"header_controls": PackedStringArray(["Template", "Save as...", "Load...", "Generate", "Results", "Apply/Revert", "status"]),
+		"header_control_count": 7,
 		"template_dropdown_present": _template_option != null,
 		"template_option_count": _template_option.item_count if _template_option != null else 0,
 		"template_selected": _selected_template_label(),
@@ -659,6 +805,15 @@ func build_screen_snapshot() -> Dictionary:
 		"overwrite_selected_graph_default": false,
 		"last_graph_load": _last_graph_load_result.duplicate(true),
 		"last_graph_save": _last_graph_save_result.duplicate(true),
+		"result_dropdown_present": _result_option != null,
+		"result_option_count": _result_option.item_count if _result_option != null else 0,
+		"result_selected": _selected_result_label(),
+		"result_entries": _result_entries.duplicate(true),
+		"save_result_button_present": _save_result_button != null,
+		"save_result_available": _save_result_button != null and not _save_result_button.disabled,
+		"last_result_save": _last_result_save_result.duplicate(true),
+		"last_result_load": _last_result_load_result.duplicate(true),
+		"result_thumbnail_present": false,
 		"simple_profile_bar_present": false,
 		"simple_profile_option_present": false,
 		"simple_generate_button_present": false,
@@ -683,6 +838,7 @@ func build_screen_snapshot() -> Dictionary:
 		"run_progress_popup_status": _run_progress_status_label.text if _run_progress_status_label != null else "",
 		"run_progress_popup_detail": _run_progress_detail_label.text if _run_progress_detail_label != null else "",
 		"run_phase_timings": _run_phase_timings.duplicate(true),
+		"graph_run_count": _graph_run_count,
 		"last_cancelled": bool(run_state.get("cancelled", false)),
 		"primary_generate_count": 1,
 		"generate_default_count": 1,
@@ -777,6 +933,20 @@ func _build_ui() -> void:
 	_style_compact_control(_generate_button)
 	_generate_button.pressed.connect(_on_generate_pressed)
 	top_row.add_child(_generate_button)
+	_save_result_button = Button.new()
+	_save_result_button.name = "Build Save Result Button"
+	_save_result_button.text = "Save result..."
+	_save_result_button.tooltip_text = "Save the latest generated Result output"
+	_save_result_button.disabled = true
+	_style_compact_control(_save_result_button)
+	_save_result_button.pressed.connect(_on_save_result_pressed)
+	top_row.add_child(_save_result_button)
+	_result_option = OptionButton.new()
+	_result_option.name = "Build Results Dropdown"
+	_result_option.custom_minimum_size = Vector2(170, 0)
+	_result_option.tooltip_text = "Results"
+	_result_option.item_selected.connect(_on_result_item_selected)
+	top_row.add_child(_result_option)
 	_apply_button = Button.new()
 	_apply_button.name = "Build Apply Button"
 	_apply_button.text = "Apply"
@@ -848,6 +1018,7 @@ func _build_ui() -> void:
 	_build_run_progress_popup()
 	_build_template_replace_dialog()
 	_build_template_save_dialog()
+	_build_result_save_dialog()
 
 	_palette.node_type_requested.connect(_on_palette_node_type_requested)
 	_palette.node_template_requested.connect(_on_palette_node_template_requested)
@@ -943,6 +1114,22 @@ func _build_template_save_dialog() -> void:
 	add_child(_template_save_dialog)
 
 
+func _build_result_save_dialog() -> void:
+	_result_save_dialog = ConfirmationDialog.new()
+	_result_save_dialog.name = "Build Result Save Dialog"
+	_result_save_dialog.title = "Save Result"
+	_result_save_dialog.ok_button_text = "Save"
+	var root := VBoxContainer.new()
+	root.name = "Build Result Save Content"
+	_result_save_name_edit = LineEdit.new()
+	_result_save_name_edit.name = "Build Result Save Name"
+	_result_save_name_edit.placeholder_text = "Result name"
+	root.add_child(_result_save_name_edit)
+	_result_save_dialog.add_child(root)
+	_result_save_dialog.confirmed.connect(_on_save_result_confirmed)
+	add_child(_result_save_dialog)
+
+
 func _run_context() -> Dictionary:
 	var result := {}
 	if _workspace_asset_context == null:
@@ -973,6 +1160,7 @@ func _update_run_controls() -> void:
 		_generate_button.disabled = _run_busy
 	if _cancel_button != null:
 		_cancel_button.disabled = not _run_busy
+	_update_result_controls()
 
 
 func _on_graph_run_progress(status: Dictionary) -> void:
@@ -1217,6 +1405,8 @@ func _hide_run_progress_popup_if_current(hide_token: int) -> void:
 
 func _refresh_context() -> void:
 	_refresh_template_options()
+	_refresh_result_options()
+	_update_result_controls()
 
 
 func _refresh_template_options(preferred_path: String = "") -> void:
@@ -1255,8 +1445,58 @@ func _refresh_template_options(preferred_path: String = "") -> void:
 	_select_template_path(current_path)
 
 
+func _refresh_result_options(preferred_path: String = "") -> void:
+	if _result_option == null:
+		return
+	var current_path := preferred_path.strip_edges()
+	if current_path == "" and _result_option.selected >= 0 and _result_option.selected < _result_entries.size():
+		current_path = String((_result_entries[_result_option.selected] as Dictionary).get("path", ""))
+	_result_entries = []
+	for raw_entry in HexMapAssetLibraryScript.list(RESULT_ASSET_KIND):
+		var entry = raw_entry as Dictionary
+		if String(entry.get("source", "")) != HexMapAssetLibraryScript.SOURCE_PROJECT:
+			continue
+		var resource = HexMapAssetLibraryScript.load(String(entry.get("path", "")))
+		if resource is HexGenerationResultResourceScript:
+			var display_name := String((resource as HexGenerationResultResourceScript).metadata.get("display_name", "")).strip_edges()
+			if display_name != "":
+				entry["name"] = display_name
+		_result_entries.append(entry)
+	_result_entries.sort_custom(func(a, b):
+		var name_compare := String((a as Dictionary).get("name", "")).casecmp_to(String((b as Dictionary).get("name", "")))
+		if name_compare != 0:
+			return name_compare < 0
+		return String((a as Dictionary).get("path", "")).casecmp_to(String((b as Dictionary).get("path", ""))) < 0
+	)
+	_result_option.clear()
+	for index in range(_result_entries.size()):
+		var entry := _result_entries[index] as Dictionary
+		_result_option.add_item(String(entry.get("name", "Saved result")), index)
+		_result_option.set_item_metadata(index, entry)
+	if _result_entries.is_empty():
+		_result_option.add_item("No saved results", 0)
+		_result_option.disabled = true
+		return
+	_result_option.disabled = false
+	_select_result_path(current_path)
+
+
+func _update_result_controls() -> void:
+	if _save_result_button != null:
+		_save_result_button.disabled = _run_busy or not (_latest_result_output().get("output", null) is HexGenerationResultResourceScript)
+	if _result_option != null:
+		_result_option.disabled = _result_entries.is_empty() or _run_busy
+
+
 func _selected_template_label() -> String:
 	var entry := selected_template_entry()
+	if entry.is_empty():
+		return ""
+	return String(entry.get("name", ""))
+
+
+func _selected_result_label() -> String:
+	var entry := selected_result_entry()
 	if entry.is_empty():
 		return ""
 	return String(entry.get("name", ""))
@@ -1295,10 +1535,29 @@ func _select_template_path(path: String) -> void:
 	_template_option.select(selected_index)
 
 
+func _select_result_path(path: String) -> void:
+	if _result_option == null or _result_entries.is_empty():
+		return
+	var target := path.strip_edges()
+	var selected_index := 0
+	if target != "":
+		for index in range(_result_entries.size()):
+			if String((_result_entries[index] as Dictionary).get("path", "")) == target:
+				selected_index = index
+				break
+	_result_option.select(selected_index)
+
+
 func _entry_for_template_index(index: int) -> Dictionary:
 	if index < 0 or index >= _template_entries.size():
 		return {}
 	return (_template_entries[index] as Dictionary).duplicate(true)
+
+
+func _entry_for_result_index(index: int) -> Dictionary:
+	if index < 0 or index >= _result_entries.size():
+		return {}
+	return (_result_entries[index] as Dictionary).duplicate(true)
 
 
 func _template_replace_confirmation_required(options: Dictionary) -> bool:
@@ -1323,6 +1582,12 @@ func _default_graph_save_name() -> String:
 	return "Build Graph"
 
 
+func _default_result_save_name() -> String:
+	if _context_hex_tile_map_layer != null and is_instance_valid(_context_hex_tile_map_layer):
+		return "%s Result" % _resource_prefix_from_node(_context_hex_tile_map_layer.name)
+	return "Build Result"
+
+
 func _graph_save_result(error: int, path: String, status_text: String) -> Dictionary:
 	return {
 		"ok": error == OK,
@@ -1330,6 +1595,42 @@ func _graph_save_result(error: int, path: String, status_text: String) -> Dictio
 		"path": path,
 		"source": HexMapAssetLibraryScript.SOURCE_PROJECT if error == OK else "",
 		"status_text": status_text,
+	}
+
+
+func _result_save_result(error: int, path: String, status_text: String) -> Dictionary:
+	return {
+		"ok": error == OK,
+		"error": error,
+		"path": path,
+		"source": HexMapAssetLibraryScript.SOURCE_PROJECT if error == OK else "",
+		"status_text": status_text,
+	}
+
+
+func _result_load_result(ok: bool, reason: String) -> Dictionary:
+	return {
+		"ok": ok,
+		"blocked_reason": "" if ok else reason,
+		"path": "",
+		"name": "",
+		"result_id": "",
+		"graph_rerun": false,
+		"status_text": reason,
+	}
+
+
+func _result_entry_from_save_result(save_result: Dictionary, resource: HexGenerationResultResourceScript, display_name: String) -> Dictionary:
+	var entry = save_result.get("entry", {})
+	if entry is Dictionary and not (entry as Dictionary).is_empty():
+		var result := (entry as Dictionary).duplicate(true)
+		result["name"] = display_name
+		return result
+	return {
+		"name": display_name,
+		"path": String(save_result.get("path", "")),
+		"source": HexMapAssetLibraryScript.SOURCE_PROJECT,
+		"result_id": resource.result_id if resource != null else "",
 	}
 
 
@@ -1369,6 +1670,63 @@ func _current_graph_settings() -> Dictionary:
 	return {
 		"seed": int(settings.get("seed", 0)),
 		"orientation": int(settings.get("orientation", 0)),
+	}
+
+
+func _latest_result_output() -> Dictionary:
+	var cache = _last_report.get("cache", {})
+	if not cache is Dictionary:
+		return {}
+	if _canvas != null:
+		var selected_output = _canvas.selected_output()
+		if selected_output is HexGenerationResultResourceScript:
+			return {
+				"node_id": _canvas.selected_node_id(),
+				"output": selected_output,
+			}
+	var graph_model := _canvas.build_graph_model() if _canvas != null else {}
+	var nodes: Dictionary = graph_model.get("nodes", {})
+	var edges: Array = graph_model.get("edges", [])
+	for node_id in nodes.keys():
+		var text_id := String(node_id)
+		var node_entry = nodes[text_id] as Dictionary
+		if String(node_entry.get("type", "")) != HexGenerationNodeTypesScript.NODE_RESULT:
+			continue
+		if not (cache as Dictionary).has(text_id):
+			continue
+		if not _node_has_outgoing_edge(text_id, edges) and (cache as Dictionary)[text_id] is HexGenerationResultResourceScript:
+			return {
+				"node_id": text_id,
+				"output": (cache as Dictionary)[text_id],
+			}
+	for node_id in nodes.keys():
+		var text_id := String(node_id)
+		var node_entry = nodes[text_id] as Dictionary
+		if String(node_entry.get("type", "")) == HexGenerationNodeTypesScript.NODE_RESULT \
+				and (cache as Dictionary).has(text_id) \
+				and (cache as Dictionary)[text_id] is HexGenerationResultResourceScript:
+			return {
+				"node_id": text_id,
+				"output": (cache as Dictionary)[text_id],
+			}
+	return {}
+
+
+func _node_has_outgoing_edge(node_id: String, edges: Array) -> bool:
+	for edge in edges:
+		var edge_dict = edge as Dictionary
+		if String(edge_dict.get("from_node", "")) == node_id:
+			return true
+	return false
+
+
+func _result_generation_snapshot(result_node_id: String) -> Dictionary:
+	return {
+		"graph": _canvas_graph_model_with_current_settings(),
+		"result_node_id": result_node_id,
+		"seed": int(_current_graph_settings().get("seed", 0)),
+		"run_ok": bool(_last_report.get("ok", false)),
+		"graph_run_count": _graph_run_count,
 	}
 
 
@@ -1559,6 +1917,13 @@ func _on_template_item_selected(index: int) -> void:
 	apply_graph_template_entry(_entry_for_template_index(index))
 
 
+func _on_result_item_selected(index: int) -> void:
+	var entry := _entry_for_result_index(index)
+	if entry.is_empty():
+		return
+	load_result_entry(entry)
+
+
 func _on_load_template_pressed() -> void:
 	load_selected_template()
 
@@ -1584,6 +1949,21 @@ func _on_save_as_pressed() -> void:
 
 func _on_save_as_confirmed() -> void:
 	save_current_graph_as(_template_save_name_edit.text if _template_save_name_edit != null else "")
+
+
+func _on_save_result_pressed() -> void:
+	if _result_save_dialog == null or _result_save_name_edit == null:
+		save_current_result_as()
+		return
+	_result_save_name_edit.text = _default_result_save_name()
+	if is_inside_tree():
+		_result_save_dialog.popup_centered()
+	else:
+		save_current_result_as(_result_save_name_edit.text)
+
+
+func _on_save_result_confirmed() -> void:
+	save_current_result_as(_result_save_name_edit.text if _result_save_name_edit != null else "")
 
 
 func _on_cancel_pressed() -> void:
@@ -1612,12 +1992,14 @@ func _on_palette_node_template_requested(node_type: String, params: Dictionary) 
 
 func _on_canvas_selected_node_changed(_node_id: String) -> void:
 	_refresh_selected_node()
+	_update_result_controls()
 
 
 func _on_canvas_graph_changed() -> void:
 	if _status_label != null:
 		_status_label.text = String((_canvas.canvas_snapshot() as Dictionary).get("status_text", ""))
 	_refresh_edge_action()
+	_update_result_controls()
 
 
 func _refresh_edge_action() -> void:
@@ -1842,7 +2224,7 @@ func _promote_result_report(output, node_id: String, node_entry: Dictionary) -> 
 			total_count += int(overlay_result.get("cell_count", 0))
 			if bool(overlay_result.get("ok", false)):
 				overlay_layer_ids.append(layer_id)
-	var orientation_val := int(_current_graph_settings().get("orientation", 0))
+	var orientation_val := _result_output_orientation(output)
 	if _context_hex_tile_map_layer != null and is_instance_valid(_context_hex_tile_map_layer):
 		_context_hex_tile_map_layer.flat_top = orientation_val == 0
 	_last_promote_result = {
@@ -1899,6 +2281,17 @@ func _result_metadata_array(output, key: String) -> Array:
 		return []
 	var value = (metadata as Dictionary).get(key, [])
 	return value.duplicate(true) if value is Array else []
+
+
+func _result_output_orientation(output) -> int:
+	if output != null:
+		var primary = output.get("primary_map")
+		if primary != null:
+			return int(primary.get("orientation"))
+		var overlays = output.get("overlay_maps")
+		if overlays is Array and not (overlays as Array).is_empty() and (overlays as Array)[0] != null:
+			return int(((overlays as Array)[0]).get("orientation"))
+	return int(_current_graph_settings().get("orientation", 0))
 
 
 func _commit_viewport_preview(source: String) -> void:

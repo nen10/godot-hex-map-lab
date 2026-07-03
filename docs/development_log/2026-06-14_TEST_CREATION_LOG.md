@@ -42,8 +42,10 @@
   - Build tab graph canvas、untyped port / consolidated connection acceptance、legacy logical rejection、adaptation row persistence、Result stack row resolution / overlay reorder / row-control snapshot、GraphEdit→Dictionary model同期、3-node chain preview、run cache/dirty/failure state、failure/progress node highlight、Generate popup progress、Template/Save as/Load header contract、palette/inspector contract
 - `tests/test_build_screen_full.gd`
   - Build tab Template dropdown、旧 Profile/Simple/Batch/Load Graph/Overwrite/context chip 撤去、基本形 template Generate、Save as→Load round-trip、profile 無し graphless selected layer の primary Generate bootstrap / Apply-Revert pending state
+  - GQM-14: 生成済み Result の project `results/` 保存、field 限定（data 込み・park field 未使用）、Results dropdown の名前リスト表示、thumbnail 不在
 - `tests/test_generation_promote.gd`
   - Generation Graph output の Document promote、generated層置換、manual層保持、overlay/object/terrain role、Result write policy stack composition、Result row substrate/overlay promote、save/load roundtrip、Build screen vertical slice、Build context bootstrap、top Generate の new/selected HexTileMapLayer viewport projection、Apply/Revert preview contract
+  - GQM-14: 保存済み Result resource の即時切替（graph rerun なし）、saved data からの viewport preview、Apply/Revert、Result promote 経路
 - `tests/test_hex_adapter.gd`
   - canonical resource adapter、save/load roundtrip、validation エンジン、依存解決、プロファイル検証
 - `tests/test_hex_tile_map_layer.gd`
