@@ -277,7 +277,7 @@ func _test_vector_to_display_axial_keeps_six_neighbor_shape() -> void:
 
 func _test_flat_top_offset_neighbor_deltas_match_unity_even_row() -> void:
 	_assert_neighbor_offset_deltas(
-		HexPoint.from_cube(0, 0, 0),
+		HexPoint.from_basis(0, 0, 0),
 		[
 			Vector2i(1, 0),
 			Vector2i(0, -1),
@@ -301,12 +301,12 @@ func _test_flat_top_offset_neighbor_deltas_match_unity_odd_row() -> void:
 	]
 
 	_assert_neighbor_offset_deltas(
-		HexPoint.from_cube(0, 0, 1),
+		HexPoint.from_basis(0, 0, 1),
 		expected,
 		"flat-top offset deltas from positive odd R center"
 	)
 	_assert_neighbor_offset_deltas(
-		HexPoint.from_cube(0, 0, -1),
+		HexPoint.from_basis(0, 0, -1),
 		expected,
 		"flat-top offset deltas from negative odd R center"
 	)
@@ -315,11 +315,11 @@ func _test_flat_top_offset_neighbor_deltas_match_unity_odd_row() -> void:
 func _test_flat_top_offset_local_positions_are_center_parity_invariant() -> void:
 	var size = 10.0
 	var centers = [
-		HexPoint.from_cube(0, 0, 0),
-		HexPoint.from_cube(0, 0, 1),
-		HexPoint.from_cube(0, 0, -1),
-		HexPoint.from_cube(2, 0, 2),
-		HexPoint.from_cube(2, 0, 3),
+		HexPoint.from_basis(0, 0, 0),
+		HexPoint.from_basis(0, 0, 1),
+		HexPoint.from_basis(0, 0, -1),
+		HexPoint.from_basis(2, 0, 2),
+		HexPoint.from_basis(2, 0, 3),
 	]
 	var directions = HexVector.directions()
 

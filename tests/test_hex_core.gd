@@ -17,9 +17,11 @@ func _init() -> void:
 
 func _run() -> void:
 	_test_hex_vector_basis_normalization()
+	_test_hex_vector_axial_roundtrip()
 	_test_hex_vector_directions()
 	_test_hex_point_offset_roundtrip()
 	_test_hex_point_distance_and_addition()
+	_test_hex_point_from_basis_matches_vector_axial()
 	_test_toric_coordinate_wraps_axial_values()
 	_test_toric_coordinate_centered_vectors_preserve_identity()
 	_test_toric_coordinate_unfolded_vectors_preserve_identity()
@@ -115,6 +117,25 @@ func _test_hex_vector_basis_normalization() -> void:
 	_assert_eq(HexVector.zero().l2_norm(), 0.0, "zero L2 norm")
 
 
+func _test_hex_vector_axial_roundtrip() -> void:
+	for axial in [
+		Vector2i(0, 0),
+		Vector2i(1, 0),
+		Vector2i(0, -1),
+		Vector2i(-1, -1),
+		Vector2i(3, 3),
+		Vector2i(-2, 5),
+	]:
+		var v = HexVector.from_axial(axial.x, axial.y)
+		_assert_eq(v.axial(), axial, "axial coordinate should roundtrip")
+		for k in [-2, 1, 5]:
+			_assert_vector_eq(
+				HexVector.apply_basis(v.q + k, v.s + k, v.r + k),
+				v,
+				"basis slide should preserve axial identity"
+			)
+
+
 func _test_hex_vector_directions() -> void:
 	var keys: Dictionary = {}
 	for direction in HexVector.directions():
@@ -147,6 +168,28 @@ func _test_hex_point_distance_and_addition() -> void:
 	_assert_eq(origin.l1_distance_to(southeast), 1, "diagonal row neighbor distance is 1")
 	_assert_vector_eq(origin.vector_to(east), HexVector.q_axis(), "vector_to points toward target")
 	_assert_vector_eq(east.vector_from(origin), HexVector.q_axis(), "vector_from points away from source")
+
+
+func _test_hex_point_from_basis_matches_vector_axial() -> void:
+	_assert_true(
+		HexPoint.from_basis(3, 1, 3).is_equal(HexPoint.new(2, 2)),
+		"from_basis should convert slide-equivalent basis triples to axial points"
+	)
+
+	for vector in [
+		HexVector.apply_basis(1, 0, 1),
+		HexVector.from_axial(-2, 5),
+	]:
+		var axial = vector.axial()
+		var point = HexPoint.from_basis(vector.q, vector.s, vector.r)
+		_assert_eq(point.q, axial.x, "from_basis q should match vector axial x")
+		_assert_eq(point.r, axial.y, "from_basis r should match vector axial y")
+
+	for k in [-3, 2, 7]:
+		_assert_true(
+			HexPoint.from_basis(4 + k, 1 + k, -2 + k).is_equal(HexPoint.from_basis(4, 1, -2)),
+			"from_basis should ignore shared basis slide"
+		)
 
 
 func _test_toric_coordinate_wraps_axial_values() -> void:

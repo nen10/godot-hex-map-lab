@@ -66,8 +66,8 @@ func _draw() -> void:
 		ViewMode.POINTY:
 			_draw_panel(SINGLE_ORIGIN, false, "pointy-top")
 		ViewMode.PARITY:
-			_draw_offset_parity_panel(FLAT_ORIGIN, HexPoint.from_cube(0, 0, 0), "flat offset R even")
-			_draw_offset_parity_panel(POINTY_ORIGIN, HexPoint.from_cube(0, 0, 1), "flat offset R odd")
+			_draw_offset_parity_panel(FLAT_ORIGIN, HexPoint.from_basis(0, 0, 0), "flat offset R even")
+			_draw_offset_parity_panel(POINTY_ORIGIN, HexPoint.from_basis(0, 0, 1), "flat offset R odd")
 		ViewMode.CUSTOM:
 			var title = "custom flat-top" if _custom_flat_top else "custom pointy-top"
 			_draw_point_panel(SINGLE_ORIGIN, _custom_center(), _custom_flat_top, title)
@@ -154,8 +154,8 @@ func _rebuild_labels() -> void:
 		ViewMode.POINTY:
 			_add_panel_labels(SINGLE_ORIGIN, false)
 		ViewMode.PARITY:
-			_add_offset_panel_labels(FLAT_ORIGIN, HexPoint.from_cube(0, 0, 0))
-			_add_offset_panel_labels(POINTY_ORIGIN, HexPoint.from_cube(0, 0, 1))
+			_add_offset_panel_labels(FLAT_ORIGIN, HexPoint.from_basis(0, 0, 0))
+			_add_offset_panel_labels(POINTY_ORIGIN, HexPoint.from_basis(0, 0, 1))
 		ViewMode.CUSTOM:
 			_add_point_panel_labels(SINGLE_ORIGIN, _custom_center(), _custom_flat_top)
 		_:
@@ -300,7 +300,7 @@ func _set_custom_r(value: float) -> void:
 
 
 func _custom_center():
-	return HexPoint.from_cube(_custom_q, _custom_s, _custom_r)
+	return HexPoint.from_basis(_custom_q, _custom_s, _custom_r)
 
 
 func _point_to_local(point, flat_top: bool) -> Vector2:

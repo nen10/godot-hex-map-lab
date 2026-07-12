@@ -356,7 +356,7 @@ static func hex_to_local(vector, hex_size: float, flat_top: bool = true) -> Vect
 
 
 static func _vector_to_point(vector):
-	return HexPointScript.from_cube(vector.q, vector.s, vector.r)
+	return HexPointScript.from_basis(vector.q, vector.s, vector.r)
 
 
 static func _floor_div2(value: int) -> int:

@@ -22,6 +22,12 @@ static func apply_basis(p_q: int, p_s: int, p_r: int):
 		slide += min_delta if min_delta > 0 else max_delta
 	return _new(p_q - slide, p_s - slide, p_r - slide)
 
+static func to_axial(p_q: int, p_s: int, p_r: int):
+	return apply_basis(p_q, p_s, p_r)
+
+static func from_axial(p_q: int, p_r: int):
+	return apply_basis(p_q, 0, p_r)
+
 
 static func zero():
 	return apply_basis(0, 0, 0)

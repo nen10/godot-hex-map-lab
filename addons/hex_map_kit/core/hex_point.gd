@@ -12,7 +12,7 @@ func _init(p_q: int = 0, p_r: int = 0) -> void:
 	r = p_r
 
 
-static func from_cube(p_q: int, p_s: int, p_r: int):
+static func from_basis(p_q: int, p_s: int, p_r: int):
 	return _new(p_q - p_s, p_r - p_s)
 
 
@@ -33,11 +33,11 @@ func coordinate_align() -> int:
 
 
 func add_vector(vector):
-	return from_cube(q + vector.q, vector.s, r + vector.r)
+	return from_basis(q + vector.q, vector.s, r + vector.r)
 
 
 func subtract_vector(vector):
-	return from_cube(q - vector.q, -vector.s, r - vector.r)
+	return from_basis(q - vector.q, -vector.s, r - vector.r)
 
 
 func vector_from(other):

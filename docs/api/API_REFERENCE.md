@@ -13,10 +13,55 @@ Path: `res://addons/hex_map_kit/core/hex_vector.gd`
 - `HexVector.zero()`
 - `HexVector.q_axis()`, `s_axis()`, `r_axis()`
 - `HexVector.apply_basis(q, s, r)`
+- `HexVector.from_axial(q, r)`
+- `axial() -> Vector2i`
 - `add(other)`, `subtract(other)`, `scaled(amount)`
 - `key()`
 
 Use it as the canonical hex coordinate value for cells, paths, object placements, labels, and runtime queries.
+
+`q` / `s` / `r` are public integer components. They are unit-basis coefficients, not cube
+coordinates with `q + s + r == 0`. A shared slide `(q + k, s + k, r + k)` represents
+the same hex, and `apply_basis(q, s, r)` normalizes it to the canonical form. For example,
+`apply_basis(3, 1, 3)` equals `apply_basis(0, -2, 0)`, and `q_axis()` is `(1, 0, 0)`
+even though its component sum is not zero.
+
+`axial()` is the public axial conversion and returns `(q - s, r - s)`. `from_axial(q, r)`
+is the inverse constructor and is equivalent to `apply_basis(q, 0, r)`. Reading `q`, `s`,
+and `r` is public API, but external integrations should prefer `axial()` / `from_axial()`
+when exchanging coordinates.
+
+HexVector が採用する cannonical hex は hex cube 座標系とは異なる。cannonical hex の目的はL^1,L^2,L^∞を表現するさまざまな距離計算の導出を数学的に簡潔な他の表現によって取り出せることにある。計算経路を複数用意できる座標表現として有用である。
+
+When you need display-space conversions (offset coordinates or `TileMapLayer` cells),
+use `HexPoint` rather than `HexVector`.
+
+### `HexPoint`
+
+Path: `res://addons/hex_map_kit/core/hex_point.gd`
+
+- `HexPoint.new(q, r)`
+- `HexPoint.from_basis(q, s, r)`
+- `HexPoint.from_offset(x, y)`
+- `to_offset() -> Vector2i`
+- `to_cell() -> Vector3i`
+- `relative_cell(origin_z_order)`
+- `add_vector(vector)`, `subtract_vector(vector)`
+- `vector_from(other)`, `vector_to(other)`
+- `l1_distance_to(other)`, `l2_distance_to(other)`
+- `key()`
+
+HexPoint is the display-facing position type. It bridges core `HexVector` coordinates
+into display space: axial `(q, r)` components, offset coordinates, and `TileMapLayer`
+cell / z-order values. Use `HexVector` for core math and storage; use `HexPoint` at the
+rendering / authoring boundary.
+
+`HexPoint.new(q, r)` takes the axial position directly as its constructor. `from_basis(q, s, r)`
+accepts `HexVector` unit-basis coefficients (the same slide-equivalent triples as
+`apply_basis`) and yields the axial point `(q - s, r - s)`; `from_basis(v.q, v.s, v.r)`
+equals the point at `v.axial()`. `from_offset(x, y)` builds a point from offset
+coordinates, while `to_offset()`, `to_cell()`, and `relative_cell(origin_z_order)` convert
+back to offset / `TileMapLayer` cell / z-order values.
 
 ### `HexGrid`
 
